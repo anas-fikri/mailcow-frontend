@@ -22,7 +22,7 @@ All modules connect to SOGo API in real-time — no mock data.
 | State | Zustand |
 | Data | TanStack React Query |
 | UI | Framer Motion, Lucide React |
-| Backend Proxy | Express + Nodemailer (SMTP) |
+| Backend Proxy | Express + Nodemailer (SMTP) — systemd service di host |
 | Deploy | Rsync → Mailcow Nginx |
 
 ## Quick Start
@@ -49,6 +49,15 @@ rsync -av --delete dist/ mailserver:/data/docker-data/mailcow/data/web/webmail/
 ssh mailserver "docker exec mailcow-nginx-mailcow-1 nginx -s reload"
 ```
 
+## SMTP Proxy (Production)
+
+Server.js jalan sebagai systemd user service di host Mailcow:
+```bash
+ssh mailserver "systemctl --user status sogo-smtp-proxy"
+```
+
+Proxy via Nginx `location ~ ^/api/(send|health)$` → `172.25.1.1:3003`.
+
 ## Repository
 
 ```
@@ -70,6 +79,9 @@ src/
 ├── App.jsx
 └── main.jsx
 docs/iso/           # ISO-SDLC documentation (PRD, ARD, Roadmap, Deployment Guide)
+configs/            # Nginx config files
+deploy.sh           # Automation script
+server.js           # SMTP proxy backend
 ```
 
 ## Documentation

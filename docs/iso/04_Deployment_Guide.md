@@ -253,6 +253,66 @@ Host mailserver → 10.3.3.210 (key: id_ed25519_agent)
 | `/data/docker-data/mailcow/data/web/webmail/` | Webmail static files (deploy target) |
 | `/data/docker-data/mailcow/data/conf/nginx/site.webmail.custom` | Nginx config SOGo frontend |
 | `/data/docker-data/mailcow/data/web/` → `/web` (container) | Web root Nginx container |
+| `/home/anas.fikri/sogo-proxy/` | SMTP proxy (server.js) di host |
+| `/home/anas.fikri/.config/systemd/user/sogo-smtp-proxy.service` | Systemd user service SMTP proxy |
+
+### 7.5. SMTP Proxy Service
+
+server.js jalan sebagai **systemd user service** di host Mailcow:
+
+```bash
+# Status
+ssh mailserver "systemctl --user status sogo-smtp-proxy"
+
+# Restart
+ssh mailserver "systemctl --user restart sogo-smtp-proxy"
+
+# Logs
+ssh mailserver "journalctl --user -u sogo-smtp-proxy -f"
+```
+
+Service listening di `127.0.0.1:3003`, diproxy oleh Nginx via `location ~ ^/api/(send|health)$` ke `172.25.1.1:3003` (docker gateway → host).
+
+### 7.6. Mailcow API Key
+
+Dashboard Mailcow perlu API key dengan **IP check disabled** karena dari browser:
+
+```sql
+UPDATE api SET skip_ip_check=1, allow_from='0.0.0.0/0' WHERE api_key='<KEY>';
+```
+
+Cek API key:
+```bash
+ssh mailserver "docker exec mailcow-mysql-mailcow-1 mysql -u root -p\$MYSQL_ROOT_PASSWORD mailcow -e 'SELECT * FROM api'"
+```
+
+### 7.7. Cek Log Pengiriman Email (Postfix)
+
+Log email gak ada di dashboard — langsung dari Postfix:
+
+```bash
+# Semua status pengiriman
+ssh mailserver "docker logs mailcow-postfix-mailcow-1 2>&1 | grep 'status='"
+
+# Filter ke Gmail
+ssh mailserver "docker logs mailcow-postfix-mailcow-1 2>&1 | grep 'gmail.com' | grep 'status='"
+
+# Live tail
+ssh mailserver "docker logs mailcow-postfix-mailcow-1 -f 2>&1 | grep --line-buffered 'status='"
+```
+
+### 7.8. Gmail Deliverability
+
+IP `115.178.128.146` sering diblok Gmail (`550 5.7.1 likely unsolicited mail`). Penyebab:
+- **Tidak ada PTR/rDNS record** → Minta ISP set rDNS `115.178.128.146` → `mail.pcpexpress.co.id`
+- **DKIM** belum signing semua outgoing mail → Cek di dashboard Mailcow → Configuration → DKIM
+- **DMARC** belum terpasang → Tambah TXT record `_dmarc.pcpexpress.co.id` → `v=DMARC1; p=none`
+
+Cek reputasi IP:
+```bash
+ssh mailserver "curl -s https://dns.google/resolve?name=146.128.178.115.zen.spamhaus.org\&type=A"
+# → IP terdaftar jika ada result (NXDOMAIN = bersih)
+```
 
 ---
 
