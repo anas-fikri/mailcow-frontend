@@ -37,8 +37,10 @@ export async function login(email, password) {
     throw new Error(data.message || `Login gagal (HTTP ${res.status})`);
   }
 
-  const data = await res.json();
-  return { sogoToken: data.username, cn: data.cn, email };
+  // SOGo 5.12+ returns encrypted session token as 'username' (bukan email).
+  // Kita pake email langsung dari form login aja.
+  const data = await res.json().catch(() => ({}));
+  return { sogoToken: email, cn: data.cn || email, email };
 }
 
 export async function logout() {
