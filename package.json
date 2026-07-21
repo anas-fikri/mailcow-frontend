@@ -1,0 +1,34 @@
+{
+  "name": "sogo-frontend",
+  "version": "1.0.0",
+  "description": "PCP Express Modern Webmail — SOGo React Frontend",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "node server.js",
+    "dev:all": "concurrently -k -n \"SMTP,VITE\" -c \"bgBlue,bgGreen\" \"node server.js\" \"vite\"",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tailwindcss/typography": "^0.5.20",
+    "@tanstack/react-query": "^5.0.0",
+    "cors": "^2.8.6",
+    "dompurify": "^3.4.12",
+    "express": "^5.2.1",
+    "framer-motion": "^11.0.0",
+    "lucide-react": "^0.400.0",
+    "nodemailer": "^9.0.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^6.26.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "concurrently": "^10.0.3",
+    "tailwindcss": "^4.0.0",
+    "vite": "^5.4.0"
+  }
+}
