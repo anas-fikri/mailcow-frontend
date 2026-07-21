@@ -323,6 +323,17 @@ export default function MailPage() {
           </div>
         )}
 
+        {/* FAB: Tulis Pesan (mobile only) */}
+        {!selectedMsgId && (
+          <button
+            onClick={() => { setComposeData(null); setComposeOpen(true); }}
+            className="md:hidden fixed bottom-20 right-4 z-20 w-14 h-14 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full shadow-lg flex items-center justify-center transition-all active:scale-95"
+            aria-label="Tulis Pesan"
+          >
+            <Edit3 size={22} />
+          </button>
+        )}
+
         {/* Message list */}
         <div className="flex-1 overflow-y-auto">
           {loadingMessages ? (
