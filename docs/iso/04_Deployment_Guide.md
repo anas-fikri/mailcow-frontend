@@ -7,26 +7,20 @@
 
 ### 1.1. Informasi Repositori
 - **Platform Git:** GitLab PCP Express Internal
-- **Repo URL:** `https://gitlab.pcpexpress.com/devops-team/sogo-frontend.git` *(akan dibuat baru)*
+- **Repo URL:** `https://gitlab.pcpexpress.com/devops-team/mailcow-frontend.git`
 - **Branch Utama:** `main`
-- **Branch Development:** `dev` *(semua pekerjaan harus dimulai dari sini)*
 - **Lokasi Lokal (Mac Dev):** `/Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend`
 
 ### 1.2. First Time Setup (Sekali Saja)
 ```bash
 # Clone repositori
-git clone https://gitlab.pcpexpress.com/devops-team/sogo-frontend.git \
+git clone https://gitlab.pcpexpress.com/devops-team/mailcow-frontend.git \
   /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
 cd /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-# Inisialisasi project React
-npm create vite@latest . -- --template react
+# Install dependencies
 npm install
-
-# Install dependencies utama (sesuai ARD)
-npm install tailwindcss@next @tailwindcss/vite zustand @tanstack/react-query react-router-dom framer-motion
-npm install -D @types/react
 
 # Jalankan dev server lokal
 npm run dev
@@ -37,31 +31,31 @@ npm run dev
 ## 2. Koneksi ke Server (SSH)
 
 ### 2.1. Konfigurasi SSH (Sudah Ada di `~/.ssh/config`)
-File `~/.ssh/config` di Mac Dev **harus** memiliki entri berikut:
+File `~/.ssh/config` di Mac Dev memiliki entri berikut:
 ```
 Host mailserver
     HostName 10.3.3.210
     User anas.fikri
-    IdentityFile ~/.ssh/id_ed25519
-    Port 22
+    IdentityFile ~/.ssh/id_ed25519_agent
+    IdentitiesOnly yes
 ```
 
 ### 2.2. Cek Koneksi
 ```bash
-# Harus bisa terkoneksi tanpa password
-ssh mailserver 'echo "Koneksi berhasil!"'
+ssh mailserver 'echo "OK"'
 ```
 
 ### 2.3. Credential & Informasi Server
-| Property          | Value                               |
-|-------------------|-------------------------------------|
-| **IP Server**     | `10.3.3.210`                        |
-| **SSH User**      | `anas.fikri`                        |
-| **SSH Key**       | `~/.ssh/id_ed25519`                 |
-| **OS**            | Ubuntu 20.04 (Bare Metal)           |
-| **Mailcow Root**  | `/data/docker-data/mailcow/`        |
-| **Nginx Config**  | `/data/docker-data/mailcow/data/conf/nginx/` |
-| **Web Root**      | `/data/docker-data/mailcow/data/web/` |
+| Property          | Value                                      |
+|-------------------|--------------------------------------------|
+| **IP Server**     | `10.3.3.210`                               |
+| **SSH User**      | `anas.fikri`                               |
+| **SSH Key**       | `~/.ssh/id_ed25519_agent`                  |
+| **OS**            | Ubuntu 20.04 (Bare Metal)                  |
+| **Mailcow Root**  | `/data/docker-data/mailcow/`               |
+| **Nginx Config**  | `/data/docker-data/mailcow/data/conf/nginx/`|
+| **Web Root**      | `/data/docker-data/mailcow/data/web/`      |
+| **Webmail Deploy**| `/data/docker-data/mailcow/data/web/webmail/`|
 
 ---
 
@@ -117,34 +111,52 @@ git push origin feat/task-1.3-login-page
 
 ---
 
-## 5. Build & Deployment ke Server Mailcow
+## 5. Build, Commit, Push & Deployment
 
-> **PENTING:** Deployment **hanya** dilakukan dari branch `main` yang sudah di-review.
+> **PENTING:** Deployment dari branch `main`.
 
-### 5.1. Proses Build
+### 5.1. Quick Deploy (Rekomendasi)
+
+Gunakan script `deploy.sh` — otomatis build, commit, push & deploy:
+
 ```bash
-# Pastikan di root project
-cd /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
+# build + deploy aja (skip commit/push)
+./deploy.sh
 
-# Build untuk production
+# build + commit + push + deploy
+./deploy.sh "feat(x): pesan perubahan"
+```
+
+Script otomatis ambil GitLab credential dari macOS Keychain. Simpan credential:
+```bash
+security add-internet-password -s gitlab.pcpexpress.com -a "anas.fikri@pcpexpress.com" -w "TOKEN_ANDA"
+```
+
+### 5.2. Manual Steps
+
+```bash
+# Build
 npm run build
-# Output: folder `dist/` berisi aset statis (HTML/JS/CSS)
+
+# Deploy ke server
+rsync -av --delete dist/ mailserver:/data/docker-data/mailcow/data/web/webmail/
+
+# Reload Nginx
+ssh mailserver "docker exec mailcow-nginx-mailcow-1 nginx -s reload"
 ```
 
-### 5.2. Deploy ke Server via Rsync
-```bash
-# Sync folder dist/ ke web root Mailcow
-rsync -av --delete dist/ \
-  mailserver:/data/docker-data/mailcow/data/web/webmail/
-```
+### 5.3. Git Push via HTTPS (karena SSH port 22 diblok)
 
-### 5.3. Satu Baris Perintah (Build + Commit + Push + Deploy)
+GitLab SSH port 22 diblok firewall. Gunakan HTTPS dengan credential:
+
 ```bash
-npm run build && \
-  git add . && \
-  git commit -m "chore(deploy): build and deploy to production" && \
-  git push origin main && \
-  rsync -av --delete dist/ mailserver:/data/docker-data/mailcow/data/web/webmail/
+# Set remote
+git remote add origin https://gitlab.pcpexpress.com/devops-team/mailcow-frontend.git
+
+# Push (credential dari keychain)
+TOKEN=$(security find-internet-password -s gitlab.pcpexpress.com -w)
+ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$TOKEN', safe=''))")
+git push "https://anas.fikri%40pcpexpress.com:${ENCODED}@gitlab.pcpexpress.com/devops-team/mailcow-frontend.git" main
 ```
 
 ---
@@ -153,7 +165,7 @@ npm run build && \
 
 Agar React App dapat diakses di `https://mail.pcpexpress.co.id/webmail`, buat file konfigurasi Nginx custom di server:
 
-### 6.1. Buat File Config
+### 6.1. Buat File Config (Otomatis oleh deploy.sh, atau manual:)
 ```bash
 ssh mailserver 'cat > /data/docker-data/mailcow/data/conf/nginx/site.webmail.custom << '"'"'EOF'"'"'
 # site.webmail.custom - SOGo React Frontend
@@ -174,20 +186,77 @@ location /webmail {
 EOF'
 ```
 
-### 6.2. Restart Nginx Mailcow
+### 6.2. Restart / Reload Nginx
 ```bash
-ssh mailserver 'docker restart mailcow-nginx-mailcow-1'
+# Reload (zero-downtime, prefer this)
+ssh mailserver "docker exec mailcow-nginx-mailcow-1 nginx -s reload"
+
+# Atau restart penuh
+ssh mailserver "docker restart mailcow-nginx-mailcow-1"
 ```
 
 ### 6.3. Verifikasi
 ```bash
-curl -I https://mail.pcpexpress.co.id/webmail/
-# Harus mengembalikan HTTP/2 200
+# Cek HTTP response
+curl -skI https://mail.pcpexpress.co.id/webmail/ | head -5
+# → HTTP/2 200
+
+# Cek aset statis (cache header harus immutable)
+curl -skI https://mail.pcpexpress.co.id/webmail/assets/index-*.js | grep -i cache-control
+# → cache-control: public, max-age=31536000, immutable
+
+# Cek dari server
+ssh mailserver "curl -sk -o /dev/null -w '%{http_code}' https://mail.pcpexpress.co.id/webmail/"
+# → 200
 ```
 
 ---
 
-## 7. Struktur Folder Project (Wajib Diikuti AI)
+## 7. Operations & Troubleshooting
+
+### 7.1. Deploy Script (`deploy.sh`)
+
+| Perintah | Aksi |
+|----------|------|
+| `./deploy.sh` | Build + deploy (skip commit) |
+| `./deploy.sh "feat: pesan"` | Build + commit + push + deploy |
+| `./deploy.sh --help` | Bantuan |
+
+Script menyimpan credential di `.git/gitlab-creds` (auto-clean setelah push).
+
+### 7.2. GitLab Credential (macOS Keychain)
+
+Credential GitLab disimpan di macOS Keychain — aman, tidak hardcode:
+
+```bash
+# Lihat status
+security find-internet-password -s gitlab.pcpexpress.com -w
+
+# Update token
+security add-internet-password -s gitlab.pcpexpress.com -a "anas.fikri@pcpexpress.com" -w "TOKEN_BARU" -U
+```
+
+### 7.3. Remote URLs
+
+```bash
+# HTTPS (untuk push — karena SSH port 22 diblok)
+origin  https://gitlab.pcpexpress.com/devops-team/mailcow-frontend.git
+
+# SSH config alias (untuk akses server)
+Host mailserver → 10.3.3.210 (key: id_ed25519_agent)
+```
+
+### 7.4. Server Paths
+
+| Path | Fungsi |
+|------|--------|
+| `/data/docker-data/mailcow/data/web/webmail/` | Webmail static files (deploy target) |
+| `/data/docker-data/mailcow/data/conf/nginx/site.webmail.custom` | Nginx config SOGo frontend |
+| `/data/docker-data/mailcow/data/web/` → `/web` (container) | Web root Nginx container |
+
+---
+
+## 8. Struktur Folder Project (Wajib Diikuti AI)
 
 ```
 sogo-frontend/
@@ -216,9 +285,11 @@ sogo-frontend/
 │   │   └── ui/             # Komponen generik (Button, Badge, Spinner)
 │   ├── App.jsx
 │   └── main.jsx
+├── deploy.sh                # Build + commit + push + deploy automation
 ├── .ai-state.json           # State tracking ISO SDLC
 ├── package.json
-└── vite.config.js           # Wajib config base: "/webmail"
+├── server.js                # Backend proxy SMTP (port 3001)
+└── vite.config.js           # base: "/webmail", proxy /SOGo → mail.pcpexpress.co.id
 ```
 
 > **ATURAN AI:** Semua pemanggilan API ke SOGo **harus** ditulis di `src/lib/api.js`. Jangan pernah menulis `fetch()` atau `axios()` langsung di dalam komponen React.
