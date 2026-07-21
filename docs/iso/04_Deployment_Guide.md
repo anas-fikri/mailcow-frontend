@@ -301,7 +301,39 @@ ssh mailserver "docker logs mailcow-postfix-mailcow-1 2>&1 | grep 'gmail.com' | 
 ssh mailserver "docker logs mailcow-postfix-mailcow-1 -f 2>&1 | grep --line-buffered 'status='"
 ```
 
-### 7.8. Gmail Deliverability
+### 7.8. Domain Relay ke Vendor SaaS (backupmx)
+
+Domain yang emailnya dihosting di vendor eksternal (bukan Mailcow) harus diset `backupmx=1`:
+
+```bash
+ssh mailserver "docker exec mailcow-mysql-mailcow-1 mysql -u mailcow \
+  -p'+DuwfUM1FNfp3FJM2gMSEJ0sR1SOMH7l' mailcow -e \
+  \"UPDATE domain SET backupmx=1, relay_all_recipients=1 WHERE domain='domain.com';\""
+
+# Restart Postfix
+ssh mailserver "cd /data/docker-data/mailcow && docker compose restart postfix-mailcow"
+```
+
+**Cek MX record domain:**
+```bash
+dig mx domain.com +short
+```
+
+Jika MX mengarah ke server lain (bukan `mail.pcpexpress.co.id`) → domain itu **bukan** domain lokal → harus `backupmx=1`.
+
+**Domain yang sudah diset backupmx=1:**
+| Domain | MX | Vendor |
+|--------|----|--------|
+| `pcpexpress.com` | mx11.eranyacloud.com, mx12.eranyacloud.com | Eranya Cloud |
+
+**Error sebelum fix:**
+```
+550 5.1.1 <user@domain-vendor.com>: Recipient address rejected:
+User unknown in virtual mailbox table
+```
+→ Karena Postfix nganggap domain lokal, tapi user gak ada di mailbox Mailcow.
+
+### 7.9. Gmail Deliverability
 
 IP `115.178.128.146` sering diblok Gmail (`550 5.7.1 likely unsolicited mail`). Penyebab:
 - **Tidak ada PTR/rDNS record** → Minta ISP set rDNS `115.178.128.146` → `mail.pcpexpress.co.id`
