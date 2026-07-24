@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, MapPin, Clock, Plus } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, MapPin, Clock, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchCalendarEvents } from '../lib/api';
+import { fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../lib/api';
+import EventModal from '../components/EventModal';
 
 const DAYS_ID  = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -33,9 +34,13 @@ function calColor(calName = '') {
 
 export default function CalendarPage() {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
   const [current, setCurrent]   = useState(new Date());
   const [selected, setSelected] = useState(new Date());
   const [detailEv, setDetailEv] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit' | 'view'
+  const [modalEvent, setModalEvent] = useState(null);
 
   // Unix timestamps untuk awal & akhir bulan yang ditampilkan (+ buffer minggu)
   const startDate = useMemo(() => Math.floor(
@@ -76,6 +81,42 @@ export default function CalendarPage() {
 
   const selectedEvents = eventsForDay(selected);
 
+  // ── Event CRUD handlers ──────────────────────────────────────────────────
+
+  async function handleCreateEvent(eventData) {
+    await createCalendarEvent(user?.sogoToken, eventData);
+    queryClient.invalidateQueries({ queryKey: ['calendar', user?.sogoToken] });
+  }
+
+  async function handleUpdateEvent(eventData, eventId) {
+    await updateCalendarEvent(user?.sogoToken, eventId, eventData);
+    queryClient.invalidateQueries({ queryKey: ['calendar', user?.sogoToken] });
+  }
+
+  async function handleDeleteEvent(eventId) {
+    await deleteCalendarEvent(user?.sogoToken, eventId);
+    setDetailEv(null);
+    queryClient.invalidateQueries({ queryKey: ['calendar', user?.sogoToken] });
+  }
+
+  function openCreateModal(date) {
+    setModalMode('create');
+    setModalEvent(date || null);
+    setModalOpen(true);
+  }
+
+  function openEditModal(ev) {
+    setModalMode('edit');
+    setModalEvent(ev);
+    setModalOpen(true);
+  }
+
+  function openViewModal(ev) {
+    setModalMode('view');
+    setModalEvent(ev);
+    setModalOpen(true);
+  }
+
   return (
     <div className="flex h-full w-full overflow-hidden">
 
@@ -108,7 +149,13 @@ export default function CalendarPage() {
               <ChevronRight size={18} />
             </button>
           </div>
-          <div className="w-24" /> {/* spacer */}
+          <button
+            onClick={openCreateModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={16} />
+            Event
+          </button>
         </div>
 
         {/* Grid header (nama hari) */}
@@ -139,7 +186,7 @@ export default function CalendarPage() {
             return (
               <button
                 key={date.getTime()}
-                onClick={() => setSelected(date)}
+                onClick={() => { setSelected(date); openCreateModal(date); }}
                 className={`min-h-[80px] border-b border-r border-border/40 p-1.5 flex flex-col text-left hover:bg-muted/50 transition-colors ${
                   isSelected ? 'bg-primary/5 ring-1 ring-inset ring-primary/30' : ''
                 }`}
@@ -226,9 +273,25 @@ export default function CalendarPage() {
               <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${calColor(detailEv.calendar)}`}>
                 {detailEv.calendar || 'Kalender'}
               </div>
-              <button onClick={() => setDetailEv(null)} className="p-1 rounded-full hover:bg-muted text-muted-foreground">
-                <ChevronRight size={16} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => openEditModal(detailEv)}
+                  className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title="Edit"
+                >
+                  <Pencil size={14} />
+                </button>
+                <button
+                  onClick={() => { setDetailEv(null); handleDeleteEvent(detailEv.id); }}
+                  className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+                  title="Hapus"
+                >
+                  <Trash2 size={14} />
+                </button>
+                <button onClick={() => setDetailEv(null)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors">
+                  <ChevronRight size={16} />
+                </button>
+              </div>
             </div>
             <h3 className="text-lg font-semibold text-foreground mb-4">{detailEv.title}</h3>
             <div className="space-y-3 text-sm">
@@ -260,6 +323,17 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* ── Event Modal (create / edit / view) ──────────────────────────────── */}
+      <EventModal
+        isOpen={modalOpen}
+        onClose={() => { setModalOpen(false); setModalEvent(null); }}
+        onSave={modalMode === 'edit' ? handleUpdateEvent : handleCreateEvent}
+        onDelete={handleDeleteEvent}
+        event={modalEvent}
+        mode={modalMode}
+        sogoToken={user?.sogoToken}
+      />
     </div>
   );
 }

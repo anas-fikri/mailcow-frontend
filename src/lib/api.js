@@ -21,15 +21,19 @@ function sogoHeaders(extra = {}) {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export async function login(email, password) {
+  const params = new URLSearchParams();
+  params.append('userName', email);
+  params.append('password', password);
+
   const res = await fetch(`${SOGO_BASE}/SOGo/connect`, {
     method: 'POST',
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
       'X-Requested-With': 'XMLHttpRequest',
       Accept: 'application/json, text/plain, */*',
     },
-    body: JSON.stringify({ userName: email, password }),
+    body: params.toString(),
   });
 
   if (!res.ok) {
@@ -390,6 +394,108 @@ export async function deleteContact(sogoToken, cardId) {
  *   blocks: [row, row, ...]
  * }]
  */
+/**
+ * Create a new event GUID (SOGo returns a new unique ID).
+ * GET /Calendar/{calendarId}/newguid
+ */
+async function newEventGuid(sogoToken, calendarId = 'personal') {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/${calendarId}/newguid`, {
+    credentials: 'include',
+    headers: sogoHeaders(),
+  });
+  if (!res.ok) throw new Error('Gagal membuat ID event baru.');
+  const data = await res.json();
+  return data.id || data;
+}
+
+/**
+ * Create a new calendar event.
+ * POST /Calendar/{calendarId}/{eventId}/saveAsappointment
+ *
+ * @param {string} sogoToken
+ * @param {object} event - { title, startDate, startTime, endDate, endTime, location, description, isAllDay, attendees }
+ * @param {string} [calendarId] - defaults to 'personal'
+ */
+export async function createCalendarEvent(sogoToken, event, calendarId = 'personal') {
+  // 1. Get a new GUID
+  const eventId = await newEventGuid(sogoToken, calendarId);
+
+  // 2. Save the event
+  const body = {
+    c_title: event.title,
+    startDate: event.startDate,
+    startTime: event.startTime || '',
+    endDate: event.endDate,
+    endTime: event.endTime || '',
+    c_location: event.location || '',
+    c_description: event.description || '',
+    c_isallday: !!event.isAllDay,
+    c_partmails: event.attendees || '',
+    c_partstates: event.attendees ? event.attendees.split(',').map(() => 'NEEDS-ACTION').join(',') : '',
+    classification: 'public',
+  };
+
+  const res = await fetch(
+    `${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/${calendarId}/${eventId}/saveAsappointment`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    }
+  );
+  if (!res.ok) throw new Error(`Gagal menyimpan event (${res.status}).`);
+  return { id: eventId };
+}
+
+/**
+ * Update an existing calendar event.
+ * POST /Calendar/{calendarId}/{eventId}/save
+ */
+export async function updateCalendarEvent(sogoToken, eventId, event, calendarId = 'personal') {
+  const body = {
+    c_title: event.title,
+    startDate: event.startDate,
+    startTime: event.startTime || '',
+    endDate: event.endDate,
+    endTime: event.endTime || '',
+    c_location: event.location || '',
+    c_description: event.description || '',
+    c_isallday: !!event.isAllDay,
+    c_partmails: event.attendees || '',
+    c_partstates: event.attendees ? event.attendees.split(',').map(() => 'NEEDS-ACTION').join(',') : '',
+    classification: 'public',
+  };
+
+  const res = await fetch(
+    `${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/${calendarId}/${eventId}/save`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    }
+  );
+  if (!res.ok) throw new Error(`Gagal memperbarui event (${res.status}).`);
+  return { id: eventId };
+}
+
+/**
+ * Delete a calendar event.
+ * GET /Calendar/{calendarId}/{eventId}/delete
+ */
+export async function deleteCalendarEvent(sogoToken, eventId, calendarId = 'personal') {
+  const res = await fetch(
+    `${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/${calendarId}/${eventId}/delete`,
+    {
+      credentials: 'include',
+      headers: sogoHeaders(),
+    }
+  );
+  if (!res.ok) throw new Error(`Gagal menghapus event (${res.status}).`);
+  return true;
+}
+
 export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', start, end) {
   try {
     const query = new URLSearchParams({ startDate: start, endDate: end }).toString();
@@ -447,6 +553,24 @@ export async function changePassword(sogoToken, oldPassword, newPassword) {
   if (res.status === 404) throw new Error('Fitur ganti password tidak tersedia di server ini.');
   if (!res.ok) throw new Error(`Gagal mengganti password (${res.status}).`);
   return true;
+}
+
+/**
+ * Load preferences dari SOGo.
+ * GET /Preferences/save (SOGo mengembalikan data preferences via GET).
+ * Returns { defaults: {...}, settings: {...} } atau null.
+ */
+export async function fetchPreferences(sogoToken) {
+  try {
+    const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Preferences/save`, {
+      credentials: 'include',
+      headers: sogoHeaders(),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 /**

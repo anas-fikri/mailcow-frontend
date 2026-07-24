@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import React, { useState, useRef } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   Settings, Lock, FileSignature, Plane, Eye, EyeOff,
   Loader2, CheckCircle2, AlertCircle, ChevronRight,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { changePassword, savePreferences } from '../lib/api';
+import { changePassword, fetchPreferences, savePreferences } from '../lib/api';
+import HtmlEditor from '../components/HtmlEditor';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function Section({ icon: Icon, title, children }) {
@@ -104,40 +105,77 @@ function ChangePasswordSection() {
 // ─── Signature ────────────────────────────────────────────────────────────────
 function SignatureSection() {
   const { user } = useAuthStore();
-  const [sig, setSig]     = useState('');
+  const [sig, setSig]       = useState('');
   const [status, setStatus] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const initRef = useRef(false); // Hindari overwrite user edits oleh prefs
+
+  /* Load existing signature dari SOGo (hanya init sekali) */
+  const { isLoading: loadingPrefs } = useQuery({
+    queryKey: ['preferences', user?.sogoToken],
+    queryFn: () => fetchPreferences(user?.sogoToken),
+    enabled: !!user?.sogoToken,
+    staleTime: 5 * 60_000,
+    onSuccess: (data) => {
+      if (initRef.current) return; // User sudah edit, jangan overwrite
+      const saved = data?.defaults?.SOGoMailSignature || '';
+      setSig(saved);
+      setLoaded(true);
+    },
+    onError: () => { setLoaded(true); },
+  });
 
   const mutation = useMutation({
     mutationFn: () => savePreferences(user.sogoToken, {
-      defaults: { SOGoMailSignature: sig, SOGoMailSignatureEnabled: sig.length > 0 ? '1' : '0' },
+      defaults: {
+        SOGoMailSignature: sig,
+        SOGoMailSignatureEnabled: sig && sig.trim() ? '1' : '0',
+      },
       settings: {},
     }),
     onSuccess: () => setStatus({ type: 'success', message: 'Signature berhasil disimpan.' }),
     onError: (err) => setStatus({ type: 'error', message: err.message }),
   });
 
+  if (!loaded && loadingPrefs) {
+    return (
+      <Section icon={FileSignature} title="Signature Email">
+        <div className="flex items-center justify-center py-10">
+          <Loader2 size={20} className="animate-spin text-muted-foreground" />
+        </div>
+      </Section>
+    );
+  }
+
   return (
     <Section icon={FileSignature} title="Signature Email">
       <div className="space-y-4 max-w-2xl">
         <p className="text-sm text-muted-foreground">
-          Teks yang otomatis ditambahkan di bawah setiap email yang kamu kirim.
+          Tanda tangan HTML yang otomatis ditambahkan di bawah email yang kamu kirim.
+          Bisa pakai <strong>tebal</strong>, <em>miring</em>, tautan, dan gambar.
         </p>
         <StatusMsg status={status} />
-        <textarea
+        <HtmlEditor
           value={sig}
-          onChange={e => setSig(e.target.value)}
-          rows={6}
-          placeholder="Contoh:&#10;Salam,&#10;Anas Fikri&#10;IT Manager — PCP Express"
-          className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none resize-y font-mono"
+          onChange={v => { initRef.current = true; setSig(v); }}
+          minHeight={150}
+          placeholder="Tulis signature di sini..."
         />
-        <button
-          onClick={() => { setStatus(null); mutation.mutate(); }}
-          disabled={mutation.isPending}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
-        >
-          {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileSignature size={14} />}
-          Simpan Signature
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setStatus(null); mutation.mutate(); }}
+            disabled={mutation.isPending}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
+          >
+            {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileSignature size={14} />}
+            Simpan Signature
+          </button>
+          {sig && (
+            <span className="text-xs text-muted-foreground">
+              {(sig.length / 1024).toFixed(1)} KB — {sig.includes('<img') ? 'ada gambar' : 'teks saja'}
+            </span>
+          )}
+        </div>
       </div>
     </Section>
   );

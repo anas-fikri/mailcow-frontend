@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, Paperclip, ChevronDown, ChevronUp, Loader2, AlertCircle } from 'lucide-react';
-import { sendMessage, fetchContacts } from '../../lib/api';
+import {
+  X, Send, Paperclip, ChevronDown, ChevronUp,
+  Loader2, AlertCircle, Bold, Italic, Underline,
+  List, ListOrdered, Heading1, Indent, IndentDecrease
+} from 'lucide-react';
+import { sendMessage, fetchContacts, fetchPreferences } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import DOMPurify from 'dompurify';
 
 export default function ComposeModal({ isOpen, onClose, initialData = null, sogoToken, userFrom = '' }) {
   const { user, smtpCreds } = useAuthStore();
@@ -12,15 +17,18 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
 
   const [to, setTo]           = useState('');
   const [cc, setCc]           = useState('');
+  const [bcc, setBcc]         = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody]       = useState('');
   const [showCc, setShowCc]   = useState(false);
+  const [showBcc, setShowBcc] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState(false);
 
   const [showToSugg, setShowToSugg]  = useState(false);
   const [showCcSugg, setShowCcSugg]  = useState(false);
+  const [showBccSugg, setShowBccSugg] = useState(false);
 
   // Ambil kontak untuk autocomplete
   const { data: contacts = [] } = useQuery({
@@ -30,19 +38,51 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
     staleTime: 5 * 60_000,
   });
 
+  // Ambil preferences (signature, dll)
+  const { data: prefs } = useQuery({
+    queryKey: ['preferences', token],
+    queryFn: () => fetchPreferences(token),
+    enabled: !!token,
+    staleTime: 5 * 60_000,
+  });
+
+  // Ref untuk mencegah double-inject signature
+  const sigInjected = useRef(false);
+
   // Reset form saat dibuka / initialData berubah
   useEffect(() => {
     if (isOpen) {
+      sigInjected.current = false;
       setTo(initialData?.to || '');
       setCc(initialData?.cc || '');
+      setBcc(initialData?.bcc || '');
       setSubject(initialData?.subject || '');
       setBody(initialData?.body || '');
       setShowCc(!!initialData?.cc);
+      setShowBcc(!!initialData?.bcc);
       setError('');
       setSuccess(false);
       setSending(false);
     }
   }, [isOpen, initialData]);
+
+  // Inject HTML signature setelah body di-reset dan prefs tersedia
+  useEffect(() => {
+    if (!isOpen || sigInjected.current || !prefs) return;
+    const sigHtml = prefs?.defaults?.SOGoMailSignature;
+    const enabled = prefs?.defaults?.SOGoMailSignatureEnabled === '1';
+    if (sigHtml && enabled) {
+      setBody(cur => {
+        if (cur.includes(sigHtml.substring(0, 80))) return cur;
+        const bqIdx = cur.indexOf('<blockquote');
+        const sigBlock = `<br>--<br>${sigHtml}`;
+        return bqIdx > 0
+          ? cur.slice(0, bqIdx) + sigBlock + cur.slice(bqIdx)
+          : cur + sigBlock;
+      });
+    }
+    sigInjected.current = true;
+  }, [isOpen, prefs]);
 
   // ── Autocomplete ────────────────────────────────────────────────────────────
 
@@ -85,9 +125,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       await sendMessage(token, {
         to: to.trim(),
         cc: cc.trim(),
-        bcc: '',
+        bcc: bcc.trim(),
         subject: subject.trim(),
-        body,
+        body: DOMPurify.sanitize(body, { ALLOW_DATA_URI: true }),
         isHTML: true,
         from: userFrom,
       }, smtpCreds);
@@ -160,13 +200,26 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                       placeholder="nama@domain.com"
                       autoComplete="off"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowCc(v => !v)}
-                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 shrink-0"
-                    >
-                      Cc {showCc ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowCc(v => !v)}
+                        className={`text-xs flex items-center gap-0.5 ${
+                          showCc ? 'text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Cc {showCc ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowBcc(v => !v)}
+                        className={`text-xs flex items-center gap-0.5 ${
+                          showBcc ? 'text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Bcc {showBcc ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      </button>
+                    </div>
                     {showToSugg && getSuggestions(to).length > 0 && (
                       <SuggestionList
                         items={getSuggestions(to)}
@@ -197,6 +250,28 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     </div>
                   )}
 
+                  {/* Bcc */}
+                  {showBcc && (
+                    <div className="relative py-2 flex items-center border-b border-border/60">
+                      <label className="text-sm font-medium w-16 text-muted-foreground shrink-0">Bcc:</label>
+                      <input
+                        type="text"
+                        value={bcc}
+                        onChange={e => { setBcc(e.target.value); setShowBccSugg(true); }}
+                        onBlur={() => setTimeout(() => setShowBccSugg(false), 200)}
+                        className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm"
+                        placeholder="bcc@domain.com"
+                        autoComplete="off"
+                      />
+                      {showBccSugg && getSuggestions(bcc).length > 0 && (
+                        <SuggestionList
+                          items={getSuggestions(bcc)}
+                          onSelect={c => selectContact(c, bcc, setBcc, setShowBccSugg)}
+                        />
+                      )}
+                    </div>
+                  )}
+
                   {/* Subject */}
                   <div className="py-2 flex items-center">
                     <label className="text-sm font-medium w-16 text-muted-foreground shrink-0">Subjek:</label>
@@ -210,15 +285,8 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                   </div>
                 </div>
 
-                {/* Body */}
-                <div className="px-5 pt-3 pb-4 min-h-[200px]">
-                  <textarea
-                    value={body}
-                    onChange={e => setBody(e.target.value)}
-                    className="w-full bg-transparent border-none focus:outline-none focus:ring-0 resize-none text-sm leading-relaxed min-h-[200px]"
-                    placeholder="Tulis pesan Anda di sini..."
-                  />
-                </div>
+                {/* Body — Rich Editor */}
+                <RichEditor value={body} onChange={setBody} />
               </div>
 
               {/* Footer */}
@@ -248,6 +316,139 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+// ── Rich Editor (contentEditable + formatting toolbar) ──────────────────────────
+
+function RichEditor({ value, onChange }) {
+  const editorRef = useRef(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const [showHeading, setShowHeading] = useState(false);
+  const headingRef = useRef(null);
+
+  // Hydrate editor content on mount / external value change
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (editorRef.current && isMounted && !editorRef.current.innerHTML) {
+      editorRef.current.innerHTML = value || '';
+    }
+  }, [value, isMounted]);
+
+  const exec = useCallback((cmd, val = null) => {
+    document.execCommand(cmd, false, val);
+    if (editorRef.current) {
+      editorRef.current.focus();
+      onChange(editorRef.current.innerHTML);
+    }
+  }, [onChange]);
+
+  const handleInput = useCallback(() => {
+    if (editorRef.current) {
+      onChange(editorRef.current.innerHTML);
+    }
+  }, [onChange]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;');
+    }
+  }, []);
+
+  const toolbar = [
+    { icon: Bold,    cmd: 'bold',      title: 'Tebal (Ctrl+B)' },
+    { icon: Italic,  cmd: 'italic',    title: 'Miring (Ctrl+I)' },
+    { icon: Underline, cmd: 'underline', title: 'Garis bawah (Ctrl+U)' },
+    { type: 'divider' },
+    { icon: List,      cmd: 'insertUnorderedList', title: 'Daftar bullet' },
+    { icon: ListOrdered, cmd: 'insertOrderedList',  title: 'Daftar nomor' },
+    { type: 'divider' },
+    { icon: Indent,         cmd: 'indent',  title: 'Indent (Tab)' },
+    { icon: IndentDecrease, cmd: 'outdent', title: 'Outdent (Shift+Tab)' },
+    { type: 'divider' },
+    { type: 'heading' },
+  ];
+
+  return (
+    <div className="flex flex-col flex-1 min-h-[200px] border-t border-border/40">
+      {/* Toolbar */}
+      <div className="flex items-center gap-0.5 px-5 py-2 bg-muted/30 border-b border-border/40 flex-wrap">
+        {toolbar.map((item, i) => {
+          if (item.type === 'divider') {
+            return <div key={i} className="w-px h-5 bg-border/60 mx-1" />;
+          }
+          if (item.type === 'heading') {
+            return (
+              <div key={i} className="relative" ref={headingRef}>
+                <button
+                  type="button"
+                  title="Heading"
+                  onMouseDown={e => { e.preventDefault(); setShowHeading(v => !v); }}
+                  className="p-1.5 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Heading1 size={16} />
+                </button>
+                {showHeading && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowHeading(false)} />
+                    <div className="absolute top-full left-0 mt-1 z-20 bg-card border border-border shadow-xl rounded-lg overflow-hidden min-w-[100px]">
+                      {[
+                        { label: 'Heading 1', tag: 'h1' },
+                        { label: 'Heading 2', tag: 'h2' },
+                        { label: 'Heading 3', tag: 'h3' },
+                        { label: 'Heading 4', tag: 'h4' },
+                        { label: 'Heading 5', tag: 'h5' },
+                      ].map(h => (
+                        <button
+                          key={h.tag}
+                          type="button"
+                          onMouseDown={e => { e.preventDefault(); exec('formatBlock', h.tag); setShowHeading(false); }}
+                          className="block w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+                        >
+                          {h.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          }
+          const Icon = item.icon;
+          return (
+            <button
+              key={i}
+              type="button"
+              title={item.title}
+              onMouseDown={e => { e.preventDefault(); exec(item.cmd, item.arg); }}
+              className="p-1.5 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Icon size={16} />
+            </button>
+          );
+        })}
+        {/* Info hint */}
+        <span className="ml-auto text-[10px] text-muted-foreground/50 hidden sm:inline">
+          HTML
+        </span>
+      </div>
+
+      {/* Editor area */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        className="flex-1 px-5 py-3 text-sm leading-relaxed focus:outline-none overflow-y-auto min-h-[180px]"
+        data-placeholder="Tulis pesan Anda di sini..."
+        style={{ '--placeholder': '"Tulis pesan Anda di sini..."' }}
+      />
+    </div>
   );
 }
 
