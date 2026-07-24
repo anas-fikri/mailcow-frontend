@@ -30,21 +30,19 @@ export async function login(email, password) {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'X-Requested-With': 'XMLHttpRequest',
-      Accept: 'application/json, text/plain, */*',
     },
     body: params.toString(),
   });
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.message || `Login gagal (HTTP ${res.status})`);
+  // Jika gagal, SOGo (tanpa XMLHttpRequest) akan mengembalikan halaman login HTML
+  // Jika berhasil, ia akan redirect ke /SOGo/so/.../Mail/view
+  if (!res.ok || (res.url && !res.url.includes('/Mail/'))) {
+    throw new Error('Login gagal. Periksa kembali email dan password Anda.');
   }
 
   // SOGo 5.12+ returns encrypted session token as 'username' (bukan email).
   // Kita pake email langsung dari form login aja.
-  const data = await res.json().catch(() => ({}));
-  return { sogoToken: email, cn: data.cn || email, email };
+  return { sogoToken: email, cn: email, email };
 }
 
 export async function logout() {
