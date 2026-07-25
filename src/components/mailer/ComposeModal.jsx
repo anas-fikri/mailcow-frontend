@@ -3,12 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Send, Paperclip, ChevronDown, ChevronUp,
   Loader2, AlertCircle, Bold, Italic, Underline,
-  List, ListOrdered, Heading1, Indent, IndentDecrease
+  List, ListOrdered, Heading1, Indent, IndentDecrease,
+  ImagePlus, AlertTriangle, Maximize2, Minimize2
 } from 'lucide-react';
 import { sendMessage, fetchContacts, fetchPreferences } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
+import { handleEditorPaste, insertImageFile, PURIFY_CONFIG } from '../../lib/pasteUtils';
 
 export default function ComposeModal({ isOpen, onClose, initialData = null, sogoToken, userFrom = '' }) {
   const { user, smtpCreds } = useAuthStore();
@@ -22,6 +24,8 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   const [body, setBody]       = useState('');
   const [showCc, setShowCc]   = useState(false);
   const [showBcc, setShowBcc] = useState(false);
+  const [editorMode, setEditorMode] = useState('rich'); // 'rich', 'html', 'plain'
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState(false);
@@ -60,6 +64,8 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       setBody(initialData?.body || '');
       setShowCc(!!initialData?.cc);
       setShowBcc(!!initialData?.bcc);
+      setEditorMode('rich');
+      setIsFullscreen(false);
       setError('');
       setSuccess(false);
       setSending(false);
@@ -127,8 +133,8 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         cc: cc.trim(),
         bcc: bcc.trim(),
         subject: subject.trim(),
-        body: DOMPurify.sanitize(body, { ALLOW_DATA_URI: true }),
-        isHTML: true,
+        body: editorMode === 'plain' ? body : DOMPurify.sanitize(body, PURIFY_CONFIG),
+        isHTML: editorMode !== 'plain',
         from: userFrom,
       }, smtpCreds);
       setSuccess(true);
@@ -158,14 +164,24 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="w-full h-[90vh] sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-background flex flex-col rounded-t-2xl sm:rounded-xl shadow-2xl overflow-hidden"
+            className={`bg-background flex flex-col shadow-2xl ${
+              isFullscreen
+                ? 'w-screen h-screen rounded-none'
+                : 'w-[90vw] sm:w-[800px] max-w-full h-[90vh] sm:h-[600px] sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl resize overflow-hidden'
+            }`}
+            style={!isFullscreen ? { minWidth: '320px', minHeight: '400px' } : undefined}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-card">
               <h2 className="text-base font-semibold">Tulis Pesan</h2>
-              <button onClick={onClose} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors">
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setIsFullscreen(!isFullscreen)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors hidden sm:block" title="Layar Penuh">
+                  {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                </button>
+                <button type="button" onClick={onClose} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors" title="Tutup">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* Form */}
@@ -189,18 +205,15 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                 <div className="px-5 py-3 space-y-0 border-b border-border">
 
                   {/* To */}
-                  <div className="relative py-2 flex items-center border-b border-border/60">
-                    <label className="text-sm font-medium w-16 text-muted-foreground shrink-0">Kepada:</label>
-                    <input
-                      type="text"
-                      value={to}
-                      onChange={e => { setTo(e.target.value); setShowToSugg(true); }}
-                      onBlur={() => setTimeout(() => setShowToSugg(false), 200)}
-                      className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm"
-                      placeholder="nama@domain.com"
-                      autoComplete="off"
+                  <div className="relative py-1 flex items-start border-b border-border/60 min-h-[44px]">
+                    <label className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Kepada:</label>
+                    <MultiEmailInput 
+                      value={to} 
+                      onChange={setTo} 
+                      placeholder="nama@domain.com (Tab/Enter)" 
+                      suggestions={getSuggestions} 
                     />
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 mt-2">
                       <button
                         type="button"
                         onClick={() => setShowCc(v => !v)}
@@ -220,55 +233,31 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                         Bcc {showBcc ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                       </button>
                     </div>
-                    {showToSugg && getSuggestions(to).length > 0 && (
-                      <SuggestionList
-                        items={getSuggestions(to)}
-                        onSelect={c => selectContact(c, to, setTo, setShowToSugg)}
-                      />
-                    )}
                   </div>
 
                   {/* Cc */}
                   {showCc && (
-                    <div className="relative py-2 flex items-center border-b border-border/60">
-                      <label className="text-sm font-medium w-16 text-muted-foreground shrink-0">Cc:</label>
-                      <input
-                        type="text"
-                        value={cc}
-                        onChange={e => { setCc(e.target.value); setShowCcSugg(true); }}
-                        onBlur={() => setTimeout(() => setShowCcSugg(false), 200)}
-                        className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm"
-                        placeholder="cc@domain.com"
-                        autoComplete="off"
+                    <div className="relative py-1 flex items-start border-b border-border/60 min-h-[44px]">
+                      <label className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Cc:</label>
+                      <MultiEmailInput 
+                        value={cc} 
+                        onChange={setCc} 
+                        placeholder="cc@domain.com (Tab/Enter)" 
+                        suggestions={getSuggestions} 
                       />
-                      {showCcSugg && getSuggestions(cc).length > 0 && (
-                        <SuggestionList
-                          items={getSuggestions(cc)}
-                          onSelect={c => selectContact(c, cc, setCc, setShowCcSugg)}
-                        />
-                      )}
                     </div>
                   )}
 
                   {/* Bcc */}
                   {showBcc && (
-                    <div className="relative py-2 flex items-center border-b border-border/60">
-                      <label className="text-sm font-medium w-16 text-muted-foreground shrink-0">Bcc:</label>
-                      <input
-                        type="text"
-                        value={bcc}
-                        onChange={e => { setBcc(e.target.value); setShowBccSugg(true); }}
-                        onBlur={() => setTimeout(() => setShowBccSugg(false), 200)}
-                        className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm"
-                        placeholder="bcc@domain.com"
-                        autoComplete="off"
+                    <div className="relative py-1 flex items-start border-b border-border/60 min-h-[44px]">
+                      <label className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Bcc:</label>
+                      <MultiEmailInput 
+                        value={bcc} 
+                        onChange={setBcc} 
+                        placeholder="bcc@domain.com (Tab/Enter)" 
+                        suggestions={getSuggestions} 
                       />
-                      {showBccSugg && getSuggestions(bcc).length > 0 && (
-                        <SuggestionList
-                          items={getSuggestions(bcc)}
-                          onSelect={c => selectContact(c, bcc, setBcc, setShowBccSugg)}
-                        />
-                      )}
                     </div>
                   )}
 
@@ -285,20 +274,57 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                   </div>
                 </div>
 
-                {/* Body — Rich Editor */}
-                <RichEditor value={body} onChange={setBody} />
+                {/* Body */}
+                {editorMode === 'rich' ? (
+                  <RichEditor value={body} onChange={setBody} />
+                ) : editorMode === 'html' ? (
+                  <textarea
+                    value={body}
+                    onChange={e => setBody(e.target.value)}
+                    className="flex-1 w-full min-h-[200px] p-5 bg-transparent border-t border-border/40 focus:outline-none focus:ring-0 text-sm resize-none font-mono text-muted-foreground"
+                    placeholder="<p>Tulis kode HTML di sini...</p>"
+                  />
+                ) : (
+                  <textarea
+                    value={body.replace(/<[^>]*>?/gm, '')}
+                    onChange={e => setBody(e.target.value)}
+                    className="flex-1 w-full min-h-[200px] p-5 bg-transparent border-t border-border/40 focus:outline-none focus:ring-0 text-sm resize-none"
+                    placeholder="Tulis pesan Anda di sini..."
+                  />
+                )}
               </div>
 
               {/* Footer */}
               <div className="px-5 py-3 border-t border-border flex items-center justify-between bg-card">
-                <button
-                  type="button"
-                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-                  title="Lampirkan file (belum didukung)"
-                  disabled
-                >
-                  <Paperclip size={18} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                    title="Lampirkan file (belum didukung)"
+                    disabled
+                  >
+                    <Paperclip size={18} />
+                  </button>
+                  <select
+                    value={editorMode}
+                    onChange={(e) => {
+                      const newMode = e.target.value;
+                      if (newMode === 'plain' && editorMode !== 'plain') {
+                        setBody(prev => prev.replace(/<br\s*[\/]?>/gi, '\n').replace(/<[^>]*>?/gm, ''));
+                      } else if (editorMode === 'plain' && newMode !== 'plain') {
+                        setBody(prev => prev.replace(/\n/g, '<br>'));
+                      }
+                      setEditorMode(newMode);
+                    }}
+                    className="text-xs px-2 py-1 border-none focus:ring-0 rounded-md bg-muted text-muted-foreground hover:bg-muted/80 font-medium transition-colors cursor-pointer appearance-none"
+                    style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
+                    title="Format Email"
+                  >
+                    <option value="rich">Rich Text</option>
+                    <option value="html">HTML Source</option>
+                    <option value="plain">Teks Biasa</option>
+                  </select>
+                </div>
                 <button
                   type="submit"
                   disabled={sending || success}
@@ -319,18 +345,18 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   );
 }
 
-// ── Rich Editor (contentEditable + formatting toolbar) ──────────────────────────
+// ── Rich Editor ────────────────────────────────────────────────────────────────
 
 function RichEditor({ value, onChange }) {
-  const editorRef = useRef(null);
-  const [isMounted, setIsMounted] = useState(false);
+  const editorRef    = useRef(null);
+  const fileInputRef = useRef(null);
+  const [isMounted, setIsMounted]     = useState(false);
   const [showHeading, setShowHeading] = useState(false);
+  const [cidWarning, setCidWarning]   = useState(false);
+  const [isDragOver, setIsDragOver]   = useState(false);
   const headingRef = useRef(null);
 
-  // Hydrate editor content on mount / external value change
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  useEffect(() => { setIsMounted(true); }, []);
 
   useEffect(() => {
     if (editorRef.current && isMounted && !editorRef.current.innerHTML) {
@@ -346,26 +372,40 @@ function RichEditor({ value, onChange }) {
     }
   }, [onChange]);
 
-  const handleInput = useCallback(() => {
-    if (editorRef.current) {
-      onChange(editorRef.current.innerHTML);
-    }
-  }, [onChange]);
-
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;');
-    }
+  const handleInput    = useCallback(() => { if (editorRef.current) onChange(editorRef.current.innerHTML); }, [onChange]);
+  const handleKeyDown  = useCallback((e) => {
+    if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;'); }
   }, []);
 
+  const onPaste = useCallback((e) => {
+    handleEditorPaste(e, {
+      editorRef, onChange,
+      onCidWarning: () => setCidWarning(true),
+    });
+  }, [onChange]);
+
+  const onDragOver  = useCallback((e) => { e.preventDefault(); setIsDragOver(true);  }, []);
+  const onDragLeave = useCallback(() => setIsDragOver(false), []);
+  const onDrop      = useCallback(async (e) => {
+    e.preventDefault(); setIsDragOver(false);
+    const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'));
+    if (file) await insertImageFile(file, editorRef, onChange);
+  }, [onChange]);
+
+  const onFileSelected = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await insertImageFile(file, editorRef, onChange);
+    e.target.value = '';
+  }, [onChange]);
+
   const toolbar = [
-    { icon: Bold,    cmd: 'bold',      title: 'Tebal (Ctrl+B)' },
-    { icon: Italic,  cmd: 'italic',    title: 'Miring (Ctrl+I)' },
-    { icon: Underline, cmd: 'underline', title: 'Garis bawah (Ctrl+U)' },
+    { icon: Bold,         cmd: 'bold',               title: 'Tebal (Ctrl+B)' },
+    { icon: Italic,       cmd: 'italic',             title: 'Miring (Ctrl+I)' },
+    { icon: Underline,    cmd: 'underline',          title: 'Garis bawah (Ctrl+U)' },
     { type: 'divider' },
-    { icon: List,      cmd: 'insertUnorderedList', title: 'Daftar bullet' },
-    { icon: ListOrdered, cmd: 'insertOrderedList',  title: 'Daftar nomor' },
+    { icon: List,         cmd: 'insertUnorderedList', title: 'Daftar bullet' },
+    { icon: ListOrdered,  cmd: 'insertOrderedList',  title: 'Daftar nomor' },
     { type: 'divider' },
     { icon: Indent,         cmd: 'indent',  title: 'Indent (Tab)' },
     { icon: IndentDecrease, cmd: 'outdent', title: 'Outdent (Shift+Tab)' },
@@ -378,37 +418,23 @@ function RichEditor({ value, onChange }) {
       {/* Toolbar */}
       <div className="flex items-center gap-0.5 px-5 py-2 bg-muted/30 border-b border-border/40 flex-wrap">
         {toolbar.map((item, i) => {
-          if (item.type === 'divider') {
-            return <div key={i} className="w-px h-5 bg-border/60 mx-1" />;
-          }
+          if (item.type === 'divider') return <div key={i} className="w-px h-5 bg-border/60 mx-1" />;
           if (item.type === 'heading') {
             return (
               <div key={i} className="relative" ref={headingRef}>
-                <button
-                  type="button"
-                  title="Heading"
+                <button type="button" title="Heading"
                   onMouseDown={e => { e.preventDefault(); setShowHeading(v => !v); }}
-                  className="p-1.5 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors"
-                >
+                  className="p-1.5 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors">
                   <Heading1 size={16} />
                 </button>
                 {showHeading && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowHeading(false)} />
                     <div className="absolute top-full left-0 mt-1 z-20 bg-card border border-border shadow-xl rounded-lg overflow-hidden min-w-[100px]">
-                      {[
-                        { label: 'Heading 1', tag: 'h1' },
-                        { label: 'Heading 2', tag: 'h2' },
-                        { label: 'Heading 3', tag: 'h3' },
-                        { label: 'Heading 4', tag: 'h4' },
-                        { label: 'Heading 5', tag: 'h5' },
-                      ].map(h => (
-                        <button
-                          key={h.tag}
-                          type="button"
+                      {[{label:'Heading 1',tag:'h1'},{label:'Heading 2',tag:'h2'},{label:'Heading 3',tag:'h3'},{label:'Heading 4',tag:'h4'},{label:'Heading 5',tag:'h5'}].map(h => (
+                        <button key={h.tag} type="button"
                           onMouseDown={e => { e.preventDefault(); exec('formatBlock', h.tag); setShowHeading(false); }}
-                          className="block w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors"
-                        >
+                          className="block w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors">
                           {h.label}
                         </button>
                       ))}
@@ -420,22 +446,34 @@ function RichEditor({ value, onChange }) {
           }
           const Icon = item.icon;
           return (
-            <button
-              key={i}
-              type="button"
-              title={item.title}
+            <button key={i} type="button" title={item.title}
               onMouseDown={e => { e.preventDefault(); exec(item.cmd, item.arg); }}
-              className="p-1.5 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors"
-            >
+              className="p-1.5 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors">
               <Icon size={16} />
             </button>
           );
         })}
-        {/* Info hint */}
-        <span className="ml-auto text-[10px] text-muted-foreground/50 hidden sm:inline">
-          HTML
-        </span>
+
+        {/* Upload Gambar */}
+        <button type="button" title="Upload Gambar dari File"
+          onMouseDown={e => { e.preventDefault(); fileInputRef.current?.click(); }}
+          className="p-1.5 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors">
+          <ImagePlus size={16} />
+        </button>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onFileSelected} />
       </div>
+
+      {/* CID Warning */}
+      {cidWarning && (
+        <div className="flex items-start gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs">
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+          <span className="flex-1">
+            <strong>Gambar tidak disertakan</strong> — Apple Mail tidak menyertakan data gambar dalam clipboard.
+            Gunakan tombol <strong>Upload Gambar</strong> atau drag &amp; drop gambar ke editor.
+          </span>
+          <button onClick={() => setCidWarning(false)} className="shrink-0 hover:opacity-70"><X size={12} /></button>
+        </div>
+      )}
 
       {/* Editor area */}
       <div
@@ -444,7 +482,13 @@ function RichEditor({ value, onChange }) {
         suppressContentEditableWarning
         onInput={handleInput}
         onKeyDown={handleKeyDown}
-        className="flex-1 px-5 py-3 text-sm leading-relaxed focus:outline-none overflow-y-auto min-h-[180px]"
+        onPaste={onPaste}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        className={`flex-1 px-5 py-3 text-sm leading-relaxed focus:outline-none overflow-y-auto min-h-[180px] transition-colors ${
+          isDragOver ? 'bg-primary/5 ring-2 ring-primary/30 ring-inset' : ''
+        }`}
         data-placeholder="Tulis pesan Anda di sini..."
         style={{ '--placeholder': '"Tulis pesan Anda di sini..."' }}
       />
@@ -456,7 +500,7 @@ function RichEditor({ value, onChange }) {
 
 function SuggestionList({ items, onSelect }) {
   return (
-    <div className="absolute top-full left-16 right-0 bg-card border border-border shadow-lg rounded-lg mt-1 z-20 overflow-hidden max-h-48 overflow-y-auto">
+    <div className="absolute top-full left-1 right-0 bg-card border border-border shadow-lg rounded-lg mt-1 z-20 overflow-hidden max-h-48 overflow-y-auto">
       {items.map((c, i) => {
         const name  = c.name  || c.c_cn  || (Array.isArray(c) ? c[1] : '') || '';
         const email = c.email || c.c_mail || (Array.isArray(c) ? c[2] : '') || '';
@@ -472,6 +516,87 @@ function SuggestionList({ items, onSelect }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// ── Sub-component: Multi Email Input ──────────────────────────────────────────
+
+function MultiEmailInput({ value, onChange, placeholder, suggestions }) {
+  const [inputValue, setInputValue] = useState('');
+  const [showSugg, setShowSugg] = useState(false);
+  const inputRef = useRef(null);
+
+  const emails = value ? value.split(',').map(e => e.trim()).filter(Boolean) : [];
+
+  const handleKeyDown = (e) => {
+    if (['Enter', 'Tab', ','].includes(e.key)) {
+      if (inputValue.trim()) {
+        e.preventDefault();
+        const newEmails = [...emails, inputValue.trim()];
+        onChange(newEmails.join(', '));
+        setInputValue('');
+        setShowSugg(false);
+      }
+    } else if (e.key === 'Backspace' && !inputValue && emails.length > 0) {
+      const newEmails = [...emails];
+      newEmails.pop();
+      onChange(newEmails.join(', '));
+    }
+  };
+
+  const removeEmail = (index) => {
+    const newEmails = [...emails];
+    newEmails.splice(index, 1);
+    onChange(newEmails.join(', '));
+  };
+
+  const handleSelectSuggestion = (contact) => {
+     const name  = contact.name  || contact.c_cn  || (Array.isArray(contact) ? contact[1] : '') || '';
+     const email = contact.email || contact.c_mail || (Array.isArray(contact) ? contact[2] : '') || '';
+     const str   = name ? `${name.replace(/,/g, '')} <${email}>` : email;
+     
+     const newEmails = [...emails, str];
+     onChange(newEmails.join(', '));
+     setInputValue('');
+     setShowSugg(false);
+  };
+
+  const currentSuggestions = showSugg && inputValue ? suggestions(inputValue) : [];
+
+  return (
+    <div className="flex-1 flex flex-wrap items-center gap-1.5 py-1">
+      {emails.map((email, i) => (
+        <span key={i} className="flex items-center gap-1 bg-primary/10 text-primary px-2.5 py-1 rounded-full text-xs font-medium border border-primary/20">
+          {email}
+          <button type="button" onClick={() => removeEmail(i)} className="hover:text-destructive opacity-70 hover:opacity-100 shrink-0 ml-1 transition-opacity">
+            <X size={12} />
+          </button>
+        </span>
+      ))}
+      <div className="relative flex-1 min-w-[150px]">
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={e => { setInputValue(e.target.value); setShowSugg(true); }}
+          onKeyDown={handleKeyDown}
+          onBlur={() => {
+            if (inputValue.trim()) {
+               const newEmails = [...emails, inputValue.trim()];
+               onChange(newEmails.join(', '));
+               setInputValue('');
+            }
+            setTimeout(() => setShowSugg(false), 200);
+          }}
+          className="w-full bg-transparent border-none focus:outline-none focus:ring-0 text-sm p-1.5 m-0"
+          placeholder={emails.length === 0 ? placeholder : ''}
+          autoComplete="off"
+        />
+        {currentSuggestions.length > 0 && (
+          <SuggestionList items={currentSuggestions} onSelect={handleSelectSuggestion} />
+        )}
+      </div>
     </div>
   );
 }

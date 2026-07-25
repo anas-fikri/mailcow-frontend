@@ -2,7 +2,10 @@
  * SOGo Frontend — Backend Proxy Server
  *
  * Dijalankan bersama Vite dev server di port 3001.
- * Menyediakan endpoint /api/send untuk kirim email via SMTP (workaround SOGo /send yang return 501).
+ * Endpoint:
+ *   GET  /api/health                - health check
+ *   POST /api/send                  - kirim email via SMTP
+ *   GET  /api/preferences?email=... - baca SOGo preferences dari database
  *
  * Cara pakai:
  *   node server.js
@@ -13,6 +16,7 @@
 import express from 'express';
 import cors    from 'cors';
 import nodemailer from 'nodemailer';
+import { execSync } from 'child_process';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -27,10 +31,60 @@ const SMTP_SECURE = SMTP_PORT === 465;
 app.use(cors({ origin: ['http://localhost:8888', 'http://127.0.0.1:8888'], credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
+// ── Config DB ──────────────────────────────────────────────────────────────────
+const MYSQL_CONTAINER = process.env.MYSQL_CONTAINER || 'mailcow-mysql-mailcow-1';
+const MYSQL_USER      = process.env.DBUSER || 'mailcow';
+const MYSQL_PASS      = process.env.DBPASS || '+DuwfUM1FNfp3FJM2gMSEJ0sR1SOMH7l';
+const MYSQL_DB        = process.env.DBNAME || 'mailcow';
+
 // ── Health check ───────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, smtp: SMTP_HOST, port: SMTP_PORT });
 });
+
+// ── GET Preferences ────────────────────────────────────────────────────────────
+/**
+ * GET /api/preferences?email=user@domain.com
+ * Membaca preferences SOGo langsung dari database MySQL.
+ * SOGo tidak menyediakan JSON REST endpoint untuk GET — selalu mengembalikan HTML.
+ */
+app.get('/api/preferences', (req, res) => {
+  const { email } = req.query;
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ message: 'Parameter email tidak valid.' });
+  }
+
+  // Sanitasi email: hanya izinkan karakter aman
+  const safeEmail = email.replace(/[^a-zA-Z0-9@._+-]/g, '');
+
+  try {
+    const query = `SELECT c_defaults, c_settings FROM sogo_user_profile WHERE c_uid='${safeEmail}' LIMIT 1;`;
+    const cmd   = `docker exec ${MYSQL_CONTAINER} mysql -u ${MYSQL_USER} -p${MYSQL_PASS} ${MYSQL_DB} -sN -e "${query}"`;
+
+    const output = execSync(cmd, { encoding: 'utf8', timeout: 8000 }).trim();
+    if (!output) {
+      return res.json({ defaults: {}, settings: {} });
+    }
+
+    // output: "col1_value\tcol2_value" (tab-separated)
+    const tabs    = output.split('\t');
+    const rawDef  = tabs[0] || '{}';
+    const rawSet  = tabs[1] || '{}';
+
+    let defaults = {};
+    let settings = {};
+    try { defaults = JSON.parse(rawDef); } catch {}
+    try { settings = JSON.parse(rawSet); } catch {}
+
+    console.log(`[preferences] Loaded for ${safeEmail}: Vacation.enabled=${defaults?.Vacation?.enabled}`);
+    return res.json({ defaults, settings });
+
+  } catch (err) {
+    console.error('[preferences] ERROR:', err.message);
+    return res.status(500).json({ message: 'Gagal membaca preferensi dari database.' });
+  }
+});
+
 
 // ── Send email ─────────────────────────────────────────────────────────────────
 /**

@@ -1,5 +1,5 @@
 import React from 'react'
-import { Mail, Calendar, Users, Settings, LogOut, ChevronRight } from 'lucide-react'
+import { Mail, Calendar, Users, Settings, BarChart3, LogOut, ChevronRight, Filter } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { logout } from '../../lib/api'
@@ -9,6 +9,8 @@ const NAV_ITEMS = [
   { to: '/mail',      icon: Mail,     label: 'Email' },
   { to: '/calendar',  icon: Calendar, label: 'Kalender' },
   { to: '/contacts',  icon: Users,    label: 'Kontak' },
+  { to: '/rules',     icon: Filter,   label: 'Aturan' },
+  { to: '/stats',     icon: BarChart3, label: 'Statistik' },
   { to: '/settings',  icon: Settings, label: 'Pengaturan' },
 ]
 
@@ -30,7 +32,11 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
             <Mail size={16} className="text-primary-foreground" />
           </div>
-          {!collapsed && <span className="font-bold text-foreground text-sm truncate">PCP Express</span>}
+          {!collapsed && (
+            <span className="font-bold text-foreground text-sm truncate capitalize">
+              {user?.email ? user.email.split('@')[1] : 'Webmail'}
+            </span>
+          )}
         </div>
         
         {/* Toggle buttons */}

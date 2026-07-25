@@ -6,8 +6,8 @@
 - **PIC Admin:** Anas Fikri
 - **Total Akun:** ~500 mailbox
 - **Total Data:** ~2.5TB
-- **Server Mailcow:** `mail.pcpexpress.co.id` | IP Publik: `115.178.128.146`
-- **IP Lokal Server:** `10.3.3.210`
+- **Server Mailcow:** `mail.pcpexpress.co.id` | IP Publik: `202.148.2.139`
+- **IP Lokal Server:** `192.168.10.200`
 - **Akses SSH:** `ssh mailserver` (alias via `~/.ssh/config`)
 - **Storage Target:** Synology NAS (di-mount via NFS ke Mailcow Dovecot)
 
@@ -107,11 +107,11 @@ v=spf1 a:mx11.eranyacloud.com a:mx12.eranyacloud.com ip4:160.22.250.192 ip4:103.
 
 **Ganti menjadi (tambahkan IP publik Mailcow):**
 ```
-v=spf1 a:mx11.eranyacloud.com a:mx12.eranyacloud.com ip4:160.22.250.192 ip4:103.153.61.171 ip4:103.176.44.77 ip4:115.178.128.146 include:_spf.google.com ~all
+v=spf1 a:mx11.eranyacloud.com a:mx12.eranyacloud.com ip4:160.22.250.192 ip4:103.153.61.171 ip4:103.176.44.77 ip4:202.148.2.139 include:_spf.google.com ~all
 ```
 
 > [!NOTE]
-> IP `115.178.128.146` adalah IP publik server Mailcow `mail.pcpexpress.co.id`. Penambahan ini tidak merusak SPF Carbonio karena bersifat additive.
+> IP `202.148.2.139` adalah IP publik server Mailcow `mail.pcpexpress.co.id`. Penambahan ini tidak merusak SPF Carbonio karena bersifat additive.
 
 ### 🔴 2.3. MX Record — JANGAN DIUBAH SAMPAI HARI-H
 

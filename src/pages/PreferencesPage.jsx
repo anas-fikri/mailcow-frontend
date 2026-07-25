@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import React, { useState, useRef, useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, Lock, FileSignature, Plane, Eye, EyeOff,
   Loader2, CheckCircle2, AlertCircle, ChevronRight,
@@ -7,9 +7,25 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { changePassword, fetchPreferences, savePreferences } from '../lib/api';
 import HtmlEditor from '../components/HtmlEditor';
+import Skeleton from '../components/Skeleton';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function Section({ icon: Icon, title, children }) {
+function Section({ icon: Icon, title, children, loading }) {
+  if (loading) {
+    return (
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center gap-3">
+          <Skeleton className="w-8 h-8 rounded-lg" />
+          <Skeleton className="h-5 w-32" />
+        </div>
+        <div className="p-5 space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-3/4" />
+          <Skeleton className="h-10 w-1/2" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
       <div className="px-5 py-4 border-b border-border flex items-center gap-3">
@@ -104,6 +120,7 @@ function ChangePasswordSection() {
 
 // ─── Signature ────────────────────────────────────────────────────────────────
 function SignatureSection() {
+  const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [sig, setSig]       = useState('');
   const [status, setStatus] = useState(null);
@@ -111,29 +128,41 @@ function SignatureSection() {
   const initRef = useRef(false); // Hindari overwrite user edits oleh prefs
 
   /* Load existing signature dari SOGo (hanya init sekali) */
-  const { isLoading: loadingPrefs } = useQuery({
+  const { data: prefs, isLoading: loadingPrefs } = useQuery({
     queryKey: ['preferences', user?.sogoToken],
-    queryFn: () => fetchPreferences(user?.sogoToken),
-    enabled: !!user?.sogoToken,
-    staleTime: 5 * 60_000,
-    onSuccess: (data) => {
-      if (initRef.current) return; // User sudah edit, jangan overwrite
-      const saved = data?.defaults?.SOGoMailSignature || '';
-      setSig(saved);
-      setLoaded(true);
-    },
-    onError: () => { setLoaded(true); },
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
+    enabled: !!(user?.sogoToken && user?.email),
+    staleTime: 0,
   });
 
+  useEffect(() => {
+    if (prefs?.defaults && !initRef.current) {
+      const saved = prefs.defaults.SOGoMailSignature || '';
+      setSig(saved);
+      setLoaded(true);
+      initRef.current = true;
+    } else if (!loadingPrefs && !prefs) {
+      setLoaded(true);
+    }
+  }, [prefs, loadingPrefs]);
+
   const mutation = useMutation({
-    mutationFn: () => savePreferences(user.sogoToken, {
-      defaults: {
-        SOGoMailSignature: sig,
-        SOGoMailSignatureEnabled: sig && sig.trim() ? '1' : '0',
-      },
-      settings: {},
-    }),
-    onSuccess: () => setStatus({ type: 'success', message: 'Signature berhasil disimpan.' }),
+    mutationFn: () => {
+      const updatedPrefs = {
+        defaults: {
+          ...(prefs?.defaults || {}),
+          SOGoMailSignature: sig,
+          SOGoMailSignatureEnabled: sig && sig.trim() ? '1' : '0',
+        },
+        settings: prefs?.settings || {},
+      };
+      return savePreferences(user.sogoToken, updatedPrefs, user.email);
+    },
+    onSuccess: () => {
+      initRef.current = false; // allow re-init on next refetch
+      queryClient.invalidateQueries({ queryKey: ['preferences'] });
+      setStatus({ type: 'success', message: 'Signature berhasil disimpan.' });
+    },
     onError: (err) => setStatus({ type: 'error', message: err.message }),
   });
 
@@ -183,6 +212,7 @@ function SignatureSection() {
 
 // ─── Vacation Auto-Reply ──────────────────────────────────────────────────────
 function VacationSection() {
+  const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [enabled, setEnabled] = useState(false);
   const [subject, setSubject] = useState('Saya sedang tidak di tempat');
@@ -190,29 +220,102 @@ function VacationSection() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate]     = useState('');
   const [status, setStatus]       = useState(null);
+  const [loaded, setLoaded]       = useState(false);
+  const initRef = useRef(false);
+
+  const [debugVal, setDebugVal] = useState('…');
+
+  const { data: prefs, isLoading } = useQuery({
+    queryKey: ['preferences', user?.sogoToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
+    enabled: !!(user?.sogoToken && user?.email),
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (prefs?.defaults && !initRef.current) {
+      const v = prefs.defaults.Vacation || {};
+      setDebugVal(String(v.enabled ?? 'null'));
+      setEnabled(String(v.enabled) === '1' || v.enabled === true);
+      if (v.subject) setSubject(v.subject);
+      if (v.text) setMessage(v.text);
+      if (v.startDate) {
+        const d = new Date(parseInt(v.startDate, 10) * 1000);
+        if (!isNaN(d.getTime())) setStartDate(d.toISOString().split('T')[0]);
+      }
+      if (v.endDate) {
+        const d = new Date(parseInt(v.endDate, 10) * 1000);
+        if (!isNaN(d.getTime())) setEndDate(d.toISOString().split('T')[0]);
+      }
+      setLoaded(true);
+      initRef.current = true;
+    } else if (!isLoading && !prefs) {
+      setLoaded(true);
+    }
+  }, [prefs, isLoading]);
 
   const mutation = useMutation({
-    mutationFn: () => savePreferences(user.sogoToken, {
-      defaults: {
-        Vacation: {
-          enabled:  enabled ? '1' : '0',
-          subject,
-          text:     message,
-          startDate: startDate || undefined,
-          endDate:   endDate   || undefined,
+    mutationFn: () => {
+      const startEpoch = startDate ? String(Math.floor(new Date(startDate).getTime() / 1000)) : undefined;
+      const endEpoch = endDate ? String(Math.floor(new Date(endDate).getTime() / 1000) + 86399) : undefined;
+      
+      const updatedPrefs = {
+        defaults: {
+          ...(prefs?.defaults || {}),
+          Vacation: {
+            ...(prefs?.defaults?.Vacation || {}),
+            autoReplyEmailAddresses: prefs?.defaults?.Vacation?.autoReplyEmailAddresses || [user.email],
+            ignoreLists: prefs?.defaults?.Vacation?.ignoreLists || "0",
+            enabled:  enabled ? '1' : '0',
+            subject,
+            text:     message,
+            startDate: startEpoch || '',
+            endDate:   endEpoch || '',
+          },
         },
-      },
-      settings: {},
-    }),
-    onSuccess: () => setStatus({ type: 'success', message: `Auto-reply ${enabled ? 'diaktifkan' : 'dinonaktifkan'}.` }),
+        settings: prefs?.settings || {},
+      };
+      
+      if (!updatedPrefs.defaults.Vacation.startDate) delete updatedPrefs.defaults.Vacation.startDate;
+      if (!updatedPrefs.defaults.Vacation.endDate) delete updatedPrefs.defaults.Vacation.endDate;
+      
+      // SOGo might expect startDateEnabled
+      if (startEpoch) {
+        updatedPrefs.defaults.Vacation.startDateEnabled = 1;
+      } else {
+        delete updatedPrefs.defaults.Vacation.startDateEnabled;
+      }
+
+      return savePreferences(user.sogoToken, updatedPrefs, user.email);
+    },
+    onSuccess: () => {
+      initRef.current = false; // allow re-init on next refetch
+      queryClient.invalidateQueries({ queryKey: ['preferences'] });
+      setStatus({ type: 'success', message: `Auto-reply ${enabled ? 'diaktifkan' : 'dinonaktifkan'}.` });
+    },
     onError: (err) => setStatus({ type: 'error', message: err.message }),
   });
 
+  if (!loaded && isLoading) {
+    return (
+      <Section icon={Plane} title="Auto-Reply Liburan">
+        <div className="flex items-center justify-center py-10">
+          <Loader2 size={20} className="animate-spin text-muted-foreground" />
+        </div>
+      </Section>
+    );
+  }
+
   return (
-    <Section icon={Plane} title="Auto-Reply Liburan">
+    <Section icon={Plane} title={
+      <div className="flex items-center gap-2">
+        Auto-Reply Cuti 
+        <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded">[{debugVal}]</span>
+      </div>
+    }>
       <div className="space-y-4 max-w-2xl">
         <p className="text-sm text-muted-foreground">
-          Balas otomatis untuk email masuk ketika kamu sedang tidak di tempat.
+          Balas otomatis untuk email masuk ketika kamu sedang cuti atau tidak di tempat.
         </p>
         <StatusMsg status={status} />
 
@@ -280,7 +383,7 @@ export default function PreferencesPage() {
   const tabs = [
     { id: 'password', label: 'Password',    icon: Lock },
     { id: 'signature', label: 'Signature',  icon: FileSignature },
-    { id: 'vacation', label: 'Auto-Reply',  icon: Plane },
+    { id: 'vacation', label: 'Auto-Reply Cuti',  icon: Plane },
   ];
   const [activeTab, setActiveTab] = useState('password');
 

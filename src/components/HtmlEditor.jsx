@@ -1,20 +1,21 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { Bold, Italic, Underline, Link, Image } from 'lucide-react';
+import { Bold, Italic, Underline, Link, ImagePlus, Loader2, AlertTriangle, X } from 'lucide-react';
+import { handleEditorPaste, insertImageFile } from '../lib/pasteUtils';
 
 export default function HtmlEditor({ value, onChange, minHeight = 120, placeholder = '' }) {
-  const editorRef = useRef(null);
-  const mountedRef = useRef(false);
+  const editorRef    = useRef(null);
+  const fileInputRef = useRef(null);
+  const [isPasting, setIsPasting] = useState(false);
+  const [cidWarning, setCidWarning] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
 
-  /* Mount sekali — skip efek hydration setelahnya */
-  useEffect(() => { mountedRef.current = true; }, []);
-
-  /* Hydrate editor dengan initial value hanya saat mount pertama */
+  /* Hydrate hanya saat mount pertama */
   useEffect(() => {
     if (editorRef.current && !editorRef.current._hydrated) {
       editorRef.current.innerHTML = value || '';
       editorRef.current._hydrated = true;
     }
-  }, []); // sekali aja, gak peduli value berubah
+  }, []);
 
   const exec = useCallback((cmd, val = null) => {
     document.execCommand(cmd, false, val);
@@ -28,49 +29,51 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
     onChange?.(editorRef.current?.innerHTML || '');
   }, [onChange]);
 
-  /* Paste handler: cari image dari files | items, konversi ke base64 */
-  const handlePaste = useCallback((e) => {
-    const dt = e.clipboardData;
-    if (!dt) return;
+  const onPaste = useCallback((e) => {
+    handleEditorPaste(e, {
+      editorRef,
+      onChange,
+      setIsPasting,
+      onCidWarning: () => setCidWarning(true),
+    });
+  }, [onChange]);
 
-    /* Cari file image dari clipboard */
-    let file = null;
-    if (dt.files?.length) {
-      for (const f of dt.files) { if (f.type.startsWith('image/')) { file = f; break; } }
-    }
-    if (!file && dt.items) {
-      for (const item of dt.items) { if (item.type.startsWith('image/')) { file = item.getAsFile(); break; } }
-    }
-    if (!file) return; /* bukan image paste — biarin browser handle default */
-
+  // Drag-and-drop image
+  const onDragOver = useCallback((e) => {
     e.preventDefault();
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = reader.result;
-      if (typeof dataUrl !== 'string' || !editorRef.current) return;
-      editorRef.current.focus();
-      document.execCommand('insertHTML', false, `<img src="${dataUrl}" style="max-width:100%;height:auto">`);
-      onChange?.(editorRef.current.innerHTML);
-    };
-    reader.readAsDataURL(file);
+    setIsDragOver(true);
+  }, []);
+  const onDragLeave = useCallback(() => setIsDragOver(false), []);
+  const onDrop = useCallback(async (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'));
+    if (file) {
+      setIsPasting(true);
+      await insertImageFile(file, editorRef, onChange);
+      setIsPasting(false);
+    }
+  }, [onChange]);
+
+  // File picker upload
+  const onFileSelected = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsPasting(true);
+    await insertImageFile(file, editorRef, onChange);
+    setIsPasting(false);
+    e.target.value = '';
   }, [onChange]);
 
   function insertLink() {
     const url = prompt('Masukkan URL:', 'https://');
     if (!url || !url.trim()) return;
-    /* Wrap selected text or insert URL as clickable link */
     const sel = window.getSelection();
     if (sel && sel.toString().trim()) {
       exec('createLink', url.trim());
     } else {
       exec('insertHTML', `<a href="${url.trim()}">${url.trim()}</a>`);
     }
-  }
-
-  function insertImage() {
-    const url = prompt('Masukkan URL gambar:', 'https://');
-    if (!url || !url.trim()) return;
-    exec('insertImage', url.trim());
   }
 
   return (
@@ -96,16 +99,43 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
           className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors">
           <Link size={15} />
         </button>
-        <button type="button" title="Gambar (dari URL)" onMouseDown={e => { e.preventDefault(); insertImage(); }}
-          className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors">
-          <Image size={15} />
+
+        {/* Upload Gambar dari file */}
+        <button
+          type="button"
+          title="Upload Gambar dari File"
+          onMouseDown={e => { e.preventDefault(); fileInputRef.current?.click(); }}
+          className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ImagePlus size={15} />
         </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onFileSelected}
+        />
 
         <span className="ml-auto text-[10px] text-muted-foreground/40 flex items-center gap-1">
-          {pasting && <Loader2 size={12} className="animate-spin" />}
+          {isPasting && <Loader2 size={12} className="animate-spin" />}
           HTML
         </span>
       </div>
+
+      {/* Warning CID */}
+      {cidWarning && (
+        <div className="flex items-start gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs">
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+          <span className="flex-1">
+            <strong>Gambar tidak disertakan</strong> — Apple Mail tidak menyertakan data gambar dalam clipboard.
+            Gunakan tombol <strong>Upload Gambar (↑)</strong> untuk menambahkan gambar dari file, atau drag &amp; drop gambar ke editor.
+          </span>
+          <button onClick={() => setCidWarning(false)} className="shrink-0 hover:opacity-70">
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Editor */}
       <div
@@ -113,8 +143,13 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
         contentEditable
         suppressContentEditableWarning
         onInput={handleInput}
-        onPaste={handlePaste}
-        className="px-4 py-3 text-sm leading-relaxed focus:outline-none overflow-y-auto"
+        onPaste={onPaste}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        className={`px-4 py-3 text-sm leading-relaxed focus:outline-none overflow-y-auto transition-colors ${
+          isDragOver ? 'bg-primary/5 ring-2 ring-primary/30 ring-inset' : ''
+        }`}
         style={{ minHeight }}
         data-placeholder={placeholder}
       />

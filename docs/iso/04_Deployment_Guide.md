@@ -34,7 +34,7 @@ npm run dev
 File `~/.ssh/config` di Mac Dev memiliki entri berikut:
 ```
 Host mailserver
-    HostName 10.3.3.210
+    HostName 192.168.10.200
     User anas.fikri
     IdentityFile ~/.ssh/id_ed25519_agent
     IdentitiesOnly yes
@@ -48,7 +48,7 @@ ssh mailserver 'echo "OK"'
 ### 2.3. Credential & Informasi Server
 | Property          | Value                                      |
 |-------------------|--------------------------------------------|
-| **IP Server**     | `10.3.3.210`                               |
+| **IP Server**     | `192.168.10.200`                               |
 | **SSH User**      | `anas.fikri`                               |
 | **SSH Key**       | `~/.ssh/id_ed25519_agent`                  |
 | **OS**            | Ubuntu 20.04 (Bare Metal)                  |
@@ -243,7 +243,7 @@ security add-internet-password -s gitlab.pcpexpress.com -a "anas.fikri@pcpexpres
 origin  https://gitlab.pcpexpress.com/devops-team/mailcow-frontend.git
 
 # SSH config alias (untuk akses server)
-Host mailserver → 10.3.3.210 (key: id_ed25519_agent)
+Host mailserver → 192.168.10.200 (key: id_ed25519_agent)
 ```
 
 ### 7.4. Server Paths
@@ -335,8 +335,8 @@ User unknown in virtual mailbox table
 
 ### 7.9. Gmail Deliverability
 
-IP `115.178.128.146` sering diblok Gmail (`550 5.7.1 likely unsolicited mail`). Penyebab:
-- **Tidak ada PTR/rDNS record** → Minta ISP set rDNS `115.178.128.146` → `mail.pcpexpress.co.id`
+IP `202.148.2.139` sering diblok Gmail (`550 5.7.1 likely unsolicited mail`). Penyebab:
+- **Tidak ada PTR/rDNS record** → Minta ISP set rDNS `202.148.2.139` → `mail.pcpexpress.co.id`
 - **DKIM** belum signing semua outgoing mail → Cek di dashboard Mailcow → Configuration → DKIM
 - **DMARC** belum terpasang → Tambah TXT record `_dmarc.pcpexpress.co.id` → `v=DMARC1; p=none`
 

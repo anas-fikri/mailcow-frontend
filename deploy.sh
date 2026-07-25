@@ -6,7 +6,7 @@
 #
 # Prasyarat:
 #   - GitLab credential tersimpan di macOS Keychain (sudah ada)
-#   - SSH alias 'mailserver' mengarah ke 10.3.3.210 (sudah ada di ~/.ssh/config)
+#   - SSH alias 'mailserver' mengarah ke 192.168.10.200 (sudah ada di ~/.ssh/config)
 #   - NPM dependencies sudah diinstall
 
 set -e

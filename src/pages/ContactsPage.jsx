@@ -6,12 +6,13 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchContacts, createContact, deleteContact } from '../lib/api';
+import { ContactsListSkeleton } from '../components/Skeleton';
+import { AVATAR_COLORS } from '../lib/constants';
 
 // ─── Avatar initials ──────────────────────────────────────────────────────────
 function Avatar({ name, email, size = 'md' }) {
   const initials = (name || email || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-  const colors = ['bg-blue-500','bg-purple-500','bg-green-500','bg-orange-500','bg-pink-500','bg-teal-500'];
-  const color  = colors[(initials.charCodeAt(0) || 0) % colors.length];
+  const color  = AVATAR_COLORS[(initials.charCodeAt(0) || 0) % AVATAR_COLORS.length];
   const sz = size === 'lg' ? 'w-12 h-12 text-lg' : 'w-9 h-9 text-sm';
   return (
     <div className={`${sz} ${color} rounded-full flex items-center justify-center text-white font-semibold shrink-0`}>
@@ -241,10 +242,7 @@ export default function ContactsPage() {
         {/* Contact List */}
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-40 gap-3 text-muted-foreground">
-              <Loader2 size={24} className="animate-spin text-primary" />
-              <span className="text-sm">Memuat kontak...</span>
-            </div>
+            <ContactsListSkeleton count={8} />
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
               <Users size={40} className="opacity-20" />

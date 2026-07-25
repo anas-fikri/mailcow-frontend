@@ -5,3 +5,21 @@ dist
 .DS_Store
 .ai-state.json
 cookies.txt
+cookies*.txt
+
+# Debug & test files
+test-*
+*.out.txt
+*.txt
+!docs/**/*.md
+full_html.txt
+sogo_main.html
+html.txt
+
+# Dumps & temp
+dump*.js
+dist.tar.gz
+reset.sh
+*.log
+ai-state.json
+.omo/

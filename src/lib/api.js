@@ -1,5 +1,13 @@
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
+// ─── Session expiry callback ──────────────────────────────────────────────────
+// Dipanggil oleh throwApiError saat mendapatkan 401.
+// Di-set oleh App.jsx saat mount.
+let _onSessionExpired = null;
+let _sessionExpiredFired = false; // debounce agar hanya fire sekali per session
+export function onSessionExpired(cb) { _onSessionExpired = cb; }
+export function resetSessionExpiredFlag() { _sessionExpiredFired = false; }
+
 // ─── XSRF helper ──────────────────────────────────────────────────────────────
 // SOGo mensyaratkan header X-XSRF-TOKEN (dibaca dari cookie XSRF-TOKEN) agar
 // endpoint /view dan lainnya dapat mengembalikan JSON 200 (bukan 500).
@@ -11,39 +19,114 @@ function getXsrfToken() {
 
 /** Headers standar untuk request SOGo */
 function sogoHeaders(extra = {}) {
-  return {
-    Accept: 'application/json',
-    'X-XSRF-TOKEN': getXsrfToken(),
+  const headers = {
+    Accept: 'application/json, text/plain, */*',
+    'X-Requested-With': 'XMLHttpRequest', // wajib agar SOGo return JSON bukan HTML
     ...extra,
   };
+  const xsrf = getXsrfToken();
+  if (xsrf) headers['X-XSRF-TOKEN'] = xsrf;
+  return headers;
+}
+
+/**
+ * Buat Error dengan status code ter-attach.
+ * Digunakan agar QueryClient retry logic bisa cek status.
+ * Jika 401/403, panggil session expired callback.
+ */
+function throwApiError(message, status) {
+  const err = new Error(message);
+  err.status = status;
+  if ((status === 401 || status === 403) && _onSessionExpired && !_sessionExpiredFired) {
+    _sessionExpiredFired = true; // prevent multiple triggers
+    // Panggil di microtask agar tidak konflik dengan React state updates
+    setTimeout(() => _onSessionExpired(), 0);
+  }
+  throw err;
+}
+
+/**
+ * Parse JSON dari response dengan aman.
+ * Jika SOGo mengembalikan HTML karena session expired, throw 401.
+ */
+async function safeJson(res) {
+  const ct = res.headers.get('content-type') || '';
+  if (ct.includes('application/json') || ct.includes('text/json')) {
+    try {
+      return await res.json();
+    } catch (e) {
+      throwApiError('Respons server tidak dapat dibaca.', res.status);
+    }
+  }
+
+  // Bukan JSON — baca teks untuk diagnosis
+  const text = await res.text().catch(() => '');
+
+  // Log response snippet untuk debugging
+  const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim();
+  console.warn('[API] Non-JSON response:', res.status, ct, snippet);
+
+  // Jika status 4xx → session/auth error
+  if (res.status === 401 || res.status === 403) {
+    throwApiError('Sesi berakhir, silakan login ulang.', res.status);
+  }
+
+  // Cek apakah SOGo mengembalikan halaman login (LoginController adalah marker paling akurat)
+  // SOGo selalu return LoginController jika session tidak valid/expired
+  const isLoginPage = text.includes('LoginController') || text.includes('sg-login') ||
+    (text.includes('userName') && text.includes('password') && text.includes('connect'));
+  if (isLoginPage) {
+    throwApiError('Sesi berakhir, silakan login ulang.', 401);
+  }
+
+  // Periksa apakah XSRF-TOKEN cookie ada — jika tidak, SOGo mungkin return HTML
+  const xsrf = getXsrfToken();
+  console.warn('[API] XSRF-TOKEN present:', !!xsrf, '| URL:', res.url);
+
+  // Jika response adalah HTML tapi BUKAN login page, kemungkinan error lain
+  const isHtml = ct.includes('text/html') || text.trim().startsWith('<!');
+  if (isHtml) {
+    // SOGo mengembalikan halaman HTML yang tidak dikenali — mungkin error 500 atau maintenance
+    throwApiError(`Respons server tidak valid (${res.status}). Coba refresh halaman.`, res.status);
+  }
+
+  throwApiError(`Respons server tidak valid (${res.status}). Coba refresh halaman.`, res.status);
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export async function login(email, password) {
-  const params = new URLSearchParams();
-  params.append('userName', email);
-  params.append('password', password);
 
   const res = await fetch(`${SOGO_BASE}/SOGo/connect`, {
     method: 'POST',
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      Accept: 'application/json, text/plain, */*',
     },
-    body: params.toString(),
+    body: JSON.stringify({ userName: email, password }),
   });
 
-  // Jika gagal, SOGo (tanpa XMLHttpRequest) akan mengembalikan halaman login HTML
-  // Jika berhasil, ia akan redirect ke /SOGo/so/.../Mail/view
-  if (!res.ok || (res.url && !res.url.includes('/Mail/'))) {
-    throw new Error('Login gagal. Periksa kembali email dan password Anda.');
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || `Login gagal (HTTP ${res.status})`);
   }
 
-  // SOGo 5.12+ returns encrypted session token as 'username' (bukan email).
-  // Kita pake email langsung dari form login aja.
-  return { sogoToken: email, cn: email, email };
+  // SOGo returns email/username as the token identifier for API paths.
+  // XSRF-TOKEN cookie juga di-set oleh /SOGo/connect — digunakan di request berikutnya.
+  const data = await res.json().catch(() => ({}));
+  const sogoToken = data.username || email; // fallback ke email jika username tidak ada
+
+  console.log('[Login] OK sogoToken:', sogoToken, '| XSRF present:', !!getXsrfToken());
+
+
+  // TIDAK perlu session check di sini — XSRF-TOKEN sudah di-set oleh /connect.
+  // Request ke /Mail/0/view pertama kali akan dilakukan oleh MailPage via React Query.
+
+  return { sogoToken, cn: data.cn || email, email };
 }
+
 
 export async function logout() {
   await fetch(`${SOGO_BASE}/SOGo/logoff`, {
@@ -99,12 +182,22 @@ function parseMessageRow(row) {
 // ─── Mailer ───────────────────────────────────────────────────────────────────
 
 export async function fetchFolders(sogoToken) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/view`, {
-    credentials: 'include',
-    headers: sogoHeaders(),
-  });
-  if (!res.ok) throw new Error('Gagal memuat folder.');
-  const data = await res.json();
+  console.log('[DEBUG] fetchFolders START', sogoToken);
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/view`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: sogoHeaders(),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    console.log('[DEBUG] fetchFolders res received, status:', res.status, 'ct:', res.headers.get('content-type'));
+    if (!res.ok) throwApiError('Gagal memuat folder.', res.status);
+    console.log('[DEBUG] fetchFolders reading safeJson...');
+    const data = await safeJson(res);
+    console.log('[DEBUG] fetchFolders data parsed successfully');
 
   const FOLDER_TYPE_LABELS = {
     inbox:     'Kotak Masuk',
@@ -133,7 +226,14 @@ export async function fetchFolders(sogoToken) {
     return result;
   }
 
-  return flattenMailboxes(data.mailboxes);
+    if (!data || !data.mailboxes) {
+      throwApiError('Respons server tidak lengkap (Folder tidak ditemukan).', res.status);
+    }
+    return flattenMailboxes(data.mailboxes);
+  } catch (err) {
+    console.error('[DEBUG] fetchFolders ERROR:', err);
+    throw err;
+  }
 }
 
 export async function getUnseenCount(sogoToken) {
@@ -143,7 +243,7 @@ export async function getUnseenCount(sogoToken) {
       headers: sogoHeaders(),
     });
     if (!res.ok) return { unseenCount: 0 };
-    const data = await res.json();
+    const data = await res.json().catch(() => ({ unseenCount: 0 }));
     return { unseenCount: data.unseenCount || 0 };
   } catch {
     return { unseenCount: 0 };
@@ -155,36 +255,51 @@ export async function getUnseenCount(sogoToken) {
  * Returns { messages: [{uid, from, to, subject, date, isRead, hasAtt}], unseenCount, total }
  */
 export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = {}) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/view`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: sogoHeaders(),
-  });
+  console.log('[DEBUG] fetchMessages START', folder, sogoToken);
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/view`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: sogoHeaders({
+        'Content-Type': 'application/json'
+      }),
+      body: JSON.stringify({ sortby: "date", asc: 0 }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    console.log('[DEBUG] fetchMessages res status:', res.status);
 
-  // 204 No Content = folder kosong (valid, bukan error)
-  if (res.status === 204) return { messages: [], unseenCount: 0, total: 0 };
-  if (!res.ok) throw new Error(`Gagal memuat pesan (${res.status}).`);
+    // 204 No Content = folder kosong (valid, bukan error)
+    if (res.status === 204) return { messages: [], unseenCount: 0, total: 0 };
+    if (!res.ok) throwApiError(`Gagal memuat daftar pesan (${res.status}).`, res.status);
 
-  const data = await res.json();
-  // headers[0] = column names row, data rows mulai dari index 1
-  const rows = (data.headers || []).slice(1);
+    const data = await safeJson(res);
+    console.log('[DEBUG] fetchMessages data', data);
+    // headers[0] = column names row, data rows mulai dari index 1
+    const rows = (data.headers || []).slice(1);
 
-  let messages = rows.map(parseMessageRow).filter(Boolean);
+    let messages = rows.map(parseMessageRow).filter(Boolean);
 
-  // Sort descending by uid (terbaru duluan)
-  messages.sort((a, b) => b.uid - a.uid);
+    // Sort descending by uid (terbaru duluan)
+    messages.sort((a, b) => b.uid - a.uid);
 
-  // Client-side search filter
-  if (params.search) {
-    const q = params.search.toLowerCase();
-    messages = messages.filter(m =>
-      m.subject.toLowerCase().includes(q) ||
-      m.from.toLowerCase().includes(q) ||
-      m.to.toLowerCase().includes(q)
-    );
+    // Client-side search filter
+    if (params.search) {
+      const q = params.search.toLowerCase();
+      messages = messages.filter(m =>
+        m.subject.toLowerCase().includes(q) ||
+        m.from.toLowerCase().includes(q) ||
+        m.to.toLowerCase().includes(q)
+      );
+    }
+
+    return { messages, unseenCount: data.unseenCount || 0, total: messages.length };
+  } catch (err) {
+    console.error('[DEBUG] fetchMessages ERROR:', err);
+    throw err;
   }
-
-  return { messages, unseenCount: data.unseenCount || 0, total: messages.length };
 }
 
 /**
@@ -210,8 +325,8 @@ export async function fetchMessage(sogoToken, folder, uid) {
     credentials: 'include',
     headers: sogoHeaders(),
   });
-  if (!res.ok) throw new Error(`Gagal memuat pesan (${res.status}).`);
-  return res.json();
+  if (!res.ok) throwApiError(`Gagal memuat isi pesan (${res.status}).`, res.status);
+  return safeJson(res);
 }
 
 export async function markRead(sogoToken, folder, uid, read = true) {
@@ -222,6 +337,38 @@ export async function markRead(sogoToken, folder, uid, read = true) {
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: '{}',
   });
+}
+
+export async function markFlagged(sogoToken, folder, uid, flagged = true) {
+  const endpoint = flagged ? 'markFlagged' : 'markUnflagged';
+  await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/${uid}/${endpoint}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: '{}',
+  });
+}
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+/**
+ * Search messages via SOGo search endpoint.
+ * POST /Mail/0/{folder}/search  body: { search, criteria }
+ * criteria: "all", "from", "to", "subject", "body"
+ */
+export async function searchMessages(sogoToken, folder, query, criteria = 'all') {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/search`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ search: query, criteria }),
+  });
+  if (res.status === 204) return { messages: [], total: 0 };
+  if (!res.ok) throwApiError('Gagal mencari pesan.', res.status);
+  const data = await safeJson(res);
+  const rows = (data.headers || []).slice(1);
+  const messages = rows.map(parseMessageRow).filter(Boolean);
+  messages.sort((a, b) => b.uid - a.uid);
+  return { messages, total: messages.length };
 }
 
 export async function deleteMessages(sogoToken, folder, uids) {
@@ -268,22 +415,25 @@ export async function sendMessage(sogoToken, payload, smtpCreds = null) {
   const { draftId } = await composeRes.json();
 
   // 2. Simpan konten draft (form-urlencoded)
-  const formData = new URLSearchParams({ subject, to, cc, bcc, replyTo: '', inReplyTo: '', references: '', text: body, isHTML: isHTML ? '1' : '0', from });
+  const payloadData = {
+    subject,
+    to: to ? to.split(',').map(s => s.trim()) : [],
+    cc: cc ? cc.split(',').map(s => s.trim()) : [],
+    bcc: bcc ? bcc.split(',').map(s => s.trim()) : [],
+    replyTo: '',
+    inReplyTo: '',
+    references: '',
+    text: body,
+    isHTML,
+    from
+  };
 
-  const saveRes = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/folderDrafts/${draftId}/save`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: sogoHeaders({ 'Content-Type': 'application/x-www-form-urlencoded' }),
-    body: formData.toString(),
-  });
-  if (!saveRes.ok) throw new Error('Gagal menyimpan draft.');
-
-  // 3. Kirim draft via SOGo
+  // 2. Kirim email via SOGo (langsung tanpa save)
   const sendRes = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/folderDrafts/${draftId}/send`, {
     method: 'POST',
     credentials: 'include',
-    headers: sogoHeaders({ 'Content-Type': 'application/x-www-form-urlencoded' }),
-    body: formData.toString(),
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payloadData),
   });
 
   if (sendRes.ok) return { ok: true };
@@ -553,29 +703,72 @@ export async function changePassword(sogoToken, oldPassword, newPassword) {
   return true;
 }
 
-/**
- * Load preferences dari SOGo.
- * GET /Preferences/save (SOGo mengembalikan data preferences via GET).
- * Returns { defaults: {...}, settings: {...} } atau null.
- */
-export async function fetchPreferences(sogoToken) {
+// ─── localStorage helpers ─────────────────────────────────────────────────────
+const LS_KEY = (email) => `sogo_prefs_${email}`;
+
+function savePrefsToLocal(email, prefs) {
   try {
-    const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Preferences/save`, {
-      credentials: 'include',
-      headers: sogoHeaders(),
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
+    localStorage.setItem(LS_KEY(email), JSON.stringify(prefs));
+  } catch {}
+}
+
+function loadPrefsFromLocal(email) {
+  try {
+    const raw = localStorage.getItem(LS_KEY(email));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
 }
 
 /**
- * Save preferences ke SOGo.
- * POST /Preferences/save dengan JSON body.
+ * Load preferences dari backend /api/preferences yang membaca langsung dari
+ * database SOGo. SOGo tidak menyediakan REST JSON endpoint untuk GET preferences
+ * (GET /Preferences/save selalu mengembalikan HTML, bukan JSON).
+ *
+ * Fallback berlapis:
+ * 1. /api/preferences → baca dari MySQL via server.js
+ * 2. localStorage (hasil save terakhir)
+ * 3. null (komponen UI pakai default)
+ *
+ * @param {string} sogoToken - SOGo session token
+ * @param {string} email     - email user (untuk query DB dan localStorage key)
  */
-export async function savePreferences(sogoToken, prefs) {
+export async function fetchPreferences(sogoToken, email) {
+  // ─ Layer 1: Backend DB endpoint ─
+  try {
+    const url = `/api/preferences?email=${encodeURIComponent(email)}&t=${Date.now()}`;
+    const res  = await fetch(url, { credentials: 'include' });
+    if (res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const data = await res.json();
+        if (data && (data.defaults || data.settings)) {
+          console.log('[prefs] Loaded from DB via /api/preferences. Vacation.enabled =', data.defaults?.Vacation?.enabled);
+          // Sync ke localStorage agar tersedia saat offline
+          savePrefsToLocal(email, data);
+          return data;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[prefs] /api/preferences error:', e.message);
+  }
+
+  // ─ Layer 2: localStorage ─
+  const local = loadPrefsFromLocal(email);
+  if (local) {
+    console.log('[prefs] Loaded from localStorage. Vacation.enabled =', local.defaults?.Vacation?.enabled);
+    return local;
+  }
+
+  console.warn('[prefs] No preferences found — using defaults.');
+  return null;
+}
+
+/**
+ * Save preferences ke SOGo via POST /Preferences/save.
+ * Juga menyimpan ke localStorage agar fetchPreferences bisa baca balik.
+ */
+export async function savePreferences(sogoToken, prefs, email) {
   const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Preferences/save`, {
     method: 'POST',
     credentials: 'include',
@@ -583,5 +776,9 @@ export async function savePreferences(sogoToken, prefs) {
     body: JSON.stringify(prefs),
   });
   if (!res.ok) throw new Error(`Gagal menyimpan preferensi (${res.status}).`);
+
+  // Simpan ke localStorage sebagai cache
+  if (email) savePrefsToLocal(email, prefs);
+
   return true;
 }

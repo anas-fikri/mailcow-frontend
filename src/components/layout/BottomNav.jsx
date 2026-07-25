@@ -1,11 +1,13 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { Mail, Calendar, Users, Settings } from 'lucide-react'
+import { Mail, Calendar, Users, Settings, BarChart3, Filter } from 'lucide-react'
 
 const NAV_ITEMS = [
   { to: '/mail',     icon: Mail,     label: 'Email' },
   { to: '/calendar', icon: Calendar, label: 'Kalender' },
   { to: '/contacts', icon: Users,    label: 'Kontak' },
+  { to: '/rules',    icon: Filter,   label: 'Aturan' },
+  { to: '/stats',    icon: BarChart3, label: 'Statistik' },
   { to: '/settings', icon: Settings, label: 'Pengaturan' },
 ]
 
