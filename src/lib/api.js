@@ -733,6 +733,13 @@ function loadPrefsFromLocal(email) {
  * @param {string} email     - email user (untuk query DB dan localStorage key)
  */
 export async function fetchPreferences(sogoToken, email) {
+  // Guard: jangan panggil API jika email tidak valid
+  if (!email || !sogoToken) {
+    console.warn('[prefs] Skipped — email atau token tidak valid.');
+    const local = loadPrefsFromLocal(email);
+    return local || null;
+  }
+
   // ─ Layer 1: Backend DB endpoint ─
   try {
     const url = `/api/preferences?email=${encodeURIComponent(email)}&t=${Date.now()}`;

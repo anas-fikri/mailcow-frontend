@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Plus, Trash2, ToggleLeft, ToggleRight, Folder, Filter,
   ChevronDown, ChevronUp, AlertCircle, RefreshCw, Play,
-  CheckCircle2, XCircle, HelpCircle,
+  CheckCircle2, XCircle, HelpCircle, AlertTriangle,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchFolders, moveMessages } from '../lib/api';
@@ -549,12 +549,49 @@ function StatsBar({ rules }) {
   );
 }
 
+// ─── Delete Confirm Modal ─────────────────────────────────────────────────────
+function DeleteConfirmModal({ isOpen, onClose, onConfirm, ruleName }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm z-10 p-6 text-center">
+        <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+          <AlertTriangle size={24} className="text-destructive" />
+        </div>
+        <h3 className="text-base font-semibold text-foreground mb-2">Hapus Aturan?</h3>
+        <p className="text-sm text-muted-foreground mb-6">
+          Aturan <strong className="text-foreground">"{ruleName || ''}"</strong> akan dihapus permanen.
+          Tindakan ini tidak dapat dibatalkan.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-colors"
+          >
+            Batal
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            <Trash2 size={16} />
+            Hapus
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function RulesPage() {
   const { user } = useAuthStore();
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
   const [testRule, setTestRule] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, name }
 
   // Ambil daftar folders untuk dropdown
   const { data: folders = DEFAULT_FOLDERS } = useQuery({
@@ -607,8 +644,14 @@ export default function RulesPage() {
 
   const handleDelete = (ruleId) => {
     const rule = rules.find((r) => r.id === ruleId);
-    deleteRule(user?.email, ruleId);
-    toast.success(`Aturan "${rule?.name || ''}" dihapus`);
+    setDeleteTarget(rule ? { id: rule.id, name: rule.name } : { id: ruleId, name: '' });
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteRule(user?.email, deleteTarget.id);
+    toast.success(`Aturan "${deleteTarget.name}" dihapus`);
+    setDeleteTarget(null);
     handleRefresh();
   };
 
@@ -678,6 +721,14 @@ export default function RulesPage() {
         isOpen={!!testRule}
         onClose={() => setTestRule(null)}
         rule={testRule}
+      />
+
+      {/* Delete Confirm Modal */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        ruleName={deleteTarget?.name || ''}
       />
 
       {/* Form Modal */}

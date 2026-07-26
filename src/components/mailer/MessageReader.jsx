@@ -2,15 +2,40 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, Paperclip,
-  Flag, Printer, FolderOpen, Star, Move,
+  Flag, Printer, FolderOpen, Star,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
+import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
+
+// ─── Extended DOMPurify config for email HTML ─────────────────────────────────
+const EMAIL_PURIFY_CONFIG = {
+  ...PURIFY_CONFIG,
+  ADD_ATTR: [
+    ...(PURIFY_CONFIG.ADD_ATTR || []),
+    'margin', 'marginwidth', 'marginheight',
+    'allowfullscreen', 'frameborder', 'scrolling',
+    'itemscope', 'itemtype', 'itemprop',
+    'cite', 'datetime',
+    'color', 'face', 'size',
+    'vlink', 'alink', 'link', 'text',
+  ],
+  ADD_TAGS: [
+    ...(PURIFY_CONFIG.ADD_TAGS || []),
+    'font', 'center', 'u', 's', 'tt', 'ins', 'del',
+    'figure', 'figcaption', 'picture', 'source',
+    'main', 'section', 'article', 'header', 'footer',
+    'details', 'summary',
+  ],
+  WHOLE_DOCUMENT: false,
+  RETURN_DOM_FRAGMENT: false,
+  RETURN_DOM: false,
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -18,7 +43,12 @@ function extractHtml(parts) {
   if (!parts) return '';
   if (parts.contentType === 'text/html' && parts.content) return parts.content;
   if (parts.contentType === 'text/plain' && parts.content) {
-    return `<pre style="white-space:pre-wrap;font-family:inherit;margin:0">${parts.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`;
+    // Jangan escape HTML entities — biarkan DOMPurify yang handle.
+    // SOGo sering kirim bounce email sebagai text/plain dengan tag HTML
+    // semu (seperti <br/>, <div>, <a>) sebagai teks biasa.
+    // Dengan tidak escape, tag tersebut jadi HTML asli setelah DOMPurify.
+    // Bungkus di div agar whitespace terjaga.
+    return `<div style="white-space:pre-wrap">${parts.content}</div>`;
   }
   if (Array.isArray(parts.content)) {
     const htmlPart = parts.content.find((c) => c.contentType === 'text/html');
@@ -62,6 +92,64 @@ function extractInlineImages(parts, result = []) {
     parts.content.forEach((child) => extractInlineImages(child, result));
   }
   return result;
+}
+
+/**
+ * Resolve CID (Content-ID) image references in HTML.
+ * Maps cid:xxx to SOGo download URLs.
+ */
+function resolveCidImages(html, inlineImages) {
+  if (!html || !inlineImages?.length) return html;
+  let resolved = html;
+  inlineImages.forEach((img) => {
+    const cidName = img.name.replace(/\.[^.]+$/, '');
+    const downloadUrl = img.downloadURL.startsWith('/SOGo')
+      ? `${SOGO_BASE}${img.downloadURL}`
+      : img.downloadURL;
+    // Replace cid:name references
+    const regex = new RegExp(`src="cid:${escapeRegex(cidName)}"`, 'gi');
+    if (regex.test(resolved)) {
+      resolved = resolved.replace(regex, `src="${downloadUrl}"`);
+    }
+    // Also try matching the full filename
+    const fullRegex = new RegExp(`src="cid:${escapeRegex(img.name)}"`, 'gi');
+    resolved = resolved.replace(fullRegex, `src="${downloadUrl}"`);
+    // Also match cid with angle brackets
+    resolved = resolved.replace(
+      new RegExp(`src="cid:<${escapeRegex(cidName)}>"`, 'gi'),
+      `src="${downloadUrl}"`
+    );
+  });
+  return resolved;
+}
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Sanitize and prepare HTML for rendering.
+ * Strips <html>/<body>/<head> wrappers, resolves CID images, sanitizes with DOMPurify.
+ */
+function prepareHtmlContent(rawHtml, inlineImages) {
+  if (!rawHtml) return '';
+
+  // Resolve CID images first
+  let html = resolveCidImages(rawHtml, inlineImages);
+
+  // Strip <html>, <head>, <body> tags but keep inner content
+  html = html
+    .replace(/<html[^>]*>/gi, '')
+    .replace(/<\/html>/gi, '')
+    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+    .replace(/<body[^>]*>/gi, '')
+    .replace(/<\/body>/gi, '')
+    .replace(/<!DOCTYPE[^>]*>/gi, '')
+    .replace(/<\?xml[^>]*\?>/gi, '')
+    .trim();
+
+  // Sanitize with extended email config
+  return DOMPurify.sanitize(html, EMAIL_PURIFY_CONFIG);
 }
 
 function formatAddresses(arr) {
@@ -198,12 +286,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const date = msg.date || '';
 
   const rawHtml = extractHtml(msg.parts);
-  const cleanHtml = rawHtml
-    ? DOMPurify.sanitize(rawHtml, { ADD_ATTR: ['target'], FORCE_BODY: true, ADD_TAGS: ['style'] })
-    : '<p style="color:var(--muted-foreground);font-size:.875rem">Tidak ada konten.</p>';
-
   const attachments = extractAttachments(msg.parts);
   const inlineImages = extractInlineImages(msg.parts);
+  const cleanHtml = rawHtml
+    ? prepareHtmlContent(rawHtml, inlineImages)
+    : '<p style="color:var(--muted-foreground);font-size:.875rem;margin:0">Tidak ada konten.</p>';
 
   function handleReply() {
     onReply?.({
@@ -337,8 +424,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       </div>
 
       {/* Message body */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="prose dark:prose-invert max-w-none text-sm" dangerouslySetInnerHTML={{ __html: cleanHtml }} />
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="email-body" dangerouslySetInnerHTML={{ __html: cleanHtml }} />
 
         {/* Inline images preview */}
         {inlineImages.length > 0 && (
