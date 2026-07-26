@@ -13,13 +13,23 @@ set -e
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIST_DIR="$PROJECT_DIR/dist"
-REMOTE_DIR="/data/docker-data/mailcow/data/web/webmail"
-NGINX_DIR="/data/docker-data/mailcow/data/conf/nginx"
+REMOTE_DIR="${REMOTE_DIR:-/data/docker-data/mailcow/data/web/webmail}"
+NGINX_DIR="${NGINX_DIR:-/data/docker-data/mailcow/data/conf/nginx}"
 NGINX_FILE="site.webmail.custom"
-SERVER="mailserver"
-BRANCH="main"
-GITLAB_URL="https://gitlab.pcpexpress.com/devops-team/mailcow-frontend.git"
-GITLAB_USER="anas.fikri%40pcpexpress.com"
+SERVER="${SERVER:-mailserver}"
+BRANCH="${BRANCH:-main}"
+GITLAB_URL="https://${GITLAB_HOST:-gitlab.domain.com}/${GITLAB_PROJECT:-team/project}.git"
+GITLAB_USER="${GITLAB_USER:-}"
+
+# ── Environment Variables ─────────────────────────────────────────────────────
+# SERVER         - SSH host (default: mailserver)
+# REMOTE_DIR     - Remote deploy directory (default: /data/docker-data/mailcow/data/web/webmail)
+# NGINX_DIR      - Remote nginx config directory (default: /data/docker-data/mailcow/data/conf/nginx)
+# BRANCH         - Git branch (default: main)
+# GITLAB_HOST    - GitLab host (default: gitlab.domain.com)
+# GITLAB_PROJECT - GitLab project path (default: team/project)
+# GITLAB_USER    - GitLab user (URL-encoded)
+# WEBMAIL_URL    - URL for deploy verification (default: https://mail.domain.com/webmail/)
 
 # ── Warna ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -29,7 +39,8 @@ err()   { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # ── Ambil GitLab token dari macOS Keychain ─────────────────────────────────
 get_gitlab_token() {
-    security find-internet-password -s gitlab.pcpexpress.com -w 2>/dev/null
+    local gitlab_host="${GITLAB_HOST:-gitlab.domain.com}"
+    security find-internet-password -s "$gitlab_host" -w 2>/dev/null
 }
 
 # ── Build ──────────────────────────────────────────────────────────────────
@@ -56,7 +67,7 @@ git_commit_push() {
     local encoded_pass
     encoded_pass=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$token', safe=''))")
 
-    local git_url="https://${GITLAB_USER}:${encoded_pass}@gitlab.pcpexpress.com/devops-team/mailcow-frontend.git"
+    local git_url="https://${GITLAB_USER}:${encoded_pass}@${GITLAB_HOST:-gitlab.domain.com}/${GITLAB_PROJECT:-team/project}.git"
 
     cd "$PROJECT_DIR"
 
@@ -121,11 +132,12 @@ deploy() {
 
 # ── Verify ─────────────────────────────────────────────────────────────────
 verify() {
+    local webmail_url="${WEBMAIL_URL:-https://mail.domain.com/webmail/}"
     info "Verifikasi akses webmail..."
     local http_code
-    http_code=$(ssh "$SERVER" "curl -sk -o /dev/null -w '%{http_code}' https://mail.pcpexpress.co.id/webmail/")
+    http_code=$(ssh "$SERVER" "curl -sk -o /dev/null -w '%{http_code}' '$webmail_url'")
     if [ "$http_code" = "200" ]; then
-        ok "Webmail siap: https://mail.pcpexpress.co.id/webmail/ (HTTP $http_code)"
+        ok "Webmail siap: $webmail_url (HTTP $http_code)"
     else
         err "Webmail mengembalikan HTTP $http_code — cek konfigurasi."
     fi

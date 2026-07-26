@@ -307,7 +307,7 @@ Domain yang emailnya dihosting di vendor eksternal (bukan Mailcow) harus diset `
 
 ```bash
 ssh mailserver "docker exec mailcow-mysql-mailcow-1 mysql -u mailcow \
-  -p'+DuwfUM1FNfp3FJM2gMSEJ0sR1SOMH7l' mailcow -e \
+  -p'\${DBPASS}' mailcow -e \
   \"UPDATE domain SET backupmx=1, relay_all_recipients=1 WHERE domain='domain.com';\""
 
 # Restart Postfix

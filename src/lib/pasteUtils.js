@@ -10,7 +10,6 @@ export const PURIFY_CONFIG = {
     'style', 'hr',
     'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'colgroup', 'col',
   ],
-  FORCE_BODY: true,
   ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
 };
 
@@ -26,6 +25,45 @@ export function readFileAsBase64(file) {
 /** Baca array File sebagai base64 data URLs. */
 export function readFilesAsBase64(files) {
   return Promise.all(Array.from(files).map(f => readFileAsBase64(f).then(dataUrl => ({ name: f.name.toLowerCase(), dataUrl }))));
+}
+
+/**
+ * Insert HTML ke cursor position menggunakan Range API modern.
+ * Menggantikan document.execCommand('insertHTML') yang deprecated.
+ */
+export function insertHtmlAtCursor(html, containerEl) {
+  if (!containerEl) return false;
+  const sel = window.getSelection();
+  if (!sel) return false;
+
+  containerEl.focus();
+
+  let range;
+  if (sel.rangeCount > 0) {
+    range = sel.getRangeAt(0);
+    if (!containerEl.contains(range.commonAncestorContainer)) {
+      range = document.createRange();
+      range.selectNodeContents(containerEl);
+      range.collapse(false);
+    }
+  } else {
+    range = document.createRange();
+    range.selectNodeContents(containerEl);
+    range.collapse(false);
+  }
+
+  range.deleteContents();
+
+  const fragment = range.createContextualFragment(html);
+  const lastNode = fragment.lastChild || fragment;
+  range.insertNode(fragment);
+
+  range.setEndAfter(lastNode);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  return true;
 }
 
 /**
@@ -50,15 +88,54 @@ export async function insertImageFile(file, editorRef, onChange) {
   if (!file || !file.type.startsWith('image/')) return false;
   const dataUrl = await readFileAsBase64(file);
   if (!editorRef.current) return false;
-  editorRef.current.focus();
-  document.execCommand('insertHTML', false, `<img src="${dataUrl}" style="max-width:100%;height:auto">`);
-  onChange?.(editorRef.current.innerHTML);
-  return true;
+  const ok = insertHtmlAtCursor(`<img src="${dataUrl}" style="max-width:100%;height:auto">`, editorRef.current);
+  if (ok) onChange?.(editorRef.current.innerHTML);
+  return ok;
+}
+
+function getImageFilesFromClipboard(dt) {
+  const files = [];
+
+  if (dt.items) {
+    for (const item of dt.items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const f = item.getAsFile();
+        if (f) files.push(f);
+      }
+    }
+  }
+
+  if (files.length === 0 && dt.files && dt.files.length > 0) {
+    for (const f of dt.files) {
+      if (f.type.startsWith('image/')) files.push(f);
+    }
+  }
+
+  return files;
+}
+
+async function tryReadClipboardImages() {
+  if (!navigator.clipboard?.read) return [];
+  try {
+    const items = await navigator.clipboard.read();
+    const files = [];
+    for (const item of items) {
+      for (const type of item.types) {
+        if (type.startsWith('image/')) {
+          const blob = await item.getType(type);
+          if (blob) files.push(new File([blob], `clipboard-image.${type.split('/')[1] || 'png'}`, { type }));
+        }
+      }
+    }
+    return files;
+  } catch {
+    return [];
+  }
 }
 
 /**
  * Handler paste universal untuk editor HTML.
- * Mengembalikan: null = biarkan browser | 'cid-warning' = ada cid yg tidak resolve
+ * Mengembalikan: null = biarkan browser | 'ok' | 'cid-warning'
  */
 export async function handleEditorPaste(e, { editorRef, onChange, setIsPasting, onCidWarning }) {
   const dt = e.clipboardData;
@@ -66,42 +143,45 @@ export async function handleEditorPaste(e, { editorRef, onChange, setIsPasting, 
 
   const htmlData = dt.getData('text/html');
 
-  // Kumpulkan image files dari clipboard items
-  const imageFiles = [];
-  if (dt.items) {
-    for (const item of dt.items) {
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
-        const f = item.getAsFile();
-        if (f) imageFiles.push(f);
-      }
-    }
-  }
+  let imageFiles = getImageFilesFromClipboard(dt);
 
-  // ── Case 1 & 2: HTML paste ─────────────────────────────────────────────────
   if (htmlData) {
     e.preventDefault();
     setIsPasting?.(true);
 
-    const hasCid = /src="cid:/i.test(htmlData);
+    const hasCid  = /src="cid:/i.test(htmlData);
+    const hasImg  = /<img\s/i.test(htmlData);
     let resolvedHtml = htmlData;
     let hadUnresolvedCid = false;
 
     if (hasCid) {
       if (imageFiles.length > 0) {
-        // Outlook / client dengan file items
         const images = await readFilesAsBase64(imageFiles);
         resolvedHtml = resolveCidSrcs(htmlData, images);
       } else {
-        // Apple Mail: tidak ada image data di clipboard — strip cid: refs dan beri warning
-        resolvedHtml = htmlData.replace(/src="cid:[^"]+"/gi, 'src="" style="display:none"');
-        hadUnresolvedCid = true;
+        const clipboardImages = await tryReadClipboardImages();
+        if (clipboardImages.length > 0) {
+          imageFiles = clipboardImages;
+          const images = await readFilesAsBase64(clipboardImages);
+          resolvedHtml = resolveCidSrcs(htmlData, images);
+        } else {
+          resolvedHtml = htmlData.replace(/src="cid:[^"]+"/gi, 'src="" style="display:none"');
+          hadUnresolvedCid = true;
+        }
       }
+    } else if (hasImg && imageFiles.length > 0) {
+      const images = await readFilesAsBase64(imageFiles);
+      resolvedHtml = htmlData.replace(/<img\s[^>]*src="([^"]+)"/gi, (match, src) => {
+        if (src.startsWith('data:')) return match;
+        const replacement = images.find(img => src.toLowerCase().includes(img.name?.replace(/\.[^.]+$/, '')));
+        if (replacement) return match.replace(src, replacement.dataUrl);
+        return match;
+      });
     }
 
     const clean = DOMPurify.sanitize(resolvedHtml, PURIFY_CONFIG);
     if (editorRef.current) {
-      editorRef.current.focus();
-      document.execCommand('insertHTML', false, clean);
+      insertHtmlAtCursor(clean, editorRef.current);
       onChange?.(editorRef.current.innerHTML);
     }
     setIsPasting?.(false);
@@ -112,7 +192,6 @@ export async function handleEditorPaste(e, { editorRef, onChange, setIsPasting, 
     return hadUnresolvedCid ? 'cid-warning' : 'ok';
   }
 
-  // ── Case 3: raw image file (screenshot, drag-drop) ─────────────────────────
   if (imageFiles.length > 0) {
     e.preventDefault();
     setIsPasting?.(true);
@@ -121,6 +200,15 @@ export async function handleEditorPaste(e, { editorRef, onChange, setIsPasting, 
     return 'ok';
   }
 
-  // ── Case 4: plain text / lainnya — biarkan browser ─────────────────────────
+  setIsPasting?.(true);
+  const clipboardImages = await tryReadClipboardImages();
+  if (clipboardImages.length > 0) {
+    e.preventDefault();
+    await insertImageFile(clipboardImages[0], editorRef, onChange);
+    setIsPasting?.(false);
+    return 'ok';
+  }
+  setIsPasting?.(false);
+
   return null;
 }

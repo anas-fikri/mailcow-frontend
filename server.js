@@ -30,7 +30,7 @@ if (NODE_MAJOR < 18) {
 }
 
 // ── Config SMTP ────────────────────────────────────────────────────────────────
-const SMTP_HOST    = process.env.SMTP_HOST    || 'mail.pcpexpress.co.id';
+const SMTP_HOST    = process.env.SMTP_HOST;
 const SMTP_PORT    = parseInt(process.env.SMTP_PORT || '465');
 const SMTP_SECURE  = SMTP_PORT === 465;
 const SMTP_TLS_CA  = process.env.SMTP_TLS_CA  || ''; // path to CA cert file for verified TLS
@@ -238,6 +238,10 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: req => req.ip
 async function start() {
   if (!MYSQL_PASS) {
     console.error('❌ DBPASS environment variable is required. Set it before starting.');
+    process.exit(1);
+  }
+  if (!SMTP_HOST) {
+    console.error('❌ SMTP_HOST environment variable is required. Set it before starting.');
     process.exit(1);
   }
 

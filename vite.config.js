@@ -18,16 +18,16 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/SOGo': {
-        target: 'https://mail.pcpexpress.co.id',
+        target: process.env.VITE_SOGO_BASE_URL || 'https://mail.domain.com',
         changeOrigin: true,
         secure: false,
         agent: new https.Agent({ keepAlive: false }),
         headers: {
-          'Origin': 'https://mail.pcpexpress.co.id',
-          'Referer': 'https://mail.pcpexpress.co.id/SOGo/',
+          'Origin': process.env.VITE_SOGO_BASE_URL || 'https://mail.domain.com',
+          'Referer': (process.env.VITE_SOGO_BASE_URL || 'https://mail.domain.com') + '/SOGo/',
         },
         // Rewrite cookie domain agar browser terima cookie dari localhost
-        cookieDomainRewrite: { 'mail.pcpexpress.co.id': 'localhost', '*': 'localhost' },
+        cookieDomainRewrite: { '*': 'localhost' },
         configure(proxy) {
           // ─── Log request yang dikirim ke SOGo ───────────────────────────
           proxy.on('proxyReq', (proxyReq, req) => {

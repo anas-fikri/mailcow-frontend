@@ -104,7 +104,7 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
         <button
           type="button"
           title="Upload Gambar dari File"
-          onMouseDown={e => { e.preventDefault(); fileInputRef.current?.click(); }}
+          onClick={e => { e.preventDefault(); fileInputRef.current?.click(); }}
           className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors"
         >
           <ImagePlus size={15} />
@@ -128,7 +128,7 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
         <div className="flex items-start gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs">
           <AlertTriangle size={13} className="mt-0.5 shrink-0" />
           <span className="flex-1">
-            <strong>Gambar tidak disertakan</strong> — Apple Mail tidak menyertakan data gambar dalam clipboard.
+            <strong>Gambar tidak disertakan</strong> — clipboard tidak menyertakan data gambar. 
             Gunakan tombol <strong>Upload Gambar (↑)</strong> untuk menambahkan gambar dari file, atau drag &amp; drop gambar ke editor.
           </span>
           <button onClick={() => setCidWarning(false)} className="shrink-0 hover:opacity-70">
