@@ -240,17 +240,25 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     return () => window.removeEventListener('keydown', handler);
   }, [msg, deleteMutation.isPending]);
 
+  function escapeHtml(str) {
+    return String(str).replace(/[<>&"']/g, c => {
+      const m = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' };
+      return m[c];
+    });
+  }
+
   function handlePrint() {
     if (!msg) return;
     const win = window.open('', '_blank');
     if (!win) return;
+    const safeSubject = escapeHtml(msg.subject);
     win.document.write(`
-      <html><head><title>${msg.subject || 'Email'}</title>
+      <html><head><title>${safeSubject || 'Email'}</title>
       <style>body{font-family:sans-serif;padding:40px;max-width:800px;margin:auto;line-height:1.6}
       h1{font-size:1.5em;margin-bottom:20px}.meta{color:#666;font-size:.9em;margin-bottom:30px}
       hr{border:none;border-top:1px solid #ddd;margin:20px 0}
       img{max-width:100%}</style></head><body>
-      <h1>${msg.subject || '(Tanpa Subjek)'}</h1>
+      <h1>${safeSubject || '(Tanpa Subjek)'}</h1>
       <div class="meta">
         <p><strong>Dari:</strong> ${formatAddresses(msg.from)}</p>
         <p><strong>Kepada:</strong> ${formatAddresses(msg.to)}</p>

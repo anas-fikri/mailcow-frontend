@@ -1,5 +1,13 @@
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
+// ─── API Key untuk backend proxy ────────────────────────────────────────────────
+// Digunakan oleh /api/* endpoints. Ambil dari env, fallback kosong = skip header.
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+function withApiKey(headers = {}) {
+  if (!API_KEY) return headers;
+  return { ...headers, 'X-Api-Key': API_KEY };
+}
+
 // ─── Session expiry callback ──────────────────────────────────────────────────
 // Dipanggil oleh throwApiError saat mendapatkan 401.
 // Di-set oleh App.jsx saat mount.
@@ -442,11 +450,11 @@ export async function sendMessage(sogoToken, payload, smtpCreds = null) {
   if (!smtpCreds?.user || !smtpCreds?.pass) {
     throw new Error('Email tidak dapat dikirim. SOGo mengembalikan 501. Silakan login ulang dan coba lagi.');
   }
-  const smtpRes = await fetch('/api/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from, smtpUser: smtpCreds.user, smtpPass: smtpCreds.pass }),
-  });
+    const smtpRes = await fetch('/api/send', {
+      method: 'POST',
+      headers: withApiKey({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from, smtpUser: smtpCreds.user, smtpPass: smtpCreds.pass }),
+    });
   if (!smtpRes.ok) {
     const err = await smtpRes.json().catch(() => ({}));
     throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
@@ -743,7 +751,7 @@ export async function fetchPreferences(sogoToken, email) {
   // ─ Layer 1: Backend DB endpoint ─
   try {
     const url = `/api/preferences?email=${encodeURIComponent(email)}&t=${Date.now()}`;
-    const res  = await fetch(url, { credentials: 'include' });
+    const res  = await fetch(url, { credentials: 'include', headers: withApiKey() });
     if (res.ok) {
       const ct = res.headers.get('content-type') || '';
       if (ct.includes('application/json')) {

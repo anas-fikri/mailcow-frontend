@@ -1,18 +1,10 @@
 import React from 'react'
-import { Mail, Calendar, Users, Settings, BarChart3, LogOut, ChevronRight, Filter } from 'lucide-react'
+import { Mail, LogOut, ChevronRight } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { logout } from '../../lib/api'
 import { Sun, Moon, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
-
-const NAV_ITEMS = [
-  { to: '/mail',      icon: Mail,     label: 'Email' },
-  { to: '/calendar',  icon: Calendar, label: 'Kalender' },
-  { to: '/contacts',  icon: Users,    label: 'Kontak' },
-  { to: '/rules',     icon: Filter,   label: 'Aturan' },
-  { to: '/stats',     icon: BarChart3, label: 'Statistik' },
-  { to: '/settings',  icon: Settings, label: 'Pengaturan' },
-]
+import { NAV_ITEMS } from '../../constants/navigation'
 
 export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
   const { user, clearUser, theme, toggleTheme } = useAuthStore()

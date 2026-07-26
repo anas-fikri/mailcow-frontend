@@ -28,14 +28,69 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465');
 const SMTP_SECURE = SMTP_PORT === 465;
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
-app.use(cors({ origin: ['http://localhost:8888', 'http://127.0.0.1:8888'], credentials: true }));
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8888,http://127.0.0.1:8888')
+  .split(',').map(s => s.trim());
+app.use(cors({ origin: CORS_ORIGINS, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
 // ── Config DB ──────────────────────────────────────────────────────────────────
 const MYSQL_CONTAINER = process.env.MYSQL_CONTAINER || 'mailcow-mysql-mailcow-1';
 const MYSQL_USER      = process.env.DBUSER || 'mailcow';
-const MYSQL_PASS      = process.env.DBPASS || '+DuwfUM1FNfp3FJM2gMSEJ0sR1SOMH7l';
+const MYSQL_PASS      = process.env.DBPASS;  // WAJIB diisi via env — tidak ada default
 const MYSQL_DB        = process.env.DBNAME || 'mailcow';
+
+// ── Config API Key (optional) ───────────────────────────────────────────────────
+// Jika di-set, semua request ke /api/* WAJIB menyertakan header X-Api-Key.
+// Biarkan kosong untuk development (tanpa auth).
+const API_KEY = process.env.API_KEY || '';
+
+// ── Simple in-memory rate limiter ───────────────────────────────────────────────
+// Sliding window per key. Reset otomatis saat server restart.
+const rateLimitBuckets = new Map();
+setInterval(() => {
+  // Bersihkan bucket expired setiap 60 detik
+  const now = Date.now();
+  for (const [key, bucket] of rateLimitBuckets) {
+    bucket.timestamps = bucket.timestamps.filter(t => now - t < bucket.windowMs);
+    if (bucket.timestamps.length === 0) rateLimitBuckets.delete(key);
+  }
+}, 60000);
+
+function rateLimit({ max = 10, windowMs = 60000, keyFn }) {
+  return (req, res, next) => {
+    const key = keyFn(req);
+    const now = Date.now();
+    if (!rateLimitBuckets.has(key)) {
+      rateLimitBuckets.set(key, { timestamps: [], windowMs });
+    }
+    const bucket = rateLimitBuckets.get(key);
+    bucket.timestamps = bucket.timestamps.filter(t => now - t < windowMs);
+    if (bucket.timestamps.length >= max) {
+      return res.status(429).json({ message: 'Terlalu banyak permintaan. Silakan coba lagi nanti.' });
+    }
+    bucket.timestamps.push(now);
+    next();
+  };
+}
+
+// ── Auth middleware ─────────────────────────────────────────────────────────────
+function requireApiKey(req, res, next) {
+  if (!API_KEY) return next();
+  const key = req.headers['x-api-key'];
+  if (!key || key !== API_KEY) {
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+  next();
+}
+
+// ── Security middleware (applied to all /api/* routes) ──────────────────────────
+app.use('/api', requireApiKey);
+app.use('/api', (req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '0');
+  next();
+});
 
 // ── Health check ───────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
@@ -43,12 +98,9 @@ app.get('/api/health', (_req, res) => {
 });
 
 // ── GET Preferences ────────────────────────────────────────────────────────────
-/**
- * GET /api/preferences?email=user@domain.com
- * Membaca preferences SOGo langsung dari database MySQL.
- * SOGo tidak menyediakan JSON REST endpoint untuk GET — selalu mengembalikan HTML.
- */
-app.get('/api/preferences', (req, res) => {
+// Membaca preferences SOGo langsung dari database MySQL.
+// SOGo tidak menyediakan JSON REST endpoint untuk GET — selalu mengembalikan HTML.
+app.get('/api/preferences', rateLimit({ max: 30, windowMs: 60000, keyFn: req => req.ip }), (req, res) => {
   const { email } = req.query;
   if (!email || !email.includes('@')) {
     return res.status(400).json({ message: 'Parameter email tidak valid.' });
@@ -94,7 +146,7 @@ app.get('/api/preferences', (req, res) => {
  * smtpUser & smtpPass dikirim dari frontend per-request (per-session credential).
  * Ini aman karena hanya digunakan untuk koneksi SMTP internal.
  */
-app.post('/api/send', async (req, res) => {
+app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: req => req.ip }), async (req, res) => {
   const {
     to, cc = '', bcc = '',
     subject = '',
@@ -137,8 +189,17 @@ app.post('/api/send', async (req, res) => {
   }
 });
 
+// ── Validation ─────────────────────────────────────────────────────────────────
+if (!MYSQL_PASS) {
+  console.error('❌ DBPASS environment variable is required. Set it before starting.');
+  process.exit(1);
+}
+
 // ── Start ──────────────────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend proxy running at http://127.0.0.1:${PORT}`);
   console.log(`SMTP: ${SMTP_HOST}:${SMTP_PORT} (secure=${SMTP_SECURE})`);
+  console.log(`CORS origins: ${CORS_ORIGINS.join(', ')}`);
+  console.log(`API Key auth: ${API_KEY ? 'ENABLED' : 'DISABLED (development mode)'}`);
+  console.log(`Rate limit: /api/send=10/min, /api/preferences=30/min`);
 });
