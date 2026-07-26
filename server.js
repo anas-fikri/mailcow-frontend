@@ -16,16 +16,24 @@
 import express from 'express';
 import cors    from 'cors';
 import nodemailer from 'nodemailer';
+import mysql from 'mysql2/promise';
 import { execSync } from 'child_process';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
+// ── Node.js version guard ───────────────────────────────────────────────────────
+const NODE_MAJOR = parseInt(process.version.slice(1).split('.')[0], 10);
+if (NODE_MAJOR < 18) {
+  console.error(`❌ Requires Node.js 18+ (current: ${process.version}). Upgrade Node.`);
+  process.exit(1);
+}
+
 // ── Config SMTP ────────────────────────────────────────────────────────────────
-// Gunakan SMTPS port 465 (SSL) — sudah terbukti tersedia di mail.pcpexpress.co.id
-const SMTP_HOST = process.env.SMTP_HOST || 'mail.pcpexpress.co.id';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465');
-const SMTP_SECURE = SMTP_PORT === 465;
+const SMTP_HOST    = process.env.SMTP_HOST    || 'mail.pcpexpress.co.id';
+const SMTP_PORT    = parseInt(process.env.SMTP_PORT || '465');
+const SMTP_SECURE  = SMTP_PORT === 465;
+const SMTP_TLS_CA  = process.env.SMTP_TLS_CA  || ''; // path to CA cert file for verified TLS
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8888,http://127.0.0.1:8888')
@@ -36,12 +44,11 @@ app.use(express.json({ limit: '10mb' }));
 // ── Config DB ──────────────────────────────────────────────────────────────────
 const MYSQL_CONTAINER = process.env.MYSQL_CONTAINER || 'mailcow-mysql-mailcow-1';
 const MYSQL_USER      = process.env.DBUSER || 'mailcow';
-const MYSQL_PASS      = process.env.DBPASS;  // WAJIB diisi via env — tidak ada default
+const MYSQL_PASS      = process.env.DBPASS;
 const MYSQL_DB        = process.env.DBNAME || 'mailcow';
+const DB_PORT         = parseInt(process.env.DB_PORT || '3306', 10);
 
 // ── Config API Key (optional) ───────────────────────────────────────────────────
-// Jika di-set, semua request ke /api/* WAJIB menyertakan header X-Api-Key.
-// Biarkan kosong untuk development (tanpa auth).
 const API_KEY = process.env.API_KEY || '';
 
 // ── Simple in-memory rate limiter ───────────────────────────────────────────────
@@ -89,6 +96,11 @@ app.use('/api', (req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '0');
+  // Strict CSP: only allow resources from same origin + inline styles (Tailwind)
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; frame-ancestors 'none';"
+  );
   next();
 });
 
@@ -97,40 +109,70 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, smtp: SMTP_HOST, port: SMTP_PORT });
 });
 
+// ── Database pool (mysql2) ──────────────────────────────────────────────────────
+let pool = null;
+
+async function initDatabase() {
+  let dbHost = process.env.DB_HOST;
+
+  if (!dbHost) {
+    try {
+      // One-time docker inspect to get the MySQL container IP
+      dbHost = execSync(
+        `docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${MYSQL_CONTAINER}`,
+        { timeout: 5000, encoding: 'utf8' }
+      ).trim();
+      if (!dbHost) dbHost = '127.0.0.1';
+    } catch {
+      dbHost = '127.0.0.1';
+    }
+  }
+
+  pool = mysql.createPool({
+    host: dbHost,
+    port: DB_PORT,
+    user: MYSQL_USER,
+    password: MYSQL_PASS,
+    database: MYSQL_DB,
+    waitForConnections: true,
+    connectionLimit: 3,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+  });
+
+  // Verify connection works
+  await pool.query('SELECT 1');
+  console.log(`[DB] Connected to MySQL at ${dbHost}:${DB_PORT} (pool: 3 conns)`);
+  return pool;
+}
+
+async function queryPreferences(email) {
+  const [rows] = await pool.query(
+    'SELECT c_defaults, c_settings FROM sogo_user_profile WHERE c_uid = ? LIMIT 1',
+    [email]
+  );
+  if (rows.length === 0) return { defaults: {}, settings: {} };
+
+  const row = rows[0];
+  let defaults = {};
+  let settings = {};
+  try { defaults = JSON.parse(row.c_defaults || '{}'); } catch {}
+  try { settings = JSON.parse(row.c_settings || '{}'); } catch {}
+  return { defaults, settings };
+}
+
 // ── GET Preferences ────────────────────────────────────────────────────────────
-// Membaca preferences SOGo langsung dari database MySQL.
-// SOGo tidak menyediakan JSON REST endpoint untuk GET — selalu mengembalikan HTML.
-app.get('/api/preferences', rateLimit({ max: 30, windowMs: 60000, keyFn: req => req.ip }), (req, res) => {
+app.get('/api/preferences', rateLimit({ max: 30, windowMs: 60000, keyFn: req => req.ip }), async (req, res) => {
   const { email } = req.query;
   if (!email || !email.includes('@')) {
     return res.status(400).json({ message: 'Parameter email tidak valid.' });
   }
 
-  // Sanitasi email: hanya izinkan karakter aman
-  const safeEmail = email.replace(/[^a-zA-Z0-9@._+-]/g, '');
-
   try {
-    const query = `SELECT c_defaults, c_settings FROM sogo_user_profile WHERE c_uid='${safeEmail}' LIMIT 1;`;
-    const cmd   = `docker exec ${MYSQL_CONTAINER} mysql -u ${MYSQL_USER} -p${MYSQL_PASS} ${MYSQL_DB} -sN -e "${query}"`;
-
-    const output = execSync(cmd, { encoding: 'utf8', timeout: 8000 }).trim();
-    if (!output) {
-      return res.json({ defaults: {}, settings: {} });
-    }
-
-    // output: "col1_value\tcol2_value" (tab-separated)
-    const tabs    = output.split('\t');
-    const rawDef  = tabs[0] || '{}';
-    const rawSet  = tabs[1] || '{}';
-
-    let defaults = {};
-    let settings = {};
-    try { defaults = JSON.parse(rawDef); } catch {}
-    try { settings = JSON.parse(rawSet); } catch {}
-
-    console.log(`[preferences] Loaded for ${safeEmail}: Vacation.enabled=${defaults?.Vacation?.enabled}`);
-    return res.json({ defaults, settings });
-
+    const prefs = await queryPreferences(email);
+    console.log(`[preferences] OK ${email}: Vacation.enabled=${prefs.defaults?.Vacation?.enabled}`);
+    return res.json(prefs);
   } catch (err) {
     console.error('[preferences] ERROR:', err.message);
     return res.status(500).json({ message: 'Gagal membaca preferensi dari database.' });
@@ -162,12 +204,15 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: req => req.ip
   if (!smtpPass) return res.status(400).json({ message: 'Credential SMTP tidak diberikan.' });
 
   try {
+    const tlsOpts = SMTP_TLS_CA
+      ? { ca: require('fs').readFileSync(SMTP_TLS_CA), rejectUnauthorized: true }
+      : { rejectUnauthorized: false };
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: SMTP_SECURE,
       auth: { user: smtpUser, pass: smtpPass },
-      tls: { rejectUnauthorized: false }, // self-signed cert ok
+      tls: tlsOpts,
     });
 
     const mailOptions = {
@@ -189,17 +234,28 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: req => req.ip
   }
 });
 
-// ── Validation ─────────────────────────────────────────────────────────────────
-if (!MYSQL_PASS) {
-  console.error('❌ DBPASS environment variable is required. Set it before starting.');
-  process.exit(1);
+// ── Start ──────────────────────────────────────────────────────────────────────
+async function start() {
+  if (!MYSQL_PASS) {
+    console.error('❌ DBPASS environment variable is required. Set it before starting.');
+    process.exit(1);
+  }
+
+  try {
+    await initDatabase();
+  } catch (err) {
+    console.error('[DB] Failed to connect:', err.message);
+    console.error('[DB] Check DB_HOST, DB_PORT, DBUSER, DBPASS, DBNAME');
+    process.exit(1);
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Backend proxy running at http://127.0.0.1:${PORT}`);
+    console.log(`SMTP: ${SMTP_HOST}:${SMTP_PORT} (secure=${SMTP_SECURE})`);
+    console.log(`CORS origins: ${CORS_ORIGINS.join(', ')}`);
+    console.log(`API Key auth: ${API_KEY ? 'ENABLED' : 'DISABLED (development mode)'}`);
+    console.log(`Rate limit: /api/send=10/min, /api/preferences=30/min`);
+  });
 }
 
-// ── Start ──────────────────────────────────────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Backend proxy running at http://127.0.0.1:${PORT}`);
-  console.log(`SMTP: ${SMTP_HOST}:${SMTP_PORT} (secure=${SMTP_SECURE})`);
-  console.log(`CORS origins: ${CORS_ORIGINS.join(', ')}`);
-  console.log(`API Key auth: ${API_KEY ? 'ENABLED' : 'DISABLED (development mode)'}`);
-  console.log(`Rate limit: /api/send=10/min, /api/preferences=30/min`);
-});
+start();
