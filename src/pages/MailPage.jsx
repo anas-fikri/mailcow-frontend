@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Inbox, Send, Trash2, FileText, Loader2, Edit3, Mail, Menu, X,
   AlertCircle, Search, Trash, CheckSquare, Square, MailOpen, RefreshCw,
-  Folder, Star, Undo2, Filter,
+  Folder, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchFolders, fetchMessages, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged } from '../lib/api';
@@ -79,9 +79,49 @@ const SEARCH_CRITERIA = [
   { id: 'body',    label: 'Isi Email' },
 ];
 
+// ─── Conversation helpers ────────────────────────────────────────────────────
+function normalizeSubject(subject) {
+  if (!subject) return '';
+  const prefixes = [
+    /^Re:\s*/i, /^Fwd:\s*/i, /^Fw:\s*/i, /^AW:\s*/i, /^WG:\s*/i, /^Antw:\s*/i,
+    /^[\[\(]?RE[\]\)]?[:\-]\s*/i, /^[\[\(]?FWD[\]\)]?[:\-]\s*/i,
+    /^Vs:\s*/i, /^Enc:\s*/i, /^RIF:\s*/i, /^TR:\s*/i,
+  ];
+  let s = subject.trim();
+  let prev;
+  do {
+    prev = s;
+    for (const re of prefixes) {
+      s = s.replace(re, '');
+    }
+  } while (s !== prev);
+  return s.trim().toLowerCase() || '(tanpa subjek)';
+}
+
+function groupMessages(messages) {
+  const groups = [];
+  const map = new Map();
+  for (const msg of messages) {
+    const key = normalizeSubject(msg.subject) || '(tanpa subjek)';
+    if (map.has(key)) {
+      map.get(key).push(msg);
+    } else {
+      const group = { key, subject: msg.subject || '(Tanpa Subjek)', messages: [msg] };
+      map.set(key, group);
+      groups.push(group);
+    }
+  }
+  groups.sort((a, b) => {
+    const lastA = a.messages.reduce((max, m) => Math.max(max, m.uid), 0);
+    const lastB = b.messages.reduce((max, m) => Math.max(max, m.uid), 0);
+    return lastB - lastA;
+  });
+  return groups;
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function MailPage() {
-  const { user } = useAuthStore();
+  const { user, sortAsc, setSortAsc, conversationView, setConversationView } = useAuthStore();
   const queryClient = useQueryClient();
 
   const [selectedFolder, setSelectedFolder] = useState('folderINBOX');
@@ -98,6 +138,7 @@ export default function MailPage() {
   const [focusIdx, setFocusIdx] = useState(-1);
   const [flagPickerOpen, setFlagPickerOpen] = useState(null); // { msgUid, anchorEl }
   const [flagFilter, setFlagFilter] = useState(null); // color key or null
+  const [expandedConversations, setExpandedConversations] = useState(new Set());
 
   // Refs untuk compose/search
   const searchInputRef = useRef(null);
@@ -147,7 +188,7 @@ export default function MailPage() {
     queryKey: ['messages', user?.sogoToken, selectedFolder, searchQuery, searchCriteria],
     queryFn: () => searchQuery
       ? searchMessages(user?.sogoToken, selectedFolder, searchQuery, searchCriteria)
-      : fetchMessages(user?.sogoToken, selectedFolder),
+      : fetchMessages(user?.sogoToken, selectedFolder, { limit: 250 }),
     // Tunggu folder benar-benar punya data (bukan array default/kosong) agar tidak nabrak saat pertama load
     enabled: !!user?.sogoToken && !!selectedFolder && folders !== DEFAULT_FOLDERS && !isFetchingFolders,
     staleTime: STALE_TIMES.MESSAGES,
@@ -170,6 +211,7 @@ export default function MailPage() {
 
   // ── Load More (client-side pagination, after messages assignment) ─────────
   const PAGE_SIZE = 50;
+  const SERVER_PAGE_LIMIT = 250;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const visibleMessages = messages.slice(0, visibleCount);
 
@@ -178,9 +220,35 @@ export default function MailPage() {
     ? visibleMessages.filter((m) => getFlagColor(user?.email, m.uid) === flagFilter)
     : visibleMessages;
 
+  // Sort by date (client-side)
+  const sortedMessages = useMemo(() => {
+    return [...displayMessages].sort((a, b) =>
+      sortAsc ? a.uid - b.uid : b.uid - a.uid
+    );
+  }, [displayMessages, sortAsc]);
+
+  // Conversation grouping
+  const conversationGroups = useMemo(() => {
+    if (!conversationView) return [];
+    return groupMessages(sortedMessages);
+  }, [sortedMessages, conversationView]);
+
+  // Reset expanded set when conversation view toggles
+  useEffect(() => {
+    setExpandedConversations(new Set());
+  }, [conversationView]);
+
+  const toggleConversation = useCallback((key) => {
+    setExpandedConversations(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
   const hasMore = visibleCount < messages.length;
 
-  // ── Auto-Archive Rules ────────────────────────────────────────────────────
   // Jalankan rules untuk pesan yang baru dimuat
   useEffect(() => {
     if (!user?.email || !user?.sogoToken || !messages.length || !enabledRules) return;
@@ -344,8 +412,8 @@ export default function MailPage() {
         return;
       }
 
-      // Navigasi j/k hanya jika ada pesan
-      if (messages.length > 0) {
+      // Navigasi j/k hanya jika ada pesan dan bukan conversation view
+      if (!conversationView && messages.length > 0) {
         if (key === 'j') {
           e.preventDefault();
           const next = Math.min(focusIdx + 1, messages.length - 1);
@@ -420,6 +488,12 @@ export default function MailPage() {
         return;
       }
 
+      if (key === '!' && selectedFolder !== 'folderJunk') {
+        e.preventDefault();
+        moveMutation.mutate({ uids: targetUids, targetFolder: 'folderJunk' });
+        return;
+      }
+
       if (key === 'm') {
         e.preventDefault();
         // Buka dropdown move — trigger via simulated click on the select
@@ -476,6 +550,134 @@ export default function MailPage() {
   const selectedFolderMeta = folders.find((f) => f.id === selectedFolder) || {
     label: selectedFolder,
     type: 'custom',
+  };
+
+  // Message row renderer (shared by flat list & conversation groups)
+  const renderMessageRow = (msg, idx = -1) => {
+    const isActive = selectedMsgId === msg.uid;
+    const isSelected = selectedUids.includes(msg.uid);
+    const isFocused = !conversationView && focusIdx === idx;
+
+    return (
+      <SwipeableRow
+        key={msg.uid}
+        onSwipeLeft={() => scheduleDelete([msg.uid])}
+        onSwipeRight={() => {
+          markRead(user.sogoToken, selectedFolder, msg.uid, true).then(() => {
+            queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
+            queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+          });
+        }}
+      >
+        <div
+          onClick={() => setSelectedMsgId(msg.uid)}
+          ref={(el) => { if (idx >= 0) msgRefs.current[msg.uid] = el; }}
+          className={`group w-full flex items-start text-left p-3 hover:bg-muted/50 transition-colors cursor-pointer border-l-4 ${
+            isActive ? 'bg-muted border-primary' : isFocused ? 'border-primary/40 bg-muted/30' : 'border-transparent'
+          } ${isSelected ? 'bg-primary/5' : ''}`}
+        >
+          {/* Checkbox */}
+          <div className="pt-1 pr-3 shrink-0" onClick={(e) => toggleSelectMsg(e, msg.uid)}>
+            {isSelected ? (
+              <CheckSquare size={18} className="text-primary" />
+            ) : (
+              <Square size={18} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
+          </div>
+
+          {/* Star/Flag dengan warna */}
+          <div className="pt-1 pr-2 shrink-0 relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
+              }}
+              className="focus:outline-none"
+            >
+              {(() => {
+                const colorKey = getFlagColor(user?.email, msg.uid);
+                if (colorKey && FLAG_COLORS[colorKey]) {
+                  return <Star size={14} className={`${FLAG_COLORS[colorKey].text} ${FLAG_COLORS[colorKey].fill}`} />;
+                }
+                if (msg.isFlagged) {
+                  return <Star size={14} className="text-amber-500 fill-amber-500" />;
+                }
+                return <Star size={14} className="text-muted-foreground opacity-0 group-hover:opacity-40 transition-opacity" />;
+              })()}
+            </button>
+
+            {flagPickerOpen?.msgUid === msg.uid && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setFlagPickerOpen(null)} />
+                <div
+                  className="fixed z-50 bg-card border border-border shadow-xl rounded-xl p-2 flex gap-1.5"
+                  style={{ left: Math.min(flagPickerOpen.x, window.innerWidth - 200), top: Math.min(flagPickerOpen.y, window.innerHeight - 80) }}
+                >
+                  {FLAG_COLOR_KEYS.map((key) => (
+                    <button
+                      key={key}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const currentColor = getFlagColor(user?.email, msg.uid);
+                        if (currentColor === key) {
+                          setFlagColor(user?.email, msg.uid, null);
+                          if (!msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, true).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] }));
+                        } else {
+                          setFlagColor(user?.email, msg.uid, key);
+                          if (!msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, true).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] }));
+                        }
+                        setFlagPickerOpen(null);
+                      }}
+                      className={`w-7 h-7 rounded-full ${FLAG_COLORS[key].bg} hover:scale-110 transition-transform ${
+                        getFlagColor(user?.email, msg.uid) === key ? 'ring-2 ring-offset-2 ring-border' : ''
+                      }`}
+                      title={FLAG_COLORS[key].label}
+                    />
+                  ))}
+                  <div className="w-px bg-border mx-1" />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFlagColor(user?.email, msg.uid, null);
+                      if (msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, false).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] }));
+                      setFlagPickerOpen(null);
+                    }}
+                    className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-xs text-muted-foreground"
+                    title="Hapus flag"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex justify-between items-baseline mb-1">
+              <span className={`text-sm truncate pr-2 ${msg.isRead ? 'text-muted-foreground font-medium' : 'text-foreground font-bold'}`}>
+                {isSentOrDraft ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender')}
+              </span>
+              <span className="text-xs text-muted-foreground shrink-0">{msg.date}</span>
+            </div>
+            <div className={`text-sm truncate ${msg.isRead ? 'text-muted-foreground' : 'text-primary font-medium'}`}>
+              {msg.subject || '(Tanpa Subjek)'}
+            </div>
+            {msg.hasAtt && (
+              <div className="mt-1">
+                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">📎 Lampiran</span>
+              </div>
+            )}
+          </div>
+
+          {!msg.isRead && (
+            <div className="shrink-0 ml-2 pt-2">
+              <span className="block w-2 h-2 rounded-full bg-primary" />
+            </div>
+          )}
+        </div>
+      </SwipeableRow>
+    );
   };
 
   return (
@@ -612,13 +814,33 @@ export default function MailPage() {
                 <Loader2 size={14} className="animate-spin text-muted-foreground" />
               )}
             </div>
-            <button
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] })}
-              className="p-2 rounded-full hover:bg-muted text-muted-foreground"
-              title="Refresh"
-            >
-              <RefreshCw size={16} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setConversationView(!conversationView)}
+                className={`p-2 rounded-full transition-colors ${
+                  conversationView ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+                }`}
+                title={conversationView ? 'Tampilan biasa' : 'Tampilan percakapan'}
+              >
+                <MessagesSquare size={16} />
+              </button>
+              <button
+                onClick={() => setSortAsc(!sortAsc)}
+                className={`p-2 rounded-full transition-colors ${
+                  sortAsc ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+                }`}
+                title={sortAsc ? 'Terlama dulu' : 'Terbaru dulu'}
+              >
+                <ArrowUpDown size={16} className={sortAsc ? 'rotate-180' : ''} />
+              </button>
+              <button
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] })}
+                className="p-2 rounded-full hover:bg-muted text-muted-foreground"
+                title="Refresh"
+              >
+                <RefreshCw size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Search with filter */}
@@ -718,6 +940,15 @@ export default function MailPage() {
               >
                 <Mail size={16} />
               </button>
+              {selectedFolder !== 'folderJunk' && (
+                <button
+                  onClick={() => moveMutation.mutate({ uids: selectedUids, targetFolder: 'folderJunk' })}
+                  className="p-1.5 text-orange-500 hover:bg-orange-500/10 rounded"
+                  title="Laporkan Spam"
+                >
+                  <AlertTriangle size={16} />
+                </button>
+              )}
               <button
                 onClick={() => bulkDeleteMutation.mutate()}
                 className="p-1.5 text-destructive hover:bg-destructive/10 rounded"
@@ -781,154 +1012,44 @@ export default function MailPage() {
               </div>
             </div>            ) : (
             <div className="divide-y divide-border">
-              {displayMessages.map((msg, idx) => {
-                const isActive = selectedMsgId === msg.uid;
-                const isSelected = selectedUids.includes(msg.uid);
-                const isFocused = focusIdx === idx;
-
-                return (
-                  <SwipeableRow
-                    key={msg.uid}
-                    onSwipeLeft={() => {
-                      scheduleDelete([msg.uid]);
-                    }}
-                    onSwipeRight={() => {
-                      markRead(user.sogoToken, selectedFolder, msg.uid, true).then(() => {
-                        queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
-                        queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-                      });
-                    }}
-                  >
-                  <div
-                    onClick={() => setSelectedMsgId(msg.uid)}
-                    ref={(el) => { msgRefs.current[msg.uid] = el; }}
-                    className={`group w-full flex items-start text-left p-3 hover:bg-muted/50 transition-colors cursor-pointer border-l-4 ${
-                      isActive ? 'bg-muted border-primary' : isFocused ? 'border-primary/40 bg-muted/30' : 'border-transparent'
-                    } ${isSelected ? 'bg-primary/5' : ''}`}
-                  >
-                    {/* Checkbox */}
-                    <div className="pt-1 pr-3 shrink-0" onClick={(e) => toggleSelectMsg(e, msg.uid)}>
-                      {isSelected ? (
-                        <CheckSquare size={18} className="text-primary" />
-                      ) : (
-                        <Square size={18} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      )}
-                    </div>
-
-                    {/* Star/Flag dengan warna */}
-                    <div className="pt-1 pr-2 shrink-0 relative">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
-                        }}
-                        className="focus:outline-none"
-                      >
-                        {(() => {
-                          const colorKey = getFlagColor(user?.email, msg.uid);
-                          if (colorKey && FLAG_COLORS[colorKey]) {
-                            return <Star size={14} className={`${FLAG_COLORS[colorKey].text} ${FLAG_COLORS[colorKey].fill}`} />;
-                          }
-                          if (msg.isFlagged) {
-                            return <Star size={14} className="text-amber-500 fill-amber-500" />;
-                          }
-                          return <Star size={14} className="text-muted-foreground opacity-0 group-hover:opacity-40 transition-opacity" />;
-                        })()}
-                      </button>
-
-                      {/* Color picker popup */}
-                      {flagPickerOpen?.msgUid === msg.uid && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={() => setFlagPickerOpen(null)} />
-                          <div
-                            className="fixed z-50 bg-card border border-border shadow-xl rounded-xl p-2 flex gap-1.5"
-                            style={{ left: Math.min(flagPickerOpen.x, window.innerWidth - 200), top: Math.min(flagPickerOpen.y, window.innerHeight - 80) }}
-                          >
-                            {FLAG_COLOR_KEYS.map((key) => (
-                              <button
-                                key={key}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const currentColor = getFlagColor(user?.email, msg.uid);
-                                  if (currentColor === key) {
-                                    // Klik warna yang sama = hapus flag
-                                    setFlagColor(user?.email, msg.uid, null);
-                                    if (!msg.isFlagged) {
-                                      markFlagged(user.sogoToken, selectedFolder, msg.uid, true).then(() => {
-                                        queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
-                                      });
-                                    }
-                                  } else {
-                                    // Set warna baru
-                                    setFlagColor(user?.email, msg.uid, key);
-                                    if (!msg.isFlagged) {
-                                      markFlagged(user.sogoToken, selectedFolder, msg.uid, true).then(() => {
-                                        queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
-                                      });
-                                    }
-                                  }
-                                  setFlagPickerOpen(null);
-                                }}
-                                className={`w-7 h-7 rounded-full ${FLAG_COLORS[key].bg} hover:scale-110 transition-transform ${
-                                  getFlagColor(user?.email, msg.uid) === key ? 'ring-2 ring-offset-2 ring-border' : ''
-                                }`}
-                                title={FLAG_COLORS[key].label}
-                              />
-                            ))}
-                            <div className="w-px bg-border mx-1" />
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setFlagColor(user?.email, msg.uid, null);
-                                if (msg.isFlagged) {
-                                  markFlagged(user.sogoToken, selectedFolder, msg.uid, false).then(() => {
-                                    queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
-                                  });
-                                }
-                                setFlagPickerOpen(null);
-                              }}
-                              className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-xs text-muted-foreground"
-                              title="Hapus flag"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-baseline mb-1">
-                        <span
-                          className={`text-sm truncate pr-2 ${
-                            msg.isRead ? 'text-muted-foreground font-medium' : 'text-foreground font-bold'
-                          }`}
+              {conversationView && conversationGroups.length > 0
+                ? conversationGroups.map((group) => {
+                    const isExpanded = expandedConversations.has(group.key);
+                    const senders = [...new Set(group.messages.map(m =>
+                      m.from.split('<')[0].trim() || m.from
+                    ))];
+                    return (
+                      <div key={group.key} className="border-b border-border last:border-b-0">
+                        {/* Group header */}
+                        <button
+                          onClick={() => toggleConversation(group.key)}
+                          className="w-full flex items-center gap-3 p-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
                         >
-                          {isSentOrDraft ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender')}
-                        </span>
-                        <span className="text-xs text-muted-foreground shrink-0">{msg.date}</span>
+                          <MessagesSquare size={16} className="text-muted-foreground shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-foreground truncate">{group.subject}</span>
+                              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
+                                {group.messages.length}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                              {senders.join(', ')}
+                            </div>
+                          </div>
+                          <ChevronDown size={14} className={`text-muted-foreground shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+                        </button>
+                        {/* Group messages */}
+                        {isExpanded && group.messages.map((msg, idx) => (
+                          <div key={msg.uid} className="ml-5 pl-3 border-l-2 border-primary/20 border-t border-border/50">
+                            {renderMessageRow(msg, -1)}
+                          </div>
+                        ))}
                       </div>
-                      <div className={`text-sm truncate ${msg.isRead ? 'text-muted-foreground' : 'text-primary font-medium'}`}>
-                        {msg.subject || '(Tanpa Subjek)'}
-                      </div>
-                      {msg.hasAtt && (
-                        <div className="mt-1">
-                          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">📎 Lampiran</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {!msg.isRead && (
-                      <div className="shrink-0 ml-2 pt-2">
-                        <span className="block w-2 h-2 rounded-full bg-primary" />
-                      </div>
-                    )}
-                  </div>
-                  </SwipeableRow>
-                );
-              })}
-              {hasMore && (
+                    );
+                  })
+                : sortedMessages.map((msg, idx) => renderMessageRow(msg, idx))}
+              {hasMore ? (
                 <div className="px-4 py-3 flex justify-center border-t border-border">
                   <button
                     onClick={loadMore}
@@ -936,6 +1057,12 @@ export default function MailPage() {
                   >
                     Muat {Math.min(PAGE_SIZE, messages.length - visibleCount)} lainnya ({messages.length - visibleCount} tersisa)
                   </button>
+                </div>
+              ) : messages.length >= SERVER_PAGE_LIMIT && (
+                <div className="px-4 py-3 flex justify-center border-t border-border">
+                  <span className="text-[10px] text-muted-foreground">
+                    Menampilkan {SERVER_PAGE_LIMIT} email terbaru. Cari email lama via pencarian.
+                  </span>
                 </div>
               )}
             </div>

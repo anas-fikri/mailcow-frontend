@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, Lock, FileSignature, Plane, Eye, EyeOff,
   Loader2, CheckCircle2, AlertCircle, ChevronRight,
-  Sparkles, Copy, Globe,
+  Sparkles, Copy, Globe, Palette, MessageSquare, Reply, Trash2,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { changePassword, fetchPreferences, savePreferences } from '../lib/api';
@@ -509,14 +509,29 @@ function VacationSection() {
   );
 }
 
+// ─── Preset theme colors ──────────────────────────────────────────────────────
+const COLOR_PRESETS = [
+  { id: 'blue',   label: 'Biru',      swatch: 'hsl(221, 83%, 53%)' },
+  { id: 'indigo',  label: 'Indigo',   swatch: 'hsl(239, 84%, 58%)' },
+  { id: 'violet',  label: 'Violet',   swatch: 'hsl(271, 76%, 53%)' },
+  { id: 'green',   label: 'Hijau',    swatch: 'hsl(142, 71%, 45%)' },
+  { id: 'teal',    label: 'Teal',     swatch: 'hsl(173, 80%, 40%)' },
+  { id: 'orange',  label: 'Oranye',   swatch: 'hsl(24, 95%, 53%)' },
+  { id: 'rose',    label: 'Merah',    swatch: 'hsl(346, 84%, 61%)' },
+  { id: 'slate',   label: 'Abu-abu',  swatch: 'hsl(215, 25%, 55%)' },
+];
+
 // ─── Display Preferences ─────────────────────────────────────────────────────
 function DisplaySection() {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { user, themeColor, setThemeColor } = useAuthStore();
   const [timezone, setTimezone] = useState('Asia/Jakarta');
   const [language, setLanguage] = useState('Indonesian');
   const [dateFormat, setDateFormat] = useState('%d/%m/%Y');
   const [weekStart, setWeekStart] = useState('0');
+  const [composeMode, setComposeMode] = useState('html');
+  const [replyPlacement, setReplyPlacement] = useState('above');
+  const [confirmDelete, setConfirmDelete] = useState('1');
   const [status, setStatus] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const initRef = useRef(false);
@@ -534,6 +549,9 @@ function DisplaySection() {
       setLanguage(prefs.defaults.SOGoLanguage || 'Indonesian');
       setDateFormat(prefs.defaults.SOGoDateFormat || '%d/%m/%Y');
       setWeekStart(String(prefs.defaults.SOGoFirstDayOfWeek ?? '0'));
+      setComposeMode(prefs.defaults.SOGoMailComposeMessageType === 'text' ? 'text' : 'html');
+      setReplyPlacement(prefs.defaults.SOGoMailReplyPlacement === 'below' ? 'below' : 'above');
+      setConfirmDelete(String(prefs.defaults.SOGoConfirmDelete ?? '1'));
       setLoaded(true);
       initRef.current = true;
     } else if (!isLoading && !prefs) {
@@ -550,6 +568,9 @@ function DisplaySection() {
           SOGoLanguage: language,
           SOGoDateFormat: dateFormat,
           SOGoFirstDayOfWeek: parseInt(weekStart, 10),
+          SOGoMailComposeMessageType: composeMode,
+          SOGoMailReplyPlacement: replyPlacement,
+          SOGoConfirmDelete: parseInt(confirmDelete, 10),
         },
         settings: prefs?.settings || {},
       };
@@ -575,12 +596,13 @@ function DisplaySection() {
 
   return (
     <Section icon={Globe} title="Tampilan & Regional">
-      <div className="space-y-4 max-w-sm">
+      <div className="space-y-4 max-w-md">
         <p className="text-sm text-muted-foreground">
           Preferensi ini disimpan di server dan digunakan oleh webmail serta SOGo.
         </p>
         <StatusMsg status={status} />
 
+        {/* ── Regional ── */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">Bahasa</label>
           <select value={language} onChange={e => setLanguage(e.target.value)}
@@ -619,6 +641,83 @@ function DisplaySection() {
             <option value="0">Minggu</option>
             <option value="1">Senin</option>
           </select>
+        </div>
+
+        {/* ── Theme Color ── */}
+        <hr className="border-border my-2" />
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Palette size={15} className="text-primary" />
+            Warna Tema
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {COLOR_PRESETS.map(c => {
+              const selected = themeColor === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setThemeColor(c.id)}
+                  className="flex flex-col items-center gap-1.5 group"
+                  title={c.label}
+                >
+                  <span
+                    className={`block w-8 h-8 rounded-full transition-all ${
+                      selected
+                        ? 'ring-2 ring-offset-2 ring-offset-background ring-primary scale-110'
+                        : 'ring-1 ring-border ring-offset-1 ring-offset-transparent group-hover:scale-110'
+                    }`}
+                    style={{ backgroundColor: c.swatch }}
+                  />
+                  <span className={`text-[10px] ${selected ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                    {c.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Mail Preferences ── */}
+        <hr className="border-border my-2" />
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <MessageSquare size={15} className="text-primary" />
+            Preferensi Email
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Mode Tulis Email</label>
+            <select value={composeMode} onChange={e => setComposeMode(e.target.value)}
+              className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+              <option value="html">Rich Text (HTML)</option>
+              <option value="text">Plain Text</option>
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Posisi Balasan</label>
+            <select value={replyPlacement} onChange={e => setReplyPlacement(e.target.value)}
+              className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+              <option value="above">Di atas teks yang dikutip</option>
+              <option value="below">Di bawah teks yang dikutip</option>
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Hapus Email</label>
+            <label className="flex items-center gap-3 cursor-pointer mt-1">
+              <div
+                onClick={() => setConfirmDelete(p => p === '1' ? '0' : '1')}
+                className={`relative w-11 h-6 rounded-full transition-colors ${confirmDelete === '1' ? 'bg-primary' : 'bg-muted-foreground/30'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${confirmDelete === '1' ? 'translate-x-5' : ''}`} />
+              </div>
+              <span className="text-sm text-foreground">
+                {confirmDelete === '1' ? 'Konfirmasi sebelum menghapus' : 'Langsung hapus tanpa konfirmasi'}
+              </span>
+            </label>
+          </div>
         </div>
 
         <button onClick={() => { setStatus(null); mutation.mutate(); }}

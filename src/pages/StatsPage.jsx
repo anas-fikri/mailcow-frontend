@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3, Send, Inbox, AlertTriangle, ShieldBan, FileText,
   HardDrive, TrendingUp, RefreshCw, ChevronDown, Activity, User,
+  Mail, Shield,
 } from 'lucide-react';
 import { StatCard, DonutChart, ProgressBar } from '../components/Charts';
 import { fetchAllStats } from '../lib/stats';
@@ -122,18 +123,22 @@ export default function StatsPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             {[
-              { label: '📥 Kotak Masuk', value: summary?.received || 0, color: '#3b82f6' },
-              { label: '📤 Terkirim', value: summary?.sent || 0, color: '#22c55e' },
-              { label: '⚠️ Gagal', value: summary?.bounced || 0, color: '#ef4444' },
-              { label: '🛡️ Spam', value: summary?.spamCaught || 0, color: '#f59e0b' },
-            ].map((item) => (
-              <div key={item.label} className="bg-muted/30 rounded-xl p-4 text-center hover:bg-muted/50 transition-colors">
-                <div className="text-2xl font-bold" style={{ color: item.color }}>
-                  {isLoading ? '—' : formatNumber(item.value)}
+              { label: 'Kotak Masuk', value: summary?.received || 0, color: '#3b82f6', icon: Inbox },
+              { label: 'Terkirim', value: summary?.sent || 0, color: '#22c55e', icon: Send },
+              { label: 'Gagal', value: summary?.bounced || 0, color: '#ef4444', icon: AlertTriangle },
+              { label: 'Spam', value: summary?.spamCaught || 0, color: '#f59e0b', icon: ShieldBan },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className="bg-muted/30 rounded-xl p-4 text-center hover:bg-muted/50 transition-colors">
+                  <Icon size={20} className="mx-auto mb-1.5" style={{ color: item.color }} />
+                  <div className="text-2xl font-bold" style={{ color: item.color }}>
+                    {isLoading ? '—' : formatNumber(item.value)}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">{item.label}</div>
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">{item.label}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -204,17 +209,20 @@ export default function StatsPage() {
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[
-                { label: 'Total Email', value: (summary?.sent || 0) + (summary?.received || 0), icon: '📧' },
-                { label: 'Rasio Bounce', value: summary?.bounced && summary?.sent ? `${Math.round((summary.bounced / summary.sent) * 100)}%` : '0%', icon: '⚠️' },
-                { label: 'Spam Rate', value: summary?.rejected && summary?.received ? `${Math.round((summary.rejected / (summary.received + summary.rejected)) * 100)}%` : '0%', icon: '🛡️' },
-                { label: 'Rata-rata/hari', value: Math.round(((summary?.sent || 0) + (summary?.received || 0)) / 7), icon: '📊' },
-              ].map((item) => (
-                <div key={item.label} className="bg-muted/30 rounded-xl p-3 text-center hover:bg-muted/50 transition-colors">
-                  <div className="text-lg mb-0.5">{item.icon}</div>
-                  <div className="text-sm font-bold text-foreground">{item.value}</div>
-                  <div className="text-[10px] text-muted-foreground">{item.label}</div>
-                </div>
-              ))}
+                { label: 'Total Email', value: (summary?.sent || 0) + (summary?.received || 0), icon: Mail },
+                { label: 'Rasio Bounce', value: summary?.bounced && summary?.sent ? `${Math.round((summary.bounced / summary.sent) * 100)}%` : '0%', icon: AlertTriangle },
+                { label: 'Spam Rate', value: summary?.rejected && summary?.received ? `${Math.round((summary.rejected / (summary.received + summary.rejected)) * 100)}%` : '0%', icon: Shield },
+                { label: 'Rata-rata/hari', value: Math.round(((summary?.sent || 0) + (summary?.received || 0)) / 7), icon: TrendingUp },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label} className="bg-muted/30 rounded-xl p-3 text-center hover:bg-muted/50 transition-colors">
+                    <Icon size={16} className="mx-auto mb-1 text-muted-foreground" />
+                    <div className="text-sm font-bold text-foreground">{item.value}</div>
+                    <div className="text-[10px] text-muted-foreground">{item.label}</div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -266,14 +266,18 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
   console.log('[DEBUG] fetchMessages START', folder, sogoToken);
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const body = { sortby: "date", asc: 0 };
+    // Server-side pagination (SOGo supports limit/offset)
+    if (params.limit) body.limit = params.limit;
+    if (params.offset) body.offset = params.offset;
     const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/view`, {
       method: 'POST',
       credentials: 'include',
       headers: sogoHeaders({
         'Content-Type': 'application/json'
       }),
-      body: JSON.stringify({ sortby: "date", asc: 0 }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);

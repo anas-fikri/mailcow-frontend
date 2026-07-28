@@ -4,8 +4,20 @@ import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
 import { useAuthStore } from '../../store/authStore';
 
+/** Hue override for each themeColor preset (light-mode hue) */
+const THEME_HUES = {
+  blue: 221,
+  indigo: 239,
+  violet: 271,
+  green: 142,
+  teal: 173,
+  orange: 24,
+  rose: 346,
+  slate: 215,
+};
+
 export default function AppLayout() {
-  const { isLoggedIn, theme } = useAuthStore();
+  const { isLoggedIn, theme, themeColor } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = React.useState(false); // Mobile sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false); // Desktop sidebar state
   
@@ -20,6 +32,11 @@ export default function AppLayout() {
       document.documentElement.setAttribute('data-theme', 'light');
     }
   }, [theme]);
+
+  useEffect(() => {
+    const hue = THEME_HUES[themeColor] ?? 221;
+    document.documentElement.style.setProperty('--theme-hue', String(hue));
+  }, [themeColor]);
 
   if (!isLoggedIn) return <Navigate to="/login" replace />;
 
