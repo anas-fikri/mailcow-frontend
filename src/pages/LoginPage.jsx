@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Eye, EyeOff, Loader2, AlertCircle, Sun, Moon } from 'lucide-react';
-import { login } from '../lib/api';
+import { login, resetSessionExpiredFlag } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { isLoggedIn, setUser, setSmtpCreds, theme, toggleTheme } = useAuthStore();
+  const { isLoggedIn, setUser, setSmtpCreds, clearUser, theme, toggleTheme } = useAuthStore();
   const navigate = useNavigate();
   const emailRef = useRef(null);
 
@@ -45,6 +45,9 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
+      // Clear stale persisted user sebelum login baru
+      clearUser();
+      resetSessionExpiredFlag();
       const data = await login(userName, password);
       // login returns { sogoToken, cn, email }
       setUser({ email: data.email, sogoToken: data.sogoToken, cn: data.cn });

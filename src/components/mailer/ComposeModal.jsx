@@ -45,7 +45,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   // Ambil preferences (signature, dll)
   const { data: prefs } = useQuery({
     queryKey: ['preferences', token],
-    queryFn: () => fetchPreferences(token),
+    queryFn: () => fetchPreferences(token, user?.email),
     enabled: !!token,
     staleTime: 5 * 60_000,
   });

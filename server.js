@@ -18,6 +18,7 @@ import cors    from 'cors';
 import nodemailer from 'nodemailer';
 import mysql from 'mysql2/promise';
 import { execSync } from 'child_process';
+import { readFileSync } from 'fs';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -205,7 +206,7 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: req => req.ip
 
   try {
     const tlsOpts = SMTP_TLS_CA
-      ? { ca: require('fs').readFileSync(SMTP_TLS_CA), rejectUnauthorized: true }
+      ? { ca: readFileSync(SMTP_TLS_CA), rejectUnauthorized: true }
       : { rejectUnauthorized: false };
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,

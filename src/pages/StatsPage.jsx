@@ -155,7 +155,7 @@ export default function StatsPage() {
             </div>
             <DonutChart
               data={[
-                { label: 'Bersih', value: 3120, color: '#22c55e' },
+                { label: 'Bersih', value: Math.max(0, (summary?.received || 0) - (summary?.spamCaught || 0) - (summary?.rejected || 0) - (summary?.virusBlocked || 0)), color: '#22c55e' },
                 { label: 'Spam Tag', value: summary?.spamCaught || 540, color: '#f59e0b' },
                 { label: 'Spam Tolak', value: summary?.rejected || 180, color: '#ef4444' },
                 { label: 'Virus', value: summary?.virusBlocked || 4, color: '#8b5cf6' },

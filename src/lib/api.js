@@ -9,12 +9,18 @@ function withApiKey(headers = {}) {
 }
 
 // ─── Session expiry callback ──────────────────────────────────────────────────
-// Dipanggil oleh throwApiError saat mendapatkan 401.
+// Dipanggil oleh throwApiError saat mendapatkan 401/403.
 // Di-set oleh App.jsx saat mount.
 let _onSessionExpired = null;
 let _sessionExpiredFired = false; // debounce agar hanya fire sekali per session
+let _loginGraceUntil = 0; // selama grace period, 403 tidak langsung kick ke login
 export function onSessionExpired(cb) { _onSessionExpired = cb; }
 export function resetSessionExpiredFlag() { _sessionExpiredFired = false; }
+export function markLoginGrace(ms = 8000) { _loginGraceUntil = Date.now() + ms; }
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // ─── XSRF helper ──────────────────────────────────────────────────────────────
 // SOGo mensyaratkan header X-XSRF-TOKEN (dibaca dari cookie XSRF-TOKEN) agar
@@ -45,7 +51,9 @@ function sogoHeaders(extra = {}) {
 function throwApiError(message, status) {
   const err = new Error(message);
   err.status = status;
-  if ((status === 401 || status === 403) && _onSessionExpired && !_sessionExpiredFired) {
+  const inGrace = Date.now() < _loginGraceUntil;
+  // 403 segera setelah login sering race/session warm-up — jangan kick dulu
+  if ((status === 401 || (status === 403 && !inGrace)) && _onSessionExpired && !_sessionExpiredFired) {
     _sessionExpiredFired = true; // prevent multiple triggers
     // Panggil di microtask agar tidak konflik dengan React state updates
     setTimeout(() => _onSessionExpired(), 0);
@@ -103,7 +111,50 @@ async function safeJson(res) {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Warm-up session SOGo setelah /connect.
+ * Native SOGo UI selalu lewat /so/{user}/Mail/view dulu baru /Mail/0/view.
+ * Tanpa langkah ini, GET /Mail/0/view sering return 403 (session belum fully bound).
+ */
+async function warmUpSogoSession(sogoToken) {
+  const paths = [
+    `${SOGO_BASE}/SOGo/so/${sogoToken}`,
+    `${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/view`,
+  ];
+
+  for (const url of paths) {
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers: sogoHeaders({ Accept: 'text/html,application/json,*/*' }),
+        redirect: 'follow',
+    });
+      console.log('[Login] warm-up', url.replace(SOGO_BASE, ''), '→', res.status);
+      // body harus di-drain supaya connection/session settle
+      await res.text().catch(() => '');
+    } catch (err) {
+      console.warn('[Login] warm-up failed (non-fatal):', err?.message || err);
+    }
+  }
+
+  // Pastikan XSRF terbaca setelah Set-Cookie dari warm-up
+  if (!getXsrfToken()) {
+    await sleep(50);
+  }
+}
+
 export async function login(email, password) {
+  // Bersihkan session lama agar ganti akun tidak bawa cookie user sebelumnya
+  try {
+    await fetch(`${SOGO_BASE}/SOGo/logoff`, {
+    method: 'POST',
+      credentials: 'include',
+      headers: sogoHeaders(),
+  });
+  } catch {
+    // ignore — logoff sering 500 tapi cookie tetap ter-clear sebagian
+  }
 
   const res = await fetch(`${SOGO_BASE}/SOGo/connect`, {
     method: 'POST',
@@ -128,20 +179,26 @@ export async function login(email, password) {
 
   console.log('[Login] OK sogoToken:', sogoToken, '| XSRF present:', !!getXsrfToken());
 
+  await warmUpSogoSession(sogoToken);
+  markLoginGrace(8000);
+  resetSessionExpiredFlag();
 
-  // TIDAK perlu session check di sini — XSRF-TOKEN sudah di-set oleh /connect.
-  // Request ke /Mail/0/view pertama kali akan dilakukan oleh MailPage via React Query.
+  console.log('[Login] session ready | XSRF present:', !!getXsrfToken());
 
   return { sogoToken, cn: data.cn || email, email };
 }
 
 
 export async function logout() {
-  await fetch(`${SOGO_BASE}/SOGo/logoff`, {
+  try {
+    await fetch(`${SOGO_BASE}/SOGo/logoff`, {
     method: 'POST',
-    credentials: 'include',
-    headers: sogoHeaders(),
+      credentials: 'include',
+      headers: sogoHeaders(),
   });
+  } catch {
+    // ignore
+  }
 }
 
 // ─── Message Row Parser ────────────────────────────────────────────────────────
@@ -191,31 +248,7 @@ function parseMessageRow(row) {
 
 export async function fetchFolders(sogoToken) {
   console.log('[DEBUG] fetchFolders START', sogoToken);
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/view`, {
-      method: 'GET',
-      credentials: 'include',
-      headers: sogoHeaders(),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    console.log('[DEBUG] fetchFolders res received, status:', res.status, 'ct:', res.headers.get('content-type'));
-    if (!res.ok) throwApiError('Gagal memuat folder.', res.status);
-    console.log('[DEBUG] fetchFolders reading safeJson...');
-    const data = await safeJson(res);
-    console.log('[DEBUG] fetchFolders data parsed successfully');
 
-  const FOLDER_TYPE_LABELS = {
-    inbox:     'Kotak Masuk',
-    draft:     'Draf',
-    sent:      'Terkirim',
-    trash:     'Sampah',
-    junk:      'Junk/Spam',
-    templates: 'Templates',
-    folder:    null, // pakai nama folder apa adanya
-  };
 
   function flattenMailboxes(mailboxes) {
     const result = [];
@@ -234,10 +267,39 @@ export async function fetchFolders(sogoToken) {
     return result;
   }
 
-    if (!data || !data.mailboxes) {
-      throwApiError('Respons server tidak lengkap (Folder tidak ditemukan).', res.status);
+  const maxAttempts = 3;
+  try {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/view`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: sogoHeaders(),
+        signal: controller.signal,
+    });
+      clearTimeout(timeoutId);
+      console.log('[DEBUG] fetchFolders res received, status:', res.status, 'ct:', res.headers.get('content-type'), 'attempt:', attempt);
+
+      // 403 segera setelah login = session belum ready → warm-up ulang + retry
+      if (res.status === 403 && attempt < maxAttempts) {
+        console.warn('[DEBUG] fetchFolders 403 — warm-up + retry');
+        await warmUpSogoSession(sogoToken);
+        await sleep(200 * attempt);
+        continue;
+      }
+
+      if (!res.ok) throwApiError('Gagal memuat folder.', res.status);
+      console.log('[DEBUG] fetchFolders reading safeJson...');
+      const data = await safeJson(res);
+      console.log('[DEBUG] fetchFolders data parsed successfully');
+
+      if (!data || !data.mailboxes) {
+        throwApiError('Respons server tidak lengkap (Folder tidak ditemukan).', res.status);
+      }
+      return flattenMailboxes(data.mailboxes);
     }
-    return flattenMailboxes(data.mailboxes);
+    throwApiError('Gagal memuat folder.', 403);
   } catch (err) {
     console.error('[DEBUG] fetchFolders ERROR:', err);
     throw err;
@@ -249,7 +311,7 @@ export async function getUnseenCount(sogoToken) {
     const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/folderINBOX/view`, {
       credentials: 'include',
       headers: sogoHeaders(),
-    });
+  });
     if (!res.ok) return { unseenCount: 0 };
     const data = await res.json().catch(() => ({ unseenCount: 0 }));
     return { unseenCount: data.unseenCount || 0 };
@@ -272,14 +334,14 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
     if (params.limit) body.limit = params.limit;
     if (params.offset) body.offset = params.offset;
     const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/view`, {
-      method: 'POST',
+    method: 'POST',
       credentials: 'include',
       headers: sogoHeaders({
         'Content-Type': 'application/json'
       }),
-      body: JSON.stringify(body),
+    body: JSON.stringify(body),
       signal: controller.signal,
-    });
+  });
     clearTimeout(timeoutId);
     console.log('[DEBUG] fetchMessages res status:', res.status);
 
@@ -454,11 +516,11 @@ export async function sendMessage(sogoToken, payload, smtpCreds = null) {
   if (!smtpCreds?.user || !smtpCreds?.pass) {
     throw new Error('Email tidak dapat dikirim. SOGo mengembalikan 501. Silakan login ulang dan coba lagi.');
   }
-    const smtpRes = await fetch('/api/send', {
-      method: 'POST',
-      headers: withApiKey({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from, smtpUser: smtpCreds.user, smtpPass: smtpCreds.pass }),
-    });
+  const smtpRes = await fetch('/api/send', {
+    method: 'POST',
+    headers: withApiKey({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from, smtpUser: smtpCreds.user, smtpPass: smtpCreds.pass }),
+  });
   if (!smtpRes.ok) {
     const err = await smtpRes.json().catch(() => ({}));
     throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
@@ -490,7 +552,7 @@ export async function fetchContacts(sogoToken) {
       method: 'GET',
       credentials: 'include',
       headers: sogoHeaders(),
-    });
+  });
     if (res.status === 401 || res.status === 403) throw new Error('Unauthenticated');
     if (!res.ok) return [];
     const data = await res.json();
@@ -511,7 +573,7 @@ export async function fetchContacts(sogoToken) {
         isGAL:     String(c.containerName || '').includes('GAL'),
         source:    c.sourceID || '',
       };
-    });
+  });
   } catch (e) {
     if (e.message === 'Unauthenticated') throw e;
     return [];
@@ -598,10 +660,10 @@ export async function createCalendarEvent(sogoToken, event, calendarId = 'person
   const res = await fetch(
     `${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/${calendarId}/${eventId}/saveAsappointment`,
     {
-      method: 'POST',
+    method: 'POST',
       credentials: 'include',
       headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
+    body: JSON.stringify(body),
     }
   );
   if (!res.ok) throw new Error(`Gagal menyimpan event (${res.status}).`);
@@ -630,10 +692,10 @@ export async function updateCalendarEvent(sogoToken, eventId, event, calendarId 
   const res = await fetch(
     `${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/${calendarId}/${eventId}/save`,
     {
-      method: 'POST',
+    method: 'POST',
       credentials: 'include',
       headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
+    body: JSON.stringify(body),
     }
   );
   if (!res.ok) throw new Error(`Gagal memperbarui event (${res.status}).`);
@@ -685,7 +747,7 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
           owner:     ev.c_owner || '',
           status:    ev.c_status,
           description: ev.c_description || '',
-        });
+      });
       }
     }
     return events;
