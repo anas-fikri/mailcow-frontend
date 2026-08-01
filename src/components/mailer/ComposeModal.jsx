@@ -13,7 +13,7 @@ import DOMPurify from 'dompurify';
 import { handleEditorPaste, insertImageFile, PURIFY_CONFIG } from '../../lib/pasteUtils';
 
 export default function ComposeModal({ isOpen, onClose, initialData = null, sogoToken, userFrom = '' }) {
-  const { user, smtpCreds } = useAuthStore();
+  const { user, smtpToken } = useAuthStore();
   const queryClient = useQueryClient();
   const token = sogoToken || user?.sogoToken;
 
@@ -136,7 +136,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         body: editorMode === 'plain' ? body : DOMPurify.sanitize(body, PURIFY_CONFIG),
         isHTML: editorMode !== 'plain',
         from: userFrom,
-      }, smtpCreds);
+      }, smtpToken);
       setSuccess(true);
       // Refresh Sent folder setelah sukses kirim
       queryClient.invalidateQueries({ queryKey: ['messages', token, 'folderSent'] });

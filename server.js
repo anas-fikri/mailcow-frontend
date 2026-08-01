@@ -19,6 +19,8 @@ import nodemailer from 'nodemailer';
 import mysql from 'mysql2/promise';
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
+import crypto from 'crypto';
+import { z } from 'zod';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -34,7 +36,7 @@ if (NODE_MAJOR < 18) {
 const SMTP_HOST    = process.env.SMTP_HOST;
 const SMTP_PORT    = parseInt(process.env.SMTP_PORT || '465');
 const SMTP_SECURE  = SMTP_PORT === 465;
-const SMTP_TLS_CA  = process.env.SMTP_TLS_CA  || ''; // path to CA cert file for verified TLS
+const SMTP_TLS_CA  = process.env.SMTP_TLS_CA  || ''; // path to custom CA cert (optional — system CAs always trusted)
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8888,http://127.0.0.1:8888')
@@ -49,8 +51,41 @@ const MYSQL_PASS      = process.env.DBPASS;
 const MYSQL_DB        = process.env.DBNAME || 'mailcow';
 const DB_PORT         = parseInt(process.env.DB_PORT || '3306', 10);
 
-// ── Config API Key (optional) ───────────────────────────────────────────────────
+// ── Config API Key (wajib di production) ──────────────────────────────────────
 const API_KEY = process.env.API_KEY || '';
+
+// ── SMTP Session Store (server-side, in-memory) ────────────────────────────────
+// Key: session token (UUID), Value: { user, pass, createdAt, lastUsed }
+// Session expired setelah 8 jam atau 30 menit idle
+const smtpSessions = new Map();
+const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;  // 8 jam
+const SESSION_IDLE_MS   = 30 * 60 * 1000;        // 30 menit
+
+function getSmtpSession(token) {
+  const session = smtpSessions.get(token);
+  if (!session) return null;
+  const now = Date.now();
+  if (now - session.createdAt > SESSION_MAX_AGE_MS) {
+    smtpSessions.delete(token);
+    return null;
+  }
+  if (now - session.lastUsed > SESSION_IDLE_MS) {
+    smtpSessions.delete(token);
+    return null;
+  }
+  session.lastUsed = now;
+  return session;
+}
+
+// Bersihkan session expired setiap 5 menit
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, session] of smtpSessions) {
+    if (now - session.createdAt > SESSION_MAX_AGE_MS || now - session.lastUsed > SESSION_IDLE_MS) {
+      smtpSessions.delete(token);
+    }
+  }
+}, 5 * 60 * 1000);
 
 // ── Simple in-memory rate limiter ───────────────────────────────────────────────
 // Sliding window per key. Reset otomatis saat server restart.
@@ -83,7 +118,7 @@ function rateLimit({ max = 10, windowMs = 60000, keyFn }) {
 
 // ── Auth middleware ─────────────────────────────────────────────────────────────
 function requireApiKey(req, res, next) {
-  if (!API_KEY) return next();
+  
   const key = req.headers['x-api-key'];
   if (!key || key !== API_KEY) {
     return res.status(403).json({ message: 'Forbidden' });
@@ -163,6 +198,38 @@ async function queryPreferences(email) {
   return { defaults, settings };
 }
 
+// ── Register SMTP Session ──────────────────────────────────────────────────
+app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: req => req.ip }), (req, res) => {
+  const { user, pass } = req.body;
+  if (!user || !pass) {
+    return res.status(400).json({ message: 'user dan pass wajib diisi.' });
+  }
+  if (!user.includes('@')) {
+    return res.status(400).json({ message: 'Format email tidak valid.' });
+  }
+
+  const token = crypto.randomUUID();
+  smtpSessions.set(token, {
+    user,
+    pass,
+    createdAt: Date.now(),
+    lastUsed: Date.now(),
+  });
+
+  console.log(`[smtp-session] Registered for ${user} (token: ${token.slice(0, 8)}...)`);
+  return res.json({ token });
+});
+
+// ── Revoke SMTP Session (logout) ────────────────────────────────────────────
+app.delete('/api/auth/smtp', (req, res) => {
+  const token = req.headers['x-smtp-token'] || req.body?.smtpToken;
+  if (token) {
+    smtpSessions.delete(token);
+    console.log('[smtp-session] Revoked token: ' + token.slice(0, 8) + '...');
+  }
+  return res.json({ ok: true });
+});
+
 // ── GET Preferences ────────────────────────────────────────────────────────────
 app.get('/api/preferences', rateLimit({ max: 30, windowMs: 60000, keyFn: req => req.ip }), async (req, res) => {
   const { email } = req.query;
@@ -181,53 +248,63 @@ app.get('/api/preferences', rateLimit({ max: 30, windowMs: 60000, keyFn: req => 
 });
 
 
-// ── Send email ─────────────────────────────────────────────────────────────────
-/**
- * POST /api/send
- * Body: { to, cc, bcc, subject, body, isHTML, from, smtpUser, smtpPass }
- *
- * smtpUser & smtpPass dikirim dari frontend per-request (per-session credential).
- * Ini aman karena hanya digunakan untuk koneksi SMTP internal.
- */
-app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: req => req.ip }), async (req, res) => {
-  const {
-    to, cc = '', bcc = '',
-    subject = '',
-    body = '',
-    isHTML = true,
-    from,
-    smtpUser,
-    smtpPass,
-  } = req.body;
+// ── Send email (Zod validated + session-based SMTP) ───────────────────────────
+const sendEmailSchema = z.object({
+  to: z.string().min(1, 'Field "to" wajib diisi.').max(2000),
+  cc: z.string().max(2000).optional().default(''),
+  bcc: z.string().max(2000).optional().default(''),
+  subject: z.string().max(998).default(''),
+  body: z.string().max(10_000_000).default(''),
+  isHTML: z.boolean().default(true),
+  from: z.string().email('Format email tidak valid.').max(254).optional().default(''),
+  smtpToken: z.string().min(32, 'smtpToken tidak valid. Silakan login ulang.'),
+});
 
-  if (!to)       return res.status(400).json({ message: 'Field "to" wajib diisi.' });
-  if (!smtpUser) return res.status(400).json({ message: 'Credential SMTP tidak diberikan.' });
-  if (!smtpPass) return res.status(400).json({ message: 'Credential SMTP tidak diberikan.' });
+app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: req => req.ip }), async (req, res) => {
+  // Zod validation
+  const parsed = sendEmailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const firstError = parsed.error.errors[0];
+    return res.status(400).json({ message: firstError.message });
+  }
+  const { to, cc, bcc, subject, body, isHTML, from, smtpToken } = parsed.data;
+
+  // Validate to field contains valid emails
+  const toEmails = to.split(',').map(s => s.trim()).filter(Boolean);
+  if (toEmails.length === 0 || !toEmails.every(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))) {
+    return res.status(400).json({ message: 'Field "to" harus berisi email yang valid.' });
+  }
+
+  // Look up SMTP session
+  const session = getSmtpSession(smtpToken);
+  if (!session) {
+    return res.status(401).json({ message: 'Sesi SMTP sudah berakhir. Silakan login ulang.' });
+  }
 
   try {
-    const tlsOpts = SMTP_TLS_CA
-      ? { ca: readFileSync(SMTP_TLS_CA), rejectUnauthorized: true }
-      : { rejectUnauthorized: false };
+    const tlsOpts = { rejectUnauthorized: true };
+    if (SMTP_TLS_CA) {
+      tlsOpts.ca = readFileSync(SMTP_TLS_CA);
+    }
     const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: SMTP_SECURE,
-      auth: { user: smtpUser, pass: smtpPass },
+      auth: { user: session.user, pass: session.pass },
       tls: tlsOpts,
     });
 
     const mailOptions = {
-      from: from || smtpUser,
+      from: from || session.user,
       to,
-      cc:  cc  || undefined,
+      cc: cc || undefined,
       bcc: bcc || undefined,
       subject,
       [isHTML ? 'html' : 'text']: body,
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[send] OK: ${info.messageId} → ${to}`);
-    return res.json({ ok: true, messageId: info.messageId });
+    console.log(`[send] OK: ${info.messageId} → ${to}`);    return res.json({ ok: true, messageId: info.messageId });
 
   } catch (err) {
     console.error('[send] ERROR:', err.message);
@@ -245,6 +322,10 @@ async function start() {
     console.error('❌ SMTP_HOST environment variable is required. Set it before starting.');
     process.exit(1);
   }
+  if (!API_KEY) {
+    console.error('❌ API_KEY environment variable is required. Set it before starting.');
+    process.exit(1);
+  }
 
   try {
     await initDatabase();
@@ -258,7 +339,7 @@ async function start() {
     console.log(`Backend proxy running at http://127.0.0.1:${PORT}`);
     console.log(`SMTP: ${SMTP_HOST}:${SMTP_PORT} (secure=${SMTP_SECURE})`);
     console.log(`CORS origins: ${CORS_ORIGINS.join(', ')}`);
-    console.log(`API Key auth: ${API_KEY ? 'ENABLED' : 'DISABLED (development mode)'}`);
+    console.log('API Key auth: ENABLED');
     console.log(`Rate limit: /api/send=10/min, /api/preferences=30/min`);
   });
 }

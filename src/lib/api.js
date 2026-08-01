@@ -474,9 +474,34 @@ export async function moveMessages(sogoToken, folder, uids, targetFolder) {
  *
  * @param {string} sogoToken
  * @param {{ to, cc, bcc, subject, body, isHTML, from }} payload
- * @param {{ user, pass }|null} smtpCreds  credential SMTP untuk fallback
+ * @param {string|null} smtpToken  session token SMTP dari /api/auth/smtp
  */
-export async function sendMessage(sogoToken, payload, smtpCreds = null) {
+export async function revokeSmtpSession(smtpToken) {
+  if (!smtpToken) return;
+  try {
+    await fetch('/api/auth/smtp', {
+      method: 'DELETE',
+      headers: withApiKey({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ smtpToken }),
+    });
+  } catch {} // fire-and-forget
+}
+
+export async function registerSmtpSession(user, pass) {
+  const res = await fetch('/api/auth/smtp', {
+    method: 'POST',
+    headers: withApiKey({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ user, pass }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Gagal mendaftarkan sesi SMTP.');
+  }
+  const data = await res.json();
+  return data.token;  // UUID session token
+}
+
+export async function sendMessage(sogoToken, payload, smtpToken = null) {
   const { to, cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '' } = payload;
 
   // 1. Buat draft baru
@@ -513,13 +538,13 @@ export async function sendMessage(sogoToken, payload, smtpCreds = null) {
   if (sendRes.ok) return { ok: true };
 
   // Fallback: SMTP proxy (workaround SOGo 501)
-  if (!smtpCreds?.user || !smtpCreds?.pass) {
+  if (!smtpToken) {
     throw new Error('Email tidak dapat dikirim. SOGo mengembalikan 501. Silakan login ulang dan coba lagi.');
   }
   const smtpRes = await fetch('/api/send', {
     method: 'POST',
     headers: withApiKey({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from, smtpUser: smtpCreds.user, smtpPass: smtpCreds.pass }),
+    body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from, smtpToken }),
   });
   if (!smtpRes.ok) {
     const err = await smtpRes.json().catch(() => ({}));

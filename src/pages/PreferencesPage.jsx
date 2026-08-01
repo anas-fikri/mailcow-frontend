@@ -6,7 +6,7 @@ import {
   Sparkles, Copy, Globe, Palette, MessageSquare, Reply, Trash2,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { changePassword, fetchPreferences, savePreferences } from '../lib/api';
+import { registerSmtpSession, changePassword, fetchPreferences, savePreferences } from '../lib/api';
 import HtmlEditor from '../components/HtmlEditor';
 import Skeleton from '../components/Skeleton';
 
@@ -118,7 +118,7 @@ function PasswordStrengthBar({ password }) {
 
 // ─── Change Password ──────────────────────────────────────────────────────────
 function ChangePasswordSection() {
-  const { user, smtpCreds, setSmtpCreds } = useAuthStore();
+  const { user, smtpToken, setSmtpToken } = useAuthStore();
   const [form, setForm]   = useState({ old: '', new: '', confirm: '' });
   const [showPw, setShowPw] = useState({ old: false, new: false, confirm: false });
   const [status, setStatus] = useState(null);
@@ -128,7 +128,7 @@ function ChangePasswordSection() {
     mutationFn: () => changePassword(user.sogoToken, form.old, form.new),
     onSuccess: () => {
       setStatus({ type: 'success', message: 'Password berhasil diubah.' });
-      if (smtpCreds) setSmtpCreds({ ...smtpCreds, pass: form.new });
+      if (smtpToken) registerSmtpSession(user.email, form.new).then(setSmtpToken).catch(() => {});
       setForm({ old: '', new: '', confirm: '' });
     },
     onError: (err) => setStatus({ type: 'error', message: err.message }),

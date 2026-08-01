@@ -20,7 +20,7 @@ export default defineConfig({
       '/SOGo': {
         target: process.env.VITE_SOGO_BASE_URL || 'https://mail.domain.com',
         changeOrigin: true,
-        secure: false,
+        secure: true, // always verify upstream TLS
         agent: new https.Agent({ keepAlive: false }),
         headers: {
           'Origin': process.env.VITE_SOGO_BASE_URL || 'https://mail.domain.com',

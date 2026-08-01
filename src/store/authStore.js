@@ -11,17 +11,17 @@ export const useAuthStore = create(
       sortAsc: false,    // dipersist — urutan sortir kotak masuk
       conversationView: false, // dipersist — tampilan percakapan
 
-      // SMTP creds disimpan di memory saja (TIDAK dipersist ke localStorage)
-      smtpCreds: null,   // { user: email, pass: password }
+      // SMTP session token disimpan di memory saja (TIDAK dipersist ke localStorage)
+      smtpToken: null,   // UUID session token dari /api/auth/smtp
 
       setUser: (user) => set({ user, isLoggedIn: true }),
-      clearUser: () => set({ user: null, isLoggedIn: false, sortAsc: false, conversationView: false, smtpCreds: null }),
+      clearUser: () => set({ user: null, isLoggedIn: false, sortAsc: false, conversationView: false, smtpToken: null }),
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
       setThemeColor: (themeColor) => set({ themeColor }),
       setSortAsc: (sortAsc) => set({ sortAsc }),
       setConversationView: (conversationView) => set({ conversationView }),
-      setSmtpCreds: (creds) => set({ smtpCreds: creds }), // { user, pass }
+      setSmtpToken: (token) => set({ smtpToken: token }), // UUID string
     }),
     {
       name: 'pcp-auth',

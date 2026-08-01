@@ -24,3 +24,8 @@ reset.sh
 *.log
 ai-state.json
 .omo/
+
+# Credentials & test scripts (jangan pernah commit!)
+sogo_test.py
+test-prefs.cjs
+cookies*.txt
