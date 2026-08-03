@@ -10,6 +10,7 @@ import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
+import { toSafeUrl } from '../../lib/safeUrl';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
@@ -103,9 +104,8 @@ function resolveCidImages(html, inlineImages) {
   let resolved = html;
   inlineImages.forEach((img) => {
     const cidName = img.name.replace(/\.[^.]+$/, '');
-    const downloadUrl = img.downloadURL.startsWith('/SOGo')
-      ? `${SOGO_BASE}${img.downloadURL}`
-      : img.downloadURL;
+    const downloadUrl = toSafeUrl(img.downloadURL, { base: SOGO_BASE, allowExternal: false });
+    if (!downloadUrl) return;
     // Replace cid:name references
     const regex = new RegExp(`src="cid:${escapeRegex(cidName)}"`, 'gi');
     if (regex.test(resolved)) {
@@ -443,13 +443,13 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               {inlineImages.map((img, idx) => (
                 <a
                   key={idx}
-                  href={img.downloadURL.startsWith('/SOGo') ? `${SOGO_BASE}${img.downloadURL}` : img.downloadURL}
+                  href={toSafeUrl(img.downloadURL, { base: SOGO_BASE, allowExternal: false }) || undefined}
                   target="_blank"
                   rel="noreferrer"
                   className="group relative rounded-xl overflow-hidden border border-border bg-card hover:ring-2 hover:ring-primary/30 transition-all"
                 >
                   <img
-                    src={img.downloadURL.startsWith('/SOGo') ? `${SOGO_BASE}${img.downloadURL}` : img.downloadURL}
+                    src={toSafeUrl(img.downloadURL, { base: SOGO_BASE, allowExternal: false }) || undefined}
                     alt={img.name}
                     className="w-full h-32 object-cover"
                     loading="lazy"
@@ -471,7 +471,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {attachments.map((att, idx) => {
-                const attUrl = att.downloadURL.startsWith('/SOGo') ? `${SOGO_BASE}${att.downloadURL}` : att.downloadURL;
+                const attUrl = toSafeUrl(att.downloadURL, { base: SOGO_BASE, allowExternal: false });
                 const isImage = isImageType(att.contentType);
 
                 // Image attachments: show thumbnail preview
@@ -479,7 +479,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                   return (
                     <a
                       key={idx}
-                      href={attUrl}
+                      href={attUrl || undefined}
                       target="_blank"
                       rel="noreferrer"
                       className="group relative rounded-xl overflow-hidden border border-border bg-card hover:ring-2 hover:ring-primary/30 transition-all"
@@ -500,7 +500,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 return (
                   <a
                     key={idx}
-                    href={attUrl}
+                    href={attUrl || undefined}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-muted transition-colors group"

@@ -46,3 +46,24 @@ Audited `/Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend` o
 - Existing local branch was already one commit ahead of `origin/main`; this task adds the audit fix commit. Push is pending because the macOS Keychain credential is unavailable in the non-interactive SSH session.
 - Production deploy is **PENDING** by user choice. `sogo-smtp-proxy.service` must be installed/activated on `mailserver` first; then run `./deploy.sh` from the Mac workspace.
 - No production service, Nginx config, or remote webmail files were modified in this task.
+
+
+## 2026-08-03 — Security Audit: URL Injection, Cookie Logs, and Router Advisory
+
+### Findings / Fixes
+- **High:** `HtmlEditor` interpolated prompt input into `insertHTML`; fixed with URL validation and DOM Range/anchor creation.
+- **High:** SOGo attachment/inline-image URLs were direct `href/src` sinks; fixed with SOGo-only URL validation and encoded CID replacement.
+- **Medium:** Vite dev proxy logged partial session cookies and upstream headers; removed sensitive values while retaining safe metadata.
+- **Dependency:** pinned `react-router-dom@7.18.2`, removing the prior moderate open-redirect advisories. npm still reports `GHSA-qwww-vcr4-c8h2` (RSC-mode CSRF) against React Router 7.12–8.2; the project is BrowserRouter-only SPA and does not use SSR/RSC/data actions.
+
+### Validation
+- `npm run test:safe-url` ✅
+- `node --check server.js` ✅
+- `bash -n deploy.sh` ✅
+- `npm run build` ✅
+- `git diff --check` ✅
+- Sensitive-log and unsafe-URL sink scans ✅
+
+### Deployment / Git Status
+- Production deployment remains **PENDING**: `sogo-smtp-proxy` is inactive and port `3005` is not listening; no production service was changed.
+- Push remains pending because both HTTPS Keychain and GitLab SSH authentication were unavailable in the non-interactive macOS session.

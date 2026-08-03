@@ -41,10 +41,8 @@ export default defineConfig({
                                 req.url?.includes('/logoff');
             if (interesting) {
               console.log(`[PROXY →] ${req.method} ${req.url}`);
-              console.log(`          SogoSession: ${hasSogoSession} | Cookies: ${cookies.slice(0, 200) || '(none)'}`);
-              // Log semua header yang dikirim ke upstream
-              const hdrs = proxyReq.getHeaders();
-              console.log(`          upstream headers: host=${hdrs.host} origin=${hdrs.origin}`);
+              console.log(`          SogoSession: ${hasSogoSession}`);
+              // Never log cookies, authorization headers, or other session material.
             }
           });
 
@@ -68,11 +66,7 @@ export default defineConfig({
                     .replace(/;\s*secure/gi, '')       // hapus Secure
                     .replace(/;\s*samesite=[^;]*/gi, ''); // hapus SameSite
 
-                  // Log cookies penting dari SOGo
-                  const name = c.split('=')[0].trim();
-                  if (name === '0xHIGHFLYxSOGo' || name === 'XSRF-TOKEN' || name === 'SOGoLogin') {
-                    console.log(`[COOKIE ←] ${c.slice(0, 150)}`);
-                  }
+                  // Cookie values are secrets; never log them.
                   return c;
                 });
             }

@@ -1,13 +1,13 @@
 # Current Task
 
-Status: DONE (deployment pending)
+Status: ACTIVE (security audit complete; deployment pending)
 Task ID: sogo-frontend-audit-2026-08-03
 Started At: 2026-08-03
 Updated At: 2026-08-03
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
 ## Objective
-Audit sogo-frontend, fix verified deployment/API routing bugs, validate locally, and prepare a safe production deployment.
+Audit sogo-frontend for bugs and vulnerabilities, apply verified fixes, validate locally, and prepare a safe production deployment.
 
 ## Files Involved
 - `deploy.sh`
@@ -40,3 +40,11 @@ Commit completed locally; push is pending GitLab credential access. Production d
 ## Risks
 - Do not point SOGo Nginx routes to Control Tower ports `3003` or `3004`.
 - Do not commit `.env.production` or expose the production API key.
+
+
+## Security Audit 2026-08-03
+
+- Fixed unsafe editor/mail URL sinks with `src/lib/safeUrl.js`; tests cover executable schemes, protocol-relative URLs, external blocking for SOGo resources, and encoded attribute characters.
+- Removed SOGo cookie/session and proxy-header value logging from `vite.config.js`.
+- Upgraded `react-router-dom` to `7.18.2`. `npm audit` still reports the RSC-mode CSRF advisory (`GHSA-qwww-vcr4-c8h2`); this SPA uses `BrowserRouter` only and has no SSR/RSC/data actions.
+- Validation: `npm run test:safe-url`, `node --check server.js`, `bash -n deploy.sh`, `npm run build`, and `git diff --check` passed.

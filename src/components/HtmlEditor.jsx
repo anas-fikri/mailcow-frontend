@@ -1,6 +1,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { Bold, Italic, Underline, Link, ImagePlus, Loader2, AlertTriangle, X } from 'lucide-react';
 import { handleEditorPaste, insertImageFile } from '../lib/pasteUtils';
+import { toSafeUrl } from '../lib/safeUrl';
 
 export default function HtmlEditor({ value, onChange, minHeight = 120, placeholder = '' }) {
   const editorRef    = useRef(null);
@@ -68,12 +69,31 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
   function insertLink() {
     const url = prompt('Masukkan URL:', 'https://');
     if (!url || !url.trim()) return;
+    const safeUrl = toSafeUrl(url);
+    if (!safeUrl) return;
     const sel = window.getSelection();
     if (sel && sel.toString().trim()) {
-      exec('createLink', url.trim());
-    } else {
-      exec('insertHTML', `<a href="${url.trim()}">${url.trim()}</a>`);
+      exec('createLink', safeUrl);
+      return;
     }
+
+    // Build the anchor through DOM APIs; never interpolate user input into HTML.
+    const range = sel?.rangeCount ? sel.getRangeAt(0) : null;
+    if (!range || !editorRef.current?.contains(range.commonAncestorContainer)) {
+      exec('insertText', safeUrl);
+      return;
+    }
+    const anchor = document.createElement('a');
+    anchor.href = safeUrl;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.textContent = safeUrl;
+    range.deleteContents();
+    range.insertNode(anchor);
+    range.setStartAfter(anchor);
+    range.collapse(true);
+    editorRef.current.focus();
+    onChange?.(editorRef.current.innerHTML);
   }
 
   return (

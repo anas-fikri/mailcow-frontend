@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { toSafeUrl } from '../src/lib/safeUrl.js';
+assert.equal(toSafeUrl('https://example.com/a'), 'https://example.com/a');
+assert.equal(toSafeUrl('mailto:user@example.com'), 'mailto:user@example.com');
+assert.equal(toSafeUrl('/SOGo/so/user/Mail/0/view'), '/SOGo/so/user/Mail/0/view');
+assert.equal(toSafeUrl('/SOGo/so/user/Mail/0/view', { base: 'https://mail.example.com' }), 'https://mail.example.com/SOGo/so/user/Mail/0/view');
+assert.equal(toSafeUrl('javascript:alert(1)'), '');
+assert.equal(toSafeUrl('data:text/html,<script>alert(1)</script>'), '');
+assert.equal(toSafeUrl('//evil.example/path'), '');
+assert.equal(toSafeUrl('https://evil.example/path', { allowExternal: false }), '');
+assert.equal(toSafeUrl('/SOGo/so/user/Mail/0/view', { allowExternal: false }), '/SOGo/so/user/Mail/0/view');
+assert.equal(toSafeUrl('/evil/path', { allowExternal: false }), '');
+assert.equal(toSafeUrl('/SOGo/evil" onerror=alert(1)', { allowExternal: false }), '/SOGo/evil%22%20onerror=alert(1)');
+console.log('safeUrl assertions passed');
