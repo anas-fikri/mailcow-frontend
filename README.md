@@ -36,6 +36,14 @@ npm run dev:all      # Both simultaneously
 
 ## Deploy
 
+### Prerequisites
+
+- `VITE_API_KEY` harus sama dengan `API_KEY` pada `/home/anas.fikri/sogo-proxy/.env` di `mailserver`.
+- `deploy.sh` membaca key tersebut hanya saat build jika `VITE_API_KEY` tidak diset lokal; nilainya tidak ditulis ke Git.
+- SOGo SMTP proxy harus aktif di port `3005` sebelum deploy. Script melakukan preflight sebelum build dan membatalkan deploy jika `/api/health` tidak mengembalikan HTTP 200.
+- Jangan gunakan port `3003` atau `3004`; keduanya dipakai Control Tower.
+
+
 One command:
 ```bash
 ./deploy.sh                          # build + deploy only
@@ -56,7 +64,7 @@ Server.js jalan sebagai systemd user service di host Mailcow:
 ssh mailserver "systemctl --user status sogo-smtp-proxy"
 ```
 
-Proxy via Nginx `location ~ ^/api/(send|health)$` → `172.25.1.1:3003`.
+Proxy via Nginx `location ~ ^/api/(send|health|preferences|auth/smtp)$` → `172.25.1.1:3005`. Port 3003/3004 dipakai Control Tower dan tidak boleh digunakan SOGo proxy.
 
 ## Repository
 

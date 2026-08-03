@@ -1,22 +1,42 @@
 # Current Task
 
-Status: ACTIVE
-Task ID: none
-Started At: n/a
-Updated At: 2026-08-01T07:08:00Z
+Status: DONE (deployment pending)
+Task ID: sogo-frontend-audit-2026-08-03
+Started At: 2026-08-03
+Updated At: 2026-08-03
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
 ## Objective
-No active task.
+Audit sogo-frontend, fix verified deployment/API routing bugs, validate locally, and prepare a safe production deployment.
 
 ## Files Involved
-- None yet
+- `deploy.sh`
+- `vite.config.js`
+- `configs/site.webmail.custom`
+- `configs/sogo-smtp-proxy.service`
+- `.env.production.example`
+- `README.md`
+- `docs/iso/04_Deployment_Guide.md`
+- `docs/ai/decisions.md`
+- `docs/ai/handoff.md`
 
-## Next Steps
-- Define the first task
-
-## Risks
-- None recorded
+## Completed
+- Dedicated SOGo SMTP proxy port standardized on `3005`; Control Tower ports `3003` and `3004` are not reused.
+- Nginx API route narrowed and anchored to the supported SOGo endpoints.
+- Deploy preflight validates the remote SOGo health endpoint before build/commit/push/deploy.
+- Production API key is read only during build from the remote service environment when no local `VITE_API_KEY` is supplied.
+- Vite production base path uses `/webmail/`.
 
 ## Validation
-- Not run
+- `bash -n deploy.sh` passed.
+- `node --check server.js` passed.
+- `npm run build` passed with a non-secret validation key.
+- `git diff --check` passed.
+- Real preflight correctly stopped because `sogo-smtp-proxy` is inactive and port `3005` is not listening.
+
+## Deployment Status
+Commit completed locally; push is pending GitLab credential access. Production deployment is intentionally pending because the user chose not to change or restart production services. Before deployment, install/activate `configs/sogo-smtp-proxy.service` on `mailserver`, then rerun `./deploy.sh`.
+
+## Risks
+- Do not point SOGo Nginx routes to Control Tower ports `3003` or `3004`.
+- Do not commit `.env.production` or expose the production API key.

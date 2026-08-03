@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
-  base: '/webmail',
+  base: '/webmail/',
   build: {
     outDir: 'dist',
   },
@@ -18,13 +18,13 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/SOGo': {
-        target: process.env.VITE_SOGO_BASE_URL || 'https://mail.domain.com',
+        target: process.env.VITE_SOGO_BASE_URL || 'https://mail.pcpexpress.co.id',
         changeOrigin: true,
         secure: true, // always verify upstream TLS
         agent: new https.Agent({ keepAlive: false }),
         headers: {
-          'Origin': process.env.VITE_SOGO_BASE_URL || 'https://mail.domain.com',
-          'Referer': (process.env.VITE_SOGO_BASE_URL || 'https://mail.domain.com') + '/SOGo/',
+          'Origin': process.env.VITE_SOGO_BASE_URL || 'https://mail.pcpexpress.co.id',
+          'Referer': (process.env.VITE_SOGO_BASE_URL || 'https://mail.pcpexpress.co.id') + '/SOGo/',
         },
         // Rewrite cookie domain agar browser terima cookie dari localhost
         cookieDomainRewrite: { '*': 'localhost' },

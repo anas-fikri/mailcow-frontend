@@ -1,0 +1,19 @@
+[Unit]
+Description=SOGo SMTP Proxy (sogo-frontend server.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/sogo-proxy
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=%h/sogo-proxy/.env
+Environment=NODE_ENV=production
+Environment=PORT=3005
+Environment=SMTP_HOST=mail.pcpexpress.co.id
+Environment=SMTP_PORT=465
+
+[Install]
+WantedBy=default.target

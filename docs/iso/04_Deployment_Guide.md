@@ -271,7 +271,7 @@ ssh mailserver "systemctl --user restart sogo-smtp-proxy"
 ssh mailserver "journalctl --user -u sogo-smtp-proxy -f"
 ```
 
-Service listening di `127.0.0.1:3003`, diproxy oleh Nginx via `location ~ ^/api/(send|health)$` ke `172.25.1.1:3003` (docker gateway → host).
+Service listening di `127.0.0.1:3005`, diproxy oleh Nginx via `location ~ ^/api/(send|health|preferences|auth/smtp)$` ke `172.25.1.1:3005` (docker gateway → host). Port 3003/3004 dicadangkan untuk Control Tower.
 
 ### 7.6. Mailcow API Key
 

@@ -18,7 +18,9 @@ NGINX_DIR="${NGINX_DIR:-/data/docker-data/mailcow/data/conf/nginx}"
 NGINX_FILE="site.webmail.custom"
 SERVER="${SERVER:-mailserver}"
 BRANCH="${BRANCH:-main}"
-GITLAB_URL="https://${GITLAB_HOST:-gitlab.domain.com}/${GITLAB_PROJECT:-team/project}.git"
+SOGO_API_PORT="${SOGO_API_PORT:-3005}"
+WEBMAIL_URL="${WEBMAIL_URL:-https://mail.pcpexpress.co.id/webmail/}"
+GITLAB_URL="https://${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git"
 GITLAB_USER="${GITLAB_USER:-}"
 
 # ── Environment Variables ─────────────────────────────────────────────────────
@@ -26,10 +28,12 @@ GITLAB_USER="${GITLAB_USER:-}"
 # REMOTE_DIR     - Remote deploy directory (default: /data/docker-data/mailcow/data/web/webmail)
 # NGINX_DIR      - Remote nginx config directory (default: /data/docker-data/mailcow/data/conf/nginx)
 # BRANCH         - Git branch (default: main)
-# GITLAB_HOST    - GitLab host (default: gitlab.domain.com)
-# GITLAB_PROJECT - GitLab project path (default: team/project)
+# GITLAB_HOST    - GitLab host (default: gitlab.pcpexpress.com)
+# GITLAB_PROJECT - GitLab project path (default: devops-team/mailcow-frontend)
 # GITLAB_USER    - GitLab user (URL-encoded)
-# WEBMAIL_URL    - URL for deploy verification (default: https://mail.domain.com/webmail/)
+# WEBMAIL_URL    - URL for deploy verification (default: https://mail.pcpexpress.co.id/webmail/)
+# SOGO_API_PORT  - Host port for sogo-smtp-proxy (default: 3005)
+# VITE_API_KEY   - Optional local build key; otherwise read from mailserver .env
 
 # ── Warna ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -39,15 +43,56 @@ err()   { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # ── Ambil GitLab token dari macOS Keychain ─────────────────────────────────
 get_gitlab_token() {
-    local gitlab_host="${GITLAB_HOST:-gitlab.domain.com}"
+    local gitlab_host="${GITLAB_HOST:-gitlab.pcpexpress.com}"
     security find-internet-password -s "$gitlab_host" -w 2>/dev/null
 }
 
 # ── Build ──────────────────────────────────────────────────────────────────
+validate_config() {
+    if ! [[ "$SOGO_API_PORT" =~ ^[0-9]+$ ]]; then
+        err "SOGO_API_PORT harus berupa angka."
+        exit 1
+    fi
+}
+
+preflight_sogo_proxy() {
+    info "Preflight SOGo SMTP proxy..."
+    if ! ssh "$SERVER" "SOGO_API_PORT=$SOGO_API_PORT bash -s" <<'REMOTE_PREFLIGHT'
+set -euo pipefail
+api_key="$(awk -F= '/^API_KEY=/{print substr($0, index($0, "=") + 1); exit}' /home/anas.fikri/sogo-proxy/.env)"
+[ -n "$api_key" ]
+code="$(curl -sS -o /dev/null -w '%{http_code}' -H "X-Api-Key: $api_key" "http://127.0.0.1:${SOGO_API_PORT}/api/health" || true)"
+[ "$code" = "200" ]
+REMOTE_PREFLIGHT
+    then
+        err "SOGo SMTP proxy tidak sehat di $SERVER:$SOGO_API_PORT. Deploy dibatalkan; service production tidak diubah."
+        exit 1
+    fi
+    ok "SOGo SMTP proxy sehat."
+}
+
+get_production_api_key() {
+    if [ -n "${VITE_API_KEY:-}" ]; then
+        printf '%s' "$VITE_API_KEY"
+        return 0
+    fi
+    # Read only during build; never print or write the key to the repository.
+    ssh "$SERVER" "awk -F= '/^API_KEY=/{print substr(\$0, index(\$0, "=") + 1); exit}' /home/anas.fikri/sogo-proxy/.env"
+}
+
 build() {
     info "Building Vite project..."
     cd "$PROJECT_DIR"
-    npm run build
+    local api_key
+    api_key="$(get_production_api_key)"
+    if [ -z "$api_key" ]; then
+        err "VITE_API_KEY tidak tersedia. Set VITE_API_KEY atau pastikan API_KEY ada di $SERVER:/home/anas.fikri/sogo-proxy/.env."
+        exit 1
+    fi
+    VITE_API_KEY="$api_key" \
+        VITE_SOGO_BASE_URL="${VITE_SOGO_BASE_URL:-https://mail.pcpexpress.co.id}" \
+        npm run build
+    unset api_key
     ok "Build selesai → dist/"
 }
 
@@ -67,7 +112,7 @@ git_commit_push() {
     local encoded_pass
     encoded_pass=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$token', safe=''))")
 
-    local git_url="https://${GITLAB_USER}:${encoded_pass}@${GITLAB_HOST:-gitlab.domain.com}/${GITLAB_PROJECT:-team/project}.git"
+    local git_url="https://${GITLAB_USER}:${encoded_pass}@${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git"
 
     cd "$PROJECT_DIR"
 
@@ -86,31 +131,37 @@ git_commit_push() {
 
 # ── Setup Nginx config (pertama kali) ──────────────────────────────────────
 setup_nginx() {
-    info "Cek Nginx config di server..."
-    if ssh "$SERVER" "test -f $NGINX_DIR/$NGINX_FILE"; then
-        ok "Nginx config sudah ada."
-        return
-    fi
-
-    info "Buat Nginx config..."
-    ssh "$SERVER" "cat > $NGINX_DIR/$NGINX_FILE << 'NGINX_EOF'
+    info "Pasang Nginx config..."
+    local nginx_config
+    nginx_config=$(cat <<NGINX_EOF
 # site.webmail.custom — SOGo React Frontend (auto-deployed)
 location /webmail {
     root /web;
     index index.html;
     try_files \$uri \$uri/ /webmail/index.html;
 
-    location ~* \\.html$ {
-        add_header Cache-Control \"no-store, no-cache, must-revalidate\";
+    location ~* \.html$ {
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
         expires -1;
     }
 
-    location ~* \\.(css|js|woff2?|svg|gif|png|jpe?g|ico)$ {
-        add_header Cache-Control \"public, max-age=31536000, immutable\";
+    location ~* \.(css|js|woff2?|svg|gif|png|jpe?g|ico)$ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
     }
 }
-NGINX_EOF"
-    ok "Nginx config dibuat."
+
+location ~ ^/api/(send|health|preferences|auth/smtp)$ {
+    proxy_pass http://172.25.1.1:${SOGO_API_PORT};
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_read_timeout 120s;
+}
+NGINX_EOF
+)
+    printf '%s\n' "$nginx_config" | ssh "$SERVER" "cat > '$NGINX_DIR/$NGINX_FILE'"
+    ok "Nginx config diperbarui."
 }
 
 # ── Deploy ke server ───────────────────────────────────────────────────────
@@ -132,7 +183,7 @@ deploy() {
 
 # ── Verify ─────────────────────────────────────────────────────────────────
 verify() {
-    local webmail_url="${WEBMAIL_URL:-https://mail.domain.com/webmail/}"
+    local webmail_url="$WEBMAIL_URL"
     info "Verifikasi akses webmail..."
     local http_code
     http_code=$(ssh "$SERVER" "curl -sk -o /dev/null -w '%{http_code}' '$webmail_url'")
@@ -153,6 +204,8 @@ main() {
     echo "╚══════════════════════════════════════════╝"
     echo ""
 
+    validate_config
+    preflight_sogo_proxy
     build
 
     if [ -n "$commit_msg" ]; then
