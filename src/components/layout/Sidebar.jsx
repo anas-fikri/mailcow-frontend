@@ -1,6 +1,6 @@
 import React from 'react'
 import { Mail, LogOut, ChevronRight } from 'lucide-react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router'
 import { useAuthStore } from '../../store/authStore'
 import { logout } from '../../lib/api'
 import { Sun, Moon, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Eye, EyeOff, Loader2, AlertCircle, Sun, Moon } from 'lucide-react';
 import { login, resetSessionExpiredFlag, registerSmtpSession, revokeSmtpSession } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 export default function LoginPage() {
   const [userName, setUserName] = useState('');

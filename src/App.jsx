@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import AppLayout from './components/layout/AppLayout'
 import { useAuthStore } from './store/authStore'

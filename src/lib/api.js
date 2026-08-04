@@ -350,7 +350,6 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
     if (!res.ok) throwApiError(`Gagal memuat daftar pesan (${res.status}).`, res.status);
 
     const data = await safeJson(res);
-    console.log('[DEBUG] fetchMessages data', data);
     // headers[0] = column names row, data rows mulai dari index 1
     const rows = (data.headers || []).slice(1);
 
@@ -405,22 +404,24 @@ export async function fetchMessage(sogoToken, folder, uid) {
 
 export async function markRead(sogoToken, folder, uid, read = true) {
   const endpoint = read ? 'markMessageRead' : 'markMessageUnread';
-  await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/${uid}/${endpoint}`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/${uid}/${endpoint}`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: '{}',
   });
+  if (!res.ok) throwApiError(`Gagal menandai pesan (${res.status}).`, res.status);
 }
 
 export async function markFlagged(sogoToken, folder, uid, flagged = true) {
   const endpoint = flagged ? 'markFlagged' : 'markUnflagged';
-  await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/${uid}/${endpoint}`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/${uid}/${endpoint}`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: '{}',
   });
+  if (!res.ok) throwApiError(`Gagal mengubah tanda bintang (${res.status}).`, res.status);
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -446,21 +447,23 @@ export async function searchMessages(sogoToken, folder, query, criteria = 'all')
 }
 
 export async function deleteMessages(sogoToken, folder, uids) {
-  await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/batchDelete`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/batchDelete`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ uids }),
   });
+  if (!res.ok) throwApiError(`Gagal menghapus pesan (${res.status}).`, res.status);
 }
 
 export async function moveMessages(sogoToken, folder, uids, targetFolder) {
-  await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/batchMoveToMailbox`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/batchMoveToMailbox`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ uids, mailbox: targetFolder }),
   });
+  if (!res.ok) throwApiError(`Gagal memindahkan pesan (${res.status}).`, res.status);
 }
 
 /**

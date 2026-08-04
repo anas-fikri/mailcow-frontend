@@ -183,7 +183,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       markRead(user?.sogoToken, folder, msgId, true).then(() => {
         queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, folder] });
         queryClient.invalidateQueries({ queryKey: ['unseen', user?.sogoToken] });
-      });
+      }).catch(() => {});
       return data;
     },
     enabled: !!msgId && !!user?.sogoToken,
@@ -251,7 +251,14 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     if (!msg) return;
     const win = window.open('', '_blank');
     if (!win) return;
+    // Semua nilai yang diinterpolasi ke document.write harus di-escape:
+    // jendela print (about:blank) berbagi origin dengan opener, jadi HTML
+    // berbahaya di sini bisa mengakses halaman induk (cookie/opener).
     const safeSubject = escapeHtml(msg.subject);
+    const safeFrom    = escapeHtml(formatAddresses(msg.from));
+    const safeTo      = escapeHtml(formatAddresses(msg.to));
+    const safeCc      = escapeHtml(formatAddresses(msg.cc));
+    const safeDate    = escapeHtml(msg.date || '');
     win.document.write(`
       <html><head><title>${safeSubject || 'Email'}</title>
       <style>body{font-family:sans-serif;padding:40px;max-width:800px;margin:auto;line-height:1.6}
@@ -260,10 +267,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       img{max-width:100%}</style></head><body>
       <h1>${safeSubject || '(Tanpa Subjek)'}</h1>
       <div class="meta">
-        <p><strong>Dari:</strong> ${formatAddresses(msg.from)}</p>
-        <p><strong>Kepada:</strong> ${formatAddresses(msg.to)}</p>
-        ${msg.cc ? `<p><strong>Cc:</strong> ${formatAddresses(msg.cc)}</p>` : ''}
-        <p><strong>Tanggal:</strong> ${msg.date || ''}</p>
+        <p><strong>Dari:</strong> ${safeFrom}</p>
+        <p><strong>Kepada:</strong> ${safeTo}</p>
+        ${msg.cc ? `<p><strong>Cc:</strong> ${safeCc}</p>` : ''}
+        <p><strong>Tanggal:</strong> ${safeDate}</p>
       </div>
       <hr>
       ${cleanHtml}
@@ -301,26 +308,36 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     : '<p style="color:var(--muted-foreground);font-size:.875rem;margin:0">Tidak ada konten.</p>';
 
   function handleReply() {
+    // Semua header email (from/to/date/subject) adalah input dari pengirim dan
+    // harus di-escape — body ini di-hydrate ke contentEditable editor via innerHTML.
+    const safeFrom    = escapeHtml(from);
+    const safeTo      = escapeHtml(to);
+    const safeDate    = escapeHtml(date);
+    const safeSubject = escapeHtml(subject);
     onReply?.({
       to: replyTo || from,
       subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
       body: `<br><br><blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:0;color:#666">
-        <b>Dari:</b> ${from}<br>
-        <b>Tanggal:</b> ${date}<br>
-        <b>Kepada:</b> ${to}<br>
-        <b>Subjek:</b> ${subject}<br><br>${rawHtml}</blockquote>`,
+        <b>Dari:</b> ${safeFrom}<br>
+        <b>Tanggal:</b> ${safeDate}<br>
+        <b>Kepada:</b> ${safeTo}<br>
+        <b>Subjek:</b> ${safeSubject}<br><br>${cleanHtml}</blockquote>`,
     });
   }
 
   function handleForward() {
+    const safeFrom    = escapeHtml(from);
+    const safeTo      = escapeHtml(to);
+    const safeDate    = escapeHtml(date);
+    const safeSubject = escapeHtml(subject);
     onReply?.({
       subject: subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`,
       body: `<br><br><blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:0;color:#666">
         <b>---------- Pesan Diteruskan ----------</b><br>
-        <b>Dari:</b> ${from}<br>
-        <b>Tanggal:</b> ${date}<br>
-        <b>Kepada:</b> ${to}<br>
-        <b>Subjek:</b> ${subject}<br><br>${rawHtml}</blockquote>`,
+        <b>Dari:</b> ${safeFrom}<br>
+        <b>Tanggal:</b> ${safeDate}<br>
+        <b>Kepada:</b> ${safeTo}<br>
+        <b>Subjek:</b> ${safeSubject}<br><br>${cleanHtml}</blockquote>`,
     });
   }
 
@@ -337,7 +354,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             onClick={() => markRead(user.sogoToken, folder, msgId, false).then(() => {
               queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, folder] });
               queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-            })}
+            }).catch(() => {})}
             className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
             title="Tandai belum dibaca (U)"
           >

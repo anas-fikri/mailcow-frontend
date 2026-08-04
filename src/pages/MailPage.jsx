@@ -566,7 +566,7 @@ export default function MailPage() {
           markRead(user.sogoToken, selectedFolder, msg.uid, true).then(() => {
             queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
             queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-          });
+          }).catch(() => {});
         }}
       >
         <div
@@ -621,10 +621,10 @@ export default function MailPage() {
                         const currentColor = getFlagColor(user?.email, msg.uid);
                         if (currentColor === key) {
                           setFlagColor(user?.email, msg.uid, null);
-                          if (!msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, true).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] }));
+                          if (!msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, true).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] })).catch(() => {});
                         } else {
                           setFlagColor(user?.email, msg.uid, key);
-                          if (!msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, true).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] }));
+                          if (!msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, true).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] })).catch(() => {});
                         }
                         setFlagPickerOpen(null);
                       }}
@@ -639,7 +639,7 @@ export default function MailPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setFlagColor(user?.email, msg.uid, null);
-                      if (msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, false).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] }));
+                      if (msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, false).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] })).catch(() => {});
                       setFlagPickerOpen(null);
                     }}
                     className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-xs text-muted-foreground"

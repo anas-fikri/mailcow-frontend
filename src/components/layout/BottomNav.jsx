@@ -1,5 +1,5 @@
 import React from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink } from 'react-router'
 import { NAV_ITEMS } from '../../constants/navigation'
 
 export default function BottomNav() {

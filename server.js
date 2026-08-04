@@ -116,11 +116,32 @@ function rateLimit({ max = 10, windowMs = 60000, keyFn }) {
   };
 }
 
+// ── IP klien asli untuk rate limiting ──────────────────────────────────────────
+// Nginx selalu menimpa header X-Real-IP dengan alamat remote asli (nilai dari
+// client tidak dipercaya), jadi header ini aman dipakai sebagai rate-limit key.
+// Tanpa ini, semua user di belakang nginx berbagi satu bucket karena req.ip
+// selalu IP proxy — limit 10 kirim/menit akan tersedot oleh satu orang.
+function clientIp(req) {
+  const peer = (req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+  // Hanya percaya X-Real-IP jika koneksi datang dari proxy terpercaya:
+  // loopback (dev) atau jaringan docker bridge tempat nginx mailcow berada.
+  // Jika 3005 diakses langsung dari luar, header spoof tidak boleh diterima.
+  const isTrustedPeer = peer === '127.0.0.1' || /^172\.(1[6-9]|2\d|3[01])\./.test(peer);
+  if (isTrustedPeer && req.headers['x-real-ip']) return req.headers['x-real-ip'];
+  return peer || 'unknown';
+}
+
 // ── Auth middleware ─────────────────────────────────────────────────────────────
 function requireApiKey(req, res, next) {
-  
   const key = req.headers['x-api-key'];
-  if (!key || key !== API_KEY) {
+  const expected = API_KEY;
+  // Timing-safe comparison untuk menghindari side-channel pada API key.
+  if (!key || !expected || key.length !== expected.length) {
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+  const a = Buffer.from(key);
+  const b = Buffer.from(expected);
+  if (!crypto.timingSafeEqual(a, b)) {
     return res.status(403).json({ message: 'Forbidden' });
   }
   next();
@@ -199,7 +220,7 @@ async function queryPreferences(email) {
 }
 
 // ── Register SMTP Session ──────────────────────────────────────────────────
-app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: req => req.ip }), (req, res) => {
+app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: clientIp }), (req, res) => {
   const { user, pass } = req.body;
   if (!user || !pass) {
     return res.status(400).json({ message: 'user dan pass wajib diisi.' });
@@ -231,7 +252,7 @@ app.delete('/api/auth/smtp', (req, res) => {
 });
 
 // ── GET Preferences ────────────────────────────────────────────────────────────
-app.get('/api/preferences', rateLimit({ max: 30, windowMs: 60000, keyFn: req => req.ip }), async (req, res) => {
+app.get('/api/preferences', rateLimit({ max: 30, windowMs: 60000, keyFn: clientIp }), async (req, res) => {
   const { email } = req.query;
   if (!email || !email.includes('@')) {
     return res.status(400).json({ message: 'Parameter email tidak valid.' });
@@ -260,7 +281,7 @@ const sendEmailSchema = z.object({
   smtpToken: z.string().min(32, 'smtpToken tidak valid. Silakan login ulang.'),
 });
 
-app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: req => req.ip }), async (req, res) => {
+app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), async (req, res) => {
   // Zod validation
   const parsed = sendEmailSchema.safeParse(req.body);
   if (!parsed.success) {
