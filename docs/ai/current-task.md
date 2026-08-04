@@ -1,9 +1,9 @@
 # Current Task
 
-Status: IN PROGRESS (audit remediation delivery)
+Status: BLOCKED (audit remediation committed/pushed; deploy preflight blocked by SSH DNS)
 Task ID: sogo-frontend-audit-2026-08-04
 Started At: 2026-08-04
-Updated At: 2026-08-04T14:10:00+07:00
+Updated At: 2026-08-04T14:20:00+07:00
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
 ## Objective
@@ -28,10 +28,9 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - Current workspace recheck after the remediation patch: `npm run build` ✅, `npm run test:safe-url` ✅, `npm audit --omit=dev` ✅ (0 vulnerabilities), `node --check server.js` ✅, `bash -n deploy.sh` ✅, and `git diff --check` ✅.
 
 ## Next Step
-1. Commit and push the reviewed remediation patch.
-2. Run `deploy.sh` with the authenticated production preflight; it must fail closed if SSH/proxy health is unavailable.
-3. Verify production HTTP health and record the actual result; browser smoke test remains pending because Chrome is unavailable here.
-4. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
+1. Restore DNS/SSH resolution for the `mailserver` alias, then rerun `./deploy.sh`; the current attempt failed closed before any production mutation.
+2. Verify production HTTP health and security headers after a successful deploy; browser smoke test remains pending because Chrome is unavailable here.
+3. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
 
 ## Follow-up 2026-08-04 — Per-account UI preferences
 - Implemented and pushed @ `f07e017`: UI prefs (theme, themeColor, sortAsc, conversationView) now stored per account (`pcp_prefs_<email>`, new `src/lib/userPrefs.js`) and loaded on login; `clearUser` no longer resets them.

@@ -26,4 +26,4 @@ Success criteria:
 
 - Status: COMPLETE for the 2026-08-04 deployment reconciliation; ACTIVE as an ongoing maintenance practice.
 - Success criteria: docs/ai files reflect verified surfaces, decisions, and handoff after every significant task.
-- Latest evidence: remediation patch reviewed; workspace build, safe-url test, syntax checks, production audit (0 vulnerabilities), and diff check pass. Commit/push/deploy delivery is the remaining step for this patch.
+- Latest evidence: remediation patch reviewed; workspace build, safe-url test, syntax checks, production audit (0 vulnerabilities), and diff check pass. Commit/push completed at `91fe620`; deploy attempt is blocked at fail-closed SSH preflight because `mailserver` cannot be resolved.

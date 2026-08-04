@@ -172,3 +172,16 @@ Reconciled the active project state with the latest Round 3 production handoff. 
 ### Delivery
 - This patch is ready for commit/push and `deploy.sh` delivery.
 - Deploy script remains fail-closed on missing SSH access or unhealthy `sogo-smtp-proxy` port 3005.
+
+
+## 2026-08-04 — Remediation delivery result
+
+### Git
+- Commit `91fe620` (`fix(security): harden sessions, preferences, and editor sinks`) created successfully.
+- Pushed successfully to `origin/main` (`67da690..91fe620`); local `main` is synchronized with origin.
+
+### Production deploy
+- `./deploy.sh` was attempted with no commit argument after push.
+- Preflight failed closed before build/deploy because SSH could not resolve the configured host alias `mailserver`: `Temporary failure in name resolution`.
+- No production mutation occurred: no remote build, rsync, Nginx config write, Nginx reload, or HTTP verification ran.
+- Next action: restore DNS/SSH configuration for `mailserver`, confirm authenticated proxy health on port 3005, then rerun `./deploy.sh`.
