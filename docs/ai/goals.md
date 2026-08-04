@@ -28,4 +28,4 @@ Success criteria:
 - Success criteria: docs/ai files reflect verified surfaces, decisions, and handoff after every significant task.
 - Latest evidence: prior remediation patch reviewed; workspace build, safe-url test, syntax checks, production audit (0 vulnerabilities), and diff check pass. Commit/push completed at `91fe620`; deploy attempt was blocked at fail-closed SSH preflight because `mailserver` could not be resolved. A new deep-audit remediation batch is now validated locally and pending commit/push/deploy.
 - New coverage: `npm run test:path-segment` verifies nested-folder `%2F` compatibility and rejects encoded traversal/query payloads.
-- Deep-audit remediation commit/push: `6cf66dd` is present on `origin/main`. Deploy remains blocked by fail-closed SSH/DNS preflight for `mailserver`; no production mutation occurred.
+- Deep-audit remediation commit/push: `6cf66dd` is present on `origin/main`; docs status commit is `dae9855`. Production deploy is COMPLETE and LIVE: service active on 3005, authenticated health HTTP 200, webmail HTTP/2 200, and security headers verified.

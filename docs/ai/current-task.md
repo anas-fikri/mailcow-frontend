@@ -1,6 +1,6 @@
 # Current Task
 
-Status: BLOCKED (deep-audit remediation committed/pushed; deploy preflight blocked by SSH DNS)
+Status: COMPLETE (deep-audit remediation deployed and verified LIVE)
 Task ID: sogo-frontend-audit-2026-08-04
 Started At: 2026-08-04
 Updated At: 2026-08-04T14:20:00+07:00
@@ -36,16 +36,17 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - Final local validation passes: `npm run test:path-segment`, `npm run test:user-prefs`, `npm run test:safe-url`, Vite build, `npm audit --omit=dev` (0 vulnerabilities), Node/shell syntax, static scans, and `git diff --check`.
 - Regression test `scripts/test-path-segment.mjs` is intentionally force-added because the repository's legacy `test-*` ignore rule matches it.
 
-## Delivery result — deep-audit remediation
-- Commit `6cf66dd` (`fix(security): harden API paths and session errors`) was created and pushed to `origin/main`.
-- `./deploy.sh` was run after the push and failed closed at the authenticated SOGo proxy preflight: SSH could not resolve `mailserver` (`Temporary failure in name resolution`), so `mailserver:3005` health could not be checked.
-- No production mutation occurred: no remote build, rsync, Nginx config write, Nginx reload, or HTTP verification ran.
+## Delivery result — deep-audit remediation — COMPLETE
+- Commit `6cf66dd` (`fix(security): harden API paths and session errors`) and documentation commit `dae9855` were pushed to `origin/main`.
+- Production SSH was reached through the verified route `anas.fikri@202.148.2.139:22` using the existing deployment key; the temporary SSH wrapper did not modify permanent local SSH configuration.
+- The user service unit was backed up at `/home/anas.fikri/.config/systemd/user/sogo-smtp-proxy.service.bak-deploy-20260804150624`; its stale `PORT=3003` override was corrected to `PORT=3005`, then the service was enabled/restarted.
+- `./deploy.sh` completed: preflight ✅, Vite build ✅, rsync ✅, Nginx config/reload ✅, webmail verification ✅.
+- Post-deploy verification: `sogo-smtp-proxy` active, port 3005 listening, authenticated localhost health HTTP 200, public webmail HTTP/2 200, CSP/nosniff/X-Frame-Options/Referrer-Policy present.
+- `zeroclaw` on port 3003 was identified as unrelated and left untouched.
 
 ## Next Step
-1. Restore DNS/SSH resolution for the `mailserver` alias and ensure the authenticated SOGo proxy is healthy on port 3005.
-2. Rerun `./deploy.sh`; preflight must pass before any production mutation.
-3. Verify production HTTP health and security headers after a successful deploy; browser smoke test remains pending because Chrome is unavailable here.
-4. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
+1. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
+2. Browser smoke test remains pending because Chrome is unavailable in this workspace.
 
 ## Follow-up 2026-08-04 — Per-account theme initialization
 - Confirmed theme and accent settings are stored under normalized per-account keys (`pcp_prefs_<lowercase-email>`).

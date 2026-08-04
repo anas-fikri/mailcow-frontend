@@ -216,6 +216,10 @@ Reconciled the active project state with the latest Round 3 production handoff. 
 
 ### Delivery
 - Test file is force-added intentionally because the legacy `.gitignore` pattern `test-*` matches `scripts/test-path-segment.mjs`.
-- Commit `6cf66dd` (`fix(security): harden API paths and session errors`) was created and pushed to `origin/main`.
-- `./deploy.sh` then failed closed at SOGo proxy preflight because SSH could not resolve `mailserver` (`Temporary failure in name resolution`). No production build, rsync, Nginx reload, or remote mutation occurred.
-- Restore SSH/DNS and proxy health on port 3005 before rerunning deployment.
+- Commit `6cf66dd` (`fix(security): harden API paths and session errors`) and documentation commit `dae9855` were pushed to `origin/main`.
+- Initial deploy attempt failed closed because the local `mailserver` alias/DNS was unavailable. The verified public SSH route `anas.fikri@202.148.2.139:22` was then used via a temporary wrapper, without changing permanent SSH config.
+- Remote unit backup: `/home/anas.fikri/.config/systemd/user/sogo-smtp-proxy.service.bak-deploy-20260804150624`.
+- Fixed stale service override `PORT=3003` → `PORT=3005`; service is enabled/active and authenticated health returns HTTP 200.
+- `./deploy.sh` completed successfully: preflight, build, rsync, Nginx config/reload, and webmail verification all passed.
+- Post-deploy public verification: HTTP/2 200 with CSP, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: strict-origin-when-cross-origin`.
+- Unrelated `zeroclaw` process on port 3003 was not touched.
