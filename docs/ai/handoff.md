@@ -105,4 +105,20 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - Code review: passed (removed unused `clearPrefs`).
 
 ### Git / Deployment
-- Pushed to `origin/main` @ `f07e017` (fast-forward). Production deploy still pending (mailserver SSH unreachable; see 2026-08-04 audit entry).
+- Pushed to `origin/main` @ `f07e017` (fast-forward).
+
+
+## 2026-08-04 — Second bug-fix batch + PRODUCTION DEPLOY COMPLETE
+
+### Fixed (commits `6d87cd1`, `e9ecad5`)
+- EventModal invalid-date guard (crash fix); SwipeableRow hook-order fix; removed duplicate NAV_ITEMS and dead stats vars; **deploy.sh remote API_KEY read switched to heredoc** (unescaped inline quotes broke every build).
+
+### Deploy — LIVE 🎉
+- `sogo-smtp-proxy` was inactive and its `.env` had `PORT=3004` (Control Tower MCP, violates guardrail) → fixed to 3005, service started, health 200.
+- Host `server.js` updated (backup `server.js.bak-20260804`) with hardened auth/rate-limit.
+- `./deploy.sh` full pass: preflight → build → rsync → nginx config (CSP/nosniff/XFO/Referrer-Policy) → reload → webmail HTTP 200; CSP headers + `/api/health` via nginx verified live.
+- Do not touch PIDs 1512043/1512044 (Control Tower, `/opt/control-tower`). Unidentified root `node server.js` PIDs 3212161/3212169 left untouched.
+
+### Remaining
+- Rotate leaked password from `sogo_test.py`; optional git history scrub.
+- Functional browser test of the newly-deployed webmail (CSP now enforced).

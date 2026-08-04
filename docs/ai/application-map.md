@@ -37,7 +37,7 @@
 - `/api/*` requires the SMTP proxy (server.js) + live Mailcow; dev preview without backend shows UI but API calls fail.
 - Compose attachment upload button is disabled ("belum didukung").
 - `sogo_test.py` (contained a live password) removed from the tree on 2026-08-04; still present in history — password rotation + `git filter-repo` scrub recommended.
-- Production deploy of the 2026-08-04 security batch is PENDING — mailserver SSH unreachable from the dev network.
+- Production deploy of the 2026-08-04 hardening/fix batch is **COMPLETE and LIVE** (origin/main @ e9ecad5): `sogo-smtp-proxy` active on port 3005, host server.js updated, CSP/security headers verified on https://mail.pcpexpress.co.id/webmail/.
 
 ## Agent Rules
 

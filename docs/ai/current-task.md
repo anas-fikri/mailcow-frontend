@@ -32,4 +32,23 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 
 ## Follow-up 2026-08-04 — Per-account UI preferences
 - Implemented and pushed @ `f07e017`: UI prefs (theme, themeColor, sortAsc, conversationView) now stored per account (`pcp_prefs_<email>`, new `src/lib/userPrefs.js`) and loaded on login; `clearUser` no longer resets them.
-- Validation: build ✅, dev integration test (login loads prefs, changes persist, logout keeps prefs) ✅. Deploy still blocked by mailserver SSH.
+- Validation: build ✅, dev integration test (login loads prefs, changes persist, logout keeps prefs) ✅.
+
+## Round 3 2026-08-04 — Second bug-fix batch + PRODUCTION DEPLOY COMPLETE
+
+### Fixed (pushed @ `6d87cd1`, `e9ecad5`)
+- **EventModal crash:** `toDateStr`/`toTimeStr`/`fmtInputDate` guard invalid dates (NaN) so `toISOString()` can't throw RangeError (e.g. event without a start timestamp).
+- **SwipeableRow:** early return moved after all hooks (Rules of Hooks).
+- **lib/constants:** removed duplicate `NAV_ITEMS`; **lib/stats:** removed dead `dailyTotal`/`totalEmail`.
+- **deploy.sh quoting bug (blocked every build):** `get_production_api_key` had unescaped `"` inside an inline double-quoted ssh string, so awk received `index($0, =)` and failed; switched to the same heredoc pattern as `preflight_sogo_proxy`.
+
+### Deploy (LIVE)
+- SSH to mailserver restored. `sogo-smtp-proxy` (systemd user service) was **inactive**; its `.env` had `PORT=3004` (Control Tower MCP port, violating the project guardrail) → changed to **3005**, service started and healthy.
+- Updated `server.js` on the host (backup: `server.js.bak-20260804`) with timing-safe API key + per-client rate limiting.
+- `./deploy.sh` completed: preflight OK → build OK → rsync dist → nginx config (CSP headers) → reload → verify **HTTP 200**.
+- Verified from server: `content-security-policy` (self + Google Fonts + data: images), `x-content-type-options: nosniff`, `x-frame-options: DENY`, `referrer-policy` all live; `/api/health` via nginx = 200.
+- **Note:** stale `node server.js` processes exist on the host — PID 1512043/1512044 = Control Tower (cwd `/opt/control-tower`, ports 3003/3004, DO NOT touch); PIDs 3212161/3212169 (root, since Jul 27) unidentified, left untouched.
+
+### Remaining
+- Rotate the leaked webmail password (`sogo_test.py`); optional `git filter-repo` history scrub.
+- Follow-up: verify new-build webmail functionality in a browser (CSP is now enforced).
