@@ -17,7 +17,8 @@ All modules connect to SOGo API in real-time — no mock data.
 
 | Layer | Stack |
 |-------|-------|
-| Framework | React 19 + Vite 5 |
+| Framework | React 19 + Vite 8 |
+| Routing | React Router 8.3.0 |
 | Styling | Tailwind CSS v4 |
 | State | Zustand |
 | Data | TanStack React Query |
@@ -33,6 +34,12 @@ npm run dev          # Vite dev (port 5173)
 npm run dev:server   # SMTP proxy (port 3001)
 npm run dev:all      # Both simultaneously
 ```
+
+> **Security status (2026-08-04):** `npm audit` = 0 vulnerabilities. Production
+> `/webmail` is served with a CSP + clickjacking headers (see
+> `configs/site.webmail.custom`). Never commit `.env*` or credential files —
+> the repo already had one leaked password removed (`sogo_test.py`); rotate
+> that password and scrub history if it is still in use.
 
 ## Deploy
 

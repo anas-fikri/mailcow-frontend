@@ -1,50 +1,31 @@
 # Current Task
 
-Status: ACTIVE (security audit complete; deployment pending)
-Task ID: sogo-frontend-audit-2026-08-03
-Started At: 2026-08-03
-Updated At: 2026-08-03
+Status: ACTIVE (audit fixes committed & pushed; production deploy pending)
+Task ID: sogo-frontend-audit-2026-08-04
+Started At: 2026-08-04
+Updated At: 2026-08-04
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
 ## Objective
-Audit sogo-frontend for bugs and vulnerabilities, apply verified fixes, validate locally, and prepare a safe production deployment.
-
-## Files Involved
-- `deploy.sh`
-- `vite.config.js`
-- `configs/site.webmail.custom`
-- `configs/sogo-smtp-proxy.service`
-- `.env.production.example`
-- `README.md`
-- `docs/iso/04_Deployment_Guide.md`
-- `docs/ai/decisions.md`
-- `docs/ai/handoff.md`
+Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, and update ai-toolkit documentation.
 
 ## Completed
-- Dedicated SOGo SMTP proxy port standardized on `3005`; Control Tower ports `3003` and `3004` are not reused.
-- Nginx API route narrowed and anchored to the supported SOGo endpoints.
-- Deploy preflight validates the remote SOGo health endpoint before build/commit/push/deploy.
-- Production API key is read only during build from the remote service environment when no local `VITE_API_KEY` is supplied.
-- Vite production base path uses `/webmail/`.
+- **XSS fixes (MessageReader.jsx):** print window escapes from/to/cc/date; reply/forward quote now uses DOMPurify-sanitized body (`cleanHtml`) AND escapes all email header values (stored-XSS via sender display name eliminated).
+- **Dependency upgrade:** `react-router-dom@7.18.2` → `react-router@8.3.0` (imports in 5 files). Clears GHSA-qwww-vcr4-c8h2 (RSC-mode CSRF). `npm audit` now reports **0 vulnerabilities** (was 2 high).
+- **server.js:** timing-safe API-key comparison (`crypto.timingSafeEqual`); rate limiter keyed by real client IP via `X-Real-IP` — only trusted when the socket peer is loopback or a docker-bridge address (prevents spoofing + fixes shared-bucket bug behind nginx).
+- **api.js:** `markRead`/`markFlagged`/`deleteMessages`/`moveMessages` now surface HTTP failures; full-mailbox debug log removed; `.catch` added to fire-and-forget call sites.
+- **Production hardening:** CSP + `X-Content-Type-Options: nosniff` + `X-Frame-Options: DENY` + `Referrer-Policy` added to `/webmail` nginx config (both `configs/site.webmail.custom` and `deploy.sh setup_nginx`).
+- **Credential leak:** `sogo_test.py` on origin/main contained a live plaintext password for `anas.fikri@pcpexpress.co.id`. Removed from the tree (commit b7f7fa0). **Password rotation + git history scrub recommended.**
+
+## Git / Deployment
+- Local main synced to origin/main @ **b7f7fa0** (backup ref: `backup/local-main-pre-audit`).
+- Push completed: `f83f67f..b7f7fa0` fast-forward (history had been force-rebuilt on remote; local 3 prior security commits + new fix were cherry-picked onto it).
+- **Deploy PENDING:** `./deploy.sh` ran and failed closed at preflight — `mailserver` (202.148.2.141:2002) unreachable ("Connection refused"/timeout) and `sogo-smtp-proxy` must be active on port 3005 first. Nothing on production was changed.
 
 ## Validation
-- `bash -n deploy.sh` passed.
-- `node --check server.js` passed.
-- `npm run build` passed with a non-secret validation key.
-- `git diff --check` passed.
-- Real preflight correctly stopped because `sogo-smtp-proxy` is inactive and port `3005` is not listening.
+- `npm run build` ✅ (0 errors), `npm run test:safe-url` ✅, `node --check server.js` ✅, `bash -n deploy.sh` ✅, `git diff --check` ✅, `npm audit` → 0 ✅, dev smoke test (login render + route guard redirect) ✅.
 
-## Deployment Status
-Commit completed locally; push is pending GitLab credential access. Production deployment is intentionally pending because the user chose not to change or restart production services. Before deployment, install/activate `configs/sogo-smtp-proxy.service` on `mailserver`, then rerun `./deploy.sh`.
-
-## Risks
-- Do not point SOGo Nginx routes to Control Tower ports `3003` or `3004`.
-- Do not commit `.env.production` or expose the production API key.
-
-
-## Security Audit 2026-08-03
-
-- Fixed unsafe editor/mail URL sinks with `src/lib/safeUrl.js`; tests cover executable schemes, protocol-relative URLs, external blocking for SOGo resources, and encoded attribute characters.
-- Removed SOGo cookie/session and proxy-header value logging from `vite.config.js`.
-- Upgraded `react-router-dom` to `7.18.2`. `npm audit` still reports the RSC-mode CSRF advisory (`GHSA-qwww-vcr4-c8h2`); this SPA uses `BrowserRouter` only and has no SSR/RSC/data actions.
-- Validation: `npm run test:safe-url`, `node --check server.js`, `bash -n deploy.sh`, `npm run build`, and `git diff --check` passed.
+## Next Step
+1. Restore mailserver SSH reachability; verify `systemctl --user is-active sogo-smtp-proxy` (port 3005).
+2. Run `./deploy.sh` (no message needed; commits already pushed) to deploy dist + nginx config with security headers.
+3. Rotate the leaked webmail password; optionally scrub history with `git filter-repo`.

@@ -67,3 +67,25 @@ Audited `/Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend` o
 ### Deployment / Git Status
 - Production deployment remains **PENDING**: `sogo-smtp-proxy` is inactive and port `3005` is not listening; no production service was changed.
 - Push remains pending because both HTTPS Keychain and GitLab SSH authentication were unavailable in the non-interactive macOS session.
+
+
+## 2026-08-04 — Security Audit Fixes (committed & pushed; deploy blocked by network)
+
+### Summary
+Audited the full codebase (frontend, `server.js`, `deploy.sh`, nginx config) and applied security fixes. Committed and pushed to `origin/main` @ **b7f7fa0** (fast-forward `f83f67f..b7f7fa0`). Remote history had been force-rebuilt (no shared ancestry with local); the 3 prior local security commits were preserved via cherry-pick onto `origin/main`, then the new fix commit, then a credential-file removal commit.
+
+### Changes
+- **XSS (High):** MessageReader print window and reply/forward quote now escape every interpolated email header; quoted body uses DOMPurify-sanitized HTML instead of raw SOGo HTML. Covers both the earlier `rawHtml` sink and the unescaped display-name sink (stored XSS in the compose editor).
+- **Dependency (High):** `react-router-dom@7.18.2` → `react-router@8.3.0` across 5 import sites. `npm audit` 0 vulnerabilities (cleared GHSA-qwww-vcr4-c8h2).
+- **server.js:** `crypto.timingSafeEqual` for API key; rate limits now keyed by real client IP (`X-Real-IP`, trusted only from loopback/docker-bridge peers).
+- **api.js:** mutation calls now throw on HTTP errors; removed full-mailbox debug log; added `.catch` to fire-and-forget `markRead`/`markFlagged` call sites.
+- **Nginx hardening:** CSP + nosniff + X-Frame-Options + Referrer-Policy in `configs/site.webmail.custom` and `deploy.sh setup_nginx`.
+- **CRITICAL credential leak:** `sogo_test.py` on remote main contained a live plaintext password (`anas.fikri@pcpexpress.co.id` / `53,omatERtEnton,{`). Deleted from the tree (b7f7fa0) and from the local worktree. **Rotate the password; consider `git filter-repo` to scrub history.**
+
+### Validation
+- `npm run build` ✅ | `npm run test:safe-url` ✅ | `node --check server.js` ✅ | `bash -n deploy.sh` ✅ | `git diff --check` ✅ | `npm audit` 0 ✅ | dev smoke test ✅
+
+### Git / Deployment
+- `origin/main` @ `b7f7fa0`; local `main` synced; backup ref `backup/local-main-pre-audit` kept.
+- `./deploy.sh` attempted — **failed closed at preflight**: `mailserver` (202.148.2.141:2002) unreachable (connection refused/timeout) and `sogo-smtp-proxy` must be active on 3005. **No production service, nginx config, or remote files were modified.**
+- Follow-up: restore SSH, ensure proxy active, rerun `./deploy.sh`, rotate leaked password.
