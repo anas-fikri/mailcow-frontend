@@ -153,7 +153,7 @@ export default function ContactsPage() {
   const createMutation = useMutation({
     mutationFn: (data) => createContact(user.sogoToken, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contacts', user?.sogoToken] });
       setShowModal(false);
       setModalError('');
     },
@@ -163,7 +163,7 @@ export default function ContactsPage() {
   const deleteMutation = useMutation({
     mutationFn: (id) => deleteContact(user.sogoToken, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contacts', user?.sogoToken] });
       setSelected(null);
     },
   });

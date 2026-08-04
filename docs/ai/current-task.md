@@ -27,10 +27,20 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - Current workspace recheck: `npm run test:safe-url` ✅, `npm audit --omit=dev` ✅ (0 vulnerabilities), `node --check server.js` ✅, `bash -n deploy.sh` ✅, `git diff --check` ✅.
 - Current workspace recheck after the remediation patch: `npm run build` ✅, `npm run test:safe-url` ✅, `npm audit --omit=dev` ✅ (0 vulnerabilities), `node --check server.js` ✅, `bash -n deploy.sh` ✅, and `git diff --check` ✅.
 
+## Latest deep-audit remediation — pre-delivery
+- Fixed unsafe percent-encoded SOGo path segments: only `%2F` is accepted for nested folder IDs; encoded traversal/query/backslash sequences are rejected.
+- Extracted the validator into `src/lib/pathSegment.js` and added `npm run test:path-segment` regression coverage.
+- Added auth-status propagation for unseen, contacts, calendar, compose, contact/calendar mutations, password changes, and preference saves so 401/403 reaches the session watcher instead of silently returning fallback data.
+- Removed duplicate contacts auth guard and validated SOGo `draftId` before URL interpolation.
+- Reduced `/api/health` disclosure to `{ ok: true }`, rate-limited SMTP session revocation, and replaced raw SMTP error details returned to clients with a generic message.
+- Final local validation passes: `npm run test:path-segment`, `npm run test:user-prefs`, `npm run test:safe-url`, Vite build, `npm audit --omit=dev` (0 vulnerabilities), Node/shell syntax, static scans, and `git diff --check`.
+- Regression test `scripts/test-path-segment.mjs` is intentionally force-added because the repository's legacy `test-*` ignore rule matches it.
+
 ## Next Step
-1. Restore DNS/SSH resolution for the `mailserver` alias, then rerun `./deploy.sh`; the current attempt failed closed before any production mutation.
-2. Verify production HTTP health and security headers after a successful deploy; browser smoke test remains pending because Chrome is unavailable here.
-3. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
+1. Commit and push this remediation batch.
+2. Restore DNS/SSH resolution for the `mailserver` alias, then rerun `./deploy.sh`; preflight must pass before any production mutation.
+3. Verify production HTTP health and security headers after a successful deploy; browser smoke test remains pending because Chrome is unavailable here.
+4. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
 
 ## Follow-up 2026-08-04 — Per-account theme initialization
 - Confirmed theme and accent settings are stored under normalized per-account keys (`pcp_prefs_<lowercase-email>`).

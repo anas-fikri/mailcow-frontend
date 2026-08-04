@@ -71,6 +71,14 @@ function isSafeRecipient(value) {
   return isSafeEmail(trimmed);
 }
 
+function recipientAddress(value) {
+  const trimmed = String(value || '').trim();
+  const open = trimmed.lastIndexOf('<');
+  return (open >= 0 && trimmed.endsWith('>')
+    ? trimmed.slice(open + 1, -1)
+    : trimmed).trim().toLowerCase();
+}
+
 function validateRecipientList(value) {
   if (!value) return true;
   const recipients = value.split(',').map((item) => item.trim()).filter(Boolean);
@@ -198,7 +206,7 @@ app.use('/api', (req, res, next) => {
 
 // ── Health check ───────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, smtp: SMTP_HOST, port: SMTP_PORT });
+  res.json({ ok: true });
 });
 
 // ── Database pool (mysql2) ──────────────────────────────────────────────────────
@@ -282,7 +290,7 @@ app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: clientIp 
 });
 
 // ── Revoke SMTP Session (logout) ────────────────────────────────────────────
-app.delete('/api/auth/smtp', (req, res) => {
+app.delete('/api/auth/smtp', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), (req, res) => {
   const headerToken = getHeaderToken(req, 'x-smtp-token');
   const bodyToken = typeof req.body?.smtpToken === 'string' ? req.body.smtpToken : '';
   const token = headerToken || bodyToken;
@@ -317,7 +325,9 @@ const sendEmailSchema = z.object({
   subject: z.string().max(998).default(''),
   body: z.string().max(10_000_000).default(''),
   isHTML: z.boolean().default(true),
-  from: z.string().email('Format email tidak valid.').max(254).optional().default(''),
+  // UI dapat mengirim display-name: "Nama <user@example.com>".
+  // Format dan alamat akhirnya divalidasi setelah parsing, sebelum Nodemailer.
+  from: z.string().max(998).optional().default(''),
   smtpToken: z.string().min(32, 'smtpToken tidak valid. Silakan login ulang.'),
 });
 
@@ -340,6 +350,9 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
   if (/[\r\n]/.test(subject)) {
     return res.status(400).json({ message: 'Subjek email tidak valid.' });
   }
+  if (from && !isSafeRecipient(from)) {
+    return res.status(400).json({ message: 'Alamat pengirim tidak valid.' });
+  }
 
   // Look up SMTP session
   const session = getSmtpSession(smtpToken);
@@ -360,7 +373,7 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
       tls: tlsOpts,
     });
 
-    if (from && from.toLowerCase() !== session.user.toLowerCase()) {
+    if (from && recipientAddress(from) !== session.user.toLowerCase()) {
       return res.status(403).json({ message: 'Alamat pengirim harus sesuai dengan akun yang login.' });
     }
 
@@ -380,7 +393,7 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
 
   } catch (err) {
     console.error('[send] ERROR:', err.message);
-    return res.status(500).json({ message: err.message || 'Gagal mengirim email via SMTP.' });
+    return res.status(500).json({ message: 'Gagal mengirim email via SMTP.' });
   }
 });
 

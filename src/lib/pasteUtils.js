@@ -54,7 +54,8 @@ export function insertHtmlAtCursor(html, containerEl) {
 
   range.deleteContents();
 
-  const fragment = range.createContextualFragment(html);
+  const safeHtml = DOMPurify.sanitize(html, PURIFY_CONFIG);
+  const fragment = range.createContextualFragment(safeHtml);
   const lastNode = fragment.lastChild || fragment;
   range.insertNode(fragment);
 
@@ -89,7 +90,7 @@ export async function insertImageFile(file, editorRef, onChange) {
   const dataUrl = await readFileAsBase64(file);
   if (!editorRef.current) return false;
   const ok = insertHtmlAtCursor(`<img src="${dataUrl}" style="max-width:100%;height:auto">`, editorRef.current);
-  if (ok) onChange?.(editorRef.current.innerHTML);
+  if (ok) onChange?.(DOMPurify.sanitize(editorRef.current.innerHTML, PURIFY_CONFIG));
   return ok;
 }
 
@@ -182,7 +183,7 @@ export async function handleEditorPaste(e, { editorRef, onChange, setIsPasting, 
     const clean = DOMPurify.sanitize(resolvedHtml, PURIFY_CONFIG);
     if (editorRef.current) {
       insertHtmlAtCursor(clean, editorRef.current);
-      onChange?.(editorRef.current.innerHTML);
+      onChange?.(DOMPurify.sanitize(editorRef.current.innerHTML, PURIFY_CONFIG));
     }
     setIsPasting?.(false);
 

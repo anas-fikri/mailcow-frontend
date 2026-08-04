@@ -26,4 +26,5 @@ Success criteria:
 
 - Status: COMPLETE for the 2026-08-04 deployment reconciliation; ACTIVE as an ongoing maintenance practice.
 - Success criteria: docs/ai files reflect verified surfaces, decisions, and handoff after every significant task.
-- Latest evidence: remediation patch reviewed; workspace build, safe-url test, syntax checks, production audit (0 vulnerabilities), and diff check pass. Commit/push completed at `91fe620`; deploy attempt is blocked at fail-closed SSH preflight because `mailserver` cannot be resolved.
+- Latest evidence: prior remediation patch reviewed; workspace build, safe-url test, syntax checks, production audit (0 vulnerabilities), and diff check pass. Commit/push completed at `91fe620`; deploy attempt was blocked at fail-closed SSH preflight because `mailserver` could not be resolved. A new deep-audit remediation batch is now validated locally and pending commit/push/deploy.
+- New coverage: `npm run test:path-segment` verifies nested-folder `%2F` compatibility and rejects encoded traversal/query payloads.

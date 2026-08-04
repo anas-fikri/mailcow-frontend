@@ -10,7 +10,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:safe-url": "node scripts/test-safe-url.mjs",
-    "test:user-prefs": "node scripts/test-user-prefs.mjs"
+    "test:user-prefs": "node scripts/test-user-prefs.mjs",
+    "test:path-segment": "node scripts/test-path-segment.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

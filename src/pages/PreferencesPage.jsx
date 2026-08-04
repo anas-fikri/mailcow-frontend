@@ -292,7 +292,7 @@ function SignatureSection() {
     },
     onSuccess: () => {
       initRef.current = false; // allow re-init on next refetch
-      queryClient.invalidateQueries({ queryKey: ['preferences'] });
+      queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken, smtpToken] });
       setStatus({ type: 'success', message: 'Signature berhasil disimpan.' });
     },
     onError: (err) => setStatus({ type: 'error', message: err.message }),
@@ -422,7 +422,7 @@ function VacationSection() {
     },
     onSuccess: () => {
       initRef.current = false; // allow re-init on next refetch
-      queryClient.invalidateQueries({ queryKey: ['preferences'] });
+      queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken, smtpToken] });
       setStatus({ type: 'success', message: `Auto-reply ${enabled ? 'diaktifkan' : 'dinonaktifkan'}.` });
     },
     onError: (err) => setStatus({ type: 'error', message: err.message }),
@@ -578,7 +578,7 @@ function DisplaySection() {
     },
     onSuccess: () => {
       initRef.current = false;
-      queryClient.invalidateQueries({ queryKey: ['preferences'] });
+      queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken, smtpToken] });
       setStatus({ type: 'success', message: 'Preferensi tampilan disimpan.' });
     },
     onError: (err) => setStatus({ type: 'error', message: err.message }),

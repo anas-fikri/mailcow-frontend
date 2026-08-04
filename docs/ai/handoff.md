@@ -193,3 +193,27 @@ Reconciled the active project state with the latest Round 3 production handoff. 
 - `authStore.setUser` now always hydrates the newly logged-in account from its own preference profile; first-time accounts receive and persist `DEFAULT_PREFS`, preventing theme leakage from the previous account.
 - Added `scripts/test-user-prefs.mjs` and `npm run test:user-prefs` to verify normalized keys and account isolation.
 - Validation passed: `npm run test:user-prefs`, `npm run test:safe-url`, `npm run build`, `node --check server.js`, `bash -n deploy.sh`, `npm audit --omit=dev` (0 vulnerabilities), and `git diff --check`.
+
+## 2026-08-04 — Deep audit remediation batch (pre-delivery)
+
+### Confirmed findings and fixes
+- Restricted dynamic SOGo path segments to safe single-segment values; nested mailbox IDs may use `%2F`, while encoded traversal/query/backslash sequences are rejected. `draftId` is now validated before interpolation.
+- Added `src/lib/pathSegment.js` and `npm run test:path-segment` coverage for valid nested folders and malicious encodings.
+- Standardized 401/403 propagation across mailbox, contacts, calendar, compose, password, and preference operations; non-auth fallback behavior remains limited to unavailable data/network failures.
+- Removed a duplicated contacts auth check; editor/paste callbacks continue to sanitize DOM HTML before state callbacks.
+- Reduced health endpoint information disclosure, rate-limited SMTP session revocation, and stopped returning raw SMTP transport errors to clients.
+
+### Validation
+- `npm run test:path-segment` ✅
+- `npm run test:user-prefs` ✅
+- `npm run test:safe-url` ✅
+- `npm run build` ✅ (1998 modules)
+- `npm audit --omit=dev` ✅ (0 vulnerabilities)
+- `node --check server.js` / `src/lib/api.js` / `src/lib/pathSegment.js` ✅
+- `bash -n deploy.sh` ✅
+- `git diff --check` ✅
+- Final static scan and code review: no concrete blocker; Chrome unavailable for browser smoke test.
+
+### Delivery
+- Test file is force-added intentionally because the legacy `.gitignore` pattern `test-*` matches `scripts/test-path-segment.mjs`.
+- Commit/push and fail-closed `./deploy.sh` remain next; deploy must stop before mutation if `mailserver` SSH/DNS or proxy preflight is unavailable.

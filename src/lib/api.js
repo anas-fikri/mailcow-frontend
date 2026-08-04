@@ -1,3 +1,5 @@
+import { pathSegment } from './pathSegment';
+
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
 // ─── API Key untuk backend proxy ────────────────────────────────────────────────
@@ -61,6 +63,12 @@ function throwApiError(message, status) {
   throw err;
 }
 
+function throwIfAuthError(res) {
+  if (res.status === 401 || res.status === 403) {
+    throwApiError('Sesi berakhir, silakan login ulang.', res.status);
+  }
+}
+
 /**
  * Parse JSON dari response dengan aman.
  * Jika SOGo mengembalikan HTML karena session expired, throw 401.
@@ -117,8 +125,8 @@ async function safeJson(res) {
  */
 async function warmUpSogoSession(sogoToken) {
   const paths = [
-    `${SOGO_BASE}/SOGo/so/${sogoToken}`,
-    `${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/view`,
+    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}`,
+    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/view`,
   ];
 
   for (const url of paths) {
@@ -272,7 +280,7 @@ export async function fetchFolders(sogoToken) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/view`, {
+      const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/view`, {
         method: 'GET',
         credentials: 'include',
         headers: sogoHeaders(),
@@ -308,14 +316,16 @@ export async function fetchFolders(sogoToken) {
 
 export async function getUnseenCount(sogoToken) {
   try {
-    const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/folderINBOX/view`, {
+    const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/folderINBOX/view`, {
       credentials: 'include',
       headers: sogoHeaders(),
   });
+    throwIfAuthError(res);
     if (!res.ok) return { unseenCount: 0 };
-    const data = await res.json().catch(() => ({ unseenCount: 0 }));
-    return { unseenCount: data.unseenCount || 0 };
-  } catch {
+    const data = await safeJson(res);
+    return { unseenCount: data?.unseenCount || 0 };
+  } catch (err) {
+    if (err?.status === 401 || err?.status === 403) throw err;
     return { unseenCount: 0 };
   }
 }
@@ -333,7 +343,7 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
     // Server-side pagination (SOGo supports limit/offset)
     if (params.limit) body.limit = params.limit;
     if (params.offset) body.offset = params.offset;
-    const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/view`, {
+    const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/view`, {
     method: 'POST',
       credentials: 'include',
       headers: sogoHeaders({
@@ -394,7 +404,7 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
  * }
  */
 export async function fetchMessage(sogoToken, folder, uid) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/${uid}/view`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/view`, {
     credentials: 'include',
     headers: sogoHeaders(),
   });
@@ -404,7 +414,7 @@ export async function fetchMessage(sogoToken, folder, uid) {
 
 export async function markRead(sogoToken, folder, uid, read = true) {
   const endpoint = read ? 'markMessageRead' : 'markMessageUnread';
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/${uid}/${endpoint}`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/${endpoint}`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
@@ -415,7 +425,7 @@ export async function markRead(sogoToken, folder, uid, read = true) {
 
 export async function markFlagged(sogoToken, folder, uid, flagged = true) {
   const endpoint = flagged ? 'markFlagged' : 'markUnflagged';
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/${uid}/${endpoint}`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/${endpoint}`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
@@ -431,7 +441,7 @@ export async function markFlagged(sogoToken, folder, uid, flagged = true) {
  * criteria: "all", "from", "to", "subject", "body"
  */
 export async function searchMessages(sogoToken, folder, query, criteria = 'all') {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/search`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/search`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
@@ -447,7 +457,7 @@ export async function searchMessages(sogoToken, folder, query, criteria = 'all')
 }
 
 export async function deleteMessages(sogoToken, folder, uids) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/batchDelete`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/batchDelete`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
@@ -457,7 +467,7 @@ export async function deleteMessages(sogoToken, folder, uids) {
 }
 
 export async function moveMessages(sogoToken, folder, uids, targetFolder) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/${folder}/batchMoveToMailbox`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/batchMoveToMailbox`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
@@ -510,11 +520,12 @@ export async function sendMessage(sogoToken, payload, smtpToken = null) {
   const { to, cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '' } = payload;
 
   // 1. Buat draft baru
-  const composeRes = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/compose`, {
+  const composeRes = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/compose`, {
     method: 'GET',
     credentials: 'include',
     headers: sogoHeaders(),
   });
+  throwIfAuthError(composeRes);
   if (!composeRes.ok) throw new Error('Gagal membuat draft.');
   const { draftId } = await composeRes.json();
 
@@ -533,13 +544,15 @@ export async function sendMessage(sogoToken, payload, smtpToken = null) {
   };
 
   // 2. Kirim email via SOGo (langsung tanpa save)
-  const sendRes = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Mail/0/folderDrafts/${draftId}/send`, {
+  const safeDraftId = pathSegment(draftId, 'draftId');
+  const sendRes = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/folderDrafts/${safeDraftId}/send`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payloadData),
   });
 
+  throwIfAuthError(sendRes);
   if (sendRes.ok) return { ok: true };
 
   // Fallback: SMTP proxy (workaround SOGo 501)
@@ -578,14 +591,14 @@ export async function sendMessage(sogoToken, payload, smtpToken = null) {
  */
 export async function fetchContacts(sogoToken) {
   try {
-    const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Contacts/personal/view`, {
+    const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Contacts/personal/view`, {
       method: 'GET',
       credentials: 'include',
       headers: sogoHeaders(),
   });
-    if (res.status === 401 || res.status === 403) throw new Error('Unauthenticated');
+    throwIfAuthError(res);
     if (!res.ok) return [];
-    const data = await res.json();
+    const data = await safeJson(res);
 
     const cols = data.headers?.[0] || [];
     const rows = data.headers?.slice(1) || [];
@@ -605,28 +618,30 @@ export async function fetchContacts(sogoToken) {
       };
   });
   } catch (e) {
-    if (e.message === 'Unauthenticated') throw e;
+    if (e?.status === 401 || e?.status === 403) throw e;
     return [];
   }
 }
 
 export async function createContact(sogoToken, contactData) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Contacts/personal/new`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Contacts/personal/new`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(contactData),
   });
+  throwIfAuthError(res);
   if (!res.ok) throw new Error('Gagal menambah kontak.');
   return res.text();
 }
 
 export async function deleteContact(sogoToken, cardId) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Contacts/personal/${cardId}/delete`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Contacts/personal/${pathSegment(cardId, 'cardId')}/delete`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders(),
   });
+  throwIfAuthError(res);
   if (!res.ok) throw new Error('Gagal menghapus kontak.');
 }
 
@@ -651,10 +666,11 @@ export async function deleteContact(sogoToken, cardId) {
  * GET /Calendar/{calendarId}/newguid
  */
 async function newEventGuid(sogoToken, calendarId = 'personal') {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/${calendarId}/newguid`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/newguid`, {
     credentials: 'include',
     headers: sogoHeaders(),
   });
+  throwIfAuthError(res);
   if (!res.ok) throw new Error('Gagal membuat ID event baru.');
   const data = await res.json();
   return data.id || data;
@@ -688,7 +704,7 @@ export async function createCalendarEvent(sogoToken, event, calendarId = 'person
   };
 
   const res = await fetch(
-    `${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/${calendarId}/${eventId}/saveAsappointment`,
+    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}/saveAsappointment`,
     {
     method: 'POST',
       credentials: 'include',
@@ -696,6 +712,7 @@ export async function createCalendarEvent(sogoToken, event, calendarId = 'person
     body: JSON.stringify(body),
     }
   );
+  throwIfAuthError(res);
   if (!res.ok) throw new Error(`Gagal menyimpan event (${res.status}).`);
   return { id: eventId };
 }
@@ -720,7 +737,7 @@ export async function updateCalendarEvent(sogoToken, eventId, event, calendarId 
   };
 
   const res = await fetch(
-    `${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/${calendarId}/${eventId}/save`,
+    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}/save`,
     {
     method: 'POST',
       credentials: 'include',
@@ -728,6 +745,7 @@ export async function updateCalendarEvent(sogoToken, eventId, event, calendarId 
     body: JSON.stringify(body),
     }
   );
+  throwIfAuthError(res);
   if (!res.ok) throw new Error(`Gagal memperbarui event (${res.status}).`);
   return { id: eventId };
 }
@@ -738,12 +756,13 @@ export async function updateCalendarEvent(sogoToken, eventId, event, calendarId 
  */
 export async function deleteCalendarEvent(sogoToken, eventId, calendarId = 'personal') {
   const res = await fetch(
-    `${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/${calendarId}/${eventId}/delete`,
+    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}/delete`,
     {
       credentials: 'include',
       headers: sogoHeaders(),
     }
   );
+  throwIfAuthError(res);
   if (!res.ok) throw new Error(`Gagal menghapus event (${res.status}).`);
   return true;
 }
@@ -752,11 +771,12 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
   try {
     const query = new URLSearchParams({ startDate: start, endDate: end }).toString();
     const res = await fetch(
-      `${SOGO_BASE}/SOGo/so/${sogoToken}/Calendar/eventsblocks?${query}`,
+      `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/eventsblocks?${query}`,
       { credentials: 'include', headers: sogoHeaders() }
     );
+    throwIfAuthError(res);
     if (!res.ok) return [];
-    const raw = await res.json();
+    const raw = await safeJson(res);
 
     // raw = array of calendar objects, each has eventsFields + blocks
     const events = [];
@@ -781,7 +801,8 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
       }
     }
     return events;
-  } catch {
+  } catch (err) {
+    if (err?.status === 401 || err?.status === 403) throw err;
     return [];
   }
 }
@@ -795,13 +816,14 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
  */
 export async function changePassword(sogoToken, oldPassword, newPassword) {
   const formData = new URLSearchParams({ oldPassword, newPassword, newPasswordConfirmation: newPassword });
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Preferences/changePassword`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Preferences/changePassword`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/x-www-form-urlencoded' }),
     body: formData.toString(),
   });
   // SOGo returns 200 text/plain (empty) on success
+  throwIfAuthError(res);
   if (res.status === 404) throw new Error('Fitur ganti password tidak tersedia di server ini.');
   if (!res.ok) throw new Error(`Gagal mengganti password (${res.status}).`);
   return true;
@@ -887,12 +909,13 @@ export async function fetchPreferences(sogoToken, email, smtpToken = null) {
  * Juga menyimpan ke localStorage agar fetchPreferences bisa baca balik.
  */
 export async function savePreferences(sogoToken, prefs, email) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${sogoToken}/Preferences/save`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Preferences/save`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(prefs),
   });
+  throwIfAuthError(res);
   if (!res.ok) throw new Error(`Gagal menyimpan preferensi (${res.status}).`);
 
   // Simpan ke localStorage sebagai cache

@@ -40,16 +40,20 @@ const EMAIL_PURIFY_CONFIG = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function escapeHtml(str) {
+  return String(str).replace(/[<>&"']/g, c => {
+    const m = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' };
+    return m[c];
+  });
+}
+
 function extractHtml(parts) {
   if (!parts) return '';
   if (parts.contentType === 'text/html' && parts.content) return parts.content;
   if (parts.contentType === 'text/plain' && parts.content) {
-    // Jangan escape HTML entities — biarkan DOMPurify yang handle.
-    // SOGo sering kirim bounce email sebagai text/plain dengan tag HTML
-    // semu (seperti <br/>, <div>, <a>) sebagai teks biasa.
-    // Dengan tidak escape, tag tersebut jadi HTML asli setelah DOMPurify.
-    // Bungkus di div agar whitespace terjaga.
-    return `<div style="white-space:pre-wrap">${parts.content}</div>`;
+    // text/plain tetap harus diperlakukan sebagai teks, bukan HTML. Escape
+    // markup yang dikirim pengirim agar tag palsu tidak menjadi DOM aktif.
+    return `<div style="white-space:pre-wrap">${escapeHtml(parts.content)}</div>`;
   }
   if (Array.isArray(parts.content)) {
     const htmlPart = parts.content.find((c) => c.contentType === 'text/html');
@@ -239,13 +243,6 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [msg, deleteMutation.isPending]);
-
-  function escapeHtml(str) {
-    return String(str).replace(/[<>&"']/g, c => {
-      const m = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' };
-      return m[c];
-    });
-  }
 
   function handlePrint() {
     if (!msg) return;

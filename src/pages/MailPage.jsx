@@ -270,7 +270,9 @@ export default function MailPage() {
         toast.success(`${totalMoved} email diarsipkan otomatis oleh aturan`, 4000);
         queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[rules] Gagal menjalankan aturan otomatis:', err?.message || err);
+    });
   }, [messages.length, selectedFolder, user?.email, user?.sogoToken]);
 
   function loadMore() {
@@ -980,7 +982,7 @@ export default function MailPage() {
               <AlertCircle size={24} className="text-destructive" />
               <span className="text-sm text-destructive">{msgError?.message || 'Gagal memuat pesan.'}</span>
               <button
-                onClick={() => queryClient.invalidateQueries({ queryKey: ['messages'] })}
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] })}
                 disabled={isFetchingMessages}
                 className="flex items-center gap-1.5 text-xs text-primary hover:underline disabled:opacity-50"
               >
