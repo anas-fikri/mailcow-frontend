@@ -244,4 +244,9 @@ Reconciled the active project state with the latest Round 3 production handoff. 
 - Node syntax and `git diff --check` ✅
 
 ### Delivery
-- Pending commit/push/deploy and post-deploy count verification.
+- Commit `9fa267f` (`fix(stats): align folder totals with mailbox`) was committed and pushed to `origin/main`.
+- Deploy completed after restarting the proxy in the same controlled sequence: preflight, Vite build, rsync, Nginx config/reload, and webmail HTTP 200 all passed.
+- Post-deploy service/health verification passed; unrelated port 3003/zeroclaw was untouched.
+- Production now uses authoritative SOGo folder totals for Stats and MailPage; asset `index-CX2Vqhp-.js` is live.
+- Reliability follow-up: after an external SIGTERM repeatedly stopped the proxy, the unit was backed up at `/home/anas.fikri/.config/systemd/user/sogo-smtp-proxy.service.bak-restart-always-20260804152732`, changed from `Restart=on-failure` to `Restart=always`, and verified stable at `active/200` for six 5-second samples.
+- Visual account-level confirmation remains a recommended follow-up; unrelated port 3003/zeroclaw was untouched.

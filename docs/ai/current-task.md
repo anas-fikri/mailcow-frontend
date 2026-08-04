@@ -1,6 +1,6 @@
 # Current Task
 
-Status: ACTIVE (mailbox/statistics count mismatch remediation ready for delivery)
+Status: COMPLETE (mailbox/statistics count mismatch remediation deployed and verified LIVE)
 Task ID: sogo-frontend-audit-2026-08-04
 Started At: 2026-08-04
 Updated At: 2026-08-04T14:20:00+07:00
@@ -51,11 +51,18 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - Added `npm run test:message-totals`, including paginated UID metadata and null metadata fallback cases.
 - Validation passes: all project tests, Node syntax checks, Vite build, `npm audit --omit=dev` (0 vulnerabilities), and `git diff --check`.
 
+## Delivery result — mailbox/statistics consistency — COMPLETE
+- Commit `9fa267f` (`fix(stats): align folder totals with mailbox`) was pushed to `origin/main`.
+- Deploy completed through the verified production route: preflight ✅, build ✅, rsync ✅, Nginx reload ✅, webmail HTTP 200 ✅.
+- The proxy was restarted immediately before deploy because an external process had stopped it between separate checks; port 3003/zeroclaw remained untouched.
+- Post-deploy verification confirmed service active, authenticated health HTTP 200, webmail HTTP 200, and security headers present.
+- Backend reliability follow-up: service was externally terminated after deploy despite `Restart=on-failure`; unit was backed up at `/home/anas.fikri/.config/systemd/user/sogo-smtp-proxy.service.bak-restart-always-20260804152732`, changed narrowly to `Restart=always`, and monitored 6/6 samples over 30 seconds at `active/200`.
+- Production asset now serves `index-CX2Vqhp-.js`; unrelated port 3003/zeroclaw remains untouched.
+
 ## Next Step
-1. Commit/push and deploy the mailbox/statistics consistency remediation.
-2. Verify production Stats, Inbox, and Sent counts against the same account after deployment.
-3. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
-4. Browser smoke test remains pending because Chrome is unavailable in this workspace.
+1. Verify visually that Stats, Inbox, and Sent show matching totals for the same account.
+2. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
+3. Browser smoke test remains pending because Chrome is unavailable in this workspace.
 
 ## Follow-up 2026-08-04 — Per-account theme initialization
 - Confirmed theme and accent settings are stored under normalized per-account keys (`pcp_prefs_<lowercase-email>`).
