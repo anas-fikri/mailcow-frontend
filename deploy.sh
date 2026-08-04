@@ -77,7 +77,10 @@ get_production_api_key() {
         return 0
     fi
     # Read only during build; never print or write the key to the repository.
-    ssh "$SERVER" "awk -F= '/^API_KEY=/{print substr(\$0, index(\$0, "=") + 1); exit}' /home/anas.fikri/sogo-proxy/.env"
+    # Pakai heredoc (bukan string inline) agar quoting awk tidak rusak oleh shell.
+    ssh "$SERVER" bash -s <<'REMOTE_KEY'
+awk -F= '/^API_KEY=/{print substr($0, index($0, "=") + 1); exit}' /home/anas.fikri/sogo-proxy/.env
+REMOTE_KEY
 }
 
 build() {
