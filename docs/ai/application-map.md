@@ -30,6 +30,7 @@
 - CSP + nosniff + X-Frame-Options + Referrer-Policy headers in nginx config for `/webmail`.
 - Rate limits keyed by real client IP (X-Real-IP from trusted nginx peer).
 - npm audit: 0 vulnerabilities (react-router 8.3.0).
+- UI preferences (theme, accent color, sort order, conversation view) persisted per account in `localStorage` key `pcp_prefs_<email>` (`src/lib/userPrefs.js`), loaded on login, not reset on logout.
 
 ## Partial or Missing Surfaces
 

@@ -89,3 +89,20 @@ Audited the full codebase (frontend, `server.js`, `deploy.sh`, nginx config) and
 - `origin/main` @ `b7f7fa0`; local `main` synced; backup ref `backup/local-main-pre-audit` kept.
 - `./deploy.sh` attempted — **failed closed at preflight**: `mailserver` (202.148.2.141:2002) unreachable (connection refused/timeout) and `sogo-smtp-proxy` must be active on 3005. **No production service, nginx config, or remote files were modified.**
 - Follow-up: restore SSH, ensure proxy active, rerun `./deploy.sh`, rotate leaked password.
+
+
+## 2026-08-04 — Per-account UI preferences (committed & pushed @ f07e017)
+
+### Summary
+Implemented per-account persistence for UI preferences so they no longer reset on logout and are isolated per user.
+
+### Changes
+- **New `src/lib/userPrefs.js`:** per-email localStorage storage `pcp_prefs_<email>` for `{ theme, themeColor, sortAsc, conversationView }` with shape validation (same pattern as `autoArchive.js`/`flagColors.js`).
+- **`src/store/authStore.js`:** `setUser` loads the account's stored prefs; `clearUser` no longer resets `sortAsc`/`conversationView`; all preference setters (`setTheme`, `toggleTheme`, `setThemeColor`, `setSortAsc`, `setConversationView`) persist to the active account's storage when a user is logged in. Global `pcp-auth` persist retained as device fallback for the login screen.
+
+### Validation
+- `npm run build` ✅, `git diff --check` ✅, dev integration test in preview ✅ (login loads per-account prefs; changes persist to `pcp_prefs_<email>`; logout does not reset).
+- Code review: passed (removed unused `clearPrefs`).
+
+### Git / Deployment
+- Pushed to `origin/main` @ `f07e017` (fast-forward). Production deploy still pending (mailserver SSH unreachable; see 2026-08-04 audit entry).

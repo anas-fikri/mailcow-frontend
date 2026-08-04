@@ -30,3 +30,9 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 - **API key comparison:** `crypto.timingSafeEqual` with a length guard.
 - **CSP for /webmail:** `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' ...; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` + nosniff/XFO/Referrer-Policy, mirrored in `configs/site.webmail.custom` and `deploy.sh setup_nginx`. Built index.html has no inline scripts, so `script-src 'self'` is safe.
 - **CRITICAL — credential leak:** `sogo_test.py` committed on origin/main contained a live plaintext password (`anas.fikri@pcpexpress.co.id`). Deleted from the tree (b7f7fa0). Decision: rotate the password and run `git filter-repo` history scrub; do not restore the file (it is gitignored locally and was removed from the worktree).
+
+## 2026-08-04 — Per-account UI preferences
+
+- **Decision:** UI preferences (theme light/dark, `themeColor`, `sortAsc`, `conversationView`) are stored per account in `localStorage` key `pcp_prefs_<email>` (via new `src/lib/userPrefs.js`, same pattern as `autoArchive`/`flagColors`). `setUser` loads the account's stored prefs on login; `clearUser` no longer resets them; every preference setter persists to the active account.
+- **Why:** prefs previously lived in one global zustand key and were reset on logout/login/session-expiry, and accounts on a shared browser overwrote each other's settings.
+- **Behavior notes:** a brand-new account (no stored prefs) inherits the current device theme until the user changes something; the global `pcp-auth` persist still holds a device-level fallback for the anonymous login screen.

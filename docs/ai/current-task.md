@@ -29,3 +29,7 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 1. Restore mailserver SSH reachability; verify `systemctl --user is-active sogo-smtp-proxy` (port 3005).
 2. Run `./deploy.sh` (no message needed; commits already pushed) to deploy dist + nginx config with security headers.
 3. Rotate the leaked webmail password; optionally scrub history with `git filter-repo`.
+
+## Follow-up 2026-08-04 — Per-account UI preferences
+- Implemented and pushed @ `f07e017`: UI prefs (theme, themeColor, sortAsc, conversationView) now stored per account (`pcp_prefs_<email>`, new `src/lib/userPrefs.js`) and loaded on login; `clearUser` no longer resets them.
+- Validation: build ✅, dev integration test (login loads prefs, changes persist, logout keeps prefs) ✅. Deploy still blocked by mailserver SSH.
