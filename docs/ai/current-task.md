@@ -32,6 +32,12 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 2. Verify production HTTP health and security headers after a successful deploy; browser smoke test remains pending because Chrome is unavailable here.
 3. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
 
+## Follow-up 2026-08-04 — Per-account theme initialization
+- Confirmed theme and accent settings are stored under normalized per-account keys (`pcp_prefs_<lowercase-email>`).
+- Updated login hydration so a returning account loads its own profile and a first-time account receives/persists isolated defaults instead of inheriting the previous account's theme.
+- Added `npm run test:user-prefs` regression coverage for normalized email keys and account isolation.
+- Validation: user-prefs test, safe-url test, build, Node/shell syntax, production audit (0 vulnerabilities), and diff check all pass.
+
 ## Follow-up 2026-08-04 — Per-account UI preferences
 - Implemented and pushed @ `f07e017`: UI prefs (theme, themeColor, sortAsc, conversationView) now stored per account (`pcp_prefs_<email>`, new `src/lib/userPrefs.js`) and loaded on login; `clearUser` no longer resets them.
 - Validation: build ✅, dev integration test (login loads prefs, changes persist, logout keeps prefs) ✅.

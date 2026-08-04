@@ -185,3 +185,11 @@ Reconciled the active project state with the latest Round 3 production handoff. 
 - Preflight failed closed before build/deploy because SSH could not resolve the configured host alias `mailserver`: `Temporary failure in name resolution`.
 - No production mutation occurred: no remote build, rsync, Nginx config write, Nginx reload, or HTTP verification ran.
 - Next action: restore DNS/SSH configuration for `mailserver`, confirm authenticated proxy health on port 3005, then rerun `./deploy.sh`.
+
+
+## 2026-08-04 — Per-account theme persistence confirmation
+
+- Normalized preference keys by trimming/lowercasing email addresses in `src/lib/userPrefs.js`.
+- `authStore.setUser` now always hydrates the newly logged-in account from its own preference profile; first-time accounts receive and persist `DEFAULT_PREFS`, preventing theme leakage from the previous account.
+- Added `scripts/test-user-prefs.mjs` and `npm run test:user-prefs` to verify normalized keys and account isolation.
+- Validation passed: `npm run test:user-prefs`, `npm run test:safe-url`, `npm run build`, `node --check server.js`, `bash -n deploy.sh`, `npm audit --omit=dev` (0 vulnerabilities), and `git diff --check`.

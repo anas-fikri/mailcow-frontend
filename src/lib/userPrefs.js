@@ -16,11 +16,12 @@ export const DEFAULT_PREFS = {
   conversationView: false,
 };
 
-const LS_KEY = (email) => `pcp_prefs_${email}`;
+const normalizeEmail = (email) => typeof email === 'string' ? email.trim().toLowerCase() : '';
+const LS_KEY = (email) => `pcp_prefs_${normalizeEmail(email)}`;
 
 /** Ambil preferensi tersimpan untuk satu akun; null jika belum pernah disimpan. */
 export function loadPrefs(email) {
-  if (!email) return null;
+  if (!normalizeEmail(email)) return null;
   try {
     const raw = localStorage.getItem(LS_KEY(email));
     if (!raw) return null;
@@ -39,7 +40,7 @@ export function loadPrefs(email) {
 
 /** Simpan preferensi untuk satu akun. */
 export function savePrefs(email, prefs) {
-  if (!email) return;
+  if (!normalizeEmail(email)) return;
   try {
     localStorage.setItem(LS_KEY(email), JSON.stringify({
       ...DEFAULT_PREFS,

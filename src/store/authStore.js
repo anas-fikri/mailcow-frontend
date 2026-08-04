@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { loadPrefs, savePrefs } from '../lib/userPrefs';
+import { DEFAULT_PREFS, loadPrefs, savePrefs } from '../lib/userPrefs';
 
 export const useAuthStore = create(
   persist(
@@ -24,11 +24,13 @@ export const useAuthStore = create(
         // SMTP session token disimpan di memory saja (TIDAK dipersist ke localStorage)
         smtpToken: null,   // UUID session token dari /api/auth/smtp
 
-        setUser: (user) => set((state) => {
-          // Muat preferensi UI akun ini (jika pernah disimpan); kalau belum ada,
-          // biarkan nilai saat ini (tema perangkat) agar tidak berkedip.
+        setUser: (user) => set(() => {
+          // Selalu pilih preferensi berdasarkan akun yang baru login. Jangan
+          // mewarisi tema akun sebelumnya saat akun ini belum punya profil prefs.
           const stored = loadPrefs(user?.email);
-          return stored ? { user, isLoggedIn: true, ...stored } : { user, isLoggedIn: true };
+          const prefs = stored || DEFAULT_PREFS;
+          if (!stored && user?.email) savePrefs(user.email, prefs);
+          return { user, isLoggedIn: true, ...prefs };
         }),
         // Logout tidak boleh mereset preferensi UI (tema, warna, sortir, percakapan).
         clearUser: () => set({ user: null, isLoggedIn: false, smtpToken: null }),

@@ -9,7 +9,8 @@
     "dev:all": "concurrently -k -n \"SMTP,VITE\" -c \"bgBlue,bgGreen\" \"node server.js\" \"vite\"",
     "build": "vite build",
     "preview": "vite preview",
-    "test:safe-url": "node scripts/test-safe-url.mjs"
+    "test:safe-url": "node scripts/test-safe-url.mjs",
+    "test:user-prefs": "node scripts/test-user-prefs.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
