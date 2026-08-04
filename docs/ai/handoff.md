@@ -223,3 +223,25 @@ Reconciled the active project state with the latest Round 3 production handoff. 
 - `./deploy.sh` completed successfully: preflight, build, rsync, Nginx config/reload, and webmail verification all passed.
 - Post-deploy public verification: HTTP/2 200 with CSP, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: strict-origin-when-cross-origin`.
 - Unrelated `zeroclaw` process on port 3003 was not touched.
+
+## 2026-08-04 — Mailbox/statistics count consistency fix (pre-delivery)
+
+### Finding
+- Stats used `fetchMessages(...).messages.length`, while MailPage intentionally loaded only 250 rows. The API also exposed the loaded batch length as `total`, so Stats and Inbox/Sent could show different numbers for folders larger than the current batch.
+
+### Fix
+- Added `src/lib/messageTotals.js` to prefer SOGo's full `uids` metadata, then explicit total fields, with a safe loaded-row fallback.
+- `fetchMessages` now returns the normalized folder total.
+- Stats count requests use `limit: 1` and `result.total`, avoiding unnecessary mailbox payloads.
+- MailPage displays the authoritative folder total and shows `loaded/total` when older rows remain.
+- Added `npm run test:message-totals` regression coverage for paginated UID totals and null metadata.
+
+### Validation
+- `npm run test:message-totals` ✅
+- Existing user-prefs/path-segment/safe-url tests ✅
+- Vite build ✅
+- `npm audit --omit=dev` ✅ (0 vulnerabilities)
+- Node syntax and `git diff --check` ✅
+
+### Delivery
+- Pending commit/push/deploy and post-deploy count verification.

@@ -206,6 +206,7 @@ export default function MailPage() {
   });
 
   const messages = msgData?.messages || [];
+  const totalMessageCount = msgData?.total ?? messages.length;
   const ruleSummary = getRuleSummary(user?.email);
   const enabledRules = ruleSummary.enabled;
 
@@ -806,6 +807,9 @@ export default function MailPage() {
               </button>
               <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 {selectedFolderMeta.label}
+                <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  {totalMessageCount}
+                </span>
                 {enabledRules > 0 && selectedFolder === 'folderINBOX' && (
                   <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full font-normal">
                     {enabledRules} aturan
@@ -1060,10 +1064,10 @@ export default function MailPage() {
                     Muat {Math.min(PAGE_SIZE, messages.length - visibleCount)} lainnya ({messages.length - visibleCount} tersisa)
                   </button>
                 </div>
-              ) : messages.length >= SERVER_PAGE_LIMIT && (
+              ) : totalMessageCount > messages.length && (
                 <div className="px-4 py-3 flex justify-center border-t border-border">
                   <span className="text-[10px] text-muted-foreground">
-                    Menampilkan {SERVER_PAGE_LIMIT} email terbaru. Cari email lama via pencarian.
+                    Menampilkan {messages.length} dari {totalMessageCount} email terbaru. Cari email lama via pencarian.
                   </span>
                 </div>
               )}

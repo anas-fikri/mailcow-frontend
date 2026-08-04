@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test:safe-url": "node scripts/test-safe-url.mjs",
     "test:user-prefs": "node scripts/test-user-prefs.mjs",
-    "test:path-segment": "node scripts/test-path-segment.mjs"
+    "test:path-segment": "node scripts/test-path-segment.mjs",
+    "test:message-totals": "node scripts/test-message-totals.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

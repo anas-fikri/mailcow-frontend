@@ -56,3 +56,9 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 - **Decision:** Keep `/api/health` metadata-minimal, rate-limit SMTP revocation, and return generic SMTP transport errors to clients while retaining server-side diagnostics.
 - **Coverage:** Add `npm run test:path-segment`; the test is force-added because the legacy `test-*` ignore rule otherwise excludes it.
 - **Delivery:** Commit `6cf66dd` and docs commit `dae9855` are on `origin/main`. After the default alias failed DNS, deployment used the verified SSH route `202.148.2.139:22` through a temporary wrapper. The remote unit was backed up, stale `PORT=3003` was corrected to `3005`, and `./deploy.sh` completed successfully. Post-deploy service, health, webmail, and security headers were verified LIVE; unrelated port-3003 `zeroclaw` was left untouched.
+
+## 2026-08-04 — Consistent folder totals across Stats and Mail
+
+- **Decision:** Treat SOGo folder metadata (`uids` when present, then explicit total fields) as the source of truth for folder counts. Keep MailPage's 250-row response cap for performance, but expose the full folder total separately.
+- **Reason:** Stats previously counted the loaded message rows while Inbox/Sent displayed a capped list, causing mismatched numbers for folders larger than one page.
+- **Coverage:** `npm run test:message-totals` verifies paginated UID metadata and safe null/fallback behavior.

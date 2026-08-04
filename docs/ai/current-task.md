@@ -1,6 +1,6 @@
 # Current Task
 
-Status: COMPLETE (deep-audit remediation deployed and verified LIVE)
+Status: ACTIVE (mailbox/statistics count mismatch remediation ready for delivery)
 Task ID: sogo-frontend-audit-2026-08-04
 Started At: 2026-08-04
 Updated At: 2026-08-04T14:20:00+07:00
@@ -44,9 +44,18 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - Post-deploy verification: `sogo-smtp-proxy` active, port 3005 listening, authenticated localhost health HTTP 200, public webmail HTTP/2 200, CSP/nosniff/X-Frame-Options/Referrer-Policy present.
 - `zeroclaw` on port 3003 was identified as unrelated and left untouched.
 
+## Latest mailbox/statistics consistency remediation
+- Confirmed mismatch: Stats counted `messages.length` from an unbounded/paginated response, while MailPage loaded a capped batch (`limit: 250`); API `total` also represented only loaded rows.
+- Added `src/lib/messageTotals.js` to normalize SOGo folder totals from `uids`, `total`, `totalCount`, or `count` metadata with safe fallback.
+- `fetchMessages` now returns the authoritative folder total; Stats requests `limit: 1` and uses `result.total`; MailPage shows the total folder count and distinguishes loaded rows from older messages.
+- Added `npm run test:message-totals`, including paginated UID metadata and null metadata fallback cases.
+- Validation passes: all project tests, Node syntax checks, Vite build, `npm audit --omit=dev` (0 vulnerabilities), and `git diff --check`.
+
 ## Next Step
-1. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
-2. Browser smoke test remains pending because Chrome is unavailable in this workspace.
+1. Commit/push and deploy the mailbox/statistics consistency remediation.
+2. Verify production Stats, Inbox, and Sent counts against the same account after deployment.
+3. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
+4. Browser smoke test remains pending because Chrome is unavailable in this workspace.
 
 ## Follow-up 2026-08-04 — Per-account theme initialization
 - Confirmed theme and accent settings are stored under normalized per-account keys (`pcp_prefs_<lowercase-email>`).

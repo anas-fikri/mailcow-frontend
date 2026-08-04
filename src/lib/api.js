@@ -1,4 +1,5 @@
 import { pathSegment } from './pathSegment';
+import { getMessageTotal } from './messageTotals';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
@@ -378,7 +379,11 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
       );
     }
 
-    return { messages, unseenCount: data.unseenCount || 0, total: messages.length };
+    return {
+      messages,
+      unseenCount: data.unseenCount || 0,
+      total: getMessageTotal(data, messages.length),
+    };
   } catch (err) {
     console.error('[DEBUG] fetchMessages ERROR:', err?.message || err);
     throw err;

@@ -31,8 +31,9 @@ const MOCK_STORAGE = {
  */
 async function countFolder(sogoToken, folderId) {
   try {
-    const result = await fetchMessages(sogoToken, folderId);
-    return result.messages?.length || 0;
+    // Request one row only; fetchMessages still returns the folder total from SOGo metadata.
+    const result = await fetchMessages(sogoToken, folderId, { limit: 1 });
+    return result.total || 0;
   } catch {
     return 0;
   }
