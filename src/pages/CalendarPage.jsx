@@ -259,7 +259,9 @@ export default function CalendarPage() {
       attendees: '',
     };
 
-    handleUpdateEvent(eventData, ev.id);
+    handleUpdateEvent(eventData, ev.id).catch((err) => {
+      toast.error(err.message || 'Gagal memindahkan event');
+    });
     dragEvRef.current = null;
   }
 

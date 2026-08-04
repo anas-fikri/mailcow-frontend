@@ -23,7 +23,7 @@
 - [x] **Task 2.3:** Implementasi *Email Reader* (`MessageReader.jsx`). Render HTML dari `parts.content[]`, sanitasi DOMPurify, tampilkan lampiran dengan download link.
 - [x] **Task 2.4:** *Quick Actions*: *Mark as Read*, Hapus Email, Pindah Folder (Bulk actions toolbar).
 - [x] **Task 2.5:** *Message Editor* (`ComposeModal.jsx`). Autocomplete kontak dari `Contacts/personal/view`, CC/BCC toggle, success state.
-- [x] **Task 2.6:** Pengiriman email via `POST /save` (form-urlencoded) + fallback `/api/send` (Nodemailer SMTP proxy). Backend proxy `server.js` (Express, port 3001). Vite proxy `/api` → `127.0.0.1:3001`.
+- [x] **Task 2.6:** Pengiriman email via `POST /save` (form-urlencoded) + fallback `/api/send` (Nodemailer SMTP proxy). Backend proxy `server.js` (Express, port 3001 lokal; port 3005 production). Vite proxy `/api` → `127.0.0.1:3001`.
 
 **File yang dimodifikasi:**
 - `src/lib/api.js` — parsing SOGo format, XSRF helper, sendMessage flow
@@ -68,3 +68,8 @@
 - [x] **Task 5.2:** Signature Email (simpan via Preferences/save).
 - [x] **Task 5.3:** Auto-Reply/Vacation (toggle + tanggal + pesan).
 - [ ] **Task 5.4:** Final QA, Mobile Testing, bundle optimization.
+
+## Deployment status — 2026-08-04
+- [x] Round 3 production deploy: proxy port corrected to 3005, service activated, frontend/Nginx config deployed, security headers verified, webmail and `/api/health` returned HTTP 200.
+- [ ] Local rebuild evidence: install dependencies (`npm install`) and rerun `npm run build` in any workspace without `node_modules`.
+- [ ] Rotate the previously exposed webmail password and optionally scrub Git history.

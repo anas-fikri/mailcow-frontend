@@ -2,7 +2,7 @@
 
 ## Audit
 
-- Audited At: 2026-08-04
+- Audited At: 2026-08-04 (status rechecked after Round 3 deployment)
 - Active frontend: `src/` — React 19 SPA (Vite build, base `/webmail/`)
 - Backend/API: `server.js` — Express 5 proxy (prod port 3005)
 - Knowledge graph project: n/a
@@ -37,7 +37,8 @@
 - `/api/*` requires the SMTP proxy (server.js) + live Mailcow; dev preview without backend shows UI but API calls fail.
 - Compose attachment upload button is disabled ("belum didukung").
 - `sogo_test.py` (contained a live password) removed from the tree on 2026-08-04; still present in history — password rotation + `git filter-repo` scrub recommended.
-- Production deploy of the 2026-08-04 hardening/fix batch is **COMPLETE and LIVE** (origin/main @ e9ecad5): `sogo-smtp-proxy` active on port 3005, host server.js updated, CSP/security headers verified on https://mail.pcpexpress.co.id/webmail/.
+- Production deploy of the 2026-08-04 hardening/fix batch is **COMPLETE and LIVE per the Round 3 deployment handoff** (application code @ `e9ecad5`; documentation reconciliation @ `67da690`; not re-probed from this workspace): `sogo-smtp-proxy` was active on port 3005, host `server.js` updated, CSP/security headers verified on https://mail.pcpexpress.co.id/webmail/, and `/api/health` returned HTTP 200.
+- Current workspace verification before this documentation update: repository was clean and synced with `origin/main`; safe-url test, production dependency audit, Node syntax check, shell syntax check, and diff check pass. Local Vite build requires `npm install` first because `node_modules` is absent; documentation edits are currently uncommitted for review.
 
 ## Agent Rules
 

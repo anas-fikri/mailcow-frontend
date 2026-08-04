@@ -113,7 +113,7 @@ git_commit_push() {
 
     # URL encode the password (pakai python3 biar aman semua karakter)
     local encoded_pass
-    encoded_pass=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$token', safe=''))")
+    encoded_pass=$(GITLAB_TOKEN="$token" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["GITLAB_TOKEN"], safe=""))')
 
     local git_url="https://${GITLAB_USER}:${encoded_pass}@${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git"
 
@@ -178,14 +178,18 @@ location ~ ^/api/(send|health|preferences|auth/smtp)$ {
 }
 NGINX_EOF
 )
-    printf '%s\n' "$nginx_config" | ssh "$SERVER" "cat > '$NGINX_DIR/$NGINX_FILE'"
+    local nginx_path_q
+    nginx_path_q=$(printf "'%s'" "${NGINX_DIR//\'/\'\\\'\'}/$NGINX_FILE")
+    printf '%s\n' "$nginx_config" | ssh "$SERVER" "cat > $nginx_path_q"
     ok "Nginx config diperbarui."
 }
 
 # ── Deploy ke server ───────────────────────────────────────────────────────
 deploy() {
     info "Buat direktori remote jika belum ada..."
-    ssh "$SERVER" "mkdir -p $REMOTE_DIR"
+    local remote_dir_q
+    remote_dir_q=$(printf "'%s'" "${REMOTE_DIR//\'/\'\\\'\'}")
+    ssh "$SERVER" "mkdir -p -- $remote_dir_q"
 
     info "Sync dist/ ke server..."
     rsync -av --delete "$DIST_DIR/" "${SERVER}:${REMOTE_DIR}/"
@@ -204,7 +208,9 @@ verify() {
     local webmail_url="$WEBMAIL_URL"
     info "Verifikasi akses webmail..."
     local http_code
-    http_code=$(ssh "$SERVER" "curl -sk -o /dev/null -w '%{http_code}' '$webmail_url'")
+    local webmail_url_q
+    webmail_url_q=$(printf "'%s'" "${webmail_url//\'/\'\\\'\'}")
+    http_code=$(ssh "$SERVER" "curl -sk -o /dev/null -w '%{http_code}' -- $webmail_url_q")
     if [ "$http_code" = "200" ]; then
         ok "Webmail siap: $webmail_url (HTTP $http_code)"
     else

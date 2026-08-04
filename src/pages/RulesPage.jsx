@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Plus, Trash2, ToggleLeft, ToggleRight, Folder, Filter,
@@ -211,6 +211,19 @@ function RuleFormModal({ isOpen, onClose, onSave, allFolders, editRule }) {
   const [matchType, setMatchType] = useState(editRule?.matchType || 'all');
   const [actionFolder, setActionFolder] = useState(editRule?.actionFolder || 'folderTrash');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setName(editRule?.name || '');
+    setConditions(
+      editRule?.conditions?.length
+        ? editRule.conditions.map((c) => ({ ...c }))
+        : [{ field: 'from', operator: 'contains', value: '' }]
+    );
+    setMatchType(editRule?.matchType || 'all');
+    setActionFolder(editRule?.actionFolder || 'folderTrash');
+    setError('');
+  }, [isOpen, editRule]);
 
   if (!isOpen) return null;
 

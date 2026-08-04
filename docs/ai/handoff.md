@@ -122,3 +122,53 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 ### Remaining
 - Rotate leaked password from `sogo_test.py`; optional git history scrub.
 - Functional browser test of the newly-deployed webmail (CSP now enforced).
+
+
+## 2026-08-04 — Documentation and AI Toolkit status reconciliation
+
+### Summary
+Reconciled the active project state with the latest Round 3 production handoff. Earlier entries describing deployment as pending are historical checkpoints; the authoritative current state is production LIVE.
+
+### Verified state
+- Before this documentation update, repository was clean on `main`, synced with `origin/main` at `67da690`; the documentation edits are intentionally uncommitted for review.
+- Production (as verified during the Round 3 deploy, not re-probed from this workspace): `sogo-smtp-proxy` healthy on port `3005`; deployed webmail and `/api/health` returned HTTP 200.
+- Security: CSP, `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy` verified live; `npm audit --omit=dev` reports 0 vulnerabilities.
+- Local checks: `npm run test:safe-url`, `node --check server.js`, `bash -n deploy.sh`, and `git diff --check` pass.
+- Local build caveat: `npm run build` currently cannot run because `node_modules` is absent (`vite: not found`); restore dependencies with `npm install` before repeating the build.
+
+### Documentation updates
+- Marked the security/deployment sub-goal complete in `docs/ai/goals.md`.
+- Updated `docs/ai/current-task.md` to COMPLETE and separated historical validation from current workspace validation.
+- Updated `docs/ai/application-map.md`, `docs/ai/decisions.md`, and `docs/ai/project-context.md` with the live deployment and current workspace evidence.
+- Added the post-deploy check command to `.ai-toolkit/project.env`.
+- Updated ISO roadmap/deployment documentation with production status and the local dependency caveat.
+
+### Follow-up
+- Rotate the leaked webmail password and optionally scrub it from Git history.
+- Install dependencies and run `npm run build`.
+- Run a browser smoke test when Chrome/browser tooling is available.
+
+
+## 2026-08-04 — Security audit remediation patch (pre-delivery)
+
+### Fixes completed
+- Bound `/api/preferences` reads to the authenticated SMTP session account; reject cross-account `email` requests.
+- Revoke server-side SMTP sessions during logout and session expiry; login only becomes active after SMTP registration succeeds.
+- Hardened fallback SMTP recipient/header validation, forced `From` to the authenticated account, and made API-key comparison byte-length safe for UTF-8 input.
+- Replaced interpolated `docker inspect` shell execution with `execFileSync` argument arrays.
+- Sanitized all contenteditable hydration/input/link-editor callbacks with DOMPurify; removed mailbox-content snippets and response URLs from client diagnostics.
+- Included SMTP session identity in preferences query keys and propagated preference 401/403 responses instead of silently serving stale local cache.
+- Fixed Rules form reset and Calendar drag/drop async error handling; retained prior invalid-date and hook-order fixes.
+
+### Validation
+- `npm run build` ✅ (Vite 8.2.0, 1997 modules)
+- `npm run test:safe-url` ✅
+- `npm audit --omit=dev` ✅ — 0 vulnerabilities
+- `node --check server.js` ✅
+- `bash -n deploy.sh` ✅
+- `git diff --check` ✅
+- Final review: no concrete code blocker; live Mailcow/SMTP integration and browser smoke test require production access/Chrome.
+
+### Delivery
+- This patch is ready for commit/push and `deploy.sh` delivery.
+- Deploy script remains fail-closed on missing SSH access or unhealthy `sogo-smtp-proxy` port 3005.

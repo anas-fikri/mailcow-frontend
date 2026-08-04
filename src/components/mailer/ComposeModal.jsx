@@ -44,8 +44,8 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
 
   // Ambil preferences (signature, dll)
   const { data: prefs } = useQuery({
-    queryKey: ['preferences', token],
-    queryFn: () => fetchPreferences(token, user?.email),
+    queryKey: ['preferences', token, smtpToken],
+    queryFn: () => fetchPreferences(token, user?.email, smtpToken),
     enabled: !!token,
     staleTime: 5 * 60_000,
   });
@@ -360,7 +360,7 @@ function RichEditor({ value, onChange }) {
 
   useEffect(() => {
     if (editorRef.current && isMounted && !editorRef.current.innerHTML) {
-      editorRef.current.innerHTML = value || '';
+      editorRef.current.innerHTML = DOMPurify.sanitize(value || '', PURIFY_CONFIG);
     }
   }, [value, isMounted]);
 
@@ -368,11 +368,13 @@ function RichEditor({ value, onChange }) {
     document.execCommand(cmd, false, val);
     if (editorRef.current) {
       editorRef.current.focus();
-      onChange(editorRef.current.innerHTML);
+      onChange(DOMPurify.sanitize(editorRef.current.innerHTML, PURIFY_CONFIG));
     }
   }, [onChange]);
 
-  const handleInput    = useCallback(() => { if (editorRef.current) onChange(editorRef.current.innerHTML); }, [onChange]);
+  const handleInput    = useCallback(() => {
+    if (editorRef.current) onChange(DOMPurify.sanitize(editorRef.current.innerHTML, PURIFY_CONFIG));
+  }, [onChange]);
   const handleKeyDown  = useCallback((e) => {
     if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;'); }
   }, []);

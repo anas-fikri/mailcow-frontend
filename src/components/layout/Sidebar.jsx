@@ -11,7 +11,8 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
   const navigate = useNavigate()
 
   async function handleLogout() {
-    await logout(user?.userName).catch(() => {})
+    const smtpToken = useAuthStore.getState().smtpToken
+    await logout(smtpToken).catch(() => {})
     clearUser()
     navigate('/login')
   }

@@ -253,7 +253,7 @@ function ChangePasswordSection() {
 // ─── Signature ────────────────────────────────────────────────────────────────
 function SignatureSection() {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { user, smtpToken } = useAuthStore();
   const [sig, setSig]       = useState('');
   const [status, setStatus] = useState(null);
   const [loaded, setLoaded] = useState(false);
@@ -261,8 +261,8 @@ function SignatureSection() {
 
   /* Load existing signature dari SOGo (hanya init sekali) */
   const { data: prefs, isLoading: loadingPrefs } = useQuery({
-    queryKey: ['preferences', user?.sogoToken],
-    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
+    queryKey: ['preferences', user?.sogoToken, smtpToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email, smtpToken),
     enabled: !!(user?.sogoToken && user?.email),
     staleTime: 0,
   });
@@ -345,7 +345,7 @@ function SignatureSection() {
 // ─── Vacation Auto-Reply ──────────────────────────────────────────────────────
 function VacationSection() {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
+  const { user, smtpToken } = useAuthStore();
   const [enabled, setEnabled] = useState(false);
   const [subject, setSubject] = useState('Saya sedang tidak di tempat');
   const [message, setMessage] = useState('Terima kasih atas email Anda.\n\nSaya sedang dalam masa cuti dan akan membalas email Anda sesegera mungkin.\n\nSalam.');
@@ -358,8 +358,8 @@ function VacationSection() {
   const [debugVal, setDebugVal] = useState('…');
 
   const { data: prefs, isLoading } = useQuery({
-    queryKey: ['preferences', user?.sogoToken],
-    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
+    queryKey: ['preferences', user?.sogoToken, smtpToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email, smtpToken),
     enabled: !!(user?.sogoToken && user?.email),
     staleTime: 0,
   });
@@ -524,7 +524,7 @@ const COLOR_PRESETS = [
 // ─── Display Preferences ─────────────────────────────────────────────────────
 function DisplaySection() {
   const queryClient = useQueryClient();
-  const { user, themeColor, setThemeColor } = useAuthStore();
+  const { user, smtpToken, themeColor, setThemeColor } = useAuthStore();
   const [timezone, setTimezone] = useState('Asia/Jakarta');
   const [language, setLanguage] = useState('Indonesian');
   const [dateFormat, setDateFormat] = useState('%d/%m/%Y');
@@ -537,8 +537,8 @@ function DisplaySection() {
   const initRef = useRef(false);
 
   const { data: prefs, isLoading } = useQuery({
-    queryKey: ['preferences', user?.sogoToken],
-    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
+    queryKey: ['preferences', user?.sogoToken, smtpToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email, smtpToken),
     enabled: !!(user?.sogoToken && user?.email),
     staleTime: 0,
   });

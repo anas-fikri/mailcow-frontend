@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import AppLayout from './components/layout/AppLayout'
 import { useAuthStore } from './store/authStore'
-import { onSessionExpired, resetSessionExpiredFlag } from './lib/api'
+import { onSessionExpired, resetSessionExpiredFlag, revokeSmtpSession } from './lib/api'
 import ToastContainer from './components/Toast'
 import { toast } from './lib/toast'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -52,6 +52,8 @@ function SessionWatcher({ children }) {
 
   useEffect(() => {
     onSessionExpired(() => {
+      const smtpToken = useAuthStore.getState().smtpToken
+      revokeSmtpSession(smtpToken)
       queryClient.clear()
       clearUser()
       resetSessionExpiredFlag() // reset agar bisa trigger lagi di session berikutnya

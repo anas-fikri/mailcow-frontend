@@ -1,7 +1,9 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { Bold, Italic, Underline, Link, ImagePlus, Loader2, AlertTriangle, X } from 'lucide-react';
 import { handleEditorPaste, insertImageFile } from '../lib/pasteUtils';
+import DOMPurify from 'dompurify';
 import { toSafeUrl } from '../lib/safeUrl';
+import { PURIFY_CONFIG } from '../lib/pasteUtils';
 
 export default function HtmlEditor({ value, onChange, minHeight = 120, placeholder = '' }) {
   const editorRef    = useRef(null);
@@ -13,7 +15,7 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
   /* Hydrate hanya saat mount pertama */
   useEffect(() => {
     if (editorRef.current && !editorRef.current._hydrated) {
-      editorRef.current.innerHTML = value || '';
+      editorRef.current.innerHTML = DOMPurify.sanitize(value || '', PURIFY_CONFIG);
       editorRef.current._hydrated = true;
     }
   }, []);
@@ -22,12 +24,12 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
     document.execCommand(cmd, false, val);
     if (editorRef.current) {
       editorRef.current.focus();
-      onChange?.(editorRef.current.innerHTML);
+      onChange?.(DOMPurify.sanitize(editorRef.current.innerHTML, PURIFY_CONFIG));
     }
   }, [onChange]);
 
   const handleInput = useCallback(() => {
-    onChange?.(editorRef.current?.innerHTML || '');
+    onChange?.(DOMPurify.sanitize(editorRef.current?.innerHTML || '', PURIFY_CONFIG));
   }, [onChange]);
 
   const onPaste = useCallback((e) => {
@@ -93,7 +95,7 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
     range.setStartAfter(anchor);
     range.collapse(true);
     editorRef.current.focus();
-    onChange?.(editorRef.current.innerHTML);
+    onChange?.(DOMPurify.sanitize(editorRef.current.innerHTML, PURIFY_CONFIG));
   }
 
   return (

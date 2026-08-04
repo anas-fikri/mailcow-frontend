@@ -17,7 +17,7 @@ import express from 'express';
 import cors    from 'cors';
 import nodemailer from 'nodemailer';
 import mysql from 'mysql2/promise';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { readFileSync } from 'fs';
 import crypto from 'crypto';
 import { z } from 'zod';
@@ -53,6 +53,34 @@ const DB_PORT         = parseInt(process.env.DB_PORT || '3306', 10);
 
 // ── Config API Key (wajib di production) ──────────────────────────────────────
 const API_KEY = process.env.API_KEY || '';
+
+// ── Input validation helpers ───────────────────────────────────────────────────
+
+function isSafeEmail(value) {
+  if (typeof value !== 'string' || value.length > 254) return false;
+  const at = value.indexOf('@');
+  return at > 0 && at === value.lastIndexOf('@') && at < value.length - 1 &&
+    !value.includes(' ') && !value.includes('<') && !value.includes('>');
+}
+
+function isSafeRecipient(value) {
+  if (typeof value !== 'string' || /[\r\n]/.test(value)) return false;
+  const trimmed = value.trim();
+  const open = trimmed.lastIndexOf('<');
+  if (open >= 0 && trimmed.endsWith('>')) return isSafeEmail(trimmed.slice(open + 1, -1));
+  return isSafeEmail(trimmed);
+}
+
+function validateRecipientList(value) {
+  if (!value) return true;
+  const recipients = value.split(',').map((item) => item.trim()).filter(Boolean);
+  return recipients.length > 0 && recipients.every(isSafeRecipient);
+}
+
+function getHeaderToken(req, name) {
+  const value = req.headers[name];
+  return typeof value === 'string' ? value : '';
+}
 
 // ── SMTP Session Store (server-side, in-memory) ────────────────────────────────
 // Key: session token (UUID), Value: { user, pass, createdAt, lastUsed }
@@ -133,17 +161,24 @@ function clientIp(req) {
 
 // ── Auth middleware ─────────────────────────────────────────────────────────────
 function requireApiKey(req, res, next) {
-  const key = req.headers['x-api-key'];
+  const key = getHeaderToken(req, 'x-api-key');
   const expected = API_KEY;
-  // Timing-safe comparison untuk menghindari side-channel pada API key.
-  if (!key || !expected || key.length !== expected.length) {
+  // Compare byte lengths before timingSafeEqual; string length is not byte length
+  // for UTF-8 input and could otherwise produce an avoidable 500 response.
+  if (!key || !expected) return res.status(403).json({ message: 'Forbidden' });
+  const a = Buffer.from(key, 'utf8');
+  const b = Buffer.from(expected, 'utf8');
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     return res.status(403).json({ message: 'Forbidden' });
   }
-  const a = Buffer.from(key);
-  const b = Buffer.from(expected);
-  if (!crypto.timingSafeEqual(a, b)) {
-    return res.status(403).json({ message: 'Forbidden' });
-  }
+  next();
+}
+
+function requireSmtpSession(req, res, next) {
+  const token = getHeaderToken(req, 'x-smtp-token');
+  const session = token ? getSmtpSession(token) : null;
+  if (!session) return res.status(401).json({ message: 'Sesi SMTP sudah berakhir. Silakan login ulang.' });
+  req.smtpSession = session;
   next();
 }
 
@@ -175,8 +210,9 @@ async function initDatabase() {
   if (!dbHost) {
     try {
       // One-time docker inspect to get the MySQL container IP
-      dbHost = execSync(
-        `docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${MYSQL_CONTAINER}`,
+      dbHost = execFileSync(
+        'docker',
+        ['inspect', '--format', '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}', MYSQL_CONTAINER],
         { timeout: 5000, encoding: 'utf8' }
       ).trim();
       if (!dbHost) dbHost = '127.0.0.1';
@@ -220,14 +256,17 @@ async function queryPreferences(email) {
 }
 
 // ── Register SMTP Session ──────────────────────────────────────────────────
+const smtpSessionSchema = z.object({
+  user: z.string().email('Format email tidak valid.').max(254),
+  pass: z.string().min(1, 'Password wajib diisi.').max(1024),
+}).strict();
+
 app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: clientIp }), (req, res) => {
-  const { user, pass } = req.body;
-  if (!user || !pass) {
-    return res.status(400).json({ message: 'user dan pass wajib diisi.' });
+  const parsed = smtpSessionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Data sesi SMTP tidak valid.' });
   }
-  if (!user.includes('@')) {
-    return res.status(400).json({ message: 'Format email tidak valid.' });
-  }
+  const { user, pass } = parsed.data;
 
   const token = crypto.randomUUID();
   smtpSessions.set(token, {
@@ -237,30 +276,31 @@ app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: clientIp 
     lastUsed: Date.now(),
   });
 
-  console.log(`[smtp-session] Registered for ${user} (token: ${token.slice(0, 8)}...)`);
+  // Never log credentials or token material, even partially.
+  console.log(`[smtp-session] Registered for ${user}`);
   return res.json({ token });
 });
 
 // ── Revoke SMTP Session (logout) ────────────────────────────────────────────
 app.delete('/api/auth/smtp', (req, res) => {
-  const token = req.headers['x-smtp-token'] || req.body?.smtpToken;
-  if (token) {
-    smtpSessions.delete(token);
-    console.log('[smtp-session] Revoked token: ' + token.slice(0, 8) + '...');
-  }
+  const headerToken = getHeaderToken(req, 'x-smtp-token');
+  const bodyToken = typeof req.body?.smtpToken === 'string' ? req.body.smtpToken : '';
+  const token = headerToken || bodyToken;
+  if (token) smtpSessions.delete(token);
   return res.json({ ok: true });
 });
 
 // ── GET Preferences ────────────────────────────────────────────────────────────
-app.get('/api/preferences', rateLimit({ max: 30, windowMs: 60000, keyFn: clientIp }), async (req, res) => {
-  const { email } = req.query;
-  if (!email || !email.includes('@')) {
-    return res.status(400).json({ message: 'Parameter email tidak valid.' });
+app.get('/api/preferences', rateLimit({ max: 30, windowMs: 60000, keyFn: clientIp }), requireSmtpSession, async (req, res) => {
+  const sessionEmail = req.smtpSession.user;
+  const requestedEmail = typeof req.query.email === 'string' ? req.query.email : '';
+  if (requestedEmail && requestedEmail.toLowerCase() !== sessionEmail.toLowerCase()) {
+    return res.status(403).json({ message: 'Akun tidak sesuai dengan sesi.' });
   }
 
   try {
-    const prefs = await queryPreferences(email);
-    console.log(`[preferences] OK ${email}: Vacation.enabled=${prefs.defaults?.Vacation?.enabled}`);
+    const prefs = await queryPreferences(sessionEmail);
+    console.log(`[preferences] OK ${sessionEmail}`);
     return res.json(prefs);
   } catch (err) {
     console.error('[preferences] ERROR:', err.message);
@@ -285,15 +325,20 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
   // Zod validation
   const parsed = sendEmailSchema.safeParse(req.body);
   if (!parsed.success) {
-    const firstError = parsed.error.errors[0];
-    return res.status(400).json({ message: firstError.message });
+    const firstError = parsed.error.issues[0];
+    return res.status(400).json({ message: firstError?.message || 'Payload tidak valid.' });
   }
   const { to, cc, bcc, subject, body, isHTML, from, smtpToken } = parsed.data;
 
-  // Validate to field contains valid emails
-  const toEmails = to.split(',').map(s => s.trim()).filter(Boolean);
-  if (toEmails.length === 0 || !toEmails.every(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))) {
+  // Validate every address-bearing/header field before passing it to Nodemailer.
+  if (!validateRecipientList(to)) {
     return res.status(400).json({ message: 'Field "to" harus berisi email yang valid.' });
+  }
+  if (!validateRecipientList(cc) || !validateRecipientList(bcc)) {
+    return res.status(400).json({ message: 'Cc/Bcc harus berisi email yang valid.' });
+  }
+  if (/[\r\n]/.test(subject)) {
+    return res.status(400).json({ message: 'Subjek email tidak valid.' });
   }
 
   // Look up SMTP session
@@ -315,8 +360,13 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
       tls: tlsOpts,
     });
 
+    if (from && from.toLowerCase() !== session.user.toLowerCase()) {
+      return res.status(403).json({ message: 'Alamat pengirim harus sesuai dengan akun yang login.' });
+    }
+
     const mailOptions = {
-      from: from || session.user,
+      // Never allow the browser to spoof the SMTP account in the From header.
+      from: session.user,
       to,
       cc: cc || undefined,
       bcc: bcc || undefined,
@@ -325,12 +375,20 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`[send] OK: ${info.messageId} → ${to}`);    return res.json({ ok: true, messageId: info.messageId });
+    console.log(`[send] OK: ${info.messageId}`);
+    return res.json({ ok: true, messageId: info.messageId });
 
   } catch (err) {
     console.error('[send] ERROR:', err.message);
     return res.status(500).json({ message: err.message || 'Gagal mengirim email via SMTP.' });
   }
+});
+
+// ── Error boundary ─────────────────────────────────────────────────────────────
+app.use((err, _req, res, _next) => {
+  console.error('[api] Unhandled request error:', err.message);
+  if (res.headersSent) return;
+  res.status(500).json({ message: 'Terjadi kesalahan internal server.' });
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────────

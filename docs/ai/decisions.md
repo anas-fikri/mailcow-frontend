@@ -22,7 +22,7 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 - **Decision:** Never log SOGo cookie values or upstream proxy headers. The dev proxy may log only request/response metadata and a boolean session-presence flag.
 - **Dependency:** `react-router-dom` is pinned to `7.18.2`, the latest available release. npm's remaining high advisory is RSC/SSR-specific; this app is a client-only `BrowserRouter` SPA with no loaders/actions/SSR/RSC. Revisit before adopting those features.
 
-## 2026-08-04 — Security Audit Fixes (committed, deploy pending)
+## 2026-08-04 — Security Audit Fixes (committed; deployment later completed)
 
 - **React Router v8 migration:** `react-router-dom@7.18.2` → `react-router@8.3.0` (imports in App/LoginPage/AppLayout/Sidebar/BottomNav switched to `react-router`). Clears `GHSA-qwww-vcr4-c8h2`; `npm audit` = 0. v8 dropped the `react-router-dom` shim for the v7 line; the declarative APIs used (BrowserRouter, Routes, Route, Navigate, NavLink, Outlet, useNavigate) are unchanged.
 - **XSS hardening (MessageReader):** print window and reply/forward quote are DOM sinks; all email header values (from/to/cc/date/subject — attacker-controlled display names) are escaped, and quoted bodies use the DOMPurify-sanitized `cleanHtml` instead of raw SOGo HTML.
@@ -42,3 +42,9 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 - **Decision:** Deployed the accumulated hardening/fix batch to production (origin/main @ `e9ecad5`). Steps taken: activated `sogo-smtp-proxy` (was inactive since 2026-07-27), corrected its `.env` `PORT=3004 → 3005` (3004 is Control Tower MCP — violates the guardrail and caused the service to crash-loop on EADDRINUSE), updated the host `server.js` (backup kept), ran `./deploy.sh` (preflight → build → rsync → nginx config with CSP headers → reload → verify 200).
 - **deploy.sh bug:** `get_production_api_key` had unescaped quotes in an inline ssh string — awk always failed at build time (masked previously because preflight failed first). Fixed with the heredoc pattern used by `preflight_sogo_proxy`.
 - **Deploy mechanics note:** `deploy.sh` deploys `dist/` + nginx config only; the host `server.js` is updated manually via scp (keep backup `server.js.bak-YYYYMMDD`).
+
+## 2026-08-04 — Documentation/status reconciliation
+
+- **Decision:** Treat the latest Round 3 handoff as authoritative for deployment state: production is LIVE, not pending. Historical entries that say deployment was pending describe earlier checkpoints and remain as audit history.
+- **Evidence:** `sogo-smtp-proxy` is healthy on port 3005; deployed webmail and `/api/health` returned HTTP 200; CSP, nosniff, XFO, and Referrer-Policy were verified live.
+- **Workspace state:** `main` is clean and tracks `origin/main` at `67da690`. Current local validation passes for safe URLs, production dependency audit (0 vulnerabilities), Node/shell syntax, and diff whitespace. The Vite build is pending `npm install` because dependencies are not present in this workspace.

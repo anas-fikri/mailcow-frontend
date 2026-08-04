@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Eye, EyeOff, Loader2, AlertCircle, Sun, Moon } from 'lucide-react';
-import { login, resetSessionExpiredFlag, registerSmtpSession, revokeSmtpSession } from '../lib/api';
+import { login, logout, resetSessionExpiredFlag, registerSmtpSession, revokeSmtpSession } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router';
 
@@ -50,10 +50,17 @@ export default function LoginPage() {
       clearUser();
       resetSessionExpiredFlag();
       const data = await login(userName, password);
+      // Register SMTP session before marking the UI session as fully logged in.
+      // If this fails, do not leave a SOGo session without its SMTP counterpart.
+      let smtpToken;
+      try {
+        smtpToken = await registerSmtpSession(userName, password);
+      } catch (smtpError) {
+        await logout().catch(() => {});
+        throw smtpError;
+      }
       // login returns { sogoToken, cn, email }
       setUser({ email: data.email, sogoToken: data.sogoToken, cn: data.cn });
-      // Register SMTP session di server (tidak kirim password per-request)
-      const smtpToken = await registerSmtpSession(userName, password);
       setSmtpToken(smtpToken);
       navigate('/mail');
     } catch (err) {

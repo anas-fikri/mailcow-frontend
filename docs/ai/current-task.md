@@ -1,9 +1,9 @@
 # Current Task
 
-Status: ACTIVE (audit fixes committed & pushed; production deploy pending)
+Status: IN PROGRESS (audit remediation delivery)
 Task ID: sogo-frontend-audit-2026-08-04
 Started At: 2026-08-04
-Updated At: 2026-08-04
+Updated At: 2026-08-04T14:10:00+07:00
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
 ## Objective
@@ -18,17 +18,20 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - **Credential leak:** `sogo_test.py` on origin/main contained a live plaintext password for `anas.fikri@pcpexpress.co.id`. Removed from the tree (commit b7f7fa0). **Password rotation + git history scrub recommended.**
 
 ## Git / Deployment
-- Local main synced to origin/main @ **b7f7fa0** (backup ref: `backup/local-main-pre-audit`).
-- Push completed: `f83f67f..b7f7fa0` fast-forward (history had been force-rebuilt on remote; local 3 prior security commits + new fix were cherry-picked onto it).
-- **Deploy PENDING:** `./deploy.sh` ran and failed closed at preflight — `mailserver` (202.148.2.141:2002) unreachable ("Connection refused"/timeout) and `sogo-smtp-proxy` must be active on port 3005 first. Nothing on production was changed.
+- Before this documentation update, local `main` was clean and synced with `origin/main` @ **67da690** (deployed application code is @ `e9ecad5`). The documentation edits in this worktree are intentionally uncommitted until reviewed.
+- Security fixes and the Round 3 runtime/deploy batch were pushed and deployed successfully.
+- **Production deploy: COMPLETE and LIVE (per the Round 3 deployment handoff; not re-probed from this workspace):** `sogo-smtp-proxy` was healthy on port `3005`; `dist/`, Nginx config, and security headers were deployed; production webmail and `/api/health` returned HTTP 200.
 
 ## Validation
-- `npm run build` ✅ (0 errors), `npm run test:safe-url` ✅, `node --check server.js` ✅, `bash -n deploy.sh` ✅, `git diff --check` ✅, `npm audit` → 0 ✅, dev smoke test (login render + route guard redirect) ✅.
+- Historical release validation: `npm run build` ✅, `npm run test:safe-url` ✅, `node --check server.js` ✅, `bash -n deploy.sh` ✅, `git diff --check` ✅, `npm audit` → 0 ✅, dev smoke/integration tests ✅.
+- Current workspace recheck: `npm run test:safe-url` ✅, `npm audit --omit=dev` ✅ (0 vulnerabilities), `node --check server.js` ✅, `bash -n deploy.sh` ✅, `git diff --check` ✅.
+- Current workspace recheck after the remediation patch: `npm run build` ✅, `npm run test:safe-url` ✅, `npm audit --omit=dev` ✅ (0 vulnerabilities), `node --check server.js` ✅, `bash -n deploy.sh` ✅, and `git diff --check` ✅.
 
 ## Next Step
-1. Restore mailserver SSH reachability; verify `systemctl --user is-active sogo-smtp-proxy` (port 3005).
-2. Run `./deploy.sh` (no message needed; commits already pushed) to deploy dist + nginx config with security headers.
-3. Rotate the leaked webmail password; optionally scrub history with `git filter-repo`.
+1. Commit and push the reviewed remediation patch.
+2. Run `deploy.sh` with the authenticated production preflight; it must fail closed if SSH/proxy health is unavailable.
+3. Verify production HTTP health and record the actual result; browser smoke test remains pending because Chrome is unavailable here.
+4. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
 
 ## Follow-up 2026-08-04 — Per-account UI preferences
 - Implemented and pushed @ `f07e017`: UI prefs (theme, themeColor, sortAsc, conversationView) now stored per account (`pcp_prefs_<email>`, new `src/lib/userPrefs.js`) and loaded on login; `clearUser` no longer resets them.

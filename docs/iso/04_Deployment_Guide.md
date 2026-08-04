@@ -1,6 +1,8 @@
 # 04. Implementation, Deployment & Operations Guide
 *Panduan teknis eksekusi untuk AI Agent dan Developer Manusia.*
 
+> **Status produksi (berdasarkan handoff deploy 2026-08-04): LIVE.** Round 3 sudah dideploy ke `https://mail.pcpexpress.co.id/webmail/`; `sogo-smtp-proxy` aktif di port `3005`, Nginx security headers sudah terpasang, dan endpoint health terverifikasi HTTP 200 pada saat deploy. Status ini belum diprobe ulang dari workspace ini. Untuk workspace lokal, jalankan `npm install` sebelum `npm run build` jika `node_modules` belum ada.
+
 ---
 
 ## 1. Repository & Workspace Setup
@@ -45,7 +47,11 @@ Host mailserver
 ssh mailserver 'echo "OK"'
 ```
 
+> **Catatan alamat deployment:** `mailserver` adalah alias SSH dan dapat memakai alamat/port berbeda menurut mesin kerja. Konfigurasi lokal lama di bawah mencantumkan `192.168.10.200`, sedangkan deployment Round 3 yang berhasil menggunakan endpoint `mailserver` pada `202.148.2.141:2002`. Selalu jadikan `~/.ssh/config` dan koneksi aktual sebagai sumber kebenaran; jangan menyalin alamat hard-coded ke script atau dokumentasi baru.
+
 ### 2.3. Credential & Informasi Server
+> **Legacy reference:** alamat `192.168.10.200` pada tabel ini berasal dari konfigurasi awal. Untuk deployment terbaru, gunakan SSH alias `mailserver` dan endpoint yang tercatat pada konfigurasi mesin; Round 3 berhasil melalui `202.148.2.141:2002`.
+
 | Property          | Value                                      |
 |-------------------|--------------------------------------------|
 | **IP Server**     | `192.168.10.200`                               |

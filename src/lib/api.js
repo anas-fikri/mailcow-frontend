@@ -78,9 +78,8 @@ async function safeJson(res) {
   // Bukan JSON — baca teks untuk diagnosis
   const text = await res.text().catch(() => '');
 
-  // Log response snippet untuk debugging
-  const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim();
-  console.warn('[API] Non-JSON response:', res.status, ct, snippet);
+  // Keep diagnostics metadata-only; response bodies may contain mailbox content.
+  console.warn('[API] Non-JSON response:', res.status, ct || 'unknown content type');
 
   // Jika status 4xx → session/auth error
   if (res.status === 401 || res.status === 403) {
@@ -97,7 +96,7 @@ async function safeJson(res) {
 
   // Periksa apakah XSRF-TOKEN cookie ada — jika tidak, SOGo mungkin return HTML
   const xsrf = getXsrfToken();
-  console.warn('[API] XSRF-TOKEN present:', !!xsrf, '| URL:', res.url);
+  console.warn('[API] XSRF-TOKEN present:', !!xsrf);
 
   // Jika response adalah HTML tapi BUKAN login page, kemungkinan error lain
   const isHtml = ct.includes('text/html') || text.trim().startsWith('<!');
@@ -177,7 +176,7 @@ export async function login(email, password) {
   const data = await res.json().catch(() => ({}));
   const sogoToken = data.username || email; // fallback ke email jika username tidak ada
 
-  console.log('[Login] OK sogoToken:', sogoToken, '| XSRF present:', !!getXsrfToken());
+  console.log('[Login] SOGo authentication succeeded | XSRF present:', !!getXsrfToken());
 
   await warmUpSogoSession(sogoToken);
   markLoginGrace(8000);
@@ -189,7 +188,7 @@ export async function login(email, password) {
 }
 
 
-export async function logout() {
+export async function logout(smtpToken = null) {
   try {
     await fetch(`${SOGO_BASE}/SOGo/logoff`, {
     method: 'POST',
@@ -199,6 +198,7 @@ export async function logout() {
   } catch {
     // ignore
   }
+  await revokeSmtpSession(smtpToken);
 }
 
 // ─── Message Row Parser ────────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ function parseMessageRow(row) {
 // ─── Mailer ───────────────────────────────────────────────────────────────────
 
 export async function fetchFolders(sogoToken) {
-  console.log('[DEBUG] fetchFolders START', sogoToken);
+  console.log('[DEBUG] fetchFolders START');
 
 
   function flattenMailboxes(mailboxes) {
@@ -301,7 +301,7 @@ export async function fetchFolders(sogoToken) {
     }
     throwApiError('Gagal memuat folder.', 403);
   } catch (err) {
-    console.error('[DEBUG] fetchFolders ERROR:', err);
+    console.error('[DEBUG] fetchFolders ERROR:', err?.message || err);
     throw err;
   }
 }
@@ -325,7 +325,7 @@ export async function getUnseenCount(sogoToken) {
  * Returns { messages: [{uid, from, to, subject, date, isRead, hasAtt}], unseenCount, total }
  */
 export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = {}) {
-  console.log('[DEBUG] fetchMessages START', folder, sogoToken);
+  console.log('[DEBUG] fetchMessages START', folder);
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -370,7 +370,7 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
 
     return { messages, unseenCount: data.unseenCount || 0, total: messages.length };
   } catch (err) {
-    console.error('[DEBUG] fetchMessages ERROR:', err);
+    console.error('[DEBUG] fetchMessages ERROR:', err?.message || err);
     throw err;
   }
 }
@@ -484,8 +484,10 @@ export async function revokeSmtpSession(smtpToken) {
   try {
     await fetch('/api/auth/smtp', {
       method: 'DELETE',
-      headers: withApiKey({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ smtpToken }),
+      headers: withApiKey({
+        'Content-Type': 'application/json',
+        'X-SMTP-Token': smtpToken,
+      }),
     });
   } catch {} // fire-and-forget
 }
@@ -834,7 +836,7 @@ function loadPrefsFromLocal(email) {
  * @param {string} sogoToken - SOGo session token
  * @param {string} email     - email user (untuk query DB dan localStorage key)
  */
-export async function fetchPreferences(sogoToken, email) {
+export async function fetchPreferences(sogoToken, email, smtpToken = null) {
   // Guard: jangan panggil API jika email tidak valid
   if (!email || !sogoToken) {
     console.warn('[prefs] Skipped — email atau token tidak valid.');
@@ -845,7 +847,12 @@ export async function fetchPreferences(sogoToken, email) {
   // ─ Layer 1: Backend DB endpoint ─
   try {
     const url = `/api/preferences?email=${encodeURIComponent(email)}&t=${Date.now()}`;
-    const res  = await fetch(url, { credentials: 'include', headers: withApiKey() });
+    const headers = withApiKey();
+    if (smtpToken) headers['X-SMTP-Token'] = smtpToken;
+    const res  = await fetch(url, { credentials: 'include', headers });
+    if (res.status === 401 || res.status === 403) {
+      throwApiError('Sesi preferensi berakhir, silakan login ulang.', res.status);
+    }
     if (res.ok) {
       const ct = res.headers.get('content-type') || '';
       if (ct.includes('application/json')) {
@@ -859,6 +866,8 @@ export async function fetchPreferences(sogoToken, email) {
       }
     }
   } catch (e) {
+    // Authentication failures must not fall back to stale account data.
+    if (e?.status === 401 || e?.status === 403) throw e;
     console.warn('[prefs] /api/preferences error:', e.message);
   }
 
