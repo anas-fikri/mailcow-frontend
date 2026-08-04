@@ -86,8 +86,6 @@ export async function fetchAllStats(sogoToken, email, period = '7d') {
     error = e;
   }
 
-  const totalEmail = sentCount + receivedCount;
-
   const summary = {
     sent: sentCount,
     received: receivedCount,
@@ -101,7 +99,6 @@ export async function fetchAllStats(sogoToken, email, period = '7d') {
 
   // Daily trends — kita tidak punya data per-hari dari SOGo,
   // jadi bagi rata total selama 7 hari sebagai estimasi
-  const dailyTotal = Math.max(1, Math.round(totalEmail / 7));
   const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
   const daily = dayNames.map((date, i) => ({
     date,

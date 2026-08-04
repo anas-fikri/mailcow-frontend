@@ -83,11 +83,3 @@ export const EDITOR_MODES = [
   { id: 'html',  label: 'HTML Source' },
   { id: 'plain', label: 'Teks Biasa' },
 ];
-
-// ─── Nav items ────────────────────────────────────────────────────────────────
-export const NAV_ITEMS = [
-  { to: '/mail',     icon: 'Mail',     label: 'Email' },
-  { to: '/calendar', icon: 'Calendar', label: 'Kalender' },
-  { to: '/contacts', icon: 'Users',    label: 'Kontak' },
-  { to: '/settings', icon: 'Settings', label: 'Pengaturan' },
-];

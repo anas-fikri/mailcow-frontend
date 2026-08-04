@@ -4,22 +4,28 @@ import { X, Loader2, Calendar, Clock, MapPin, Users, FileText } from 'lucide-rea
 
 const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
+// Hati-hati: event tanpa `start`/`end` yang valid (mis. NaN) membuat
+// Date invalid dan toISOString() melempar RangeError → crash halaman.
+// Selalu guard dengan isNaN sebelum memformat.
+function toValidDate(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function toDateStr(d) {
-  if (!d) return '';
-  const dt = new Date(d);
-  return dt.toISOString().slice(0, 10);
+  const dt = toValidDate(d);
+  return dt ? dt.toISOString().slice(0, 10) : '';
 }
 
 function toTimeStr(d) {
-  if (!d) return '';
-  const dt = new Date(d);
-  return dt.toTimeString().slice(0, 5);
+  const dt = toValidDate(d);
+  return dt ? dt.toTimeString().slice(0, 5) : '';
 }
 
 function fmtInputDate(date) {
-  if (!date) return '';
-  const d = new Date(date);
-  return d.toISOString().slice(0, 10);
+  const d = toValidDate(date);
+  return d ? d.toISOString().slice(0, 10) : '';
 }
 
 function todayAt(h, m) {

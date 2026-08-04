@@ -34,8 +34,8 @@ export default function SwipeableRow({
   const startY = useRef(0);
   const currentX = useRef(0);
 
-  if (!isMobile) return <div className={className}>{children}</div>;
-
+  // Semua hooks (useState/useRef/useCallback) harus dipanggil tanpa syarat —
+  // early return ditempatkan SETELAH hooks agar sesuai Rules of Hooks.
   const onTouchStart = useCallback((e) => {
     startX.current = e.touches[0].clientX;
     startY.current = e.touches[0].clientY;
@@ -73,6 +73,8 @@ export default function SwipeableRow({
     setSwipeX(0);
     currentX.current = 0;
   }, [isSwiping, onSwipeLeft, onSwipeRight]);
+
+  if (!isMobile) return <div className={className}>{children}</div>;
 
   const isLeft = swipeX < -20;
   const isRight = swipeX > 20;
