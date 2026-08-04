@@ -55,3 +55,4 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 - **Decision:** Treat 401/403 as session-expiry signals consistently across read and mutation APIs. Only non-auth failures may return safe empty fallbacks for optional counts/lists.
 - **Decision:** Keep `/api/health` metadata-minimal, rate-limit SMTP revocation, and return generic SMTP transport errors to clients while retaining server-side diagnostics.
 - **Coverage:** Add `npm run test:path-segment`; the test is force-added because the legacy `test-*` ignore rule otherwise excludes it.
+- **Delivery:** Commit `6cf66dd` was pushed to `origin/main`. The subsequent `./deploy.sh` failed closed because SSH DNS could not resolve `mailserver`; no remote production mutation was permitted.

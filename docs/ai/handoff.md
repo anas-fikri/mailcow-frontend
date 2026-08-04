@@ -216,4 +216,6 @@ Reconciled the active project state with the latest Round 3 production handoff. 
 
 ### Delivery
 - Test file is force-added intentionally because the legacy `.gitignore` pattern `test-*` matches `scripts/test-path-segment.mjs`.
-- Commit/push and fail-closed `./deploy.sh` remain next; deploy must stop before mutation if `mailserver` SSH/DNS or proxy preflight is unavailable.
+- Commit `6cf66dd` (`fix(security): harden API paths and session errors`) was created and pushed to `origin/main`.
+- `./deploy.sh` then failed closed at SOGo proxy preflight because SSH could not resolve `mailserver` (`Temporary failure in name resolution`). No production build, rsync, Nginx reload, or remote mutation occurred.
+- Restore SSH/DNS and proxy health on port 3005 before rerunning deployment.

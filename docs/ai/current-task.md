@@ -1,6 +1,6 @@
 # Current Task
 
-Status: BLOCKED (audit remediation committed/pushed; deploy preflight blocked by SSH DNS)
+Status: BLOCKED (deep-audit remediation committed/pushed; deploy preflight blocked by SSH DNS)
 Task ID: sogo-frontend-audit-2026-08-04
 Started At: 2026-08-04
 Updated At: 2026-08-04T14:20:00+07:00
@@ -36,9 +36,14 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - Final local validation passes: `npm run test:path-segment`, `npm run test:user-prefs`, `npm run test:safe-url`, Vite build, `npm audit --omit=dev` (0 vulnerabilities), Node/shell syntax, static scans, and `git diff --check`.
 - Regression test `scripts/test-path-segment.mjs` is intentionally force-added because the repository's legacy `test-*` ignore rule matches it.
 
+## Delivery result — deep-audit remediation
+- Commit `6cf66dd` (`fix(security): harden API paths and session errors`) was created and pushed to `origin/main`.
+- `./deploy.sh` was run after the push and failed closed at the authenticated SOGo proxy preflight: SSH could not resolve `mailserver` (`Temporary failure in name resolution`), so `mailserver:3005` health could not be checked.
+- No production mutation occurred: no remote build, rsync, Nginx config write, Nginx reload, or HTTP verification ran.
+
 ## Next Step
-1. Commit and push this remediation batch.
-2. Restore DNS/SSH resolution for the `mailserver` alias, then rerun `./deploy.sh`; preflight must pass before any production mutation.
+1. Restore DNS/SSH resolution for the `mailserver` alias and ensure the authenticated SOGo proxy is healthy on port 3005.
+2. Rerun `./deploy.sh`; preflight must pass before any production mutation.
 3. Verify production HTTP health and security headers after a successful deploy; browser smoke test remains pending because Chrome is unavailable here.
 4. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
 
