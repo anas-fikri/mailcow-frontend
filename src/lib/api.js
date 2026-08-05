@@ -1,11 +1,14 @@
-import { pathSegment } from './pathSegment';
-import { getMessageTotal } from './messageTotals';
+import { pathSegment } from './pathSegment.js';
+import { getMessageTotal } from './messageTotals.js';
+import { parseMessageRows } from './messageRows.js';
+import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
 
-const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
+const SOGO_ENV = import.meta.env || {};
+const SOGO_BASE = SOGO_ENV.DEV ? '' : (SOGO_ENV.VITE_SOGO_BASE_URL || '');
 
 // ─── API Key untuk backend proxy ────────────────────────────────────────────────
 // Digunakan oleh /api/* endpoints. Ambil dari env, fallback kosong = skip header.
-const API_KEY = import.meta.env.VITE_API_KEY || '';
+const API_KEY = SOGO_ENV.VITE_API_KEY || '';
 function withApiKey(headers = {}) {
   if (!API_KEY) return headers;
   return { ...headers, 'X-Api-Key': API_KEY };
@@ -210,49 +213,6 @@ export async function logout(smtpToken = null) {
   await revokeSmtpSession(smtpToken);
 }
 
-// ─── Message Row Parser ────────────────────────────────────────────────────────
-/**
- * SOGo fetchMessages response format:
- *   { headers: [colNames, ...rows], uids: [...], unseenCount, ... }
- *
- * colNames (headers[0]) = ["To","hasAttachment","isFlagged","Subject","From",
- *                          "isRead","Priority","RelativeDate","Size","Flags",
- *                          "uid","isAnswered","isForwarded"]
- * Field indexes:
- *   0  = To (array [{name,email}])
- *   1  = hasAttachment
- *   2  = isFlagged
- *   3  = Subject
- *   4  = From (array [{name,email}])
- *   5  = isRead
- *   6  = Priority
- *   7  = RelativeDate
- *   8  = Size
- *   9  = Flags
- *   10 = uid
- *   11 = isAnswered
- *   12 = isForwarded
- */
-function parseMessageRow(row) {
-  if (!row || !Array.isArray(row)) return null;
-  const from  = row[4] || [];
-  const toArr = row[0] || [];
-
-  const fmtAddr = (arr) =>
-    Array.isArray(arr) ? arr.map(a => (a.name ? `${a.name} <${a.email}>` : a.email)).join(', ') : String(arr);
-
-  return {
-    uid:       row[10],
-    from:      fmtAddr(from),
-    to:        fmtAddr(toArr),
-    subject:   row[3]  || '',
-    date:      row[7]  || '',
-    isRead:    !!row[5],
-    hasAtt:    !!row[1],
-    isFlagged: !!row[2],
-  };
-}
-
 // ─── Mailer ───────────────────────────────────────────────────────────────────
 
 export async function fetchFolders(sogoToken) {
@@ -340,10 +300,8 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
-    const body = { sortby: "date", asc: 0 };
-    // Server-side pagination (SOGo supports limit/offset)
-    if (params.limit) body.limit = params.limit;
-    if (params.offset) body.offset = params.offset;
+    // Some SOGo installations return only `uids` unless columns are explicit.
+    const body = buildMessageViewBody(params);
     const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/view`, {
     method: 'POST',
       credentials: 'include',
@@ -361,10 +319,7 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
     if (!res.ok) throwApiError(`Gagal memuat daftar pesan (${res.status}).`, res.status);
 
     const data = await safeJson(res);
-    // headers[0] = column names row, data rows mulai dari index 1
-    const rows = (data.headers || []).slice(1);
-
-    let messages = rows.map(parseMessageRow).filter(Boolean);
+    let messages = parseMessageRows(data);
 
     // Sort descending by uid (terbaru duluan)
     messages.sort((a, b) => b.uid - a.uid);
@@ -450,13 +405,12 @@ export async function searchMessages(sogoToken, folder, query, criteria = 'all')
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ search: query, criteria }),
+    body: JSON.stringify(buildMessageSearchBody(query, criteria)),
   });
   if (res.status === 204) return { messages: [], total: 0 };
   if (!res.ok) throwApiError('Gagal mencari pesan.', res.status);
   const data = await safeJson(res);
-  const rows = (data.headers || []).slice(1);
-  const messages = rows.map(parseMessageRow).filter(Boolean);
+  const messages = parseMessageRows(data);
   messages.sort((a, b) => b.uid - a.uid);
   return { messages, total: messages.length };
 }

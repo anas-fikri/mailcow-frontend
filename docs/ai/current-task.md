@@ -92,3 +92,12 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 ### Remaining
 - Rotate the leaked webmail password (`sogo_test.py`); optional `git filter-repo` history scrub.
 - Follow-up: verify new-build webmail functionality in a browser (CSP is now enforced).
+
+## Follow-up 2026-08-05 — Validate mailbox rows across folders (pre-delivery)
+
+- Finding: folder totals could be nonzero from SOGo `uids` metadata while `headers` rows were absent because the request did not explicitly select message columns.
+- Fix: added `src/lib/messageRows.js` with dynamic column mapping, positional compatibility fallback, safe boolean/address parsing, and protection against missing optional columns borrowing adjacent values.
+- Fix: `fetchMessages` and `searchMessages` now share explicit SOGo message headers through `src/lib/messageRequests.js` for Inbox, Sent, Junk, Trash, and other folders.
+- Tests: added `test:message-rows`, `test:message-requests`, and mocked `test:message-api`; the latter verifies folder URLs, serialized headers, parsed rows, and authoritative `uids` totals when only one row is loaded.
+- Local validation: all focused tests, syntax checks, Vite build, `npm audit --omit=dev` (0 vulnerabilities), and `git diff --check` pass.
+- Delivery status: application changes are ready for commit/push/deploy; live SOGo row behavior must be rechecked after deployment. Chrome browser smoke test is unavailable in this workspace.

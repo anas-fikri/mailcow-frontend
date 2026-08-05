@@ -62,5 +62,12 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 - **Decision:** Treat SOGo folder metadata (`uids` when present, then explicit total fields) as the source of truth for folder counts. Keep MailPage's 250-row response cap for performance, but expose the full folder total separately.
 - **Reason:** Stats previously counted the loaded message rows while Inbox/Sent displayed a capped list, causing mismatched numbers for folders larger than one page.
 - **Coverage:** `npm run test:message-totals` verifies paginated UID metadata and safe null/fallback behavior.
-- **Delivery:** Commit `9fa267f` was deployed and verified LIVE. Stats and MailPage share the authoritative folder total; production service health, webmail HTTP 200, live asset, and security headers passed.
-- **Reliability:** Because an external SIGTERM stopped `sogo-smtp-proxy` while `Restart=on-failure` treated it as a successful termination, the remote unit was backed up and changed narrowly to `Restart=always`. Six consecutive 5-second health samples remained `active/200`; port 3003/zeroclaw was not touched.
+- **Delivery:** Commit `9fa267f` was deployed and verified LIVE. Stats and MailPage share the authoritative folder total; production service health, webmail HTTP 200, live asset, and security headers passed.- **Reliability:** Because an external SIGTERM stopped `sogo-smtp-proxy` while `Restart=on-failure` treated it as a successful termination, the remote unit was backed up and changed narrowly to `Restart=always`. Six consecutive 5-second health samples remained `active/200`; port 3003/zeroclaw was not touched.
+
+## 2026-08-05 — Explicit SOGo message rows for all mailbox folders
+
+- **Decision:** Always send the same explicit `SOGO_MESSAGE_HEADERS` list for mailbox view/search requests; the folder remains a URL path parameter, so Inbox, Sent, Junk, Trash, and custom folders share one response contract.
+- **Reason:** Some SOGo configurations returned `uids` and totals without `headers` rows when columns were omitted, leaving the UI empty while Stats still showed a nonzero count.
+- **Parser contract:** Prefer named-column mapping, retain positional fallback only when no column row exists, treat missing optional columns as absent, and support array or singleton address values.
+- **Coverage:** `test:message-rows` covers reordered/missing columns; `test:message-requests` covers payload builders; `test:message-api` mocks `fetchMessages`/`searchMessages` across Inbox/Sent/Junk/Trash and verifies paginated `uids` totals.
+- **Delivery:** Local validation passes; commit/push/deploy and sanitized live SOGo verification remain pending.

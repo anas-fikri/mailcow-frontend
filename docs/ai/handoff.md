@@ -250,3 +250,24 @@ Reconciled the active project state with the latest Round 3 production handoff. 
 - Production now uses authoritative SOGo folder totals for Stats and MailPage; asset `index-CX2Vqhp-.js` is live.
 - Reliability follow-up: after an external SIGTERM repeatedly stopped the proxy, the unit was backed up at `/home/anas.fikri/.config/systemd/user/sogo-smtp-proxy.service.bak-restart-always-20260804152732`, changed from `Restart=on-failure` to `Restart=always`, and verified stable at `active/200` for six 5-second samples.
 - Visual account-level confirmation remains a recommended follow-up; unrelated port 3003/zeroclaw was untouched.
+
+## 2026-08-05 — Mailbox rows/statistics follow-up (pre-delivery)
+
+### Finding
+- Stats could show a nonzero authoritative folder total from SOGo `uids` while Inbox/Sent rendered no rows because view/search requests omitted the explicit message-column list and the parser assumed one fixed column order.
+
+### Changes
+- Added `src/lib/messageRows.js`: named-column mapping, compatibility fallback for responses without a column row, safe booleans/addresses, and no positional borrowing when optional named columns are absent.
+- Added `src/lib/messageRequests.js` and routed both `fetchMessages` and `searchMessages` through explicit `SOGO_MESSAGE_HEADERS` payload builders.
+- Added `test:message-rows`, `test:message-requests`, and `test:message-api`; mocked API coverage checks Inbox, Sent, Junk, Trash URLs, serialized headers, parsed rows, and `uids.length` authoritative totals.
+
+### Validation
+- All focused regression tests ✅
+- Node syntax checks ✅
+- Vite production build ✅
+- `npm audit --omit=dev` → 0 vulnerabilities ✅
+- `git diff --check` ✅
+- Chrome is unavailable, so browser visual smoke testing remains pending.
+
+### Delivery status
+- Application changes are ready for commit/push/deploy. Production has not yet been changed by this follow-up; after deployment, recheck sanitized response metadata and live UI behavior for Stats, Inbox, Sent, Junk, and Trash.

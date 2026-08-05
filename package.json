@@ -12,7 +12,10 @@
     "test:safe-url": "node scripts/test-safe-url.mjs",
     "test:user-prefs": "node scripts/test-user-prefs.mjs",
     "test:path-segment": "node scripts/test-path-segment.mjs",
-    "test:message-totals": "node scripts/test-message-totals.mjs"
+    "test:message-totals": "node scripts/test-message-totals.mjs",
+    "test:message-rows": "node scripts/test-message-rows.mjs",
+    "test:message-requests": "node scripts/test-message-requests.mjs",
+    "test:message-api": "node scripts/test-message-api.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
