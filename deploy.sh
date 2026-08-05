@@ -7,6 +7,8 @@
 # Prasyarat:
 #   - GitLab credential tersimpan di macOS Keychain (sudah ada)
 #   - SSH alias 'mailserver' mengarah ke 192.168.10.200 (sudah ada di ~/.ssh/config)
+#   - SSH alias 'mail-tunnel' + dashboard/scripts/tunnel-ctl.sh utk fallback
+#     (IP publik mailserver flapping/drop — tunnel MikroTik jadi jalur andal)
 #   - NPM dependencies sudah diinstall
 
 set -e
@@ -16,12 +18,26 @@ DIST_DIR="$PROJECT_DIR/dist"
 REMOTE_DIR="${REMOTE_DIR:-/data/docker-data/mailcow/data/web/webmail}"
 NGINX_DIR="${NGINX_DIR:-/data/docker-data/mailcow/data/conf/nginx}"
 NGINX_FILE="site.webmail.custom"
-SERVER="${SERVER:-mailserver}"
+# SERVER: SSH alias tujuan. DEPLOY_SSH_HOST diprioritaskan (set DEPLOY_SSH_HOST=mail-tunnel
+# utk pakai tunnel manual). Tanpa override: probe mailserver → auto-fallback tunnel.
+SERVER="${SERVER:-${DEPLOY_SSH_HOST:-mailserver}}"
 BRANCH="${BRANCH:-main}"
 SOGO_API_PORT="${SOGO_API_PORT:-3005}"
 WEBMAIL_URL="${WEBMAIL_URL:-https://mail.pcpexpress.co.id/webmail/}"
 GITLAB_URL="https://${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git"
 GITLAB_USER="${GITLAB_USER:-}"
+
+# ── Tunnel MikroTik fallback (IP publik flapping) ─────────────────────────────
+# Lokasi tunnel-ctl.sh: cari di project ini dulu, fallback ke dashboard (sibling).
+TUNNEL_CTL="${TUNNEL_CTL:-}"
+if [ -z "$TUNNEL_CTL" ]; then
+    if [ -x "$PROJECT_DIR/scripts/tunnel-ctl.sh" ]; then
+        TUNNEL_CTL="$PROJECT_DIR/scripts/tunnel-ctl.sh"
+    elif [ -x "$PROJECT_DIR/../dashboard/scripts/tunnel-ctl.sh" ]; then
+        TUNNEL_CTL="$PROJECT_DIR/../dashboard/scripts/tunnel-ctl.sh"
+    fi
+fi
+TUNNEL_USED=0
 
 # ── Environment Variables ─────────────────────────────────────────────────────
 # SERVER         - SSH host (default: mailserver)
@@ -40,6 +56,39 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 info()  { echo -e "${CYAN}[INFO]${NC}  $*"; }
 ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 err()   { echo -e "${RED}[ERROR]${NC} $*"; }
+
+# ── SSH dengan fallback tunnel MikroTik ────────────────────────────────────
+ensure_ssh() {
+    if [ -n "${DEPLOY_SSH_HOST:-}" ]; then
+        info "DEPLOY_SSH_HOST diset — pakai $SERVER langsung (tunnel dikelola manual)."
+        return 0
+    fi
+    if ssh -o ConnectTimeout=8 -o BatchMode=yes "$SERVER" 'true' 2>/dev/null; then
+        ok "SSH ke $SERVER OK."
+        return 0
+    fi
+    if [ -z "$TUNNEL_CTL" ] || [ ! -x "$TUNNEL_CTL" ]; then
+        err "SSH langsung ke $SERVER gagal dan tunnel-ctl.sh tidak ditemukan."
+        err "Cek ~/.ssh/config (mailserver/mail-tunnel) atau set DEPLOY_SSH_HOST."
+        return 1
+    fi
+    warn "SSH langsung $SERVER gagal — pasang tunnel MikroTik (auto)..."
+    if ! "$TUNNEL_CTL" on; then
+        err "Tunnel gagal aktif. Perbaiki dulu: $TUNNEL_CTL on"
+        return 1
+    fi
+    TUNNEL_USED=1
+    SERVER="mail-tunnel"
+    ok "SSH via tunnel: mail-tunnel."
+}
+
+cleanup_tunnel() {
+    if [ "$TUNNEL_USED" = "1" ]; then
+        info "Matikan tunnel MikroTik (auto-clean)..."
+        "$TUNNEL_CTL" off >/dev/null 2>&1 || true
+    fi
+}
+trap cleanup_tunnel EXIT
 
 # ── Ambil GitLab token dari macOS Keychain ─────────────────────────────────
 get_gitlab_token() {
@@ -231,11 +280,13 @@ deploy() {
 # ── Verify ─────────────────────────────────────────────────────────────────
 verify() {
     local webmail_url="$WEBMAIL_URL"
-    info "Verifikasi akses webmail..."
+    info "Verifikasi akses webmail (via 127.0.0.1, bebas DNS publik/hairpin)..."
     local http_code
     local webmail_url_q
     webmail_url_q=$(printf "'%s'" "${webmail_url//\'/\'\\\'\'}")
-    http_code=$(ssh "$SERVER" "curl -sk -o /dev/null -w '%{http_code}' -- $webmail_url_q")
+    # --resolve memaksa koneksi ke nginx lokal — tidak bergantung pada A record
+    # publik (sedang migrasi IP) maupun hairpin NAT di firewall.
+    http_code=$(ssh "$SERVER" "curl -sk --resolve mail.pcpexpress.co.id:443:127.0.0.1 -o /dev/null -w '%{http_code}' -- $webmail_url_q")
     if [ "$http_code" = "200" ]; then
         ok "Webmail siap: $webmail_url (HTTP $http_code)"
     else
@@ -253,6 +304,7 @@ main() {
     echo "╚══════════════════════════════════════════╝"
     echo ""
 
+    ensure_ssh || exit 1
     validate_config
     preflight_sogo_proxy
     build

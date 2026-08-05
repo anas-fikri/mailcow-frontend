@@ -117,7 +117,6 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - `./deploy.sh` completed: preflight, build, rsync, nginx config/reload, and HTTP 200 verification.
 - CSP and security headers verified live. Control Tower on 3003/3004 was not touched.
 
-
 ## 2026-08-04 — Documentation/status reconciliation
 
 - Reconciled historical deployment checkpoints with the authoritative Round 3 state: production LIVE, proxy healthy on 3005, webmail/API HTTP 200, and security headers verified.
@@ -174,3 +173,18 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - `deploy.sh` remains the only delivery path because its authenticated port-3005 preflight fails closed. After upstream access is restored: run `SERVER=mailserver ./deploy.sh`, verify service/webmail/security-header metadata, then perform browser login without sharing credentials.
 - Latest deploy attempt after the documentation push stopped at the authenticated SOGo proxy preflight because `mailserver` DNS could not resolve. Build, rsync, Nginx reload, and production verification did not run; no production mutation occurred.
 - Deploy retry diagnosis: public DNS resolves `mail.pcpexpress.co.id` to `202.148.2.139`, but ports 22/2002/2222/80/443/3005 and historical `202.148.2.141:2002` all timed out. `macanas` connects only to the local laptop at `127.0.0.1:2222`; it is not a production bastion. No DNS/route/SSH config or production mutation was performed. Restore upstream firewall/VPN access before rerunning `SERVER=... ./deploy.sh`.
+
+### Remaining
+- Rotate leaked password from `sogo_test.py`; optional git history scrub.
+- Functional browser test of the newly-deployed webmail (CSP now enforced).
+
+## 2026-08-04 — deploy.sh: SSH tunnel fallback + verify internal
+- `ensure_ssh()` di main: probe `mailserver`; gagal → auto `tunnel-ctl.sh on` (cari di project ini, fallback `../dashboard/scripts/tunnel-ctl.sh`), `SERVER=mail-tunnel`, `trap EXIT` auto-clean. `SERVER`/`DEPLOY_SSH_HOST` override tetap didukung (tunnel manual).
+- `verify()` webmail kini `curl --resolve mail.pcpexpress.co.id:443:127.0.0.1` — tak bergantung A record publik (migrasi ke 115.178.128.130/27) / hairpin NAT.
+- Validasi: `bash -n` OK; verify `--resolve` → HTTP 200.
+
+## 2026-08-04 — IP migration + deploy.sh enhancements (CLOSED ✅)
+- MikroTik stale assignment 202.148.2.139/29 di ether1 → SOLVED (root cause IP problem)
+- iptables mail server: DROP 115.178.128.130/.131 dihapus + ACCEPT /27
+- AdGuardHome DNS: mail.pcpexpress.co.id → 10.10.10.5
+- deploy.sh: `ensure_ssh()` fallback mail-tunnel + `verify()` --resolve 127.0.0.1
