@@ -270,4 +270,4 @@ Reconciled the active project state with the latest Round 3 production handoff. 
 - Chrome is unavailable, so browser visual smoke testing remains pending.
 
 ### Delivery status
-- Application changes are ready for commit/push/deploy. Production has not yet been changed by this follow-up; after deployment, recheck sanitized response metadata and live UI behavior for Stats, Inbox, Sent, Junk, and Trash.
+- Application changes are deployed and live at `d86ed2c`. `./deploy.sh` passed preflight/build/rsync/Nginx reload/webmail verification. Public webmail is HTTP 200 with CSP/nosniff/XFO/Referrer-Policy; asset `index-CVQcTv-t.js` is live; proxy is active with authenticated health 200 and stayed `active/200` across 6 samples. Browser-level account verification remains pending because Chrome is unavailable.
