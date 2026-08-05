@@ -101,3 +101,11 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - Tests: added `test:message-rows`, `test:message-requests`, and mocked `test:message-api`; the latter verifies folder URLs, serialized headers, parsed rows, and authoritative `uids` totals when only one row is loaded.
 - Local validation: all focused tests, syntax checks, Vite build, `npm audit --omit=dev` (0 vulnerabilities), and `git diff --check` pass.
 - Delivery status: COMPLETE and LIVE. Commit `d86ed2c` was pushed and deployed successfully. Public webmail returns HTTP 200 with security headers; the new asset is `index-CVQcTv-t.js`; proxy is active with authenticated health HTTP 200 and remained `active/200` for 6 samples over 30 seconds. Chrome browser smoke test is unavailable, so account-level visual confirmation still requires a user/browser session.
+
+## Follow-up 2026-08-05 — Login routing failure and remediation
+
+- Finding: production Nginx had overlapping regex locations for `/api/*`: webmail's proxy on port 3005 and Control Tower's broader route on port 3003. Public `/api/health` returned 200 without an API key and `/api/auth/smtp` returned the wrong 401 behavior, while the actual SOGo proxy required `X-Api-Key` and returned 403 without it. Login therefore failed after SOGo authentication when registering the SMTP session.
+- Fix: replaced the webmail API regex with exact-match locations for `/api/health`, `/api/auth/smtp`, `/api/preferences`, and `/api/send`, forcing those paths to the SOGo proxy on port 3005 before Control Tower regex evaluation.
+- Coverage: added `npm run test:nginx-routes`, which binds every exact location to its intended proxy target in both the checked-in config and deploy template.
+- Delivery: commit `e1fb7a6` deployed successfully. Post-deploy route matrix: valid API key → health 200 and SMTP dummy request 200; missing/bad key → 403. Webmail 200; proxy active/200 across 3 stability samples. Port 3003/zeroclaw untouched.
+- Remaining: user must retry login with a hard refresh; real credential authentication was not automated or logged.

@@ -271,3 +271,19 @@ Reconciled the active project state with the latest Round 3 production handoff. 
 
 ### Delivery status
 - Application changes are deployed and live at `d86ed2c`. `./deploy.sh` passed preflight/build/rsync/Nginx reload/webmail verification. Public webmail is HTTP 200 with CSP/nosniff/XFO/Referrer-Policy; asset `index-CVQcTv-t.js` is live; proxy is active with authenticated health 200 and stayed `active/200` across 6 samples. Browser-level account verification remains pending because Chrome is unavailable.
+
+## 2026-08-05 — Login failure remediation: overlapping Nginx API routes
+
+### Finding
+- Public webmail `/api/*` requests were matched by overlapping webmail and Control Tower regex locations. Evidence: public health was 200 without API key and public SMTP auth returned 401 regardless of key, unlike the actual port-3005 proxy contract (403 without key).
+
+### Fix and delivery
+- Changed `configs/site.webmail.custom` and `deploy.sh` to exact locations for `/api/health`, `/api/auth/smtp`, `/api/preferences`, and `/api/send`, each proxying to port 3005.
+- Added `scripts/test-nginx-routes.mjs` and `npm run test:nginx-routes`.
+- Commit `e1fb7a6` pushed and deployed; Nginx reload and webmail HTTP 200 passed.
+
+### Post-deploy proof
+- Public valid API key + dummy SMTP payload: `/api/health` 200, `/api/auth/smtp` 200.
+- Missing/bad API key: both endpoints 403.
+- Proxy active/200 across three post-fix samples; port 3003/zeroclaw untouched.
+- User should hard-refresh and retry login. Real password was not used in automated probes.

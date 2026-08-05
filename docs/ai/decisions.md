@@ -71,3 +71,10 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 - **Parser contract:** Prefer named-column mapping, retain positional fallback only when no column row exists, treat missing optional columns as absent, and support array or singleton address values.
 - **Coverage:** `test:message-rows` covers reordered/missing columns; `test:message-requests` covers payload builders; `test:message-api` mocks `fetchMessages`/`searchMessages` across Inbox/Sent/Junk/Trash and verifies paginated `uids` totals.
 - **Delivery:** Commit `d86ed2c` was pushed and deployed. Production webmail returned HTTP 200 with CSP/nosniff/XFO/Referrer-Policy, proxy health was authenticated `200`, and 6/6 stability samples were `active/200`. The live asset is `index-CVQcTv-t.js`; browser-level account verification remains pending because Chrome is unavailable here.
+
+## 2026-08-05 — Exact Nginx routing for webmail authentication
+
+- **Decision:** Use exact-match Nginx locations for webmail `/api/health`, `/api/auth/smtp`, `/api/preferences`, and `/api/send`; do not use one broad regex that can overlap with Control Tower's `/api` regex routes.
+- **Reason:** Nginx's overlapping regex configuration sent public webmail API requests to the wrong backend. The SOGo proxy on 3005 correctly requires the API key, but public behavior previously matched the Control Tower route (health open and SMTP unauthorized), causing login to fail during SMTP session registration.
+- **Guardrail:** Port 3003/zeroclaw remains unrelated and untouched. The route regression test asserts each exact location's proxy target in both source config and deploy template.
+- **Delivery:** `e1fb7a6` deployed; valid-key public health/SMTP dummy probes return 200, missing/bad-key probes return 403.
