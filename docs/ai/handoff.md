@@ -164,3 +164,4 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - Application commit `88dcd9c` and force-tracked test commit `fe9be0b` are pushed to `origin/main`; documentation records this handoff.
 - `./deploy.sh` failed closed because SSH alias `mailserver` did not resolve. A retry through the previously verified direct route `anas.fikri@202.148.2.139:22` timed out. No production mutation occurred; do not claim this login fix is live until deploy succeeds.
 - Production account authentication remains intentionally unautomated; browser-level confirmation requires a user session. Chrome is unavailable in this workspace.
+- Valid-account verification follow-up: public webmail timed out; `mailserver` alias did not resolve; direct SSH `202.148.2.139:22` timed out. No credential was sent or logged, and production login is not claimed verified.
