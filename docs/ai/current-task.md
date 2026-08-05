@@ -109,3 +109,25 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - Coverage: added `npm run test:nginx-routes`, which binds every exact location to its intended proxy target in both the checked-in config and deploy template.
 - Delivery: commit `e1fb7a6` deployed successfully. Post-deploy route matrix: valid API key → health 200 and SMTP dummy request 200; missing/bad key → 403. Webmail 200; proxy active/200 across 3 stability samples. Port 3003/zeroclaw untouched.
 - Remaining: user must retry login with a hard refresh; real credential authentication was not automated or logged.
+
+## Follow-up 2026-08-05 — Robust SOGo login/session validation (pre-delivery)
+
+### Finding
+- A generic `Login gagal (HTTP 403)` did not distinguish rejected credentials/account policy from request-format or session-bootstrap failures.
+- Form encoding is now the native-first login request. JSON is attempted at most once and only for explicit 400/415/422 format rejection; 401/403 never retries credentials.
+
+### Changes
+- Added `src/lib/loginDiagnostics.js` with safe, whitelisted login error categories and format detection; response bodies and credentials are never logged or shown raw.
+- `login()` accepts SOGo 2xx and manual same-origin 3xx candidates, preserves `credentials: include`, and fails closed when the session cannot be established.
+- Warm-up accepts legitimate authenticated SOGo HTML shell responses, rejects login-page markers, then requires protected JSON `/SOGo/so/<user>/Mail/0/view` with a mailbox structure before returning success.
+- Added `test:login-diagnostics` and `test:login-flow` coverage for 403 no-retry, format-only fallback, redirect candidates, HTML shell handling, login HTML rejection, protected mailbox proof, endpoint ordering, and failed warm-up.
+
+### Validation
+- All login, routing, mailbox, path, preference, and safe-URL regression tests ✅
+- `npm run build` ✅ (2002 modules)
+- `npm audit --omit=dev` ✅ (0 vulnerabilities)
+- Node/shell syntax and `git diff --check` ✅
+
+### Delivery status
+- Local implementation is validated and ready for commit/push/deploy.
+- Production account authentication is intentionally not automated; deployment verification will use dummy credentials and metadata-only route/session probes.

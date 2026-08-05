@@ -16,7 +16,9 @@
     "test:message-rows": "node scripts/test-message-rows.mjs",
     "test:message-requests": "node scripts/test-message-requests.mjs",
     "test:message-api": "node scripts/test-message-api.mjs",
-    "test:nginx-routes": "node scripts/test-nginx-routes.mjs"
+    "test:nginx-routes": "node scripts/test-nginx-routes.mjs",
+    "test:login-diagnostics": "node scripts/test-login-diagnostics.mjs",
+    "test:login-flow": "node scripts/test-login-flow.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

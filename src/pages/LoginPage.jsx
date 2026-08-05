@@ -64,7 +64,7 @@ export default function LoginPage() {
       setSmtpToken(smtpToken);
       navigate('/mail');
     } catch (err) {
-      setError(err.message || 'Login failed');
+      setError(err.message || 'Login gagal. Periksa koneksi dan status akun.');
     } finally {
       setLoading(false);
     }

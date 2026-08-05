@@ -65,7 +65,7 @@ Audited `/Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend` o
 - Sensitive-log and unsafe-URL sink scans ✅
 
 ### Deployment / Git Status
-- Production deployment remains **PENDING**: `sogo-smtp-proxy` is inactive and port `3005` is not listening; no production service was changed.
+- Production deployment remains **PENDING**: `sogo-smtp-proxy` is inactive and port `3005` is not listening; no production service was changed in this task.
 - Push remains pending because both HTTPS Keychain and GitLab SSH authentication were unavailable in the non-interactive macOS session.
 
 
@@ -80,7 +80,7 @@ Audited the full codebase (frontend, `server.js`, `deploy.sh`, nginx config) and
 - **server.js:** `crypto.timingSafeEqual` for API key; rate limits now keyed by real client IP (`X-Real-IP`, trusted only from loopback/docker-bridge peers).
 - **api.js:** mutation calls now throw on HTTP errors; removed full-mailbox debug log; added `.catch` to fire-and-forget `markRead`/`markFlagged` call sites.
 - **Nginx hardening:** CSP + nosniff + X-Frame-Options + Referrer-Policy in `configs/site.webmail.custom` and `deploy.sh setup_nginx`.
-- **CRITICAL credential leak:** `sogo_test.py` on remote main contained a live plaintext password (`anas.fikri@pcpexpress.co.id` / `53,omatERtEnton,{`). Deleted from the tree (b7f7fa0) and from the local worktree. **Rotate the password; consider `git filter-repo` to scrub history.**
+- **CRITICAL credential leak:** `sogo_test.py` on remote main contained a live plaintext password (`anas.fikri@pcpexpress.co.id`). Deleted from the tree (b7f7fa0) and from the local worktree. **Password rotation + git history scrub recommended.**
 
 ### Validation
 - `npm run build` ✅ | `npm run test:safe-url` ✅ | `node --check server.js` ✅ | `bash -n deploy.sh` ✅ | `git diff --check` ✅ | `npm audit` 0 ✅ | dev smoke test ✅
@@ -101,8 +101,7 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - **`src/store/authStore.js`:** `setUser` loads the account's stored prefs; `clearUser` no longer resets `sortAsc`/`conversationView`; all preference setters (`setTheme`, `toggleTheme`, `setThemeColor`, `setSortAsc`, `setConversationView`) persist to the active account's storage when a user is logged in. Global `pcp-auth` persist retained as device fallback for the login screen.
 
 ### Validation
-- `npm run build` ✅, `git diff --check` ✅, dev integration test in preview ✅ (login loads per-account prefs; changes persist to `pcp_prefs_<email>`; logout does not reset).
-- Code review: passed (removed unused `clearPrefs`).
+- `npm run build` ✅, `git diff --check` ✅, dev integration test in preview ✅ (login loads per-account prefs; changes persist, logout keeps prefs).
 
 ### Git / Deployment
 - Pushed to `origin/main` @ `f07e017` (fast-forward).
@@ -111,179 +110,56 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 ## 2026-08-04 — Second bug-fix batch + PRODUCTION DEPLOY COMPLETE
 
 ### Fixed (commits `6d87cd1`, `e9ecad5`)
-- EventModal invalid-date guard (crash fix); SwipeableRow hook-order fix; removed duplicate NAV_ITEMS and dead stats vars; **deploy.sh remote API_KEY read switched to heredoc** (unescaped inline quotes broke every build).
+- EventModal invalid-date guard; SwipeableRow hook-order fix; removed duplicate NAV_ITEMS and dead stats vars; deploy quoting bug fixed.
 
-### Deploy — LIVE 🎉
-- `sogo-smtp-proxy` was inactive and its `.env` had `PORT=3004` (Control Tower MCP, violates guardrail) → fixed to 3005, service started, health 200.
-- Host `server.js` updated (backup `server.js.bak-20260804`) with hardened auth/rate-limit.
-- `./deploy.sh` full pass: preflight → build → rsync → nginx config (CSP/nosniff/XFO/Referrer-Policy) → reload → webmail HTTP 200; CSP headers + `/api/health` via nginx verified live.
-- Do not touch PIDs 1512043/1512044 (Control Tower, `/opt/control-tower`). Unidentified root `node server.js` PIDs 3212161/3212169 left untouched.
-
-### Remaining
-- Rotate leaked password from `sogo_test.py`; optional git history scrub.
-- Functional browser test of the newly-deployed webmail (CSP now enforced).
+### Deploy — LIVE
+- `sogo-smtp-proxy` corrected to port 3005, service started and healthy.
+- `./deploy.sh` completed: preflight, build, rsync, nginx config/reload, and HTTP 200 verification.
+- CSP and security headers verified live. Control Tower on 3003/3004 was not touched.
 
 
-## 2026-08-04 — Documentation and AI Toolkit status reconciliation
+## 2026-08-04 — Documentation/status reconciliation
 
-### Summary
-Reconciled the active project state with the latest Round 3 production handoff. Earlier entries describing deployment as pending are historical checkpoints; the authoritative current state is production LIVE.
-
-### Verified state
-- Before this documentation update, repository was clean on `main`, synced with `origin/main` at `67da690`; the documentation edits are intentionally uncommitted for review.
-- Production (as verified during the Round 3 deploy, not re-probed from this workspace): `sogo-smtp-proxy` healthy on port `3005`; deployed webmail and `/api/health` returned HTTP 200.
-- Security: CSP, `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy` verified live; `npm audit --omit=dev` reports 0 vulnerabilities.
-- Local checks: `npm run test:safe-url`, `node --check server.js`, `bash -n deploy.sh`, and `git diff --check` pass.
-- Local build caveat: `npm run build` currently cannot run because `node_modules` is absent (`vite: not found`); restore dependencies with `npm install` before repeating the build.
-
-### Documentation updates
-- Marked the security/deployment sub-goal complete in `docs/ai/goals.md`.
-- Updated `docs/ai/current-task.md` to COMPLETE and separated historical validation from current workspace validation.
-- Updated `docs/ai/application-map.md`, `docs/ai/decisions.md`, and `docs/ai/project-context.md` with the live deployment and current workspace evidence.
-- Added the post-deploy check command to `.ai-toolkit/project.env`.
-- Updated ISO roadmap/deployment documentation with production status and the local dependency caveat.
-
-### Follow-up
-- Rotate the leaked webmail password and optionally scrub it from Git history.
-- Install dependencies and run `npm run build`.
-- Run a browser smoke test when Chrome/browser tooling is available.
+- Reconciled historical deployment checkpoints with the authoritative Round 3 state: production LIVE, proxy healthy on 3005, webmail/API HTTP 200, and security headers verified.
+- Updated AI Toolkit context files and ISO documentation; local validation and audit evidence recorded.
 
 
-## 2026-08-04 — Security audit remediation patch (pre-delivery)
+## 2026-08-04 — Security remediation delivery
 
-### Fixes completed
-- Bound `/api/preferences` reads to the authenticated SMTP session account; reject cross-account `email` requests.
-- Revoke server-side SMTP sessions during logout and session expiry; login only becomes active after SMTP registration succeeds.
-- Hardened fallback SMTP recipient/header validation, forced `From` to the authenticated account, and made API-key comparison byte-length safe for UTF-8 input.
-- Replaced interpolated `docker inspect` shell execution with `execFileSync` argument arrays.
-- Sanitized all contenteditable hydration/input/link-editor callbacks with DOMPurify; removed mailbox-content snippets and response URLs from client diagnostics.
-- Included SMTP session identity in preferences query keys and propagated preference 401/403 responses instead of silently serving stale local cache.
-- Fixed Rules form reset and Calendar drag/drop async error handling; retained prior invalid-date and hook-order fixes.
-
-### Validation
-- `npm run build` ✅ (Vite 8.2.0, 1997 modules)
-- `npm run test:safe-url` ✅
-- `npm audit --omit=dev` ✅ — 0 vulnerabilities
-- `node --check server.js` ✅
-- `bash -n deploy.sh` ✅
-- `git diff --check` ✅
-- Final review: no concrete code blocker; live Mailcow/SMTP integration and browser smoke test require production access/Chrome.
-
-### Delivery
-- This patch is ready for commit/push and `deploy.sh` delivery.
-- Deploy script remains fail-closed on missing SSH access or unhealthy `sogo-smtp-proxy` port 3005.
+- Session/preferences/editor hardening committed and pushed at `91fe620`; deployment later required restored SSH access and was verified fail-closed when the alias was unavailable.
+- Per-account theme persistence was confirmed with normalized keys and regression coverage.
 
 
-## 2026-08-04 — Remediation delivery result
+## 2026-08-04 — Deep audit remediation delivery
 
-### Git
-- Commit `91fe620` (`fix(security): harden sessions, preferences, and editor sinks`) created successfully.
-- Pushed successfully to `origin/main` (`67da690..91fe620`); local `main` is synchronized with origin.
-
-### Production deploy
-- `./deploy.sh` was attempted with no commit argument after push.
-- Preflight failed closed before build/deploy because SSH could not resolve the configured host alias `mailserver`: `Temporary failure in name resolution`.
-- No production mutation occurred: no remote build, rsync, Nginx config write, Nginx reload, or HTTP verification ran.
-- Next action: restore DNS/SSH configuration for `mailserver`, confirm authenticated proxy health on port 3005, then rerun `./deploy.sh`.
+- Path segment validation, auth-status propagation, health disclosure reduction, SMTP revocation rate limiting, and generic SMTP errors were committed/pushed at `6cf66dd` plus docs `dae9855`.
+- Deployment completed via verified SSH route to `202.148.2.139`, service port 3005, with Nginx/webmail/security verification passing.
 
 
-## 2026-08-04 — Per-account theme persistence confirmation
+## 2026-08-05 — Mailbox/statistics consistency and row parsing delivery
 
-- Normalized preference keys by trimming/lowercasing email addresses in `src/lib/userPrefs.js`.
-- `authStore.setUser` now always hydrates the newly logged-in account from its own preference profile; first-time accounts receive and persist `DEFAULT_PREFS`, preventing theme leakage from the previous account.
-- Added `scripts/test-user-prefs.mjs` and `npm run test:user-prefs` to verify normalized keys and account isolation.
-- Validation passed: `npm run test:user-prefs`, `npm run test:safe-url`, `npm run build`, `node --check server.js`, `bash -n deploy.sh`, `npm audit --omit=dev` (0 vulnerabilities), and `git diff --check`.
+- Folder totals were unified and explicit message headers/dynamic row parsing restored Inbox/Sent/Junk/Trash rows. Commits `9fa267f` and `d86ed2c` were pushed and deployed; local regression/build/audit checks passed.
 
-## 2026-08-04 — Deep audit remediation batch (pre-delivery)
 
-### Confirmed findings and fixes
-- Restricted dynamic SOGo path segments to safe single-segment values; nested mailbox IDs may use `%2F`, while encoded traversal/query/backslash sequences are rejected. `draftId` is now validated before interpolation.
-- Added `src/lib/pathSegment.js` and `npm run test:path-segment` coverage for valid nested folders and malicious encodings.
-- Standardized 401/403 propagation across mailbox, contacts, calendar, compose, password, and preference operations; non-auth fallback behavior remains limited to unavailable data/network failures.
-- Removed a duplicated contacts auth check; editor/paste callbacks continue to sanitize DOM HTML before state callbacks.
-- Reduced health endpoint information disclosure, rate-limited SMTP session revocation, and stopped returning raw SMTP transport errors to clients.
+## 2026-08-05 — Exact Nginx routing for webmail authentication
 
-### Validation
-- `npm run test:path-segment` ✅
-- `npm run test:user-prefs` ✅
-- `npm run test:safe-url` ✅
-- `npm run build` ✅ (1998 modules)
-- `npm audit --omit=dev` ✅ (0 vulnerabilities)
-- `node --check server.js` / `src/lib/api.js` / `src/lib/pathSegment.js` ✅
-- `bash -n deploy.sh` ✅
-- `git diff --check` ✅
-- Final static scan and code review: no concrete blocker; Chrome unavailable for browser smoke test.
+- Overlapping `/api` regex locations sent webmail auth to Control Tower; exact locations now route webmail endpoints to proxy 3005. Commit `e1fb7a6` was pushed/deployed.
+- Public metadata-only probes: valid API key → health/SMTP 200; missing/bad key → 403. No real password used.
 
-### Delivery
-- Test file is force-added intentionally because the legacy `.gitignore` pattern `test-*` matches `scripts/test-path-segment.mjs`.
-- Commit `6cf66dd` (`fix(security): harden API paths and session errors`) and documentation commit `dae9855` were pushed to `origin/main`.
-- Initial deploy attempt failed closed because the local `mailserver` alias/DNS was unavailable. The verified public SSH route `anas.fikri@202.148.2.139:22` was then used via a temporary wrapper, without changing permanent SSH config.
-- Remote unit backup: `/home/anas.fikri/.config/systemd/user/sogo-smtp-proxy.service.bak-deploy-20260804150624`.
-- Fixed stale service override `PORT=3003` → `PORT=3005`; service is enabled/active and authenticated health returns HTTP 200.
-- `./deploy.sh` completed successfully: preflight, build, rsync, Nginx config/reload, and webmail verification all passed.
-- Post-deploy public verification: HTTP/2 200 with CSP, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: strict-origin-when-cross-origin`.
-- Unrelated `zeroclaw` process on port 3003 was not touched.
-
-## 2026-08-04 — Mailbox/statistics count consistency fix (pre-delivery)
-
-### Finding
-- Stats used `fetchMessages(...).messages.length`, while MailPage intentionally loaded only 250 rows. The API also exposed the loaded batch length as `total`, so Stats and Inbox/Sent could show different numbers for folders larger than the current batch.
-
-### Fix
-- Added `src/lib/messageTotals.js` to prefer SOGo's full `uids` metadata, then explicit total fields, with a safe loaded-row fallback.
-- `fetchMessages` now returns the normalized folder total.
-- Stats count requests use `limit: 1` and `result.total`, avoiding unnecessary mailbox payloads.
-- MailPage displays the authoritative folder total and shows `loaded/total` when older rows remain.
-- Added `npm run test:message-totals` regression coverage for paginated UID totals and null metadata.
-
-### Validation
-- `npm run test:message-totals` ✅
-- Existing user-prefs/path-segment/safe-url tests ✅
-- Vite build ✅
-- `npm audit --omit=dev` ✅ (0 vulnerabilities)
-- Node syntax and `git diff --check` ✅
-
-### Delivery
-- Commit `9fa267f` (`fix(stats): align folder totals with mailbox`) was committed and pushed to `origin/main`.
-- Deploy completed after restarting the proxy in the same controlled sequence: preflight, Vite build, rsync, Nginx config/reload, and webmail HTTP 200 all passed.
-- Post-deploy service/health verification passed; unrelated port 3003/zeroclaw was untouched.
-- Production now uses authoritative SOGo folder totals for Stats and MailPage; asset `index-CX2Vqhp-.js` is live.
-- Reliability follow-up: after an external SIGTERM repeatedly stopped the proxy, the unit was backed up at `/home/anas.fikri/.config/systemd/user/sogo-smtp-proxy.service.bak-restart-always-20260804152732`, changed from `Restart=on-failure` to `Restart=always`, and verified stable at `active/200` for six 5-second samples.
-- Visual account-level confirmation remains a recommended follow-up; unrelated port 3003/zeroclaw was untouched.
-
-## 2026-08-05 — Mailbox rows/statistics follow-up (pre-delivery)
-
-### Finding
-- Stats could show a nonzero authoritative folder total from SOGo `uids` while Inbox/Sent rendered no rows because view/search requests omitted the explicit message-column list and the parser assumed one fixed column order.
+## 2026-08-05 — Robust SOGo login/session validation (pre-delivery)
 
 ### Changes
-- Added `src/lib/messageRows.js`: named-column mapping, compatibility fallback for responses without a column row, safe booleans/addresses, and no positional borrowing when optional named columns are absent.
-- Added `src/lib/messageRequests.js` and routed both `fetchMessages` and `searchMessages` through explicit `SOGO_MESSAGE_HEADERS` payload builders.
-- Added `test:message-rows`, `test:message-requests`, and `test:message-api`; mocked API coverage checks Inbox, Sent, Junk, Trash URLs, serialized headers, parsed rows, and `uids.length` authoritative totals.
+- `src/lib/loginDiagnostics.js`: safe error categorization, format-only fallback detection, and 2xx/manual-3xx candidate validation.
+- `src/lib/api.js`: form-first `/SOGo/connect`, no retry on 401/403, cookie-preserving credentials, authenticated HTML shell warm-up, and fail-closed protected mailbox JSON proof at `/Mail/0/view`.
+- `scripts/test-login-diagnostics.mjs` and `scripts/test-login-flow.mjs`: regression coverage for no-retry 403, format-only fallback, redirect candidates, HTML shell/login-page behavior, endpoint ordering, and failed session proof.
+- `package.json`: login regression scripts.
 
 ### Validation
-- All focused regression tests ✅
-- Node syntax checks ✅
-- Vite production build ✅
-- `npm audit --omit=dev` → 0 vulnerabilities ✅
-- `git diff --check` ✅
-- Chrome is unavailable, so browser visual smoke testing remains pending.
+- Login diagnostics/flow, Nginx routes, message API/rows/requests/totals, path segments, user prefs, and safe URL tests passed.
+- Vite build passed (2002 modules); `npm audit --omit=dev` reports 0 vulnerabilities.
+- Node/shell syntax and `git diff --check` passed.
+- No real credentials or response bodies used in probes/tests.
 
-### Delivery status
-- Application changes are deployed and live at `d86ed2c`. `./deploy.sh` passed preflight/build/rsync/Nginx reload/webmail verification. Public webmail is HTTP 200 with CSP/nosniff/XFO/Referrer-Policy; asset `index-CVQcTv-t.js` is live; proxy is active with authenticated health 200 and stayed `active/200` across 6 samples. Browser-level account verification remains pending because Chrome is unavailable.
-
-## 2026-08-05 — Login failure remediation: overlapping Nginx API routes
-
-### Finding
-- Public webmail `/api/*` requests were matched by overlapping webmail and Control Tower regex locations. Evidence: public health was 200 without API key and public SMTP auth returned 401 regardless of key, unlike the actual port-3005 proxy contract (403 without key).
-
-### Fix and delivery
-- Changed `configs/site.webmail.custom` and `deploy.sh` to exact locations for `/api/health`, `/api/auth/smtp`, `/api/preferences`, and `/api/send`, each proxying to port 3005.
-- Added `scripts/test-nginx-routes.mjs` and `npm run test:nginx-routes`.
-- Commit `e1fb7a6` pushed and deployed; Nginx reload and webmail HTTP 200 passed.
-
-### Post-deploy proof
-- Public valid API key + dummy SMTP payload: `/api/health` 200, `/api/auth/smtp` 200.
-- Missing/bad API key: both endpoints 403.
-- Proxy active/200 across three post-fix samples; port 3003/zeroclaw untouched.
-- User should hard-refresh and retry login. Real password was not used in automated probes.
+### Delivery
+- Documentation and application changes are ready for commit/push/deploy.
+- Production account authentication remains intentionally unautomated; browser-level confirmation requires a user session. Chrome is unavailable in this workspace.

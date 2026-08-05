@@ -2,6 +2,7 @@ import { pathSegment } from './pathSegment.js';
 import { getMessageTotal } from './messageTotals.js';
 import { parseMessageRows } from './messageRows.js';
 import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
+import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFormat } from './loginDiagnostics.js';
 
 const SOGO_ENV = import.meta.env || {};
 const SOGO_BASE = SOGO_ENV.DEV ? '' : (SOGO_ENV.VITE_SOGO_BASE_URL || '');
@@ -124,73 +125,158 @@ async function safeJson(res) {
 
 /**
  * Warm-up session SOGo setelah /connect.
- * Native SOGo UI selalu lewat /so/{user}/Mail/view dulu baru /Mail/0/view.
- * Tanpa langkah ini, GET /Mail/0/view sering return 403 (session belum fully bound).
+ * Native SOGo UI melewati shell /so/{user} dan /Mail/view sebelum mailbox API.
+ * HTML shell yang sah boleh diterima, tetapi sesi hanya dianggap siap setelah
+ * endpoint JSON terlindungi /Mail/0/view mengembalikan struktur mailbox.
  */
+function isLoginPageMarkup(text) {
+  const markup = String(text || '');
+  return markup.includes('LoginController') || markup.includes('sg-login') ||
+    markup.includes('/SOGo/connect') || markup.includes('name="userName"') ||
+    markup.includes('name="password"') ||
+    (markup.includes('userName') && markup.includes('password') && markup.includes('connect'));
+}
+
 async function warmUpSogoSession(sogoToken) {
-  const paths = [
-    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}`,
-    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/view`,
+  const tokenPath = pathSegment(sogoToken, 'sogoToken');
+  const shellPaths = [
+    `${SOGO_BASE}/SOGo/so/${tokenPath}`,
+    `${SOGO_BASE}/SOGo/so/${tokenPath}/Mail/view`,
   ];
 
-  for (const url of paths) {
+  // Prime the same HTML shell routes used by native SOGo. Do not require JSON
+  // here: SOGo versions legitimately return authenticated HTML documents.
+  for (const url of shellPaths) {
     try {
       const res = await fetch(url, {
         method: 'GET',
         credentials: 'include',
         headers: sogoHeaders({ Accept: 'text/html,application/json,*/*' }),
         redirect: 'follow',
-    });
-      console.log('[Login] warm-up', url.replace(SOGO_BASE, ''), '→', res.status);
-      // body harus di-drain supaya connection/session settle
-      await res.text().catch(() => '');
+      });
+      const contentType = res.headers.get('content-type') || '';
+      const text = await res.text().catch(() => '');
+      console.log('[Login] warm-up shell →', res.status, contentType || 'unknown');
+      // A login page can be returned as HTTP 200 after an accepted-looking POST.
+      if (res.status < 200 || res.status >= 400 || isLoginPageMarkup(text)) return false;
     } catch (err) {
-      console.warn('[Login] warm-up failed (non-fatal):', err?.message || err);
+      console.warn('[Login] warm-up failed:', err?.message || err);
+      return false;
     }
   }
 
-  // Pastikan XSRF terbaca setelah Set-Cookie dari warm-up
-  if (!getXsrfToken()) {
-    await sleep(50);
+  // This is the fail-closed proof of authentication. A generic upstream HTML
+  // page cannot pass because the mailbox endpoint must return JSON with folders.
+  try {
+    const res = await fetch(`${SOGO_BASE}/SOGo/so/${tokenPath}/Mail/0/view`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: sogoHeaders({ Accept: 'application/json' }),
+      redirect: 'follow',
+    });
+    const contentType = res.headers.get('content-type') || '';
+    const text = await res.text().catch(() => '');
+    console.log('[Login] warm-up mailbox →', res.status, contentType || 'unknown');
+    if (!res.ok || !contentType.includes('json') || isLoginPageMarkup(text)) return false;
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return false;
+    }
+    if (!data || !Array.isArray(data.mailboxes)) return false;
+  } catch (err) {
+    console.warn('[Login] mailbox warm-up failed:', err?.message || err);
+    return false;
   }
+
+  // Allow the browser to process Set-Cookie before the first authenticated query.
+  if (!getXsrfToken()) await sleep(50);
+  return true;
 }
 
-export async function login(email, password) {
-  // Bersihkan session lama agar ganti akun tidak bawa cookie user sebelumnya
-  try {
-    await fetch(`${SOGO_BASE}/SOGo/logoff`, {
-    method: 'POST',
-      credentials: 'include',
-      headers: sogoHeaders(),
-  });
-  } catch {
-    // ignore — logoff sering 500 tapi cookie tetap ter-clear sebagian
+async function readLoginResponse(res) {
+  const contentType = res.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json') || contentType.includes('text/json');
+  // Read once so an empty body is detectable even when Content-Type is JSON.
+  const text = await res.text().catch(() => '');
+  const trimmed = text.trim();
+  if (isJson && trimmed) {
+    try {
+      return { data: JSON.parse(trimmed), isJson: true, isEmpty: false, isHtml: false };
+    } catch {
+      return { data: {}, isJson: false, isEmpty: false, isHtml: false };
+    }
   }
+  // Do not expose the body; only retain a safe policy marker.
+  return {
+    data: trimmed.includes('LDAPPasswordPolicyError') ? { message: 'LDAPPasswordPolicyError' } : {},
+    isJson,
+    isEmpty: !trimmed,
+    isHtml: contentType.includes('text/html') || /<\/?(html|!doctype)/i.test(trimmed),
+  };
+}
 
-  const res = await fetch(`${SOGO_BASE}/SOGo/connect`, {
+async function connectSogo(email, password, encoding = 'form') {
+  const body = encoding === 'form'
+    ? new URLSearchParams({ userName: email, password }).toString()
+    : JSON.stringify({ userName: email, password });
+  const contentType = encoding === 'form'
+    ? 'application/x-www-form-urlencoded'
+    : 'application/json';
+
+  return fetch(`${SOGO_BASE}/SOGo/connect`, {
     method: 'POST',
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': contentType,
       'X-Requested-With': 'XMLHttpRequest',
       Accept: 'application/json, text/plain, */*',
     },
-    body: JSON.stringify({ userName: email, password }),
+    body,
+    redirect: 'manual',
   });
+}
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.message || `Login gagal (HTTP ${res.status})`);
+export async function login(email, password) {
+  // Bersihkan session lama agar ganti akun tidak bawa cookie user sebelumnya.
+  try {
+    await fetch(`${SOGO_BASE}/SOGo/logoff`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: sogoHeaders(),
+    });
+  } catch {
+    // logoff sering 500 tapi cookie tetap ter-clear sebagian
+  }
+
+  // Native SOGo login uses form encoding. Do not retry a rejected credential:
+  // retry JSON only when the server explicitly rejects the request format.
+  let res = await connectSogo(email, password, 'form');
+  let response = await readLoginResponse(res);
+  if (!isLoginSuccessResponse(res, response) && isUnsupportedLoginFormat(res.status, response.data)) {
+    res = await connectSogo(email, password, 'json');
+    response = await readLoginResponse(res);
+  }
+
+  if (!isLoginSuccessResponse(res, response)) {
+    const error = new Error(extractLoginErrorMessage(response.data, res.status));
+    error.status = res.status;
+    throw error;
   }
 
   // SOGo returns email/username as the token identifier for API paths.
-  // XSRF-TOKEN cookie juga di-set oleh /SOGo/connect — digunakan di request berikutnya.
-  const data = await res.json().catch(() => ({}));
-  const sogoToken = data.username || email; // fallback ke email jika username tidak ada
+  const data = response.data;
+  const sogoToken = data.username || email;
 
-  console.log('[Login] SOGo authentication succeeded | XSRF present:', !!getXsrfToken());
+  console.log('[Login] SOGo authentication response accepted | XSRF present:', !!getXsrfToken());
 
-  await warmUpSogoSession(sogoToken);
+  const sessionReady = await warmUpSogoSession(sogoToken);
+  if (!sessionReady) {
+    const error = new Error('Sesi SOGo tidak terbentuk. Periksa cookie browser, proxy, atau status akun lalu coba lagi.');
+    error.status = 401;
+    throw error;
+  }
   markLoginGrace(8000);
   resetSessionExpiredFlag();
 
