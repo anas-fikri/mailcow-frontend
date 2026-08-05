@@ -3,7 +3,7 @@
 Project: sogo-frontend
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 Initialized At: 2026-08-01T07:08:00Z
-Updated At: 2026-08-04T13:30:41+07:00
+Updated At: 2026-08-05T00:00:00+07:00
 
 ## Summary
 
@@ -34,4 +34,4 @@ Stats, and client-side Rules.
 - All SOGo API calls live in `src/lib/api.js` (single file); SOGo endpoints are same-origin (`/SOGo/...`) in production, proxied by Vite in dev.
 - Zustand stores in `src/store/`; only non-secret prefs are persisted (never SMTP tokens).
 - Indonesian UI strings and comments are the norm.
-- Deployment rules are enforced by `deploy.sh` preflight (fails closed if SOGo proxy unhealthy).
+- Deployment rules are enforced by `deploy.sh` preflight (fails closed if SOGo proxy unhealthy). Current login hardening is pushed but not live until the preflight can reach the Mailcow host; do not bypass the guardrail.

@@ -1,9 +1,9 @@
 # Current Task
 
-Status: COMPLETE (mailbox/statistics count mismatch remediation deployed and verified LIVE)
+Status: ACTIVE — login hardening is pushed; production delivery is blocked by upstream network access
 Task ID: sogo-frontend-audit-2026-08-04
 Started At: 2026-08-04
-Updated At: 2026-08-04T14:20:00+07:00
+Updated At: 2026-08-05
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
 ## Objective
@@ -15,12 +15,12 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - **server.js:** timing-safe API-key comparison (`crypto.timingSafeEqual`); rate limiter keyed by real client IP via `X-Real-IP` — only trusted when the socket peer is loopback or a docker-bridge address (prevents spoofing + fixes shared-bucket bug behind nginx).
 - **api.js:** `markRead`/`markFlagged`/`deleteMessages`/`moveMessages` now surface HTTP failures; full-mailbox debug log removed; `.catch` added to fire-and-forget call sites.
 - **Production hardening:** CSP + `X-Content-Type-Options: nosniff` + `X-Frame-Options: DENY` + `Referrer-Policy` added to `/webmail` nginx config (both `configs/site.webmail.custom` and `deploy.sh setup_nginx`).
-- **Credential leak:** `sogo_test.py` on origin/main contained a live plaintext password for `anas.fikri@pcpexpress.co.id`. Removed from the tree (commit b7f7fa0). **Password rotation + git history scrub recommended.**
+- **Credential leak:** `sogo_test.py` on origin/main contained a live plaintext mailbox credential. Removed from the tree (commit b7f7fa0). **Password rotation + git history scrub recommended.**
 
 ## Git / Deployment
 - Before this documentation update, local `main` was clean and synced with `origin/main` @ **67da690** (deployed application code is @ `e9ecad5`). The documentation edits in this worktree are intentionally uncommitted until reviewed.
-- Security fixes and the Round 3 runtime/deploy batch were pushed and deployed successfully.
-- **Production deploy: COMPLETE and LIVE (per the Round 3 deployment handoff; not re-probed from this workspace):** `sogo-smtp-proxy` was healthy on port `3005`; `dist/`, Nginx config, and security headers were deployed; production webmail and `/api/health` returned HTTP 200.
+- Security fixes and the Round 3 runtime/deploy batch were pushed and deployed successfully; this is historical evidence for that batch, not proof that later commits are live.
+- **Authoritative current status:** the robust login commits `88dcd9c` and `fe9be0b` are pushed but not deployed from this workspace. Current `main` is tracked in the latest handoff; production access is blocked by upstream network/firewall/VPN reachability.
 
 ## Validation
 - Historical release validation: `npm run build` ✅, `npm run test:safe-url` ✅, `node --check server.js` ✅, `bash -n deploy.sh` ✅, `git diff --check` ✅, `npm audit` → 0 ✅, dev smoke/integration tests ✅.
@@ -60,9 +60,11 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - Production asset now serves `index-CX2Vqhp-.js`; unrelated port 3003/zeroclaw remains untouched.
 
 ## Next Step
-1. Verify visually that Stats, Inbox, and Sent show matching totals for the same account.
-2. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
-3. Browser smoke test remains pending because Chrome is unavailable in this workspace.
+1. Restore upstream firewall/VPN/network access to the Mailcow host; do not change DNS or routes blindly.
+2. Run `SERVER=mailserver ./deploy.sh`; require preflight success before any build/rsync/Nginx change.
+3. Verify webmail/API metadata, then test login in a browser without sharing the password.
+4. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
+5. Browser smoke test remains pending because Chrome is unavailable in this workspace.
 
 ## Follow-up 2026-08-04 — Per-account theme initialization
 - Confirmed theme and accent settings are stored under normalized per-account keys (`pcp_prefs_<lowercase-email>`).

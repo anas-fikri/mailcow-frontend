@@ -29,7 +29,7 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 - **Rate limiting:** key by real client IP — `X-Real-IP` is trusted only when the socket peer is loopback or a docker-bridge address (nginx overwrites it; direct external clients cannot spoof). Fixes the shared-bucket bug where all users behind nginx shared one limit.
 - **API key comparison:** `crypto.timingSafeEqual` with a length guard.
 - **CSP for /webmail:** `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' ...; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` + nosniff/XFO/Referrer-Policy, mirrored in `configs/site.webmail.custom` and `deploy.sh setup_nginx`. Built index.html has no inline scripts, so `script-src 'self'` is safe.
-- **CRITICAL — credential leak:** `sogo_test.py` committed on origin/main contained a live plaintext password (`anas.fikri@pcpexpress.co.id`). Deleted from the tree (b7f7fa0). Decision: rotate the password and run `git filter-repo` history scrub; do not restore the file (it is gitignored locally and was removed from the worktree).
+- **CRITICAL — credential leak:** `sogo_test.py` committed on origin/main contained a live plaintext password (account credential). Deleted from the tree (b7f7fa0). Decision: rotate the exposed password and run `git filter-repo` history scrub; do not restore the file (it is gitignored locally and was removed from the worktree).
 
 ## 2026-08-04 — Per-account UI preferences
 
@@ -85,4 +85,4 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 - **Decision:** Treat `/SOGo/connect` success as provisional. Accept 2xx or manual same-origin 3xx candidates, then prime the authenticated HTML shell and require `/SOGo/so/<user>/Mail/0/view` to return JSON containing `mailboxes`. This endpoint is the session proof because browser JavaScript cannot inspect `Set-Cookie`.
 - **Decision:** Reject login-page markers and arbitrary upstream HTML, redact response bodies, and expose only whitelisted account/policy/transport diagnostics.
 - **Coverage:** `test:login-diagnostics` and `test:login-flow` cover no-retry 403, format-only fallback, redirect candidates, HTML shell acceptance, login HTML rejection, mailbox proof, and endpoint order.
-- **Delivery status:** implementation/test commits `88dcd9c` and `fe9be0b` are pushed. Production delivery is not complete: `mailserver` DNS failed and the direct SSH route timed out; deploy.sh correctly made no production changes.
+- **Delivery status:** implementation/test commits `88dcd9c` and `fe9be0b` are pushed. Production delivery is not complete: `mailserver` DNS failed and all tested SSH/web ports timed out; `deploy.sh` correctly made no production changes. Historical Round 3 LIVE entries refer only to earlier commits.

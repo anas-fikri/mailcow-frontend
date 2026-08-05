@@ -2,7 +2,7 @@
 
 ## Audit
 
-- Audited At: 2026-08-04 (status rechecked after Round 3 deployment)
+- Audited At: 2026-08-05 (current code and delivery status reconciled)
 - Active frontend: `src/` — React 19 SPA (Vite build, base `/webmail/`)
 - Backend/API: `server.js` — Express 5 proxy (prod port 3005)
 - Knowledge graph project: n/a
@@ -37,8 +37,9 @@
 - `/api/*` requires the SMTP proxy (server.js) + live Mailcow; dev preview without backend shows UI but API calls fail.
 - Compose attachment upload button is disabled ("belum didukung").
 - `sogo_test.py` (contained a live password) removed from the tree on 2026-08-04; still present in history — password rotation + `git filter-repo` scrub recommended.
-- Production deploy of the 2026-08-04 hardening/fix batch is **COMPLETE and LIVE per the Round 3 deployment handoff** (application code @ `e9ecad5`; documentation reconciliation @ `67da690`; not re-probed from this workspace): `sogo-smtp-proxy` was active on port 3005, host `server.js` updated, CSP/security headers verified on https://mail.pcpexpress.co.id/webmail/, and `/api/health` returned HTTP 200.
-- Current workspace verification before this documentation update: repository was clean and synced with `origin/main`; safe-url test, production dependency audit, Node syntax check, shell syntax check, and diff check pass. Local Vite build requires `npm install` first because `node_modules` is absent; documentation edits are currently uncommitted for review.
+- Production deploy of the 2026-08-04 hardening/fix batch is **historical COMPLETE/LIVE evidence** (application code @ `e9ecad5`; documentation reconciliation @ `67da690`; not re-probed from this workspace). It must not be used to claim that later login commits are live.
+- Current delivery status: robust login commits `88dcd9c` and `fe9be0b` are pushed, but deploy is **BLOCKED/NOT LIVE** because `mailserver` does not resolve locally and all tested production SSH/web ports timed out. No production mutation occurred for those commits.
+- Current workspace verification: repository is clean and synced with `origin/main`; login/full regression tests, Vite build, production dependency audit, Node syntax, shell syntax, and diff checks pass. Chrome/browser account verification remains unavailable.
 
 ## Agent Rules
 

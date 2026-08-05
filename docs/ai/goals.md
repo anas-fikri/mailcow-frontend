@@ -24,7 +24,7 @@ Success criteria:
 
 ### Sub-goal G-001.S-002 — Documentation currency
 
-- Status: COMPLETE for the 2026-08-04 deployment reconciliation; ACTIVE as an ongoing maintenance practice.
+- Status: ACTIVE — historical deployment records are complete, but current login delivery status must remain synchronized.
 - Success criteria: docs/ai files reflect verified surfaces, decisions, and handoff after every significant task.
 - Latest evidence: prior remediation patch reviewed; workspace build, safe-url test, syntax checks, production audit (0 vulnerabilities), and diff check pass. Commit/push completed at `91fe620`; deploy attempt was blocked at fail-closed SSH preflight because `mailserver` could not be resolved. A new deep-audit remediation batch is now validated locally and pending commit/push/deploy.
 - New coverage: `npm run test:path-segment` verifies nested-folder `%2F` compatibility and rejects encoded traversal/query payloads.
@@ -32,4 +32,4 @@ Success criteria:
 - Mailbox/statistics consistency remediation `9fa267f` is deployed and LIVE. Stats and MailPage now use the same authoritative SOGo folder total instead of different loaded-page lengths; build, rsync, Nginx reload, webmail HTTP 200, live asset, and proxy stability verification passed. Proxy unit reliability is now `Restart=always` after external SIGTERM behavior was observed.
 - Follow-up mailbox row remediation is COMPLETE and LIVE at commit `d86ed2c`: explicit SOGo headers, dynamic row parsing, and mocked Inbox/Sent/Junk/Trash API coverage pass; public webmail HTTP 200, latest asset `index-CVQcTv-t.js`, proxy health `active/200`, and 6/6 stability samples verified.
 - Login routing remediation COMPLETE and LIVE at `e1fb7a6`: exact Nginx webmail API locations now route auth/session endpoints to proxy 3005, avoiding Control Tower regex overlap; valid-key health/SMTP probes return 200 and missing/bad-key probes return 403.
-- Robust SOGo login/session validation is locally COMPLETE at commits `88dcd9c` + `fe9be0b`: native form-first auth, format-only fallback, safe error diagnostics, authenticated HTML-shell support, and protected mailbox JSON proof. Local full validation passes; no real password was used. Production delivery is BLOCKED by unavailable SSH/DNS and is not claimed LIVE.
+- Robust SOGo login/session validation is locally COMPLETE at commits `88dcd9c` + `fe9be0b`: native form-first auth, format-only fallback, safe error diagnostics, authenticated HTML-shell support, and protected mailbox JSON proof. Local full validation passes; no real password was used. Production delivery is BLOCKED by upstream network/firewall/VPN reachability and is not claimed LIVE.

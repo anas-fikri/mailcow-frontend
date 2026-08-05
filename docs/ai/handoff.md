@@ -80,7 +80,7 @@ Audited the full codebase (frontend, `server.js`, `deploy.sh`, nginx config) and
 - **server.js:** `crypto.timingSafeEqual` for API key; rate limits now keyed by real client IP (`X-Real-IP`, trusted only from loopback/docker-bridge peers).
 - **api.js:** mutation calls now throw on HTTP errors; removed full-mailbox debug log; added `.catch` to fire-and-forget `markRead`/`markFlagged` call sites.
 - **Nginx hardening:** CSP + nosniff + X-Frame-Options + Referrer-Policy in `configs/site.webmail.custom` and `deploy.sh setup_nginx`.
-- **CRITICAL credential leak:** `sogo_test.py` on remote main contained a live plaintext password (`anas.fikri@pcpexpress.co.id`). Deleted from the tree (b7f7fa0) and from the local worktree. **Password rotation + git history scrub recommended.**
+- **CRITICAL credential leak:** `sogo_test.py` on remote main contained a live plaintext mailbox credential. Deleted from the tree (b7f7fa0) and from the local worktree. **Password rotation + git history scrub recommended.**
 
 ### Validation
 - `npm run build` ✅ | `npm run test:safe-url` ✅ | `node --check server.js` ✅ | `bash -n deploy.sh` ✅ | `git diff --check` ✅ | `npm audit` 0 ✅ | dev smoke test ✅
@@ -165,4 +165,11 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - `./deploy.sh` failed closed because SSH alias `mailserver` did not resolve. A retry through the previously verified direct route `anas.fikri@202.148.2.139:22` timed out. No production mutation occurred; do not claim this login fix is live until deploy succeeds.
 - Production account authentication remains intentionally unautomated; browser-level confirmation requires a user session. Chrome is unavailable in this workspace.
 - Valid-account verification follow-up: public webmail timed out; `mailserver` alias did not resolve; direct SSH `202.148.2.139:22` timed out. No credential was sent or logged, and production login is not claimed verified.
+- Deploy retry diagnosis: public DNS resolves the production hostname, but ports 22/2002/2222/80/443/3005 and the historical SSH route `202.148.2.141:2002` all timed out. `macanas` is only the local laptop alias (`127.0.0.1:2222`), not a production bastion. No DNS, route, SSH config, service, or production file was changed. Restore upstream firewall/VPN/network access before rerunning `SERVER=... ./deploy.sh`.
+
+## 2026-08-05 — AI Toolkit status reconciliation before redeploy
+
+- Historical Round 3 and mailbox/row deployment entries remain valid for their earlier commits, but are explicitly historical and do not prove that later login commits are live.
+- Current authoritative state: `main` is clean and synced with `origin/main`; robust login implementation/test commits `88dcd9c` and `fe9be0b` are pushed; latest documentation status is tracked by the current commit.
+- `deploy.sh` remains the only delivery path because its authenticated port-3005 preflight fails closed. After upstream access is restored: run `SERVER=mailserver ./deploy.sh`, verify service/webmail/security-header metadata, then perform browser login without sharing credentials.
 - Deploy retry diagnosis: public DNS resolves `mail.pcpexpress.co.id` to `202.148.2.139`, but ports 22/2002/2222/80/443/3005 and historical `202.148.2.141:2002` all timed out. `macanas` connects only to the local laptop at `127.0.0.1:2222`; it is not a production bastion. No DNS/route/SSH config or production mutation was performed. Restore upstream firewall/VPN access before rerunning `SERVER=... ./deploy.sh`.
