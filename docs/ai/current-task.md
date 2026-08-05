@@ -129,5 +129,7 @@ Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, an
 - Node/shell syntax and `git diff --check` ✅
 
 ### Delivery status
-- Local implementation is validated and ready for commit/push/deploy.
-- Production account authentication is intentionally not automated; deployment verification will use dummy credentials and metadata-only route/session probes.
+- Commits `88dcd9c` (implementation) and `fe9be0b` (force-tracked regression tests) are pushed to `origin/main`.
+- Local implementation is fully validated and production-ready.
+- Deploy is BLOCKED/NOT LIVE from this workspace: `./deploy.sh` failed closed because `mailserver` DNS did not resolve, and the previously verified direct route `anas.fikri@202.148.2.139:22` timed out. No production service, Nginx config, or remote webmail files were changed.
+- Production account authentication is intentionally not automated; after SSH access is restored, deploy should use `SERVER=... ./deploy.sh`, then verify webmail/API metadata. No real password was used.
