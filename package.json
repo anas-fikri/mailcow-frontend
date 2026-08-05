@@ -15,7 +15,8 @@
     "test:message-totals": "node scripts/test-message-totals.mjs",
     "test:message-rows": "node scripts/test-message-rows.mjs",
     "test:message-requests": "node scripts/test-message-requests.mjs",
-    "test:message-api": "node scripts/test-message-api.mjs"
+    "test:message-api": "node scripts/test-message-api.mjs",
+    "test:nginx-routes": "node scripts/test-nginx-routes.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

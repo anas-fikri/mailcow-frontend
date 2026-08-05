@@ -168,7 +168,32 @@ location /webmail {
     }
 }
 
-location ~ ^/api/(send|health|preferences|auth/smtp)$ {
+# Exact locations must win over Control Tower's broader /api regex routes.
+location = /api/health {
+    proxy_pass http://172.25.1.1:${SOGO_API_PORT};
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_read_timeout 120s;
+}
+location = /api/auth/smtp {
+    proxy_pass http://172.25.1.1:${SOGO_API_PORT};
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_read_timeout 120s;
+}
+location = /api/preferences {
+    proxy_pass http://172.25.1.1:${SOGO_API_PORT};
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_read_timeout 120s;
+}
+location = /api/send {
     proxy_pass http://172.25.1.1:${SOGO_API_PORT};
     proxy_set_header Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;
