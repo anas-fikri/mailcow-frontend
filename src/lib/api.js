@@ -253,12 +253,12 @@ export async function login(email, password) {
     // logoff sering 500 tapi cookie tetap ter-clear sebagian
   }
 
-  // Native SOGo login uses form encoding. Do not retry a rejected credential:
-  // retry JSON only when the server explicitly rejects the request format.
-  let res = await connectSogo(email, password, 'form');
+  // SOGo 5.12.3 expects JSON for /SOGo/connect. Older versions used form encoding.
+  // Try JSON first; fall back to form-encoded if server explicitly rejects the format.
+  let res = await connectSogo(email, password, 'json');
   let response = await readLoginResponse(res);
   if (!isLoginSuccessResponse(res, response) && isUnsupportedLoginFormat(res.status, response.data)) {
-    res = await connectSogo(email, password, 'json');
+    res = await connectSogo(email, password, 'form');
     response = await readLoginResponse(res);
   }
 
