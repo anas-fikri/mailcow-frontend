@@ -2,10 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users, Search, Plus, Trash2, Mail, Phone, Building2,
-  Loader2, X, Globe, User,
+  Loader2, X, Globe, User, AlertCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchContacts, createContact, deleteContact } from '../lib/api';
+import { toast } from '../lib/toast';
 import { ContactsListSkeleton } from '../components/Skeleton';
 import { AVATAR_COLORS } from '../lib/constants';
 
@@ -143,7 +144,7 @@ export default function ContactsPage() {
   const [modalError, setModalError] = useState('');
   const [selected, setSelected]   = useState(null);
 
-  const { data: contacts = [], isLoading } = useQuery({
+  const { data: contacts = [], isLoading, error: contactsError } = useQuery({
     queryKey: ['contacts', user?.sogoToken],
     queryFn: () => fetchContacts(user?.sogoToken),
     enabled: !!user?.sogoToken,
@@ -166,6 +167,7 @@ export default function ContactsPage() {
       queryClient.invalidateQueries({ queryKey: ['contacts', user?.sogoToken] });
       setSelected(null);
     },
+    onError: (err) => toast.error(err.message || 'Gagal menghapus kontak.'),
   });
 
   function handleDelete(id, name) {
@@ -243,6 +245,11 @@ export default function ContactsPage() {
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
             <ContactsListSkeleton count={8} />
+          ) : contactsError ? (
+            <div className="flex flex-col items-center justify-center h-40 gap-3 text-destructive text-sm">
+              <AlertCircle size={24} />
+              <span>{contactsError?.message || 'Gagal memuat kontak.'}</span>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
               <Users size={40} className="opacity-20" />

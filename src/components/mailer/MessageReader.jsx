@@ -187,7 +187,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       markRead(user?.sogoToken, folder, msgId, true).then(() => {
         queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, folder] });
         queryClient.invalidateQueries({ queryKey: ['unseen', user?.sogoToken] });
-      }).catch(() => {});
+      }).catch((e) => console.error('[markRead]', e?.message || e));
       return data;
     },
     enabled: !!msgId && !!user?.sogoToken,
@@ -351,7 +351,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             onClick={() => markRead(user.sogoToken, folder, msgId, false).then(() => {
               queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, folder] });
               queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-            }).catch(() => {})}
+            }).catch((e) => console.error('[markRead]', e?.message || e))}
             className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
             title="Tandai belum dibaca (U)"
           >

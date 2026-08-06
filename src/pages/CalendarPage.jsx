@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, MapPin, Clock,
-  Plus, Pencil, Trash2, List,
+  Plus, Pencil, Trash2, List, AlertCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../lib/api';
@@ -150,7 +150,7 @@ export default function CalendarPage() {
   }, [view, current]);
 
   // ── Fetch events ───────────────────────────────────────────────────────────
-  const { data: events = [], isLoading, isFetching } = useQuery({
+  const { data: events = [], isLoading, isFetching, error: calError } = useQuery({
     queryKey: ['calendar', user?.sogoToken, dateRangeStart, dateRangeEnd],
     queryFn: () => fetchCalendarEvents(user?.sogoToken, 'personal', dateRangeStart, dateRangeEnd),
     enabled: !!user?.sogoToken,
@@ -281,7 +281,7 @@ export default function CalendarPage() {
           </div>
           <ViewSwitcher view={view} onChange={setView} />
           <div className="flex items-center gap-2">
-            <button onClick={goBack} className="p-2 rounded-full hover:bg-muted text-muted-foreground">
+            <button onClick={goBack} className="p-2 rounded-full hover:bg-muted text-muted-foreground" aria-label="Bulan sebelumnya">
               <ChevronLeft size={18} />
             </button>
             <button
@@ -290,7 +290,7 @@ export default function CalendarPage() {
             >
               Hari Ini
             </button>
-            <button onClick={goForward} className="p-2 rounded-full hover:bg-muted text-muted-foreground">
+            <button onClick={goForward} className="p-2 rounded-full hover:bg-muted text-muted-foreground" aria-label="Bulan berikutnya">
               <ChevronRight size={18} />
             </button>
             <span className="text-sm font-semibold text-foreground min-w-[120px] text-center hidden sm:block">
@@ -310,6 +310,15 @@ export default function CalendarPage() {
         {isFetching && (
           <div className="absolute inset-0 bg-background/40 flex items-start justify-center pt-20 z-20 pointer-events-none">
             <Loader2 size={24} className="animate-spin text-primary" />
+          </div>
+        )}
+
+        {/* Error state */}
+        {calError && !isLoading && (
+          <div className="flex items-center justify-center gap-2 p-4 mx-4 mt-2 bg-destructive/10 text-destructive rounded-lg text-sm">
+            <AlertCircle size={16} />
+            <span>{calError?.message || 'Gagal memuat kalender.'}</span>
+            <button onClick={() => queryClient.invalidateQueries({ queryKey: ['calendar'] })} className="ml-2 underline text-xs hover:no-underline">Coba lagi</button>
           </div>
         )}
 
