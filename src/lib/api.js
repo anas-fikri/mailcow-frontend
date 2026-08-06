@@ -330,32 +330,36 @@ export async function fetchFolders(sogoToken) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/view`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: sogoHeaders(),
-        signal: controller.signal,
-    });
-      clearTimeout(timeoutId);
-      debugLog('[DEBUG] fetchFolders res received, status:', res.status, 'ct:', res.headers.get('content-type'), 'attempt:', attempt);
+      try {
+        const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/view`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: sogoHeaders(),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        debugLog('[DEBUG] fetchFolders res received, status:', res.status, 'ct:', res.headers.get('content-type'), 'attempt:', attempt);
 
-      // 403 segera setelah login = session belum ready → warm-up ulang + retry
-      if (res.status === 403 && attempt < maxAttempts) {
-        debugWarn('[DEBUG] fetchFolders 403 — warm-up + retry');
-        await warmUpSogoSession(sogoToken);
-        await sleep(200 * attempt);
-        continue;
+        // 403 segera setelah login = session belum ready → warm-up ulang + retry
+        if (res.status === 403 && attempt < maxAttempts) {
+          debugWarn('[DEBUG] fetchFolders 403 — warm-up + retry');
+          await warmUpSogoSession(sogoToken);
+          await sleep(200 * attempt);
+          continue;
+        }
+
+        if (!res.ok) throwApiError('Gagal memuat folder.', res.status);
+        debugLog('[DEBUG] fetchFolders reading safeJson...');
+        const data = await safeJson(res);
+        debugLog('[DEBUG] fetchFolders data parsed successfully');
+
+        if (!data || !data.mailboxes) {
+          throwApiError('Respons server tidak lengkap (Folder tidak ditemukan).', res.status);
+        }
+        return flattenMailboxes(data.mailboxes);
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      if (!res.ok) throwApiError('Gagal memuat folder.', res.status);
-      debugLog('[DEBUG] fetchFolders reading safeJson...');
-      const data = await safeJson(res);
-      debugLog('[DEBUG] fetchFolders data parsed successfully');
-
-      if (!data || !data.mailboxes) {
-        throwApiError('Respons server tidak lengkap (Folder tidak ditemukan).', res.status);
-      }
-      return flattenMailboxes(data.mailboxes);
     }
     throwApiError('Gagal memuat folder.', 403);
   } catch (err) {
@@ -389,19 +393,16 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
-    // Some SOGo installations return only `uids` unless columns are explicit.
-    const body = buildMessageViewBody(params);
-    const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/view`, {
-    method: 'POST',
-      credentials: 'include',
-      headers: sogoHeaders({
-        'Content-Type': 'application/json'
-      }),
-    body: JSON.stringify(body),
-      signal: controller.signal,
-  });
-    clearTimeout(timeoutId);
-    debugLog('[DEBUG] fetchMessages res status:', res.status);
+    try {
+      const body = buildMessageViewBody(params);
+      const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/view`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      debugLog('[DEBUG] fetchMessages res status:', res.status);
 
     // 204 No Content = folder kosong (valid, bukan error)
     if (res.status === 204) return { messages: [], unseenCount: 0, total: 0 };
@@ -428,6 +429,9 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
       unseenCount: data.unseenCount || 0,
       total: getMessageTotal(data, messages.length),
     };
+    } finally {
+      clearTimeout(timeoutId);
+    }
   } catch (err) {
     console.error('[API] fetchMessages ERROR:', err?.message || err);
     throw err;

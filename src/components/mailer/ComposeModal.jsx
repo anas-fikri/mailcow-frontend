@@ -139,7 +139,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       }, smtpToken);
       setSuccess(true);
       // Refresh Sent folder setelah sukses kirim
-      queryClient.invalidateQueries({ queryKey: ['messages', token, 'folderSent'] });
+      if (token) {
+        queryClient.invalidateQueries({ queryKey: ['messages', token, 'folderSent'] });
+      }
       setTimeout(() => onClose(), 1500);
     } catch (err) {
       setError(err.message || 'Gagal mengirim pesan.');

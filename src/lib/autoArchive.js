@@ -182,14 +182,18 @@ export async function executeRules(email, sogoToken, sourceFolder, messages, mov
   const rules = getRules(email);
   const actions = [];
 
+  // Pre-compute per-message matched rule IDs to avoid redundant matchRules() calls
+  const msgMatches = new Map();
+  for (const msg of messages) {
+    msgMatches.set(msg.uid, matchRules(email, msg));
+  }
+
   for (const rule of rules) {
     if (!rule.enabled || !rule.conditions.length) continue;
 
-    // Cari semua message yang match rule ini
     const matchedUids = [];
     for (const msg of messages) {
-      const matchedIds = matchRules(email, msg);
-      if (matchedIds.includes(rule.id)) {
+      if (msgMatches.get(msg.uid)?.includes(rule.id)) {
         matchedUids.push(msg.uid);
       }
     }

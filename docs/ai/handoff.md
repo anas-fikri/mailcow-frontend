@@ -236,3 +236,16 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 ### Build
 - `npm run build` ✅ (240ms, 2002 modules)
 - `bash -n deploy.sh` ✅
+
+## 2026-08-06 — Deep dive bug hunt (runtime)
+
+### Bugs found and fixed (5)
+1. **MEDIUM — api.js fetchFolders/fetchMessages:** `setTimeout` cleanup on error path (timer leak). Fixed: try/finally pattern.
+2. **MEDIUM — ComposeModal.jsx:** `queryClient.invalidateQueries` with possibly undefined `token`. Fixed: null guard.
+3. **LOW — MailPage.jsx:** Flag mutation triggered with undefined flag value (keyboard shortcut 's'). Fixed: check message exists first.
+4. **LOW — autoArchive.js:** `matchRules()` called O(rules × messages) instead of O(messages). Fixed: pre-compute per-message matches.
+5. **INFO — index.css:** `var(--theme-hue)` duplication in `:root` and `.dark` — verified safe.
+
+### Build
+- `npm run build` ✅ (242ms, 2002 modules)
+- No regressions — all fixes are additive (null guards, finally blocks, optimization)

@@ -467,9 +467,8 @@ export default function MailPage() {
 
       if (key === 's') {
         e.preventDefault();
-        bulkFlagMutation.mutate(
-          !messages.find((m) => targetUids.includes(m.uid))?.isFlagged
-        );
+        const found = messages.find((m) => targetUids.includes(m.uid));
+        if (found) bulkFlagMutation.mutate(!found.isFlagged);
         return;
       }
 
