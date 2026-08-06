@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "last_session": "2026-08-06T06:00:00+07:00",
+  "context": "PCP Express Webmail — SOGo React Frontend (Mailcow) + Migration Portal — Security Audit Complete & Deployed",
+  "modules": {
+    "mail-page": {
+      "status": "done",
+      "feature": "Sort by date, conversation view, mark as SPAM — persisted to authStore (survives logout)"
+    },
+    "preferences-page": {
+      "status": "done",
+      "feature": "Theme color picker (8 presets) via var(--theme-hue) + SOGo mail prefs (compose mode, reply placement, confirm delete)"
+    },
+    "stats-page": {
+      "status": "done",
+      "feature": "Flat lucide-react icons replacing emoji"
+    },
+    "migration-portal": {
+      "status": "active",
+      "feature": "IMAP migration dashboard at /migrate/admin/ — auth via Mailcow admin table (bcryptjs), auto-create mailbox, imapsync with --automap"
+    },
+    "security-credentials": {
+      "status": "done",
+      "feature": "Removed hardcoded credentials from sync_sogo_passwords.sh, server.js, deploy.sh, vite.config.js"
+    },
+    "sync-script": {
+      "status": "done",
+      "feature": "sync_sogo_passwords.sh reads DBPASS from mailcow.conf; cron job installed every 5 min"
+    },
+    "auth-store": {
+      "status": "done",
+      "feature": "sortAsc + conversationView + themeColor persisted per-account via userPrefs.savePrefs()"
+    },
+    "security-audit": {
+      "status": "done",
+      "feature": "4 vulnerabilities found and fixed: deploy.sh token leak, ErrorBoundary exposure, api.js debug logs, Vacation.enabled PII"
+    }
+  },
+  "bugs_found": [
+    {
+      "file": "deploy.sh",
+      "issue": "GitLab token visible in ps aux via git push URL",
+      "status": "fixed",
+      "fix": "GIT_TOKEN env var + git credential.helper"
+    },
+    {
+      "file": "src/components/ErrorBoundary.jsx",
+      "issue": "error.message + componentStack exposed in production UI",
+      "status": "fixed",
+      "fix": "import.meta.env.DEV guard on technical details"
+    },
+    {
+      "file": "src/lib/api.js",
+      "issue": "15+ [DEBUG]/[Login] console.log and Vacation.enabled PII in production",
+      "status": "fixed",
+      "fix": "debugLog/debugWarn wrappers (DEV-only); Vacation.enabled → debugLog"
+    },
+    {
+      "file": "nginx site.sogo.custom",
+      "issue": "SOGo /connect fails with 403 when netfilter auto-bans user IP after 5 failed login attempts",
+      "status": "fixed",
+      "fix": "Unbanned IP from MAILCOW iptables chain + restarted netfilter container"
+    },
+    {
+      "file": "migration-portal/src/lib/mailcow.js",
+      "issue": "Domain fallback was pcpexpress.co.id instead of pcpexpress.com",
+      "status": "fixed"
+    },
+    {
+      "file": "migration-portal/src/lib/jobStore.js",
+      "issue": "Race condition: periodic update overwrites 'done' status with 'running'",
+      "status": "fixed",
+      "fix": "upsertJob() skips status downgrade (done/failed → running)"
+    },
+    {
+      "file": "migration-portal/src/routes/auth.js",
+      "issue": "Auth via Mailcow API failed — /api/v1/get requires X-API-Key; MySQL fallback had quoting bug",
+      "status": "fixed",
+      "fix": "Replaced with bcryptjs-based verification against admin table"
+    }
+  ],
+  "progress": [
+    {
+      "what": "Theme color picker in PreferencesPage (8 presets via CSS --theme-hue)",
+      "status": "done"
+    },
+    {
+      "what": "Inbox sortAsc + conversationView persisted to authStore (survives logout)",
+      "status": "done"
+    },
+    {
+      "what": "SOGo mail preferences: compose mode, reply placement, confirm delete",
+      "status": "done"
+    },
+    {
+      "what": "Pull + merge remote (43 files) — resolve deploy.sh/tunnel + handoff.md conflicts",
+      "status": "done"
+    },
+    {
+      "what": "Unblock user IP from netfilter/iptables after auto-ban (5x failed login)",
+      "status": "done"
+    },
+    {
+      "what": "Reset admin password → AdminMail2026! + sync across Mailcow admin & migration portal",
+      "status": "done"
+    },
+    {
+      "what": "Migration portal auth: bcryptjs verify against admin table (same credential as Mailcow)",
+      "status": "done"
+    },
+    {
+      "what": "Migration portal: auto-create mailbox + sync password + trigger sync_sogo_passwords",
+      "status": "done"
+    },
+    {
+      "what": "Migration portal: fix domain mapping (pcpexpress.com → pcpexpress.com) + quota=0 (unlimited)",
+      "status": "done"
+    },
+    {
+      "what": "Migration portal: fix jobStore race condition + progress/throttle improvements",
+      "status": "done"
+    },
+    {
+      "what": "Security audit: 4 vulnerabilities found, fixed, deployed (b8cde7d)",
+      "status": "done"
+    },
+    {
+      "what": "ErrorBoundary hardening (hide tech details in production)",
+      "status": "done"
+    },
+    {
+      "what": "api.js debug logs guarded behind DEV mode",
+      "status": "done"
+    },
+    {
+      "what": "deploy.sh GitLab token leak fixed (env var instead of URL)",
+      "status": "done"
+    }
+  ],
+  "active_task": {
+    "id": "sogo-security-audit-2026-08-06",
+    "status": "COMPLETE",
+    "objective": "Security audit: find and fix vulnerabilities, commit, push, deploy",
+    "next_step": "None — all tasks complete",
+    "goal_id": "G1",
+    "sub_goal_id": "SG1.4",
+    "updated_at": "2026-08-06T06:00:00+07:00"
+  }
+}

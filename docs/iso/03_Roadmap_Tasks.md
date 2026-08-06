@@ -69,7 +69,24 @@
 - [x] **Task 5.3:** Auto-Reply/Vacation (toggle + tanggal + pesan).
 - [ ] **Task 5.4:** Final QA, Mobile Testing, bundle optimization.
 
-## Deployment status — 2026-08-04
-- [x] Round 3 production deploy: proxy port corrected to 3005, service activated, frontend/Nginx config deployed, security headers verified, webmail and `/api/health` returned HTTP 200.
+## Phase 6: UI Enhancement & Migration Portal (2026-08-05/06) — ✅ DONE
+- [x] **Task 6.1:** Theme color picker (8 presets via CSS `var(--theme-hue)`)
+- [x] **Task 6.2:** Inbox sort + conversation view persisted per-account (survives logout)
+- [x] **Task 6.3:** SOGo mail preferences: compose mode, reply placement, confirm delete
+- [x] **Task 6.4:** StatsPage icon consistency (flat lucide-react)
+- [x] **Task 6.5:** Migration Portal auth: bcryptjs verify against Mailcow admin table
+- [x] **Task 6.6:** Migration Portal: auto-create mailbox + sync password + imapsync
+
+## Phase 7: Security Audit & Hardening (2026-08-06) — ✅ DONE
+- [x] **Task 7.1:** Fix deploy.sh GitLab token leak (ps aux) → GIT_TOKEN env var
+- [x] **Task 7.2:** Fix ErrorBoundary error details exposed in production → DEV guard
+- [x] **Task 7.3:** Fix api.js 15+ debug/Login/PII logs in production → debugLog wrapper
+- [x] **Task 7.4:** Verify server.js, safeUrl.js, pathSegment.js, nginx CSP, XSRF → all safe
+- [x] **Task 7.5:** Deploy at b8cde7d (webmail HTTP 200 verified)
+
+## Deployment status — 2026-08-06
+- [x] Security audit deploy: b8cde7d → webmail HTTP 200 verified.
+- [x] Theme color + inbox prefs deploy: 565c8fe → webmail HTTP 200 verified.
+- [x] Round 3 production deploy: proxy port corrected to 3005, service activated, frontend/Nginx config deployed, security headers verified.
 - [ ] Local rebuild evidence: install dependencies (`npm install`) and rerun `npm run build` in any workspace without `node_modules`.
 - [ ] Rotate the previously exposed webmail password and optionally scrub Git history.

@@ -1,13 +1,23 @@
 # Current Task
 
-Status: ACTIVE — migration portal auth fixed, admin password reset, IP unblocked, theme color + inbox prefs deployed
-Task ID: sogo-frontend-audit-2026-08-04
-Started At: 2026-08-04
-Updated At: 2026-08-05T22:00:00+07:00
+Status: COMPLETE — security audit finished, 4 vulnerabilities fixed, deployed at b8cde7d
+Task ID: sogo-security-audit-2026-08-06
+Started At: 2026-08-06
+Updated At: 2026-08-06T06:00:00+07:00
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
 ## Objective
-Find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, and update ai-toolkit documentation.
+Security audit: find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, and update ai-toolkit documentation. **COMPLETE.**
+
+## Audit Results (2026-08-06)
+4 vulnerabilities found, all fixed and deployed:
+
+| # | File | Issue | Severity | Fix |
+|---|------|-------|----------|-----|
+| 1 | deploy.sh | GitLab token in `ps aux` | HIGH | GIT_TOKEN env var + credential.helper |
+| 2 | ErrorBoundary.jsx | error.message + stack in production UI | MEDIUM | import.meta.env.DEV guard |
+| 3 | api.js | 15+ debug/Login logs in production | LOW | debugLog/debugWarn (DEV-only) |
+| 4 | api.js | Vacation.enabled PII in console | LOW | Moved to debugLog |
 
 ## Completed
 - **XSS fixes (MessageReader.jsx):** print window escapes from/to/cc/date; reply/forward quote now uses DOMPurify-sanitized body (`cleanHtml`) AND escapes all email header values (stored-XSS via sender display name eliminated).

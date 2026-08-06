@@ -34,6 +34,18 @@ Success criteria:
 - Login routing remediation COMPLETE and LIVE at `e1fb7a6`: exact Nginx webmail API locations now route auth/session endpoints to proxy 3005, avoiding Control Tower regex overlap; valid-key health/SMTP probes return 200 and missing/bad-key probes return 403.
 - Robust SOGo login/session validation is locally COMPLETE at commits `88dcd9c` + `fe9be0b`: native form-first auth, format-only fallback, safe error diagnostics, authenticated HTML-shell support, and protected mailbox JSON proof. Local full validation passes; no real password was used. Production delivery is BLOCKED by upstream network/firewall/VPN reachability and is not claimed LIVE.
 
+### Sub-goal G-001.S-003 — Theme color & inbox preference persistence (2026-08-05)
+- Status: COMPLETE
+- 8-color theme picker via CSS `var(--theme-hue)` ✅ | sortAsc + conversationView persisted per-account ✅
+- SOGo mail preferences (compose mode, reply placement, confirm delete) ✅
+- Deployed at `565c8fe` ✅
+
+### Sub-goal G-001.S-004 — Security audit & production hardening (2026-08-06)
+- Status: COMPLETE
+- 4 vulnerabilities found and fixed: deploy.sh token leak (HIGH), ErrorBoundary exposure (MEDIUM), api.js debug logs (LOW), Vacation.enabled PII (LOW) ✅
+- Verified safe: server.js, safeUrl.js, pathSegment.js, nginx CSP, XSRF pattern, DOMPurify ✅
+- Deployed at `b8cde7d` ✅ | ai-toolkit docs updated ✅
+
 ## Goal G-002 — Migration Portal (Eranya → Mailcow)
 
 Status: ACTIVE
