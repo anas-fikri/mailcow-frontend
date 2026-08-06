@@ -34,9 +34,37 @@
     "security-audit": {
       "status": "done",
       "feature": "4 vulnerabilities found and fixed: deploy.sh token leak, ErrorBoundary exposure, api.js debug logs, Vacation.enabled PII"
+    },
+    "runtime-bug-hunt": {
+      "status": "done",
+      "feature": "4 runtime bugs fixed: api.js timeout leaks, ComposeModal undefined token, MailPage flag guard, autoArchive optimization"
     }
   },
   "bugs_found": [
+    {
+      "file": "src/lib/api.js",
+      "issue": "setTimeout leak in fetchFolders/fetchMessages on error path",
+      "status": "fixed",
+      "fix": "try/finally pattern in retry loop and fetch wrapper"
+    },
+    {
+      "file": "src/components/mailer/ComposeModal.jsx",
+      "issue": "queryClient.invalidateQueries called with possibly undefined token",
+      "status": "fixed",
+      "fix": "null guard before invalidateQueries"
+    },
+    {
+      "file": "src/pages/MailPage.jsx",
+      "issue": "Flag mutation triggered with undefined flag value via keyboard shortcut",
+      "status": "fixed",
+      "fix": "check message exists before mutating flag"
+    },
+    {
+      "file": "src/lib/autoArchive.js",
+      "issue": "matchRules() called O(rules × messages) redundantly",
+      "status": "fixed",
+      "fix": "pre-compute per-message matches in Map, iterate once"
+    },
     {
       "file": "deploy.sh",
       "issue": "GitLab token visible in ps aux via git push URL",
@@ -135,15 +163,19 @@
     {
       "what": "deploy.sh GitLab token leak fixed (env var instead of URL)",
       "status": "done"
+    },
+    {
+      "what": "Runtime bug hunt: 4 bugs fixed (timeout leaks, null guards, optimization)",
+      "status": "done"
     }
   ],
   "active_task": {
-    "id": "sogo-security-audit-2026-08-06",
+    "id": "sogo-bug-hunt-2026-08-06",
     "status": "COMPLETE",
-    "objective": "Security audit: find and fix vulnerabilities, commit, push, deploy",
+    "objective": "Deep dive bug hunt: find and fix runtime bugs, deploy",
     "next_step": "None — all tasks complete",
     "goal_id": "G1",
-    "sub_goal_id": "SG1.4",
-    "updated_at": "2026-08-06T06:00:00+07:00"
+    "sub_goal_id": "SG1.5",
+    "updated_at": "2026-08-06T07:00:00+07:00"
   }
 }
