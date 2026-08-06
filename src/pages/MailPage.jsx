@@ -188,7 +188,7 @@ export default function MailPage() {
     queryKey: ['messages', user?.sogoToken, selectedFolder, searchQuery, searchCriteria],
     queryFn: () => searchQuery
       ? searchMessages(user?.sogoToken, selectedFolder, searchQuery, searchCriteria)
-      : fetchMessages(user?.sogoToken, selectedFolder, { limit: 250 }),
+      : fetchMessages(user?.sogoToken, selectedFolder),
     // Tunggu folder benar-benar punya data (bukan array default/kosong) agar tidak nabrak saat pertama load
     enabled: !!user?.sogoToken && !!selectedFolder && folders !== DEFAULT_FOLDERS && !isFetchingFolders,
     staleTime: STALE_TIMES.MESSAGES,
@@ -212,7 +212,6 @@ export default function MailPage() {
 
   // ── Load More (client-side pagination, after messages assignment) ─────────
   const PAGE_SIZE = 50;
-  const SERVER_PAGE_LIMIT = 250;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const visibleMessages = messages.slice(0, visibleCount);
 
