@@ -1,9 +1,9 @@
 # Current Task
 
-Status: ACTIVE — login hardening is pushed; production delivery is blocked by upstream network access
+Status: ACTIVE — migration portal auth fixed, admin password reset, IP unblocked, theme color + inbox prefs deployed
 Task ID: sogo-frontend-audit-2026-08-04
 Started At: 2026-08-04
-Updated At: 2026-08-05
+Updated At: 2026-08-05T22:00:00+07:00
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
 ## Objective

@@ -33,3 +33,23 @@ Success criteria:
 - Follow-up mailbox row remediation is COMPLETE and LIVE at commit `d86ed2c`: explicit SOGo headers, dynamic row parsing, and mocked Inbox/Sent/Junk/Trash API coverage pass; public webmail HTTP 200, latest asset `index-CVQcTv-t.js`, proxy health `active/200`, and 6/6 stability samples verified.
 - Login routing remediation COMPLETE and LIVE at `e1fb7a6`: exact Nginx webmail API locations now route auth/session endpoints to proxy 3005, avoiding Control Tower regex overlap; valid-key health/SMTP probes return 200 and missing/bad-key probes return 403.
 - Robust SOGo login/session validation is locally COMPLETE at commits `88dcd9c` + `fe9be0b`: native form-first auth, format-only fallback, safe error diagnostics, authenticated HTML-shell support, and protected mailbox JSON proof. Local full validation passes; no real password was used. Production delivery is BLOCKED by upstream network/firewall/VPN reachability and is not claimed LIVE.
+
+## Goal G-002 — Migration Portal (Eranya → Mailcow)
+
+Status: ACTIVE
+Owner: dev team (anas.fikri)
+Success criteria:
+  - Migration portal authenticates admins using the same credentials as Mailcow admin panel (bcryptjs against `admin` table).
+  - Auto-creates Mailcow mailbox if not exists (quota=0 unlimited), syncs password, triggers `sync_sogo_passwords.sh`.
+  - imapsync runs from Eranya (`pcpexpress.com`) to Mailcow (`pcpexpress.com`) with `--automap` for folder name matching.
+  - Progress streamed real-time via SSE; status persisted in `jobs.json` with race-condition guard.
+
+### Sub-goal G-002.S-001 — Auth & auto-provisioning (2026-08-05)
+- Status: COMPLETE
+- Admin login via bcryptjs ✅ | Auto-create mailbox + password sync ✅ | Domain mapping fixed ✅ | Quota=0 ✅
+- E2E test: login, token generation, job status, SSE progress — all pass.
+
+### Sub-goal G-002.S-002 — Production sync validation
+- Status: PENDING
+- End-user sync flow needs browser testing with real Eranya credentials.
+- Verify Sent/Trash/Draft folders are correctly mapped by `--automap`.

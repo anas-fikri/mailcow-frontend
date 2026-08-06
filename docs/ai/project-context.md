@@ -3,15 +3,21 @@
 Project: sogo-frontend
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 Initialized At: 2026-08-01T07:08:00Z
-Updated At: 2026-08-05T00:00:00+07:00
+Updated At: 2026-08-05T22:30:00+07:00
 
 ## Summary
 
 Modern webmail SPA ("PCP Express Webmail") that replaces the default SOGo UI for
 the PCP Express Mailcow server. Live at `https://mail.pcpexpress.co.id/webmail/`.
-Modules: Mail (inbox, threads, compose, auto-archive rules, flag colors), Calendar,
-Contacts (personal + GAL), Preferences (password, identity, signature, sieve),
-Stats, and client-side Rules.
+Modules: Mail (inbox, threads, compose, auto-archive rules, flag colors, sort,
+conversation view), Calendar, Contacts (personal + GAL), Preferences (password,
+identity, signature, sieve, **theme color picker**, mail prefs), Stats, and
+client-side Rules.
+
+**Sibling project:** Migration Portal at `https://mail.pcpexpress.co.id/migrate/admin/`
+— IMAP sync dashboard running on `192.168.10.200:3007` (proxied via nginx). Auth
+via bcryptjs against Mailcow `admin` table. Auto-creates mailboxes on Mailcow with
+same password, triggers `sync_sogo_passwords.sh`.
 
 ## Stack
 
@@ -33,5 +39,5 @@ Stats, and client-side Rules.
 
 - All SOGo API calls live in `src/lib/api.js` (single file); SOGo endpoints are same-origin (`/SOGo/...`) in production, proxied by Vite in dev.
 - Zustand stores in `src/store/`; only non-secret prefs are persisted (never SMTP tokens).
-- Indonesian UI strings and comments are the norm.
+- Theme: dark/light toggle + **8 accent color presets** via CSS `var(--theme-hue)`. Persisted per-account.
 - Deployment rules are enforced by `deploy.sh` preflight (fails closed if SOGo proxy unhealthy). Current login hardening is pushed but not live until the preflight can reach the Mailcow host; do not bypass the guardrail.

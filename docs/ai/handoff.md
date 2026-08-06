@@ -188,3 +188,51 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - iptables mail server: DROP 115.178.128.130/.131 dihapus + ACCEPT /27
 - AdGuardHome DNS: mail.pcpexpress.co.id → 10.10.10.5
 - deploy.sh: `ensure_ssh()` fallback mail-tunnel + `verify()` --resolve 127.0.0.1
+
+## 2026-08-05 — Production rescue: 403, netfilter, admin password, migration portal auth
+
+### Issues Resolved
+- **User IP auto-banned**: netfilter blocked `103.18.34.213` after 5 failed login attempts (3 SOGo + 2 admin UI). Removed from MAILCOW iptables chain + restarted netfilter container.
+- **Admin password reset**: `admin` → `AdminMail2026!` synced across Mailcow admin panel AND migration portal.
+- **Migration portal auth**: Replaced broken Mailcow API/MySQL approach with bcryptjs verification against `admin` table. All superadmins can now login with their Mailcow credentials.
+- **Domain mapping fix**: migration portal now maps `pcpexpress.com` → `pcpexpress.com` (was `.co.id` fallback).
+- **Migration portal fixes**: auto-create mailbox on Mailcow (quota=0 unlimited), sync password, trigger `sync_sogo_passwords.sh`, jobStore race condition fix, progress throttle improvements.
+
+### Frontend Changes (commit 565c8fe)
+- `PreferencesPage.jsx`: theme color picker (8 presets via CSS `--theme-hue`), SOGo mail prefs (compose mode, reply placement, confirm delete)
+- `MailPage.jsx`: sortAsc + conversationView persisted to authStore
+- `StatsPage.jsx`: flat lucide-react icons
+- `index.css`: dynamic `--primary` / `--ring` via `var(--theme-hue)`
+- `authStore.js`: themeColor + sortAsc + conversationView with per-account persist
+
+### Files Modified (migration portal)
+- `/home/anas.fikri/migration-portal/src/routes/auth.js` — bcryptjs login
+- `/home/anas.fikri/migration-portal/src/lib/jobStore.js` — race condition fix + resetJob
+- `/home/anas.fikri/migration-portal/src/lib/jobRunner.js` — progress throttle + --automap + domain fix
+- `/home/anas.fikri/migration-portal/src/lib/mailcow.js` — auto-create + quota=0 + domain fix + sync_sogo trigger
+
+### Remaining
+- Deploy latest sogo-frontend code (master has login hardening from remote)
+- Production browser test of migration portal sync flow
+- Verify imapsync completes for real account
+
+## 2026-08-06 — Security audit & hardening
+
+### Audit findings (4 fixed)
+1. **HIGH — deploy.sh GitLab token leak:** Token was embedded in `git push` URL → appears in `ps aux`. Fixed: use `GIT_TOKEN` env var + `credential.helper`.
+2. **MEDIUM — ErrorBoundary.jsx:** `error.message` + `componentStack` exposed in production. Fixed: `import.meta.env.DEV` guard.
+3. **LOW — api.js debug logs:** 15+ `[DEBUG]`/`[Login]` console statements active in production. Fixed: `debugLog()`/`debugWarn()` wrappers.
+4. **LOW — api.js PII leak:** `Vacation.enabled` value logged to console. Fixed: changed to dev-only.
+
+### Verified safe (no changes needed)
+- server.js: timing-safe API key, Zod validation, rate limiting, session expiry
+- safeUrl.js: proper URL validation, blocks protocol-relative URLs
+- pathSegment.js: traversal prevention, encoded-slash support
+- nginx: CSP + X-Frame-Options + nosniff headers
+- XSRF: double-submit cookie pattern
+- pasteUtils.js: DOMPurify before innerHTML, 10MB limit mitigates data: URI
+- authStore: per-account localStorage, no secrets
+
+### Build
+- `npm run build` ✅ (240ms, 2002 modules)
+- `bash -n deploy.sh` ✅

@@ -160,15 +160,9 @@ git_commit_push() {
         exit 1
     fi
 
-    # URL encode the password (pakai python3 biar aman semua karakter)
-    local encoded_pass
-    encoded_pass=$(GITLAB_TOKEN="$token" python3 -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["GITLAB_TOKEN"], safe=""))')
-
-    local git_url="https://${GITLAB_USER}:${encoded_pass}@${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git"
-
+    # Gunakan environment variable agar token tidak muncul di ps aux
     cd "$PROJECT_DIR"
 
-    # Cek apakah ada perubahan
     if git diff --quiet && git diff --cached --quiet && test -z "$(git status --porcelain)"; then
         info "Tidak ada perubahan untuk di-commit."
         return
@@ -177,7 +171,9 @@ git_commit_push() {
     git add -A
     git commit -m "$msg"
     info "Push ke GitLab (branch: $BRANCH)..."
-    git push "$git_url" "$BRANCH"
+    export GIT_TOKEN="$token"
+    git -c "credential.helper=!f() { echo 'username=${GITLAB_USER:-git}'; echo \"password=\$GIT_TOKEN\"; }; f" push origin "$BRANCH"
+    unset GIT_TOKEN
     ok "Push selesai: $msg"
 }
 

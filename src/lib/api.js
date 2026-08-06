@@ -6,6 +6,9 @@ import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFor
 
 const SOGO_ENV = import.meta.env || {};
 const SOGO_BASE = SOGO_ENV.DEV ? '' : (SOGO_ENV.VITE_SOGO_BASE_URL || '');
+const isDev = !!SOGO_ENV.DEV;
+const debugLog = (...args) => isDev && console.log(...args);
+const debugWarn = (...args) => isDev && console.warn(...args);
 
 // ─── API Key untuk backend proxy ────────────────────────────────────────────────
 // Digunakan oleh /api/* endpoints. Ambil dari env, fallback kosong = skip header.
@@ -156,11 +159,11 @@ async function warmUpSogoSession(sogoToken) {
       });
       const contentType = res.headers.get('content-type') || '';
       const text = await res.text().catch(() => '');
-      console.log('[Login] warm-up shell →', res.status, contentType || 'unknown');
+      debugLog('[Login] warm-up shell →', res.status, contentType || 'unknown');
       // A login page can be returned as HTTP 200 after an accepted-looking POST.
       if (res.status < 200 || res.status >= 400 || isLoginPageMarkup(text)) return false;
     } catch (err) {
-      console.warn('[Login] warm-up failed:', err?.message || err);
+      debugWarn('[Login] warm-up failed:', err?.message || err);
       return false;
     }
   }
@@ -176,7 +179,7 @@ async function warmUpSogoSession(sogoToken) {
     });
     const contentType = res.headers.get('content-type') || '';
     const text = await res.text().catch(() => '');
-    console.log('[Login] warm-up mailbox →', res.status, contentType || 'unknown');
+    debugLog('[Login] warm-up mailbox →', res.status, contentType || 'unknown');
     if (!res.ok || !contentType.includes('json') || isLoginPageMarkup(text)) return false;
     let data;
     try {
@@ -186,7 +189,7 @@ async function warmUpSogoSession(sogoToken) {
     }
     if (!data || !Array.isArray(data.mailboxes)) return false;
   } catch (err) {
-    console.warn('[Login] mailbox warm-up failed:', err?.message || err);
+    debugWarn('[Login] mailbox warm-up failed:', err?.message || err);
     return false;
   }
 
@@ -269,7 +272,7 @@ export async function login(email, password) {
   const data = response.data;
   const sogoToken = data.username || email;
 
-  console.log('[Login] SOGo authentication response accepted | XSRF present:', !!getXsrfToken());
+  debugLog('[Login] SOGo authentication response accepted | XSRF present:', !!getXsrfToken());
 
   const sessionReady = await warmUpSogoSession(sogoToken);
   if (!sessionReady) {
@@ -280,7 +283,7 @@ export async function login(email, password) {
   markLoginGrace(8000);
   resetSessionExpiredFlag();
 
-  console.log('[Login] session ready | XSRF present:', !!getXsrfToken());
+  debugLog('[Login] session ready | XSRF present:', !!getXsrfToken());
 
   return { sogoToken, cn: data.cn || email, email };
 }
@@ -302,7 +305,7 @@ export async function logout(smtpToken = null) {
 // ─── Mailer ───────────────────────────────────────────────────────────────────
 
 export async function fetchFolders(sogoToken) {
-  console.log('[DEBUG] fetchFolders START');
+  debugLog('[DEBUG] fetchFolders START');
 
 
   function flattenMailboxes(mailboxes) {
@@ -334,20 +337,20 @@ export async function fetchFolders(sogoToken) {
         signal: controller.signal,
     });
       clearTimeout(timeoutId);
-      console.log('[DEBUG] fetchFolders res received, status:', res.status, 'ct:', res.headers.get('content-type'), 'attempt:', attempt);
+      debugLog('[DEBUG] fetchFolders res received, status:', res.status, 'ct:', res.headers.get('content-type'), 'attempt:', attempt);
 
       // 403 segera setelah login = session belum ready → warm-up ulang + retry
       if (res.status === 403 && attempt < maxAttempts) {
-        console.warn('[DEBUG] fetchFolders 403 — warm-up + retry');
+        debugWarn('[DEBUG] fetchFolders 403 — warm-up + retry');
         await warmUpSogoSession(sogoToken);
         await sleep(200 * attempt);
         continue;
       }
 
       if (!res.ok) throwApiError('Gagal memuat folder.', res.status);
-      console.log('[DEBUG] fetchFolders reading safeJson...');
+      debugLog('[DEBUG] fetchFolders reading safeJson...');
       const data = await safeJson(res);
-      console.log('[DEBUG] fetchFolders data parsed successfully');
+      debugLog('[DEBUG] fetchFolders data parsed successfully');
 
       if (!data || !data.mailboxes) {
         throwApiError('Respons server tidak lengkap (Folder tidak ditemukan).', res.status);
@@ -356,7 +359,7 @@ export async function fetchFolders(sogoToken) {
     }
     throwApiError('Gagal memuat folder.', 403);
   } catch (err) {
-    console.error('[DEBUG] fetchFolders ERROR:', err?.message || err);
+    console.error('[API] fetchFolders ERROR:', err?.message || err);
     throw err;
   }
 }
@@ -382,7 +385,7 @@ export async function getUnseenCount(sogoToken) {
  * Returns { messages: [{uid, from, to, subject, date, isRead, hasAtt}], unseenCount, total }
  */
 export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = {}) {
-  console.log('[DEBUG] fetchMessages START', folder);
+  debugLog('[DEBUG] fetchMessages START', folder);
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -398,7 +401,7 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
       signal: controller.signal,
   });
     clearTimeout(timeoutId);
-    console.log('[DEBUG] fetchMessages res status:', res.status);
+    debugLog('[DEBUG] fetchMessages res status:', res.status);
 
     // 204 No Content = folder kosong (valid, bukan error)
     if (res.status === 204) return { messages: [], unseenCount: 0, total: 0 };
@@ -426,7 +429,7 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
       total: getMessageTotal(data, messages.length),
     };
   } catch (err) {
-    console.error('[DEBUG] fetchMessages ERROR:', err?.message || err);
+    console.error('[API] fetchMessages ERROR:', err?.message || err);
     throw err;
   }
 }
@@ -925,7 +928,7 @@ export async function fetchPreferences(sogoToken, email, smtpToken = null) {
       if (ct.includes('application/json')) {
         const data = await res.json();
         if (data && (data.defaults || data.settings)) {
-          console.log('[prefs] Loaded from DB via /api/preferences. Vacation.enabled =', data.defaults?.Vacation?.enabled);
+          debugLog('[prefs] Loaded from DB via /api/preferences. Vacation.enabled =', data.defaults?.Vacation?.enabled);
           // Sync ke localStorage agar tersedia saat offline
           savePrefsToLocal(email, data);
           return data;
@@ -941,7 +944,7 @@ export async function fetchPreferences(sogoToken, email, smtpToken = null) {
   // ─ Layer 2: localStorage ─
   const local = loadPrefsFromLocal(email);
   if (local) {
-    console.log('[prefs] Loaded from localStorage. Vacation.enabled =', local.defaults?.Vacation?.enabled);
+    debugLog('[prefs] Loaded from localStorage.');
     return local;
   }
 

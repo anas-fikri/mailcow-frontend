@@ -86,3 +86,28 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 - **Decision:** Reject login-page markers and arbitrary upstream HTML, redact response bodies, and expose only whitelisted account/policy/transport diagnostics.
 - **Coverage:** `test:login-diagnostics` and `test:login-flow` cover no-retry 403, format-only fallback, redirect candidates, HTML shell acceptance, login HTML rejection, mailbox proof, and endpoint order.
 - **Delivery status:** implementation/test commits `88dcd9c` and `fe9be0b` are pushed. Production delivery is not complete: `mailserver` DNS failed and all tested SSH/web ports timed out; `deploy.sh` correctly made no production changes. Historical Round 3 LIVE entries refer only to earlier commits.
+
+## 2026-08-05 — Migration Portal Auth: bcryptjs against Mailcow admin table
+
+- **Decision:** Replaced Mailcow API + MySQL fallback auth in migration portal with bcryptjs-based password verification against the `admin` table.
+- **Reason:** The previous approach had two failure modes: (1) Mailcow API `/api/v1/get/status/containers` rejects Basic Auth — requires X-API-Key; (2) MySQL fallback had SQL quoting bugs and `$` sign escaping issues. bcryptjs provides a direct, reliable, and consistent comparison with zero network dependency.
+- **Guardrail:** Queries `admin` WHERE `superadmin=1 AND active=1 LIMIT 1`. Passwords stored as `{BLF-CRYPT}$2y$...` are parsed and verified via `bcrypt.compareSync()`.
+
+## 2026-08-05 — Theme Color System: var(--theme-hue)
+
+- **Decision:** Split `--primary` and `--ring` CSS custom properties to use `var(--theme-hue, 221)` so the hue can be changed without duplicating CSS rules.
+- **Reason:** Avoids 8× CSS block duplication per theme. Single `--theme-hue` variable set via JavaScript on `<html>` controls all primary accent colors.
+
+## 2026-08-05 — Inbox Prefs: Persist to authStore (per-account)
+
+- **Decision:** `sortAsc` and `conversationView` moved from local `useState` to `authStore` with `persistPrefs()` → per-account localStorage (`pcp-prefs-<email>`).
+- **Reason:** Preferences survive logout/login and are scoped per email account.
+
+## 2026-08-06 — Security Audit: Production Hardening
+
+- **Decision (ErrorBoundary):** Hide `error.message` and `componentStack` behind `import.meta.env.DEV` guard.
+- **Reason:** Error details in production UI leak internal module paths and stack traces to any user who triggers a render error.
+- **Decision (api.js logging):** Wrap all `[DEBUG]` and `[Login]` console.log/warn calls with `debugLog()`/`debugWarn()` — no-op in production.
+- **Reason:** 15+ debug statements exposed request status, folder state, and vacation preferences in the browser console.
+- **Decision (deploy.sh):** Replace URL-embedded GitLab token with `git -c credential.helper` using `$GIT_TOKEN` env var.
+- **Reason:** Token in URL appears in `ps aux` process listing on macOS and Linux.
