@@ -81,7 +81,7 @@ const SEARCH_CRITERIA = [
 
 // ─── Conversation helpers ────────────────────────────────────────────────────
 function normalizeSubject(subject) {
-  if (!subject) return '';
+  if (!subject || typeof subject !== 'string') return '';
   const prefixes = [
     /^Re:\s*/i, /^Fwd:\s*/i, /^Fw:\s*/i, /^AW:\s*/i, /^WG:\s*/i, /^Antw:\s*/i,
     /^[\[\(]?RE[\]\)]?[:\-]\s*/i, /^[\[\(]?FWD[\]\)]?[:\-]\s*/i,
