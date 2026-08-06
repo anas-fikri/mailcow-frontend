@@ -249,3 +249,25 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 ### Build
 - `npm run build` ✅ (242ms, 2002 modules)
 - No regressions — all fixes are additive (null guards, finally blocks, optimization)
+
+## 2026-08-06 — Round 4: Edge case hardening
+
+### Fixes
+- **MailPage.jsx:** `normalizeSubject()` now checks `typeof subject !== 'string'` before calling `.trim()` — prevents TypeError if SOGo returns subject as object.
+
+### Cumulative audit summary (4 rounds)
+| Round | Focus | Bugs fixed | Commit |
+|-------|-------|-----------|--------|
+| 1 | Security audit | 4 | b8cde7d |
+| 2 | Runtime bugs | 4 | 8fee1d7 |
+| 3 | UX/Error handling | 4 | 669ad35 |
+| 4 | Edge cases | 1 | 0026da4 |
+| **Total** | | **13 bugs fixed** | |
+
+### Verified safe (no issues found)
+- server.js, safeUrl.js, pathSegment.js, pasteUtils.js, loginDiagnostics.js
+- XSRF pattern, nginx CSP headers, DOMPurify integration
+- CalendarPage, ContactsPage, PreferencesPage, RulesPage, StatsPage
+- Sidebar, BottomNav, AppLayout, LoginPage, ComposeModal, HtmlEditor
+- autoArchive.js, flagColors.js, userPrefs.js, toast.js
+- deploy.sh (syntax clean, token leak fixed)

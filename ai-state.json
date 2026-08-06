@@ -38,9 +38,23 @@
     "runtime-bug-hunt": {
       "status": "done",
       "feature": "4 runtime bugs fixed: api.js timeout leaks, ComposeModal undefined token, MailPage flag guard, autoArchive optimization"
+    },
+    "ux-error-handling": {
+      "status": "done",
+      "feature": "4 UX/error bugs fixed: CalendarPage error state, ContactsPage error + delete feedback, MessageReader catches, aria-labels"
+    },
+    "edge-case-hardening": {
+      "status": "done",
+      "feature": "normalizeSubject type guard — prevent TypeError on non-string subject"
     }
   },
   "bugs_found": [
+    {
+      "file": "src/pages/MailPage.jsx",
+      "issue": "normalizeSubject() crashes on non-string subject (object from SOGo)",
+      "status": "fixed",
+      "fix": "typeof subject !== 'string' guard"
+    },
     {
       "file": "src/lib/api.js",
       "issue": "setTimeout leak in fetchFolders/fetchMessages on error path",
@@ -165,17 +179,17 @@
       "status": "done"
     },
     {
-      "what": "Runtime bug hunt: 4 bugs fixed (timeout leaks, null guards, optimization)",
+      "what": "Edge case: normalizeSubject type guard",
       "status": "done"
     }
   ],
   "active_task": {
     "id": "sogo-bug-hunt-2026-08-06",
     "status": "COMPLETE",
-    "objective": "Deep dive bug hunt: find and fix runtime bugs, deploy",
-    "next_step": "None — all tasks complete",
+    "objective": "4-round deep dive: 13 bugs found and fixed across security, runtime, UX, and edge cases",
+    "next_step": "None — all tasks complete. Codebase clean.",
     "goal_id": "G1",
     "sub_goal_id": "SG1.5",
-    "updated_at": "2026-08-06T07:00:00+07:00"
+    "updated_at": "2026-08-06T08:00:00+07:00"
   }
 }
