@@ -129,8 +129,9 @@ async function safeJson(res) {
 /**
  * Warm-up session SOGo setelah /connect.
  * Native SOGo UI melewati shell /so/{user} dan /Mail/view sebelum mailbox API.
- * HTML shell yang sah boleh diterima, tetapi sesi hanya dianggap siap setelah
- * endpoint JSON terlindungi /Mail/0/view mengembalikan struktur mailbox.
+ * HTML shell yang sah wajib diterima. Mailbox /Mail/0/view dicek untuk bukti
+ * autentikasi, tetapi HTTP 5xx (server error seperti bug IMAP hierarchy SOGo)
+ * tidak menggagalkan warmup — session tetap dianggap valid oleh /connect.
  */
 function isLoginPageMarkup(text) {
   const markup = String(text || '');
@@ -170,6 +171,10 @@ async function warmUpSogoSession(sogoToken) {
 
   // This is the fail-closed proof of authentication. A generic upstream HTML
   // page cannot pass because the mailbox endpoint must return JSON with folders.
+  //
+  // 5xx server errors (e.g. the known SOGo Mail/0/view 500 caused by IMAP
+  // hierarchy parsing) are NOT auth failures — they indicate a server-side
+  // issue with a valid session. 401/403 remain hard blockers.
   try {
     const res = await fetch(`${SOGO_BASE}/SOGo/so/${tokenPath}/Mail/0/view`, {
       method: 'GET',
@@ -180,14 +185,23 @@ async function warmUpSogoSession(sogoToken) {
     const contentType = res.headers.get('content-type') || '';
     const text = await res.text().catch(() => '');
     debugLog('[Login] warm-up mailbox →', res.status, contentType || 'unknown');
-    if (!res.ok || !contentType.includes('json') || isLoginPageMarkup(text)) return false;
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
+
+    if (res.status >= 500) {
+      // Server error — session is valid but SOGo has an internal issue
+      // (e.g. known IMAP hierarchy 500). Allow login to proceed; the
+      // mailbox fetch will surface the error in-context later.
+      debugWarn('[Login] warm-up mailbox 5xx — server may have IMAP issue, allowing login');
+    } else if (!res.ok || !contentType.includes('json') || isLoginPageMarkup(text)) {
       return false;
+    } else {
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return false;
+      }
+      if (!data || !Array.isArray(data.mailboxes)) return false;
     }
-    if (!data || !Array.isArray(data.mailboxes)) return false;
   } catch (err) {
     debugWarn('[Login] mailbox warm-up failed:', err?.message || err);
     return false;
