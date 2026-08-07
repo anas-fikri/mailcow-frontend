@@ -179,7 +179,18 @@ export default function LoginPage() {
           </form>
         </div>
         
-        <p className="text-center text-xs text-muted-foreground mt-8">
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          <a
+            href="/webmail/help/email-settings.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Panduan Setting Email
+          </a>
+        </p>
+        <p className="text-center text-xs text-muted-foreground mt-4">
           © {new Date().getFullYear()} PCP Express. SOGo Mailcow Engine.
         </p>
       </motion.div>
