@@ -1,5 +1,5 @@
 import React from 'react'
-import { Mail, LogOut, ChevronRight } from 'lucide-react'
+import { Mail, LogOut, ChevronRight, HelpCircle } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router'
 import { useAuthStore } from '../../store/authStore'
 import { logout } from '../../lib/api'
@@ -87,6 +87,17 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
           {theme === 'dark' ? <Sun size={15} className="shrink-0" /> : <Moon size={15} className="shrink-0" />}
           {!collapsed && <span>Tema {theme === 'dark' ? 'Terang' : 'Gelap'}</span>}
         </button>
+
+        <a
+          href="/webmail/help/email-settings.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all ${collapsed ? 'justify-center' : ''}`}
+          title="Panduan Setting Email"
+        >
+          <HelpCircle size={15} className="shrink-0" />
+          {!collapsed && <span>Panduan Setting</span>}
+        </a>
 
         {!collapsed && (
           <div className="flex items-center gap-2.5 px-2 py-2">
