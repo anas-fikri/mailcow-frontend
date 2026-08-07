@@ -29,3 +29,4 @@ ai-state.json
 sogo_test.py
 test-prefs.cjs
 cookies*.txt
+.env.production
