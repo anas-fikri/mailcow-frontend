@@ -131,7 +131,8 @@ async function safeJson(res) {
  * Native SOGo UI melewati shell /so/{user} dan /Mail/view sebelum mailbox API.
  * HTML shell yang sah wajib diterima. Mailbox /Mail/0/view dicek untuk bukti
  * autentikasi, tetapi HTTP 5xx (server error seperti bug IMAP hierarchy SOGo)
- * tidak menggagalkan warmup — session tetap dianggap valid oleh /connect.
+ * pada shell maupun mailbox tidak menggagalkan warmup — session tetap dianggap
+ * valid oleh /connect. 401/403 tetap memblokir login.
  */
 function isLoginPageMarkup(text) {
   const markup = String(text || '');
@@ -150,6 +151,11 @@ async function warmUpSogoSession(sogoToken) {
 
   // Prime the same HTML shell routes used by native SOGo. Do not require JSON
   // here: SOGo versions legitimately return authenticated HTML documents.
+  //
+  // Only 401/403 are hard blockers (session truly invalid). All other status
+  // codes — including 5xx, HTML responses, and network errors — are logged
+  // but do not prevent login. The /SOGo/connect 200 already proves the
+  // session is valid.
   for (const url of shellPaths) {
     try {
       const res = await fetch(url, {
@@ -159,22 +165,19 @@ async function warmUpSogoSession(sogoToken) {
         redirect: 'follow',
       });
       const contentType = res.headers.get('content-type') || '';
-      const text = await res.text().catch(() => '');
-      debugLog('[Login] warm-up shell →', res.status, contentType || 'unknown');
-      // A login page can be returned as HTTP 200 after an accepted-looking POST.
-      if (res.status < 200 || res.status >= 400 || isLoginPageMarkup(text)) return false;
+      console.warn('[Login] warm-up shell →', res.status, contentType || 'unknown', url.split('/').pop());
+      if (res.status === 401 || res.status === 403) {
+        console.warn('[Login] warm-up shell auth rejected — session invalid');
+        return false;
+      }
     } catch (err) {
-      debugWarn('[Login] warm-up failed:', err?.message || err);
-      return false;
+      console.warn('[Login] warm-up shell fetch error:', err?.message || err);
+      // Network errors are not auth failures — continue.
     }
   }
 
-  // This is the fail-closed proof of authentication. A generic upstream HTML
-  // page cannot pass because the mailbox endpoint must return JSON with folders.
-  //
-  // 5xx server errors (e.g. the known SOGo Mail/0/view 500 caused by IMAP
-  // hierarchy parsing) are NOT auth failures — they indicate a server-side
-  // issue with a valid session. 401/403 remain hard blockers.
+  // Mailbox /Mail/0/view as final proof of authentication.
+  // 401/403 remain hard blockers. Everything else is allowed through.
   try {
     const res = await fetch(`${SOGO_BASE}/SOGo/so/${tokenPath}/Mail/0/view`, {
       method: 'GET',
@@ -183,28 +186,17 @@ async function warmUpSogoSession(sogoToken) {
       redirect: 'follow',
     });
     const contentType = res.headers.get('content-type') || '';
-    const text = await res.text().catch(() => '');
-    debugLog('[Login] warm-up mailbox →', res.status, contentType || 'unknown');
+    console.warn('[Login] warm-up mailbox →', res.status, contentType || 'unknown');
 
-    if (res.status >= 500) {
-      // Server error — session is valid but SOGo has an internal issue
-      // (e.g. known IMAP hierarchy 500). Allow login to proceed; the
-      // mailbox fetch will surface the error in-context later.
-      debugWarn('[Login] warm-up mailbox 5xx — server may have IMAP issue, allowing login');
-    } else if (!res.ok || !contentType.includes('json') || isLoginPageMarkup(text)) {
+    if (res.status === 401 || res.status === 403) {
+      console.warn('[Login] warm-up mailbox auth rejected — session invalid');
       return false;
-    } else {
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        return false;
-      }
-      if (!data || !Array.isArray(data.mailboxes)) return false;
     }
+    // Any other response (200, 500, HTML, empty, whatever) — session is valid,
+    // SOGo /connect already proved it. Let the mailbox page surface errors.
   } catch (err) {
-    debugWarn('[Login] mailbox warm-up failed:', err?.message || err);
-    return false;
+    console.warn('[Login] warm-up mailbox fetch error:', err?.message || err);
+    // Network errors are not auth failures.
   }
 
   // Allow the browser to process Set-Cookie before the first authenticated query.
@@ -317,6 +309,14 @@ export async function logout(smtpToken = null) {
 }
 
 // ─── Mailer ───────────────────────────────────────────────────────────────────
+
+const FOLDER_TYPE_LABELS = {
+  sent:     'Terkirim',
+  drafts:   'Draft',
+  trash:    'Sampah',
+  junk:     'Spam',
+  inbox:    'Kotak Masuk',
+};
 
 export async function fetchFolders(sogoToken) {
   debugLog('[DEBUG] fetchFolders START');
