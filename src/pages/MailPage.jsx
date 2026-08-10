@@ -104,7 +104,7 @@ function groupMessages(messages) {
   for (const msg of messages) {
     const key = normalizeSubject(msg.subject) || '(tanpa subjek)';
     if (map.has(key)) {
-      map.get(key).push(msg);
+      map.get(key).messages.push(msg);
     } else {
       const group = { key, subject: msg.subject || '(Tanpa Subjek)', messages: [msg] };
       map.set(key, group);
