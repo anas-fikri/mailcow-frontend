@@ -86,6 +86,12 @@
   }
 }
 
+/* ─── Avatar tooltip animation ───────────────────────────────────────────── */
+@keyframes tooltip-in {
+  from { opacity: 0; transform: translateY(3px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* Autofill fix to match Shadcn dark/light backgrounds */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 

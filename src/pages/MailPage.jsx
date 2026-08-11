@@ -140,10 +140,20 @@ export default function MailPage() {
   const [flagPickerOpen, setFlagPickerOpen] = useState(null); // { msgUid, anchorEl }
   const [flagFilter, setFlagFilter] = useState(null); // color key or null
   const [expandedConversations, setExpandedConversations] = useState(new Set());
+  const [selectionMode, setSelectionMode] = useState(false); // mode seleksi (long-press di layar sentuh)
+  const [isTouch] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches
+  );
 
   // Refs untuk compose/search
   const searchInputRef = useRef(null);
   const rulesProcessed = useRef({}); // Track UIDs yang sudah diproses rules
+
+  // Long-press (mobile) — timer, posisi sentuhan, dan penekanan klik sintetis per-baris
+  const longPressTimers = useRef({});
+  const longPressPos = useRef({});
+  const longPressPending = useRef(new Set()); // long-press terdeteksi pada sentuhan ini
+  const suppressClick = useRef(new Set());    // klik sintetis berikutnya utk baris ini harus ditekan
 
   // Pending deletes for undo — timers only (state diurus oleh toast)
   const pendingTimers = useRef({});
@@ -156,14 +166,22 @@ export default function MailPage() {
   useEffect(() => {
     setSelectedUids([]);
     setSelectedMsgId(null);
+    setSelectionMode(false);
     // Reset processed cache saat ganti folder
     rulesProcessed.current = {};
+    // Bersihkan state long-press per-baris
+    Object.values(longPressTimers.current).forEach(clearTimeout);
+    longPressTimers.current = {};
+    longPressPos.current = {};
+    longPressPending.current.clear();
+    suppressClick.current.clear();
   }, [selectedFolder, searchQuery]);
 
   // Cleanup pending timers on unmount
   useEffect(() => {
     return () => {
       Object.values(pendingTimers.current).forEach(clearTimeout);
+      Object.values(longPressTimers.current).forEach(clearTimeout);
     };
   }, []);
 
@@ -238,6 +256,11 @@ export default function MailPage() {
   useEffect(() => {
     setExpandedConversations(new Set());
   }, [conversationView]);
+
+  // Keluar dari mode seleksi otomatis jika tidak ada pesan terpilih lagi
+  useEffect(() => {
+    if (selectionMode && selectedUids.length === 0) setSelectionMode(false);
+  }, [selectionMode, selectedUids.length]);
 
   const toggleConversation = useCallback((key) => {
     setExpandedConversations(prev => {
@@ -352,12 +375,66 @@ export default function MailPage() {
     );
   };
 
-  const toggleSelectMsg = (e, uid) => {
-    e.stopPropagation();
+  const toggleSelect = (uid) => {
     setSelectedUids((prev) =>
       prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
     );
   };
+
+  const toggleSelectMsg = (e, uid) => {
+    e.stopPropagation();
+    toggleSelect(uid);
+  };
+
+  // ── Long-press (mobile) → mode seleksi ────────────────────────────────────
+  function enterSelectionMode(uid) {
+    setSelectionMode(true);
+    toggleSelect(uid);
+  }
+
+  function handleRowTouchStart(e, uid) {
+    // Sentuhan baru = intent baru; hapus sisa penekanan klik dari sentuhan lama
+    suppressClick.current.delete(uid);
+    const t = e.touches[0];
+    longPressPos.current[uid] = { x: t.clientX, y: t.clientY };
+    clearTimeout(longPressTimers.current[uid]);
+    longPressTimers.current[uid] = setTimeout(() => {
+      delete longPressPos.current[uid];
+      longPressPending.current.add(uid);
+      enterSelectionMode(uid);
+    }, 450);
+  }
+
+  function handleRowTouchMove(e, uid) {
+    const pos = longPressPos.current[uid];
+    if (!pos) return;
+    const t = e.touches[0];
+    // Bergerak = scroll/swipe → batalkan long-press
+    if (Math.abs(t.clientX - pos.x) > 10 || Math.abs(t.clientY - pos.y) > 10) {
+      clearTimeout(longPressTimers.current[uid]);
+      delete longPressPos.current[uid];
+    }
+  }
+
+  function handleRowTouchEnd(uid) {
+    clearTimeout(longPressTimers.current[uid]);
+    delete longPressPos.current[uid];
+    // Jika long-press terdeteksi pada sentuhan ini, tekan klik sintetis browser
+    // (click browser tiba setelah touchend — berapa pun lama penahanan)
+    if (longPressPending.current.delete(uid)) {
+      suppressClick.current.add(uid);
+    }
+  }
+
+  function handleRowClick(uid) {
+    // Klik sintetis browser setelah long-press — jangan buka/toggle dobel
+    if (suppressClick.current.delete(uid)) return;
+    if (selectionMode) {
+      toggleSelect(uid); // di mode seleksi, tap = toggle pilihan (pola Gmail)
+      return;
+    }
+    setSelectedMsgId(uid);
+  }
 
   // Search submit handler — pake server-side search
   function handleSearchSubmit(e) {
@@ -407,6 +484,9 @@ export default function MailPage() {
         e.preventDefault();
         if (selectedMsgId) {
           setSelectedMsgId(null);
+        } else if (selectionMode) {
+          setSelectionMode(false);
+          setSelectedUids([]);
         } else {
           setSelectedUids([]);
         }
@@ -525,7 +605,7 @@ export default function MailPage() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [
-    messages, focusIdx, selectedMsgId, selectedUids, composeOpen, keyboardHelpOpen,
+    messages, focusIdx, selectedMsgId, selectedUids, selectionMode, composeOpen, keyboardHelpOpen,
     bulkFlagMutation, bulkMarkReadMutation, bulkDeleteMutation,
   ]);
 
@@ -559,6 +639,12 @@ export default function MailPage() {
     const isFocused = !conversationView && focusIdx === idx;
     // Nama yang ditampilkan — dipakai juga untuk inisial avatar
     const senderLabel = isSentOrDraft ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender');
+    const colorKey = getFlagColor(user?.email, msg.uid);
+    const hasFlag = !!msg.isFlagged || !!colorKey;
+    // Kontrol floating (checkbox + star) menimpa avatar — tidak makan ruang baris.
+    // Desktop: muncul saat hover. Layar sentuh: star selalu tampil, checkbox saat mode seleksi.
+    const checkboxVisible = isSelected || (isTouch && selectionMode);
+    const starVisible = hasFlag || isTouch;
 
     return (
       <SwipeableRow
@@ -572,41 +658,58 @@ export default function MailPage() {
         }}
       >
         <div
-          onClick={() => setSelectedMsgId(msg.uid)}
+          onClick={() => handleRowClick(msg.uid)}
           ref={(el) => { if (idx >= 0) msgRefs.current[msg.uid] = el; }}
-          className={`group w-full flex items-start text-left p-3 hover:bg-muted/50 transition-colors cursor-pointer border-l-4 ${
+          onTouchStart={(e) => handleRowTouchStart(e, msg.uid)}
+          onTouchMove={(e) => handleRowTouchMove(e, msg.uid)}
+          onTouchEnd={() => handleRowTouchEnd(msg.uid)}
+          onTouchCancel={() => handleRowTouchEnd(msg.uid)}
+          className={`group w-full flex items-start text-left p-3 hover:bg-muted/50 transition-colors cursor-pointer border-l-4 select-none [-webkit-touch-callout:none] ${
             isActive ? 'bg-muted border-primary' : isFocused ? 'border-primary/40 bg-muted/30' : 'border-transparent'
           } ${isSelected ? 'bg-primary/5' : ''}`}
         >
-          {/* Checkbox */}
-          <div className="pt-1 pr-3 shrink-0" onClick={(e) => toggleSelectMsg(e, msg.uid)}>
-            {isSelected ? (
-              <CheckSquare size={18} className="text-primary" />
-            ) : (
-              <Square size={18} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-            )}
-          </div>
-
-          {/* Star/Flag dengan warna */}
-          <div className="pt-1 pr-2 shrink-0 relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
-              }}
-              className="focus:outline-none"
-            >
-              {(() => {
-                const colorKey = getFlagColor(user?.email, msg.uid);
-                if (colorKey && FLAG_COLORS[colorKey]) {
-                  return <Star size={14} className={`${FLAG_COLORS[colorKey].text} ${FLAG_COLORS[colorKey].fill}`} />;
-                }
-                if (msg.isFlagged) {
-                  return <Star size={14} className="text-amber-500 fill-amber-500" />;
-                }
-                return <Star size={14} className="text-muted-foreground opacity-0 group-hover:opacity-40 transition-opacity" />;
-              })()}
-            </button>
+          {/* Avatar + kontrol floating (checkbox & star overlay di atas avatar) */}
+          <div className="relative shrink-0 mt-0.5 mr-2">
+            <Avatar name={senderLabel} size="sm" />
+            <div className="absolute inset-0 flex">
+              {/* Checkbox — terpilih, hover, atau mode seleksi (layar sentuh) */}
+              <button
+                onClick={(e) => toggleSelectMsg(e, msg.uid)}
+                tabIndex={checkboxVisible ? 0 : -1}
+                className={`flex-1 flex items-center justify-center transition-opacity ${
+                  checkboxVisible ? '' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+                }`}
+                aria-label="Pilih pesan"
+              >
+                {isSelected ? (
+                  <CheckSquare size={14} className="text-primary" />
+                ) : (
+                  <Square size={14} className="text-muted-foreground bg-background/70 rounded-[2px]" />
+                )}
+              </button>
+              {/* Star/flag — berflag, hover, atau selalu di layar sentuh */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
+                }}
+                tabIndex={starVisible ? 0 : -1}
+                className={`flex-1 flex items-center justify-center transition-opacity ${
+                  starVisible ? '' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+                }`}
+                aria-label="Tandai penting"
+              >
+                {(() => {
+                  if (colorKey && FLAG_COLORS[colorKey]) {
+                    return <Star size={13} className={`${FLAG_COLORS[colorKey].text} ${FLAG_COLORS[colorKey].fill}`} />;
+                  }
+                  if (msg.isFlagged) {
+                    return <Star size={13} className="text-amber-500 fill-amber-500" />;
+                  }
+                  return <Star size={13} className="text-muted-foreground" />;
+                })()}
+              </button>
+            </div>
 
             {flagPickerOpen?.msgUid === msg.uid && (
               <>
@@ -653,9 +756,6 @@ export default function MailPage() {
               </>
             )}
           </div>
-
-          {/* Avatar inisial (compact, tidak menambah tinggi baris) */}
-          <Avatar name={senderLabel} size="sm" className="mt-0.5 mr-2" />
 
           {/* Content */}
           <div className="flex-1 min-w-0">
@@ -912,6 +1012,15 @@ export default function MailPage() {
         {selectedUids.length > 0 && (
           <div className="bg-primary/10 px-4 py-2 flex items-center justify-between border-b border-border text-sm flex-wrap gap-2">
             <div className="flex items-center gap-3">
+              {selectionMode && (
+                <button
+                  onClick={() => { setSelectedUids([]); setSelectionMode(false); }}
+                  className="p-1.5 text-muted-foreground hover:text-foreground rounded"
+                  title="Keluar dari mode seleksi"
+                >
+                  <X size={16} />
+                </button>
+              )}
               <button onClick={toggleSelectAll} className="text-primary hover:opacity-80">
                 <CheckSquare size={18} />
               </button>
