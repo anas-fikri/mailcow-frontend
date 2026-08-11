@@ -46,6 +46,15 @@ Success criteria:
 - Verified safe: server.js, safeUrl.js, pathSegment.js, nginx CSP, XSRF pattern, DOMPurify ✅
 - Deployed at `b8cde7d` ✅ | ai-toolkit docs updated ✅
 
+### Sub-goal G-001.S-005 — Avatar inisial, tooltip custom, kontrol floating (2026-08-11)
+- Status: COMPLETE — deployed LIVE
+- Avatar inisial di daftar email, header percakapan, panel baca, dan kontak (komponen bersama `Avatar.jsx`, logika `getInitials` di `initials.js`) ✅
+- Tooltip custom (portal, delay, animasi, anti-overflow) menggantikan `title` native ✅
+- Checkbox & star jadi overlay floating di avatar (hemat ~52px/baris); mobile pakai long-press untuk mode seleksi ✅
+- Helper `isSentOrDraftFolder()` di `constants.js` (satu sumber kebenaran) ✅
+- Test: `test:initials` baru; `test:login-flow` diperbarui ke perilaku JSON-first + warm-up toleran ✅
+- Validation: 11/11 test PASS, build ✅ | Deployed: preflight/build/rsync/nginx/HTTP 200/asset match ✅
+
 ## Goal G-002 — Migration Portal (Eranya → Mailcow)
 
 Status: ACTIVE

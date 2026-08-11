@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "last_session": "2026-08-06T06:00:00+07:00",
-  "context": "PCP Express Webmail — SOGo React Frontend (Mailcow) + Migration Portal — Security Audit Complete & Deployed",
+  "last_session": "2026-08-11T00:00:00+07:00",
+  "context": "PCP Express Webmail — avatar inisial + tooltip custom + kontrol floating (long-press mobile) deployed LIVE",
   "modules": {
     "mail-page": {
       "status": "done",
@@ -46,6 +46,14 @@
     "edge-case-hardening": {
       "status": "done",
       "feature": "normalizeSubject type guard — prevent TypeError on non-string subject"
+    },
+    "avatar-initials": {
+      "status": "done",
+      "feature": "Avatar inisial di daftar email/percakapan/panel baca/kontak + tooltip custom"
+    },
+    "floating-controls": {
+      "status": "done",
+      "feature": "Checkbox & star overlay di avatar; mode seleksi mobile via long-press"
     }
   },
   "bugs_found": [

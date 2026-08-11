@@ -1,149 +1,47 @@
 # Current Task
 
-Status: COMPLETE — security audit finished, 4 vulnerabilities fixed, deployed at b8cde7d
-Task ID: sogo-security-audit-2026-08-06
-Started At: 2026-08-06
-Updated At: 2026-08-06T06:00:00+07:00
-Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
+Status: COMPLETE — avatar inisial + tooltip custom + kontrol floating (checkbox/star) — committed, pushed, deployed
+Task ID: sogo-avatar-floating-controls-2026-08-11
+Started At: 2026-08-11
+Updated At: 2026-08-11
+Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Security audit: find bugs & vulnerabilities in sogo-frontend, fix them, commit, push, deploy, and update ai-toolkit documentation. **COMPLETE.**
+UI batch: avatar inisial di daftar email, header percakapan, dan panel baca (MessageReader); tooltip custom; refactor checkbox & star jadi floating overlay di atas avatar (hemat ~52px/baris) dengan long-press untuk seleksi di mobile; unit test untuk logika avatar; perbaiki test login-flow yang stale. **COMPLETE — LIVE di production.**
 
-## Audit Results (2026-08-06)
-4 vulnerabilities found, all fixed and deployed:
+## Deliverables
 
-| # | File | Issue | Severity | Fix |
-|---|------|-------|----------|-----|
-| 1 | deploy.sh | GitLab token in `ps aux` | HIGH | GIT_TOKEN env var + credential.helper |
-| 2 | ErrorBoundary.jsx | error.message + stack in production UI | MEDIUM | import.meta.env.DEV guard |
-| 3 | api.js | 15+ debug/Login logs in production | LOW | debugLog/debugWarn (DEV-only) |
-| 4 | api.js | Vacation.enabled PII in console | LOW | Moved to debugLog |
+### 1. Avatar inisial (semua lokasi)
+- Komponen bersama `src/components/Avatar.jsx` + logika murni `src/lib/initials.js` (`getInitials`).
+- Dipasang di: baris daftar email (`sm`, 32px), header grup percakapan (pengirim pertama), panel baca MessageReader (`md`, 36px), dan daftar kontak (refactor ContactsPage ke komponen bersama).
+- Warna deterministik dari `AVATAR_COLORS`; inisial dari nama display, fallback local-part email, placeholder → `?` tanpa tooltip.
+- Helper bersama `isSentOrDraftFolder(folderId, folders)` di `src/lib/constants.js` menggantikan logika duplikat MailPage/MessageReader (penerima utk Terkirim/Draf, pengirim utk lainnya).
 
-## Completed
-- **XSS fixes (MessageReader.jsx):** print window escapes from/to/cc/date; reply/forward quote now uses DOMPurify-sanitized body (`cleanHtml`) AND escapes all email header values (stored-XSS via sender display name eliminated).
-- **Dependency upgrade:** `react-router-dom@7.18.2` → `react-router@8.3.0` (imports in 5 files). Clears GHSA-qwww-vcr4-c8h2 (RSC-mode CSRF). `npm audit` now reports **0 vulnerabilities** (was 2 high).
-- **server.js:** timing-safe API-key comparison (`crypto.timingSafeEqual`); rate limiter keyed by real client IP via `X-Real-IP` — only trusted when the socket peer is loopback or a docker-bridge address (prevents spoofing + fixes shared-bucket bug behind nginx).
-- **api.js:** `markRead`/`markFlagged`/`deleteMessages`/`moveMessages` now surface HTTP failures; full-mailbox debug log removed; `.catch` added to fire-and-forget call sites.
-- **Production hardening:** CSP + `X-Content-Type-Options: nosniff` + `X-Frame-Options: DENY` + `Referrer-Policy` added to `/webmail` nginx config (both `configs/site.webmail.custom` and `deploy.sh setup_nginx`).
-- **Credential leak:** `sogo_test.py` on origin/main contained a live plaintext mailbox credential. Removed from the tree (commit b7f7fa0). **Password rotation + git history scrub recommended.**
+### 2. Tooltip custom (menggantikan atribut `title` native)
+- Portal ke `document.body` (tidak terpotong kontainer scroll), delay 450ms, animasi `tooltip-in`, caret, flip ke kiri jika overflow kanan, clamp viewport, hide saat scroll/resize.
+- Keyframe `tooltip-in` di `src/index.css`.
 
-## Git / Deployment
-- Before this documentation update, local `main` was clean and synced with `origin/main` @ **67da690** (deployed application code is @ `e9ecad5`). The documentation edits in this worktree are intentionally uncommitted until reviewed.
-- Security fixes and the Round 3 runtime/deploy batch were pushed and deployed successfully; this is historical evidence for that batch, not proof that later commits are live.
-- **Authoritative current status:** the robust login commits `88dcd9c` and `fe9be0b` are pushed but not deployed from this workspace. Current `main` is tracked in the latest handoff; production access is blocked by upstream network/firewall/VPN reachability.
+### 3. Kontrol floating checkbox & star (desktop + mobile)
+- Kolom checkbox (~30px) dan star (~22px) dihapus dari baris; keduanya kini overlay `absolute` di atas avatar.
+- Desktop: muncul saat row-hover; tetap tampil jika terpilih/berflag.
+- Mobile (matchMedia `hover:none and pointer:coarse`): star selalu tampil; checkbox tampil hanya di mode seleksi.
+- Mode seleksi mobile: **long-press** baris 450ms (batal jika gerak >10px) → masuk mode seleksi + pilih baris; tap = toggle (pola Gmail); tombol **X** di toolbar bulk / Escape / auto-exit saat kosong.
+- Klik sintetis browser setelah long-press ditekan via flag di `touchend` (aman berapa pun lama penahanan); `tabIndex=-1` saat kontrol tersembunyi; `select-none` + `-webkit-touch-callout:none`; state long-press dibersihkan saat ganti folder.
+
+### 4. Test
+- `scripts/test-initials.mjs` (baru, `npm run test:initials`): 13 kasus `getInitials` + 10 kasus `isSentOrDraftFolder`, menguji kode asli.
+- `scripts/test-login-flow.mjs` (ditulis ulang): test lama **stale** — mengasumsikan form-first + mailbox-proof ketat, padahal alur sekarang JSON-first (`327dac7`) dengan warm-up toleran (`7306234`). Kini menguji perilaku production: 403 no-retry, fallback form hanya 415/422, mailbox 401 = hard blocker, 5xx/HTML mailbox tidak memblokir.
 
 ## Validation
-- Historical release validation: `npm run build` ✅, `npm run test:safe-url` ✅, `node --check server.js` ✅, `bash -n deploy.sh` ✅, `git diff --check` ✅, `npm audit` → 0 ✅, dev smoke/integration tests ✅.
-- Current workspace recheck: `npm run test:safe-url` ✅, `npm audit --omit=dev` ✅ (0 vulnerabilities), `node --check server.js` ✅, `bash -n deploy.sh` ✅, `git diff --check` ✅.
-- Current workspace recheck after the remediation patch: `npm run build` ✅, `npm run test:safe-url` ✅, `npm audit --omit=dev` ✅ (0 vulnerabilities), `node --check server.js` ✅, `bash -n deploy.sh` ✅, and `git diff --check` ✅.
+- **Semua 11 test PASS**: safe-url, user-prefs, path-segment, message-totals, message-rows, message-requests, message-api, nginx-routes, login-diagnostics, login-flow, initials.
+- `npx vite build` ✅ bersih.
+- Code review (tooltip positioning, long-press race, floating overlay) — 2 bug ditemukan & diperbaiki: long-hold deselect + tombol tersembunyi tetap focusable.
 
-## Latest deep-audit remediation — pre-delivery
-- Fixed unsafe percent-encoded SOGo path segments: only `%2F` is accepted for nested folder IDs; encoded traversal/query/backslash sequences are rejected.
-- Extracted the validator into `src/lib/pathSegment.js` and added `npm run test:path-segment` regression coverage.
-- Added auth-status propagation for unseen, contacts, calendar, compose, contact/calendar mutations, password changes, and preference saves so 401/403 reaches the session watcher instead of silently returning fallback data.
-- Removed duplicate contacts auth guard and validated SOGo `draftId` before URL interpolation.
-- Reduced `/api/health` disclosure to `{ ok: true }`, rate-limited SMTP session revocation, and replaced raw SMTP error details returned to clients with a generic message.
-- Final local validation passes: `npm run test:path-segment`, `npm run test:user-prefs`, `npm run test:safe-url`, Vite build, `npm audit --omit=dev` (0 vulnerabilities), Node/shell syntax, static scans, and `git diff --check`.
-- Regression test `scripts/test-path-segment.mjs` is intentionally force-added because the repository's legacy `test-*` ignore rule matches it.
+## Git / Deployment
+- Commit fitur + test + docs dipush ke `origin/main` dan **deploy LIVE** via `DEPLOY_SSH_HOST=deploy-mail ./deploy.sh` (preflight SOGo ✅, build ✅, rsync ✅, nginx reload ✅, webmail HTTP 200 ✅, asset hash terverifikasi).
+- `scripts/test-initials.mjs` butuh `git add -f` (pattern `test-*` di .gitignore; konsisten dgn test script lain).
 
-## Delivery result — deep-audit remediation — COMPLETE
-- Commit `6cf66dd` (`fix(security): harden API paths and session errors`) and documentation commit `dae9855` were pushed to `origin/main`.
-- Production SSH was reached through the verified route `anas.fikri@202.148.2.139:22` using the existing deployment key; the temporary SSH wrapper did not modify permanent local SSH configuration.
-- The user service unit was backed up at `/home/anas.fikri/.config/systemd/user/sogo-smtp-proxy.service.bak-deploy-20260804150624`; its stale `PORT=3003` override was corrected to `PORT=3005`, then the service was enabled/restarted.
-- `./deploy.sh` completed: preflight ✅, Vite build ✅, rsync ✅, Nginx config/reload ✅, webmail verification ✅.
-- Post-deploy verification: `sogo-smtp-proxy` active, port 3005 listening, authenticated localhost health HTTP 200, public webmail HTTP/2 200, CSP/nosniff/X-Frame-Options/Referrer-Policy present.
-- `zeroclaw` on port 3003 was identified as unrelated and left untouched.
-
-## Latest mailbox/statistics consistency remediation
-- Confirmed mismatch: Stats counted `messages.length` from an unbounded/paginated response, while MailPage loaded a capped batch (`limit: 250`); API `total` also represented only loaded rows.
-- Added `src/lib/messageTotals.js` to normalize SOGo folder totals from `uids`, `total`, `totalCount`, or `count` metadata with safe fallback.
-- `fetchMessages` now returns the authoritative folder total; Stats requests `limit: 1` and uses `result.total`; MailPage shows the total folder count and distinguishes loaded rows from older messages.
-- Added `npm run test:message-totals`, including paginated UID metadata and null metadata fallback cases.
-- Validation passes: all project tests, Node syntax checks, Vite build, `npm audit --omit=dev` (0 vulnerabilities), and `git diff --check`.
-
-## Delivery result — mailbox/statistics consistency — COMPLETE
-- Commit `9fa267f` (`fix(stats): align folder totals with mailbox`) was pushed to `origin/main`.
-- Deploy completed through the verified production route: preflight ✅, build ✅, rsync ✅, Nginx reload ✅, webmail HTTP 200 ✅.
-- The proxy was restarted immediately before deploy because an external process had stopped it between separate checks; port 3003/zeroclaw remained untouched.
-- Post-deploy verification confirmed service active, authenticated health HTTP 200, webmail HTTP 200, and security headers present.
-- Backend reliability follow-up: service was externally terminated after deploy despite `Restart=on-failure`; unit was backed up at `/home/anas.fikri/.config/systemd/user/sogo-smtp-proxy.service.bak-restart-always-20260804152732`, changed narrowly to `Restart=always`, and monitored 6/6 samples over 30 seconds at `active/200`.
-- Production asset now serves `index-CX2Vqhp-.js`; unrelated port 3003/zeroclaw remains untouched.
-
-## Next Step
-1. Restore upstream firewall/VPN/network access to the Mailcow host; do not change DNS or routes blindly.
-2. Run `SERVER=mailserver ./deploy.sh`; require preflight success before any build/rsync/Nginx change.
-3. Verify webmail/API metadata, then test login in a browser without sharing the password.
-4. Rotate the leaked webmail password and optionally scrub the historical credential with `git filter-repo`.
-5. Browser smoke test remains pending because Chrome is unavailable in this workspace.
-
-## Follow-up 2026-08-04 — Per-account theme initialization
-- Confirmed theme and accent settings are stored under normalized per-account keys (`pcp_prefs_<lowercase-email>`).
-- Updated login hydration so a returning account loads its own profile and a first-time account receives/persists isolated defaults instead of inheriting the previous account's theme.
-- Added `npm run test:user-prefs` regression coverage for normalized email keys and account isolation.
-- Validation: user-prefs test, safe-url test, build, Node/shell syntax, production audit (0 vulnerabilities), and diff check all pass.
-
-## Follow-up 2026-08-04 — Per-account UI preferences
-- Implemented and pushed @ `f07e017`: UI prefs (theme, themeColor, sortAsc, conversationView) now stored per account (`pcp_prefs_<email>`, new `src/lib/userPrefs.js`) and loaded on login; `clearUser` no longer resets them.
-- Validation: build ✅, dev integration test (login loads prefs, changes persist, logout keeps prefs) ✅.
-
-## Round 3 2026-08-04 — Second bug-fix batch + PRODUCTION DEPLOY COMPLETE
-
-### Fixed (pushed @ `6d87cd1`, `e9ecad5`)
-- **EventModal crash:** `toDateStr`/`toTimeStr`/`fmtInputDate` guard invalid dates (NaN) so `toISOString()` can't throw RangeError (e.g. event without a start timestamp).
-- **SwipeableRow:** early return moved after all hooks (Rules of Hooks).
-- **lib/constants:** removed duplicate `NAV_ITEMS`; **lib/stats:** removed dead `dailyTotal`/`totalEmail`.
-- **deploy.sh quoting bug (blocked every build):** `get_production_api_key` had unescaped `"` inside an inline double-quoted ssh string, so awk received `index($0, =)` and failed; switched to the same heredoc pattern as `preflight_sogo_proxy`.
-
-### Deploy (LIVE)
-- SSH to mailserver restored. `sogo-smtp-proxy` (systemd user service) was **inactive**; its `.env` had `PORT=3004` (Control Tower MCP port, violating the project guardrail) → changed to **3005**, service started and healthy.
-- Updated `server.js` on the host (backup: `server.js.bak-20260804`) with timing-safe API key + per-client rate limiting.
-- `./deploy.sh` completed: preflight OK → build OK → rsync dist → nginx config (CSP headers) → reload → verify **HTTP 200**.
-- Verified from server: `content-security-policy` (self + Google Fonts + data: images), `x-content-type-options: nosniff`, `x-frame-options: DENY`, `referrer-policy` all live; `/api/health` via nginx = 200.
-- **Note:** stale `node server.js` processes exist on the host — PID 1512043/1512044 = Control Tower (cwd `/opt/control-tower`, ports 3003/3004, DO NOT touch); PIDs 3212161/3212169 (root, since Jul 27) unidentified, left untouched.
-
-### Remaining
-- Rotate the leaked webmail password (`sogo_test.py`); optional `git filter-repo` history scrub.
-- Follow-up: verify new-build webmail functionality in a browser (CSP is now enforced).
-
-## Follow-up 2026-08-05 — Validate mailbox rows across folders (pre-delivery)
-
-- Finding: folder totals could be nonzero from SOGo `uids` metadata while `headers` rows were absent because the request did not explicitly select message columns.
-- Fix: added `src/lib/messageRows.js` with dynamic column mapping, positional compatibility fallback, safe boolean/address parsing, and protection against missing optional columns borrowing adjacent values.
-- Fix: `fetchMessages` and `searchMessages` now share explicit SOGo message headers through `src/lib/messageRequests.js` for Inbox, Sent, Junk, Trash, and other folders.
-- Tests: added `test:message-rows`, `test:message-requests`, and mocked `test:message-api`; the latter verifies folder URLs, serialized headers, parsed rows, and authoritative `uids` totals when only one row is loaded.
-- Local validation: all focused tests, syntax checks, Vite build, `npm audit --omit=dev` (0 vulnerabilities), and `git diff --check` pass.
-- Delivery status: COMPLETE and LIVE. Commit `d86ed2c` was pushed and deployed successfully. Public webmail returns HTTP 200 with security headers; the new asset is `index-CVQcTv-t.js`; proxy is active with authenticated health HTTP 200 and remained `active/200` for 6 samples over 30 seconds. Chrome browser smoke test is unavailable, so account-level visual confirmation still requires a user/browser session.
-
-## Follow-up 2026-08-05 — Login routing failure and remediation
-
-- Finding: production Nginx had overlapping regex locations for `/api/*`: webmail's proxy on port 3005 and Control Tower's broader route on port 3003. Public `/api/health` returned 200 without an API key and `/api/auth/smtp` returned the wrong 401 behavior, while the actual SOGo proxy required `X-Api-Key` and returned 403 without it. Login therefore failed after SOGo authentication when registering the SMTP session.
-- Fix: replaced the webmail API regex with exact-match locations for `/api/health`, `/api/auth/smtp`, `/api/preferences`, and `/api/send`, forcing those paths to the SOGo proxy on port 3005 before Control Tower regex evaluation.
-- Coverage: added `npm run test:nginx-routes`, which binds every exact location to its intended proxy target in both the checked-in config and deploy template.
-- Delivery: commit `e1fb7a6` deployed successfully. Post-deploy route matrix: valid API key → health 200 and SMTP dummy request 200; missing/bad key → 403. Webmail 200; proxy active/200 across 3 stability samples. Port 3003/zeroclaw untouched.
-- Remaining: user must retry login with a hard refresh; real credential authentication was not automated or logged.
-
-## Follow-up 2026-08-05 — Robust SOGo login/session validation (pre-delivery)
-
-### Finding
-- A generic `Login gagal (HTTP 403)` did not distinguish rejected credentials/account policy from request-format or session-bootstrap failures.
-- Form encoding is now the native-first login request. JSON is attempted at most once and only for explicit 400/415/422 format rejection; 401/403 never retries credentials.
-
-### Changes
-- Added `src/lib/loginDiagnostics.js` with safe, whitelisted login error categories and format detection; response bodies and credentials are never logged or shown raw.
-- `login()` accepts SOGo 2xx and manual same-origin 3xx candidates, preserves `credentials: include`, and fails closed when the session cannot be established.
-- Warm-up accepts legitimate authenticated SOGo HTML shell responses, rejects login-page markers, then requires protected JSON `/SOGo/so/<user>/Mail/0/view` with a mailbox structure before returning success.
-- Added `test:login-diagnostics` and `test:login-flow` coverage for 403 no-retry, format-only fallback, redirect candidates, HTML shell handling, login HTML rejection, protected mailbox proof, endpoint ordering, and failed warm-up.
-
-### Validation
-- All login, routing, mailbox, path, preference, and safe-URL regression tests ✅
-- `npm run build` ✅ (2002 modules)
-- `npm audit --omit=dev` ✅ (0 vulnerabilities)
-- Node/shell syntax and `git diff --check` ✅
-
-### Delivery status
-- Commits `88dcd9c` (implementation) and `fe9be0b` (force-tracked regression tests) are pushed to `origin/main`.
-- Local implementation is fully validated and production-ready.
-- Deploy is BLOCKED/NOT LIVE from this workspace: `./deploy.sh` failed closed because `mailserver` DNS did not resolve, and the previously verified direct route `anas.fikri@202.148.2.139:22` timed out. No production service, Nginx config, or remote webmail files were changed.
-- Production account authentication is intentionally not automated; after SSH access is restored, deploy should use `SERVER=... ./deploy.sh`, then verify webmail/API metadata. No real password was used.
-- Follow-up valid-account test attempted 2026-08-05: public webmail probe timed out, `mailserver` DNS did not resolve, and direct SSH `202.148.2.139:22` timed out. No login request or credential was sent; production login remains unverified from this workspace.
-- Deploy retry diagnosis: public DNS resolves `mail.pcpexpress.co.id` to `202.148.2.139`, but production ports 22/2002/2222/80/443/3005 and historical route `202.148.2.141:2002` all timed out. `macanas` is only the local laptop alias (`127.0.0.1:2222`), not a bastion; no production paths/services are present there. No DNS, route, SSH config, service, or production file was changed. Deployment remains BLOCKED by upstream firewall/VPN/network access.
+## Remaining
+- **Browser smoke test**: Chrome tidak tersedia di workspace ini — verifikasi visual tooltip, floating controls, dan long-press di HP/desktop oleh user belum dilakukan.
+- **Rotate leaked password** dari `sogo_test.py` (historis) + optional `git filter-repo` history scrub.
+- Migration portal sync flow (G-002.S-002) butuh test browser dengan credential asli.

@@ -1,5 +1,26 @@
 # Handoff Log
 
+## 2026-08-11 — Avatar inisial, tooltip custom, kontrol floating + long-press (LIVE)
+
+### Changes
+- **`src/components/Avatar.jsx`** (baru): komponen avatar inisial bersama; tooltip custom (portal ke body, delay 450ms, animasi `tooltip-in` di `index.css`, caret, flip/clamp viewport, hide saat scroll/resize) menggantikan atribut `title` native.
+- **`src/lib/initials.js`** (baru): `getInitials` dipindah dari Avatar.jsx agar bisa diuji Node langsung; re-export tetap dari Avatar.jsx.
+- **`src/lib/constants.js`**: helper `isSentOrDraftFolder()` menggantikan logika duplikat di MailPage & MessageReader.
+- **`MailPage.jsx`**: avatar di baris & header percakapan; checkbox & star menjadi overlay floating di atas avatar (kolom ~52px dihapus); mode seleksi mobile via long-press (450ms, batal jika gerak >10px); tap di mode seleksi = toggle; suppress klik sintetis di `touchend`; `tabIndex=-1` saat tersembunyi; tombol X + Escape keluar mode seleksi; auto-exit saat pilihan kosong.
+- **`MessageReader.jsx`**: avatar `md` di header, inisial konsisten dgn daftar (penerima utk Terkirim/Draf).
+- **`ContactsPage.jsx`**: pakai komponen Avatar bersama (hapus duplikat + import AVATAR_COLORS).
+- **`Skeleton.jsx`**: placeholder avatar di skeleton daftar & panel baca.
+- **Test**: `scripts/test-initials.mjs` baru (13 getInitials + 10 isSentOrDraftFolder); `scripts/test-login-flow.mjs` **ditulis ulang** — test lama stale (asumsi form-first & mailbox-proof ketat sebelum fix `327dac7`/`7306234`); sekarang mencerminkan JSON-first + fallback 415/422 + warm-up toleran (hanya 401/403 yang memblokir).
+
+### Validation
+- Semua 11 `npm run test:*` PASS (termasuk login-flow & initials).
+- `npx vite build` ✅; review: 2 bug diperbaiki (long-hold deselect; tombol tersembunyi focusable).
+
+### Delivery
+- Commit fitur/test + commit docs dipush ke `origin/main`; deploy LIVE via `DEPLOY_SSH_HOST=deploy-mail ./deploy.sh`: preflight SOGo ✅, build ✅, rsync ✅, nginx reload ✅, webmail HTTP 200 ✅, asset hash match ✅.
+- `scripts/test-initials.mjs` di-`git add -f` (pattern `test-*` gitignore, konsisten dgn test script lain).
+- **Remaining**: browser smoke test (Chrome tak tersedia di workspace); rotasi password `sogo_test.py` historis; migration portal G-002.S-002.
+
 ## 2026-08-01T07:08:00Z Initial Setup
 - Project context scaffold created.
 - Next step: update `project-context.md` and start the first task with `ai-start "task name"`.
