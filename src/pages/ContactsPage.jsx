@@ -8,19 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import { fetchContacts, createContact, deleteContact } from '../lib/api';
 import { toast } from '../lib/toast';
 import { ContactsListSkeleton } from '../components/Skeleton';
-import { AVATAR_COLORS } from '../lib/constants';
-
-// ─── Avatar initials ──────────────────────────────────────────────────────────
-function Avatar({ name, email, size = 'md' }) {
-  const initials = (name || email || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-  const color  = AVATAR_COLORS[(initials.charCodeAt(0) || 0) % AVATAR_COLORS.length];
-  const sz = size === 'lg' ? 'w-12 h-12 text-lg' : 'w-9 h-9 text-sm';
-  return (
-    <div className={`${sz} ${color} rounded-full flex items-center justify-center text-white font-semibold shrink-0`}>
-      {initials}
-    </div>
-  );
-}
+import Avatar from '../components/Avatar';
 
 // ─── Add Contact Modal ────────────────────────────────────────────────────────
 function AddContactModal({ onClose, onSave, isLoading, error }) {

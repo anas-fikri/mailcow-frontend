@@ -9,6 +9,8 @@ import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages } fro
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
+import Avatar from '../Avatar';
+import { isSentOrDraftFolder } from '../../lib/constants';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
 
@@ -300,6 +302,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const rawHtml = extractHtml(msg.parts);
   const attachments = extractAttachments(msg.parts);
   const inlineImages = extractInlineImages(msg.parts);
+  // Inisial avatar konsisten dengan daftar email: penerima utk Terkirim/Draf, pengirim utk lainnya
+  const isSentOrDraft = isSentOrDraftFolder(folder, folders);
+  const avatarName = isSentOrDraft ? (to || from) : from;
   const cleanHtml = rawHtml
     ? prepareHtmlContent(rawHtml, inlineImages)
     : '<p style="color:var(--muted-foreground);font-size:.875rem;margin:0">Tidak ada konten.</p>';
@@ -422,25 +427,29 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       {/* Message header */}
       <div className="px-6 py-5 border-b border-border">
         <h1 className="text-xl font-semibold text-foreground mb-4 leading-tight">{subject}</h1>
-        <div className="space-y-1.5 text-sm">
-          <div className="flex justify-between items-start gap-4">
-            <div className="space-y-1 flex-1 min-w-0">
-              <div className="flex gap-2">
-                <span className="text-muted-foreground shrink-0 w-16 text-right">Dari:</span>
-                <span className="font-medium text-foreground truncate">{from}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-muted-foreground shrink-0 w-16 text-right">Kepada:</span>
-                <span className="text-foreground truncate">{to}</span>
-              </div>
-              {cc && (
+        <div className="flex items-start gap-3">
+          {/* Avatar inisial — konsisten dengan daftar email */}
+          <Avatar name={avatarName} size="md" className="mt-1" />
+          <div className="text-sm flex-1 min-w-0">
+            <div className="flex justify-between items-start gap-4">
+              <div className="space-y-1 flex-1 min-w-0">
                 <div className="flex gap-2">
-                  <span className="text-muted-foreground shrink-0 w-16 text-right">Cc:</span>
-                  <span className="text-foreground truncate">{cc}</span>
+                  <span className="text-muted-foreground shrink-0 w-16 text-right">Dari:</span>
+                  <span className="font-medium text-foreground truncate">{from}</span>
                 </div>
-              )}
+                <div className="flex gap-2">
+                  <span className="text-muted-foreground shrink-0 w-16 text-right">Kepada:</span>
+                  <span className="text-foreground truncate">{to}</span>
+                </div>
+                {cc && (
+                  <div className="flex gap-2">
+                    <span className="text-muted-foreground shrink-0 w-16 text-right">Cc:</span>
+                    <span className="text-foreground truncate">{cc}</span>
+                  </div>
+                )}
+              </div>
+              <div className="text-muted-foreground text-xs shrink-0 text-right">{date}</div>
             </div>
-            <div className="text-muted-foreground text-xs shrink-0 text-right">{date}</div>
           </div>
         </div>
       </div>

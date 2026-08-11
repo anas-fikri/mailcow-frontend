@@ -48,6 +48,13 @@ export const AVATAR_COLORS = [
   'bg-orange-500', 'bg-pink-500', 'bg-teal-500',
 ];
 
+// ─── Folder helpers ───────────────────────────────────────────────────────────
+/** True jika folder adalah folder Terkirim/Draf — dipakai utk memilih nama & avatar yang benar. */
+export function isSentOrDraftFolder(folderId, folders = []) {
+  return ['folderSent', 'folderDrafts'].includes(folderId) ||
+    folders.some((f) => f.id === folderId && (f.type === 'sent' || f.type === 'draft'));
+}
+
 // ─── Timeouts ─────────────────────────────────────────────────────────────────
 export const TOAST_DURATION = 5000;     // 5 detik
 export const UNDO_DELAY    = 6000;     // 6 detik untuk undo delete

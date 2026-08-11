@@ -11,9 +11,10 @@ import MessageReader from '../components/mailer/MessageReader';
 import ComposeModal from '../components/mailer/ComposeModal';
 import { MessageListSkeleton, FoldersListSkeleton } from '../components/Skeleton';
 import { toast } from '../lib/toast';
-import { DEFAULT_FOLDERS, STALE_TIMES } from '../lib/constants';
+import { DEFAULT_FOLDERS, STALE_TIMES, isSentOrDraftFolder } from '../lib/constants';
 import KeyboardShortcutsModal from '../components/KeyboardShortcuts';
 import SwipeableRow from '../components/SwipeableRow';
+import Avatar from '../components/Avatar';
 import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor } from '../lib/flagColors';
 import { getRuleSummary, executeRules } from '../lib/autoArchive';
 
@@ -343,9 +344,7 @@ export default function MailPage() {
   });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  const isSentOrDraft = ['folderSent', 'folderDrafts'].includes(selectedFolder) ||
-    folders.find((f) => f.id === selectedFolder)?.type === 'sent' ||
-    folders.find((f) => f.id === selectedFolder)?.type === 'draft';
+  const isSentOrDraft = isSentOrDraftFolder(selectedFolder, folders);
 
   const toggleSelectAll = () => {
     setSelectedUids((prev) =>
@@ -558,6 +557,8 @@ export default function MailPage() {
     const isActive = selectedMsgId === msg.uid;
     const isSelected = selectedUids.includes(msg.uid);
     const isFocused = !conversationView && focusIdx === idx;
+    // Nama yang ditampilkan — dipakai juga untuk inisial avatar
+    const senderLabel = isSentOrDraft ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender');
 
     return (
       <SwipeableRow
@@ -653,11 +654,14 @@ export default function MailPage() {
             )}
           </div>
 
+          {/* Avatar inisial (compact, tidak menambah tinggi baris) */}
+          <Avatar name={senderLabel} size="sm" className="mt-0.5 mr-2" />
+
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex justify-between items-baseline mb-1">
               <span className={`text-sm truncate pr-2 ${msg.isRead ? 'text-muted-foreground font-medium' : 'text-foreground font-bold'}`}>
-                {isSentOrDraft ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender')}
+                {senderLabel}
               </span>
               <span className="text-xs text-muted-foreground shrink-0">{msg.date}</span>
             </div>
@@ -1030,6 +1034,8 @@ export default function MailPage() {
                           className="w-full flex items-center gap-3 p-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
                         >
                           <MessagesSquare size={16} className="text-muted-foreground shrink-0" />
+                          {/* Avatar inisial pengirim pertama */}
+                          <Avatar name={senders[0]} size="sm" className="shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-foreground truncate">{group.subject}</span>

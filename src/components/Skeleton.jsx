@@ -18,6 +18,8 @@ export function MessageListSkeleton({ count = 6 }) {
         <div key={i} className="flex items-start gap-3 p-3">
           {/* Checkbox */}
           <Skeleton className="w-4 h-4 rounded mt-1" />
+          {/* Avatar */}
+          <Skeleton className="w-8 h-8 rounded-full shrink-0 mt-0.5" />
           {/* Content */}
           <div className="flex-1 space-y-2">
             <div className="flex justify-between">
@@ -53,14 +55,17 @@ export function MessageReaderSkeleton() {
       {/* Header */}
       <div className="space-y-3">
         <Skeleton className="h-6 w-3/4" />
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-          <div className="flex gap-2">
-            <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-4 w-1/3" />
+        <div className="flex gap-3 items-start">
+          <Skeleton className="w-9 h-9 rounded-full shrink-0" />
+          <div className="space-y-2 flex-1">
+            <div className="flex gap-2">
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-4 w-1/3" />
+            </div>
           </div>
         </div>
       </div>
