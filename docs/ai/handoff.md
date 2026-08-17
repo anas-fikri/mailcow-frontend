@@ -1,5 +1,19 @@
 # Handoff Log
 
+## 2026-08-17 — Round 6 bug hunt: donut data fiktif + ProgressBar NaN + Calendar delete confirm + error UI hidup + search undefined + scheduleDelete 0
+
+### Bugs found & fixed
+1. **MEDIUM — StatsPage DonutChart data fiktif**: `summary?.spamCaught || 540`, `summary?.rejected || 180`, `summary?.virusBlocked || 4` — nilai mock 540/180/4 tampil sebagai data nyata saat summary 0/null (mis. spam 0 → donut tampil 540). Fix: fallback `|| 0` (donut menampilkan "Tidak ada data" saat total 0, sudah ditangani DonutChart).
+2. **MEDIUM — Charts ProgressBar NaN%**: `Math.round((value/max)*100)` dengan storage mock `0/0` → NaN → render `width: NaN%` + label "NaN%". Fix: helper murni `src/lib/progressPercent.js` (guard `max>0`, clamp 0–100, NaN-safe) + test baru `test-progress-percent.mjs` (12 kasus).
+3. **MEDIUM — CalendarPage delete popup**: hapus event tanpa konfirmasi + unhandled promise rejection (`setDetailEv(null)` dipanggil SEBELUM await → popup tutup duluan, error tidak pernah tampil). Fix: `window.confirm` + `.catch` → `toast.error`.
+4. **MEDIUM — api.js fetchContacts/fetchCalendarEvents swallow error non-auth**: `return []` pada error → error state UI ("Gagal memuat kontak/kalender" + tombol retry) tidak pernah aktif, user lihat state kosong palsu. Fix: `throwApiError`/rethrow — error UI kini hidup.
+5. **LOW — ContactsPage search field undefined**: `(c.name + c.email + c.phone + c.org)` → field undefined jadi literal "undefined" ikut tercari. Fix: `filter(Boolean).join(' ')`.
+6. **LOW — MailPage scheduleDelete uids kosong**: keyboard `d` tanpa seleksi → toast "0 pesan akan dipindah". Fix: early return jika uids kosong.
+
+### Validation
+- 12/12 `npm run test:*` PASS (termasuk `test-progress-percent` baru).
+- `npx vite build` ✅ (254ms) | `node --check server.js` ✅ | `bash -n deploy.sh` ✅ | `git diff --check` ✅ | `npm audit --omit=dev` = 0 vuln.
+
 ## 2026-08-17 — Round 5 bug hunt: subject object crash + formatAddresses + debug UI + signature sync + dompurify bump
 
 ### Bugs found & fixed

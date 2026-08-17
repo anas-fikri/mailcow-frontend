@@ -664,7 +664,7 @@ export async function fetchContacts(sogoToken) {
       headers: sogoHeaders(),
   });
     throwIfAuthError(res);
-    if (!res.ok) return [];
+    if (!res.ok) throwApiError('Gagal memuat kontak.', res.status);
     const data = await safeJson(res);
 
     const cols = data.headers?.[0] || [];
@@ -685,8 +685,9 @@ export async function fetchContacts(sogoToken) {
       };
   });
   } catch (e) {
-    if (e?.status === 401 || e?.status === 403) throw e;
-    return [];
+    // Auth failure harus propagate (biar session-expired UI jalan);
+    // error lain juga propagate agar halaman menampilkan error, bukan state kosong palsu.
+    throw e;
   }
 }
 
@@ -842,7 +843,7 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
       { credentials: 'include', headers: sogoHeaders() }
     );
     throwIfAuthError(res);
-    if (!res.ok) return [];
+    if (!res.ok) throwApiError('Gagal memuat kalender.', res.status);
     const raw = await safeJson(res);
 
     // raw = array of calendar objects, each has eventsFields + blocks
@@ -869,8 +870,9 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
     }
     return events;
   } catch (err) {
-    if (err?.status === 401 || err?.status === 403) throw err;
-    return [];
+    // Auth failure harus propagate (session-expired UI); error lain juga
+    // propagate agar halaman menampilkan error, bukan kalender kosong palsu.
+    throw err;
   }
 }
 

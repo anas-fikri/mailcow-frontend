@@ -1,25 +1,25 @@
 # Current Task
 
-Status: COMPLETE — Round 5 bug hunt: subject object crash (multi-site), formatAddresses undefined, debug UI Vacation, signature sync RichEditor, dompurify bump
-Task ID: sogo-bug-hunt-2026-08-17
+Status: COMPLETE — Round 6 bug hunt: donut data fiktif, ProgressBar NaN, Calendar delete confirm, error UI hidup, search undefined, scheduleDelete 0
+Task ID: sogo-bug-hunt-2026-08-17-r6
 Started At: 2026-08-17
 Updated At: 2026-08-17
 Project Root: /home/anas.fikri/mailcow-frontend
 
-## Round 5 bug hunt — 5 fixes (detail: `docs/ai/handoff.md` teratas)
+## Round 6 bug hunt — 6 fixes (detail: `docs/ai/handoff.md` teratas)
 
-- [x] **HIGH** subject object crash: `messageRows.js` String() normalize (root cause) + guard di `api.js` search filter, `stats.js` countBounces, `MessageReader` (subject/startsWith/handlePrint), `MailPage` render.
-- [x] **MEDIUM** MessageReader `formatAddresses` item string → "undefined".
-- [x] **LOW** PreferencesPage VacationSection debug UI `[debugVal]` dihapus.
-- [x] **LOW-MED** ComposeModal RichEditor dirty-tracked hydrate — signature tampil di compose reply; konten lama tidak nyangkut saat modal dibuka ulang.
-- [x] **SECURITY** dompurify 3.4.12→3.4.13 (GHSA-55q2-fjhq-7xh7) — `npm audit` 0 vulnerabilities.
-- [x] Validation: 11/11 test PASS (tambah case subject object), build ✅, node --check ✅, bash -n ✅.
+- [x] **MEDIUM** StatsPage DonutChart data fiktif: `|| 540` / `|| 180` / `|| 4` → `|| 0` (donut menampilkan "Tidak ada data" saat total 0).
+- [x] **MEDIUM** Charts ProgressBar NaN% (storage 0/0): helper murni `src/lib/progressPercent.js` + test baru (12 kasus, guard max<=0, clamp, NaN-safe).
+- [x] **MEDIUM** CalendarPage delete popup: `window.confirm` + `.catch` → `toast.error` (sebelumnya tanpa konfirmasi + unhandled rejection, popup tutup duluan).
+- [x] **MEDIUM** api.js fetchContacts/fetchCalendarEvents swallow error non-auth → error UI hidup (state kosong palsu hilang).
+- [x] **LOW** ContactsPage search field undefined → literal "undefined" ikut tercari; fix `filter(Boolean).join(' ')`.
+- [x] **LOW** MailPage scheduleDelete uids kosong → early return (toast "0 pesan" hilang).
+- [x] Validation: 12/12 test PASS (termasuk test-progress-percent baru), build ✅, node --check ✅, bash -n ✅, npm audit 0 vuln.
 
-
-## Objective
+## Objective (sebelumnya)
 UI batch: avatar inisial di daftar email, header percakapan, dan panel baca (MessageReader); tooltip custom; refactor checkbox & star jadi floating overlay di atas avatar (hemat ~52px/baris) dengan long-press untuk seleksi di mobile; unit test untuk logika avatar; perbaiki test login-flow yang stale. **COMPLETE — LIVE di production.**
 
-## Deliverables
+## Deliverables (sebelumnya)
 
 ### 1. Avatar inisial (semua lokasi)
 - Komponen bersama `src/components/Avatar.jsx` + logika murni `src/lib/initials.js` (`getInitials`).
@@ -43,7 +43,7 @@ UI batch: avatar inisial di daftar email, header percakapan, dan panel baca (Mes
 - `scripts/test-login-flow.mjs` (ditulis ulang): test lama **stale** — mengasumsikan form-first + mailbox-proof ketat, padahal alur sekarang JSON-first (`327dac7`) dengan warm-up toleran (`7306234`). Kini menguji perilaku production: 403 no-retry, fallback form hanya 415/422, mailbox 401 = hard blocker, 5xx/HTML mailbox tidak memblokir.
 
 ## Validation
-- **Semua 11 test PASS**: safe-url, user-prefs, path-segment, message-totals, message-rows, message-requests, message-api, nginx-routes, login-diagnostics, login-flow, initials.
+- **Semua 12 test PASS**: safe-url, user-prefs, path-segment, message-totals, message-rows, message-requests, message-api, nginx-routes, login-diagnostics, login-flow, initials, progress-percent.
 - `npx vite build` ✅ bersih.
 - Code review (tooltip positioning, long-press race, floating overlay) — 2 bug ditemukan & diperbaiki: long-hold deselect + tombol tersembunyi tetap focusable.
 

@@ -305,6 +305,7 @@ export default function MailPage() {
 
   // ── Undo Delete ────────────────────────────────────────────────────────────
   function scheduleDelete(uids) {
+    if (!uids || uids.length === 0) return;
     const key = Date.now().toString();
 
     pendingTimers.current[key] = setTimeout(() => {

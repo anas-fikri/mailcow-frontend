@@ -434,7 +434,16 @@ export default function CalendarPage() {
                 <button onClick={() => openEditModal(detailEv)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                   <Pencil size={14} />
                 </button>
-                <button onClick={() => { setDetailEv(null); handleDeleteEvent(detailEv.id); }} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-destructive transition-colors" title="Hapus">
+                <button
+                  onClick={() => {
+                    if (!window.confirm('Hapus event ini?')) return;
+                    handleDeleteEvent(detailEv.id).catch((err) => {
+                      toast.error(err.message || 'Gagal menghapus event');
+                    });
+                  }}
+                  className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+                  title="Hapus"
+                >
                   <Trash2 size={14} />
                 </button>
                 <button onClick={() => setDetailEv(null)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors">

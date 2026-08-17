@@ -1,4 +1,5 @@
 import React from 'react';
+import { progressPercent } from '../lib/progressPercent';
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 export function StatCard({ icon: Icon, label, value, sub, trend, color = 'primary', loading }) {
@@ -222,7 +223,7 @@ export function DonutChart({ data, size = 140, loading }) {
 
 // ─── Progress Bar ─────────────────────────────────────────────────────────────
 export function ProgressBar({ value, max, label, color = 'primary' }) {
-  const pct = Math.min(100, Math.round((value / max) * 100));
+  const pct = progressPercent(value, max);
   const colorMap = {
     primary: 'bg-primary',
     success: 'bg-green-500',

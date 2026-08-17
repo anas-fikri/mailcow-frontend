@@ -19,7 +19,8 @@
     "test:nginx-routes": "node scripts/test-nginx-routes.mjs",
     "test:login-diagnostics": "node scripts/test-login-diagnostics.mjs",
     "test:login-flow": "node scripts/test-login-flow.mjs",
-    "test:initials": "node scripts/test-initials.mjs"
+    "test:initials": "node scripts/test-initials.mjs",
+    "test:progress-percent": "node scripts/test-progress-percent.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

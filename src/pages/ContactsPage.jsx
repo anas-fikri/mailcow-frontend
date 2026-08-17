@@ -170,7 +170,7 @@ export default function ContactsPage() {
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(c =>
-        (c.name + c.email + c.phone + c.org).toLowerCase().includes(q)
+        [c.name, c.email, c.phone, c.org].filter(Boolean).join(' ').toLowerCase().includes(q)
       );
     }
     return list;
