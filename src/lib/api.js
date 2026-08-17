@@ -428,13 +428,14 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
     // Sort descending by uid (terbaru duluan)
     messages.sort((a, b) => b.uid - a.uid);
 
-    // Client-side search filter
+    // Client-side search filter (subject dinormalisasi string di parseMessageRow,
+    // tapi String() defensif untuk input non-string dari sumber lain)
     if (params.search) {
       const q = params.search.toLowerCase();
       messages = messages.filter(m =>
-        m.subject.toLowerCase().includes(q) ||
-        m.from.toLowerCase().includes(q) ||
-        m.to.toLowerCase().includes(q)
+        String(m.subject || '').toLowerCase().includes(q) ||
+        String(m.from || '').toLowerCase().includes(q) ||
+        String(m.to || '').toLowerCase().includes(q)
       );
     }
 

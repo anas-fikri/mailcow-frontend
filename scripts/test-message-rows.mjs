@@ -57,6 +57,19 @@ assert.deepEqual(parseMessageRow(
   isFlagged: false,
 });
 
+// SOGo terkadang mengembalikan subject/date sebagai object (bukan string).
+// Parser wajib menormalisasi jadi string — mencegah TypeError di search
+// filter dan crash React render ("Objects are not valid as a React child").
+const objectFieldRow = [...row];
+objectFieldRow[3] = { value: 'Object subject' };
+objectFieldRow[7] = { raw: '2026-08-06' };
+const parsedObjectFields = parseMessageRows({
+  headers: [SOGO_MESSAGE_HEADERS, objectFieldRow],
+})[0];
+assert.equal(typeof parsedObjectFields.subject, 'string');
+assert.equal(typeof parsedObjectFields.date, 'string');
+assert.ok(parsedObjectFields.subject.length > 0);
+
 // A non-Inbox folder uses the same response parser and total metadata path.
 const sent = parseMessageRows({
   uids: [7],

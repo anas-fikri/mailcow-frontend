@@ -55,6 +55,15 @@ Success criteria:
 - Test: `test:initials` baru; `test:login-flow` diperbarui ke perilaku JSON-first + warm-up toleran ✅
 - Validation: 11/11 test PASS, build ✅ | Deployed: preflight/build/rsync/nginx/HTTP 200/asset match ✅
 
+### Sub-goal G-001.S-006 — Round 5 bug hunt (2026-08-17)
+- Status: COMPLETE — deployed LIVE
+- Subject object crash dihapus di semua jalur (parse normalisasi + guard search/stats/reader/render) ✅
+- `formatAddresses` item string → "undefined" diperbaiki ✅
+- Debug UI `[debugVal]` di VacationSection dihapus ✅
+- ComposeModal RichEditor sync dengan `value` eksternal (signature di reply tampil; tidak stale saat reopen) ✅
+- dompurify 3.4.13 → `npm audit --omit=dev` **0 vulnerabilities** ✅
+- Validation: 11/11 test PASS (termasuk case baru subject object), build ✅
+
 ## Goal G-002 — Migration Portal (Eranya → Mailcow)
 
 Status: ACTIVE

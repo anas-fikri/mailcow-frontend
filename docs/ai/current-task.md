@@ -1,10 +1,20 @@
 # Current Task
 
-Status: COMPLETE — avatar inisial + tooltip custom + kontrol floating (checkbox/star) — committed, pushed, deployed
-Task ID: sogo-avatar-floating-controls-2026-08-11
-Started At: 2026-08-11
-Updated At: 2026-08-11
+Status: COMPLETE — Round 5 bug hunt: subject object crash (multi-site), formatAddresses undefined, debug UI Vacation, signature sync RichEditor, dompurify bump
+Task ID: sogo-bug-hunt-2026-08-17
+Started At: 2026-08-17
+Updated At: 2026-08-17
 Project Root: /home/anas.fikri/mailcow-frontend
+
+## Round 5 bug hunt — 5 fixes (detail: `docs/ai/handoff.md` teratas)
+
+- [x] **HIGH** subject object crash: `messageRows.js` String() normalize (root cause) + guard di `api.js` search filter, `stats.js` countBounces, `MessageReader` (subject/startsWith/handlePrint), `MailPage` render.
+- [x] **MEDIUM** MessageReader `formatAddresses` item string → "undefined".
+- [x] **LOW** PreferencesPage VacationSection debug UI `[debugVal]` dihapus.
+- [x] **LOW-MED** ComposeModal RichEditor dirty-tracked hydrate — signature tampil di compose reply; konten lama tidak nyangkut saat modal dibuka ulang.
+- [x] **SECURITY** dompurify 3.4.12→3.4.13 (GHSA-55q2-fjhq-7xh7) — `npm audit` 0 vulnerabilities.
+- [x] Validation: 11/11 test PASS (tambah case subject object), build ✅, node --check ✅, bash -n ✅.
+
 
 ## Objective
 UI batch: avatar inisial di daftar email, header percakapan, dan panel baca (MessageReader); tooltip custom; refactor checkbox & star jadi floating overlay di atas avatar (hemat ~52px/baris) dengan long-press untuk seleksi di mobile; unit test untuk logika avatar; perbaiki test login-flow yang stale. **COMPLETE — LIVE di production.**

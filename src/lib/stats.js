@@ -46,11 +46,12 @@ async function countBounces(sogoToken) {
   try {
     const result = await fetchMessages(sogoToken, 'folderINBOX');
     const bounces = (result.messages || []).filter((m) => {
-      const from = (m.from || '').toLowerCase();
+      const from = String(m.from || '').toLowerCase();
+      const subject = String(m.subject || '').toLowerCase();
       return from.includes('mailer-daemon') || from.includes('mail delivery system') ||
-             from.includes('postmaster') || m.subject?.toLowerCase().includes('undelivered') ||
-             m.subject?.toLowerCase().includes('delivery failure') ||
-             m.subject?.toLowerCase().includes('returned mail');
+             from.includes('postmaster') || subject.includes('undelivered') ||
+             subject.includes('delivery failure') ||
+             subject.includes('returned mail');
     });
     return bounces.length;
   } catch {

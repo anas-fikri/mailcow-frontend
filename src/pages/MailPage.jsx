@@ -107,7 +107,7 @@ function groupMessages(messages) {
     if (map.has(key)) {
       map.get(key).messages.push(msg);
     } else {
-      const group = { key, subject: msg.subject || '(Tanpa Subjek)', messages: [msg] };
+      const group = { key, subject: String(msg.subject || '') || '(Tanpa Subjek)', messages: [msg] };
       map.set(key, group);
       groups.push(group);
     }
@@ -766,7 +766,7 @@ export default function MailPage() {
               <span className="text-xs text-muted-foreground shrink-0">{msg.date}</span>
             </div>
             <div className={`text-sm truncate ${msg.isRead ? 'text-muted-foreground' : 'text-primary font-medium'}`}>
-              {msg.subject || '(Tanpa Subjek)'}
+              {typeof msg.subject === 'string' && msg.subject ? msg.subject : '(Tanpa Subjek)'}
             </div>
             {msg.hasAtt && (
               <div className="mt-1">

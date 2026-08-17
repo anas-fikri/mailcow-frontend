@@ -355,8 +355,6 @@ function VacationSection() {
   const [loaded, setLoaded]       = useState(false);
   const initRef = useRef(false);
 
-  const [debugVal, setDebugVal] = useState('…');
-
   const { data: prefs, isLoading } = useQuery({
     queryKey: ['preferences', user?.sogoToken, smtpToken],
     queryFn: () => fetchPreferences(user?.sogoToken, user?.email, smtpToken),
@@ -367,7 +365,6 @@ function VacationSection() {
   useEffect(() => {
     if (prefs?.defaults && !initRef.current) {
       const v = prefs.defaults.Vacation || {};
-      setDebugVal(String(v.enabled ?? 'null'));
       setEnabled(String(v.enabled) === '1' || v.enabled === true);
       if (v.subject) setSubject(v.subject);
       if (v.text) setMessage(v.text);
@@ -439,12 +436,7 @@ function VacationSection() {
   }
 
   return (
-    <Section icon={Plane} title={
-      <div className="flex items-center gap-2">
-        Auto-Reply Cuti 
-        <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded">[{debugVal}]</span>
-      </div>
-    }>
+    <Section icon={Plane} title="Auto-Reply Cuti">
       <div className="space-y-4 max-w-2xl">
         <p className="text-sm text-muted-foreground">
           Balas otomatis untuk email masuk ketika kamu sedang cuti atau tidak di tempat.

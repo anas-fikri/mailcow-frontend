@@ -161,7 +161,11 @@ function prepareHtmlContent(rawHtml, inlineImages) {
 function formatAddresses(arr) {
   if (!arr) return '';
   if (typeof arr === 'string') return arr;
-  return arr.map((a) => (a.name ? `${a.name} <${a.email}>` : a.email)).join(', ');
+  return arr.map((a) => {
+    if (typeof a === 'string') return a;
+    if (!a || typeof a !== 'object') return '';
+    return a.name ? `${a.name} <${a.email}>` : (a.email || '');
+  }).filter(Boolean).join(', ');
 }
 
 function formatFileSize(bytes) {
@@ -253,7 +257,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     // Semua nilai yang diinterpolasi ke document.write harus di-escape:
     // jendela print (about:blank) berbagi origin dengan opener, jadi HTML
     // berbahaya di sini bisa mengakses halaman induk (cookie/opener).
-    const safeSubject = escapeHtml(msg.subject);
+    const safeSubject = escapeHtml(subject);
     const safeFrom    = escapeHtml(formatAddresses(msg.from));
     const safeTo      = escapeHtml(formatAddresses(msg.to));
     const safeCc      = escapeHtml(formatAddresses(msg.cc));
@@ -296,8 +300,12 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const to = formatAddresses(msg.to);
   const cc = formatAddresses(msg.cc);
   const replyTo = formatAddresses(msg['reply-to']);
-  const subject = msg.subject || '(Tanpa Subjek)';
-  const date = msg.date || '';
+  // Subject dari SOGo bisa berupa object (bukan string) — normalisasi sebelum
+  // dipakai di render, startsWith(), dan escapeHtml() agar tidak TypeError.
+  const subject = typeof msg.subject === 'string' && msg.subject.trim()
+    ? msg.subject
+    : '(Tanpa Subjek)';
+  const date = typeof msg.date === 'string' ? msg.date : String(msg.date || '');
 
   const rawHtml = extractHtml(msg.parts);
   const attachments = extractAttachments(msg.parts);

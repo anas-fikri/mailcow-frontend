@@ -96,8 +96,11 @@ export function parseMessageRow(row, columns = []) {
     uid,
     from: formatAddress(valueAt(row, columnMap, 'from', 4)),
     to: formatAddress(valueAt(row, columnMap, 'to', 0)),
-    subject: valueAt(row, columnMap, 'subject', 3) || '',
-    date: valueAt(row, columnMap, 'date', 7) || '',
+    // SOGo terkadang mengembalikan subject/date sebagai object (bukan string).
+    // Normalisasi di sini mencegah TypeError di search filter, sorting, dan
+    // render React ("Objects are not valid as a React child") di semua pemakai.
+    subject: String(valueAt(row, columnMap, 'subject', 3) || ''),
+    date: String(valueAt(row, columnMap, 'date', 7) || ''),
     isRead: asBoolean(valueAt(row, columnMap, 'isRead', 5)),
     hasAtt: asBoolean(valueAt(row, columnMap, 'hasAtt', 1)),
     isFlagged: asBoolean(valueAt(row, columnMap, 'isFlagged', 2)),

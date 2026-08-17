@@ -1,5 +1,23 @@
 # Handoff Log
 
+## 2026-08-17 — Round 5 bug hunt: subject object crash + formatAddresses + debug UI + signature sync + dompurify bump
+
+### Bugs found & fixed
+1. **HIGH — subject object crash (multi-site)**. SOGo terkadang mengembalikan subject/date sebagai OBJECT (bukan string) — sudah terbukti di prod (fix `normalizeSubject` round 4). Crash sites yang tersisa:
+   - `src/lib/messageRows.js` `parseMessageRow`: `subject: String(...)`, `date: String(...)` — **fix root cause**: semua konsumen (search filter, sorting, render React) dapat string bersih.
+   - `src/lib/api.js` `fetchMessages` client-side search filter: `String(m.subject || '')` (defensif) — sebelumnya `m.subject.toLowerCase()` → TypeError saat search aktif.
+   - `src/lib/stats.js` `countBounces`: `String(m.subject || '')` — sebelumnya `m.subject?.toLowerCase()` → TypeError (tertangkap try/catch, stats diam-diam 0).
+   - `src/components/mailer/MessageReader.jsx`: subject dinormalisasi (`typeof === 'string'` guard) — `fetchMessage` return RAW SOGo (tidak lewat parseMessageRow), jadi `subject.startsWith('Re:')` di handleReply/handleForward bisa TypeError; render `{subject}` bisa crash React; `handlePrint` sekarang pakai subject const (bukan `escapeHtml(msg.subject)` yang bisa `[object Object]`).
+   - `src/pages/MailPage.jsx`: render subject row + group header di-guard (`String()`/typeof) — defensif lapisan kedua.
+2. **MEDIUM — MessageReader `formatAddresses` render "undefined"**: item array string (bukan object `{name,email}`) → `a.email` undefined → string "undefined" di header. Fix: guard `typeof a === 'string'` + `filter(Boolean)`.
+3. **LOW — PreferencesPage VacationSection leftover debug UI**: `debugVal` state + badge `[debugVal]` di title section terlihat user. Dihapus.
+4. **LOW-MED — ComposeModal RichEditor tidak sync saat `value` berubah eksternal**: hydrate hanya jika `innerHTML` kosong → (a) signature yang di-inject ke body state tidak muncul di editor saat compose reply (edit berikutnya menimpa state → signature hilang dari email terkirim), (b) saat modal dibuka ulang, konten lama masih tampil (stale). Fix: dirty-tracking (`dirtyRef`) — sebelum ada input user, editor re-hydrate dari `value`; setelah user mengetik/exec/paste/drop, DOM jadi sumber kebenaran (tidak ada cursor jump).
+5. **SECURITY — dompurify 3.4.12 → 3.4.13**: bump via `npm audit fix` — GHSA-55q2-fjhq-7xh7 (moderate, IN_PLACE hook removal XSS). `npm audit --omit=dev` = **0 vulnerabilities** (kembali penuhi G-001).
+
+### Validation
+- 11/11 `npm run test:*` PASS (termasuk test baru di `test-message-rows.mjs`: subject/date object dinormalisasi jadi string).
+- `npx vite build` ✅ (0.2s, 2002 modules) | `node --check server.js` ✅ | `bash -n deploy.sh` ✅ | `git diff --check` ✅.
+
 ## 2026-08-11 — Avatar inisial, tooltip custom, kontrol floating + long-press (LIVE)
 
 ### Changes

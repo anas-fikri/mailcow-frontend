@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "last_session": "2026-08-11T00:00:00+07:00",
-  "context": "PCP Express Webmail — avatar inisial + tooltip custom + kontrol floating (long-press mobile) deployed LIVE",
+  "last_session": "2026-08-17T00:00:00+07:00",
+  "context": "PCP Express Webmail — Round 5 bug hunt deployed LIVE: subject object crash (multi-site), formatAddresses undefined, debug UI Vacation, signature sync RichEditor, dompurify 3.4.13 (0 vuln)",
   "modules": {
     "mail-page": {
       "status": "done",
@@ -127,6 +127,36 @@
       "issue": "Auth via Mailcow API failed — /api/v1/get requires X-API-Key; MySQL fallback had quoting bug",
       "status": "fixed",
       "fix": "Replaced with bcryptjs-based verification against admin table"
+    },
+    {
+      "file": "src/lib/messageRows.js",
+      "issue": "parseMessageRow: subject/date bisa object dari SOGo → TypeError di search filter & crash React render",
+      "status": "fixed",
+      "fix": "String() normalization (root cause fix, semua konsumen aman)"
+    },
+    {
+      "file": "src/components/mailer/MessageReader.jsx",
+      "issue": "subject.startsWith('Re:') crash saat subject object (fetchMessage raw); formatAddresses render 'undefined' utk item string",
+      "status": "fixed",
+      "fix": "typeof guard subject + formatAddresses string guard"
+    },
+    {
+      "file": "src/pages/PreferencesPage.jsx",
+      "issue": "VacationSection debug UI [debugVal] terlihat user di title section",
+      "status": "fixed",
+      "fix": "debugVal dihapus"
+    },
+    {
+      "file": "src/components/mailer/ComposeModal.jsx",
+      "issue": "RichEditor tidak sync saat value berubah eksternal — signature hilang di reply flow, konten lama nyangkut saat modal dibuka ulang",
+      "status": "fixed",
+      "fix": "dirtyRef hydrate: sync sebelum input user, DOM sumber kebenaran setelahnya"
+    },
+    {
+      "file": "package.json",
+      "issue": "dompurify <=3.4.12 moderate XSS advisory GHSA-55q2-fjhq-7xh7",
+      "status": "fixed",
+      "fix": "dompurify 3.4.13 via npm audit fix — 0 vulnerabilities"
     }
   ],
   "progress": [
@@ -192,12 +222,12 @@
     }
   ],
   "active_task": {
-    "id": "sogo-bug-hunt-2026-08-06",
+    "id": "sogo-bug-hunt-2026-08-17",
     "status": "COMPLETE",
-    "objective": "4-round deep dive: 13 bugs found and fixed across security, runtime, UX, and edge cases",
-    "next_step": "None — all tasks complete. Codebase clean.",
+    "objective": "Round 5: 5 fixes — subject object crash (parse normalization + guards), formatAddresses undefined, Vacation debug UI, RichEditor dirty-tracked hydrate (signature sync), dompurify 3.4.13",
+    "next_step": "None — all tasks complete. Browser smoke test (Chrome unavailable di workspace) tetap direkomendasikan oleh user.",
     "goal_id": "G1",
-    "sub_goal_id": "SG1.5",
-    "updated_at": "2026-08-06T08:00:00+07:00"
+    "sub_goal_id": "SG1.6",
+    "updated_at": "2026-08-17T00:00:00+07:00"
   }
 }

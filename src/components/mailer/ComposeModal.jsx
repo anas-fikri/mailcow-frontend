@@ -357,12 +357,21 @@ function RichEditor({ value, onChange }) {
   const [cidWarning, setCidWarning]   = useState(false);
   const [isDragOver, setIsDragOver]   = useState(false);
   const headingRef = useRef(null);
+  // Setelah user mengetik/mengedit, isi DOM adalah sumber kebenaran — jangan
+  // pernah menimpa dari prop `value` (mencegah cursor jump & kehilangan input).
+  // Sebelum ada input, `value` tetap disinkronkan: signature yang di-inject,
+  // quote balasan, dan reset form saat modal dibuka ulang akan tampil.
+  const dirtyRef = useRef(false);
+  const markDirty = useCallback(() => { dirtyRef.current = true; }, []);
 
   useEffect(() => { setIsMounted(true); }, []);
 
   useEffect(() => {
-    if (editorRef.current && isMounted && !editorRef.current.innerHTML) {
-      editorRef.current.innerHTML = DOMPurify.sanitize(value || '', PURIFY_CONFIG);
+    if (editorRef.current && isMounted && !dirtyRef.current) {
+      const next = DOMPurify.sanitize(value || '', PURIFY_CONFIG);
+      if (editorRef.current.innerHTML !== next) {
+        editorRef.current.innerHTML = next;
+      }
     }
   }, [value, isMounted]);
 
@@ -370,23 +379,26 @@ function RichEditor({ value, onChange }) {
     document.execCommand(cmd, false, val);
     if (editorRef.current) {
       editorRef.current.focus();
+      markDirty();
       onChange(DOMPurify.sanitize(editorRef.current.innerHTML, PURIFY_CONFIG));
     }
-  }, [onChange]);
+  }, [onChange, markDirty]);
 
   const handleInput    = useCallback(() => {
+    markDirty();
     if (editorRef.current) onChange(DOMPurify.sanitize(editorRef.current.innerHTML, PURIFY_CONFIG));
-  }, [onChange]);
+  }, [onChange, markDirty]);
   const handleKeyDown  = useCallback((e) => {
-    if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;'); }
-  }, []);
+    if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;'); markDirty(); }
+  }, [markDirty]);
 
   const onPaste = useCallback((e) => {
+    markDirty();
     handleEditorPaste(e, {
       editorRef, onChange,
       onCidWarning: () => setCidWarning(true),
     });
-  }, [onChange]);
+  }, [onChange, markDirty]);
 
   const onDragOver  = useCallback((e) => { e.preventDefault(); setIsDragOver(true);  }, []);
   const onDragLeave = useCallback(() => setIsDragOver(false), []);
@@ -394,14 +406,16 @@ function RichEditor({ value, onChange }) {
     e.preventDefault(); setIsDragOver(false);
     const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'));
     if (file) await insertImageFile(file, editorRef, onChange);
-  }, [onChange]);
+    markDirty();
+  }, [onChange, markDirty]);
 
   const onFileSelected = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     await insertImageFile(file, editorRef, onChange);
+    markDirty();
     e.target.value = '';
-  }, [onChange]);
+  }, [onChange, markDirty]);
 
   const toolbar = [
     { icon: Bold,         cmd: 'bold',               title: 'Tebal (Ctrl+B)' },
