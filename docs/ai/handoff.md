@@ -52,6 +52,21 @@
 - Commit fitur/test + commit docs dipush ke `origin/main`; deploy LIVE via `DEPLOY_SSH_HOST=deploy-mail ./deploy.sh`: preflight SOGo ✅, build ✅, rsync ✅, nginx reload ✅, webmail HTTP 200 ✅, asset hash match ✅.
 - `scripts/test-initials.mjs` di-`git add -f` (pattern `test-*` gitignore, konsisten dgn test script lain).
 - **Remaining**: browser smoke test (Chrome tak tersedia di workspace); rotasi password `sogo_test.py` historis; migration portal G-002.S-002.
+## 2026-08-17 — Round 7 follow-up: rate limiter, password generator, subfolder indent (rebase hasil Round 5/6 remote)
+
+### Unique fixes in this batch (overlap dgn Round 5/6 remote di-dedup saat rebase)
+1. **MEDIUM — server.js rate limiter shared bucket**: semua `/api/*` route berbagi satu bucket per IP (key hanya IP), jadi 5x POST `/api/auth/smtp`/menit ikut memblokir `/api/send` dan `/api/preferences`; `windowMs` diambil dari route pertama yang membuat bucket. Fix: key bucket = `${keyFn(req)}|${req.method} ${req.path}`.
+2. **MEDIUM — PreferencesPage `generatePassword` OOB shuffle**: Fisher-Yates memakai `array[i + 4]` melewati ujung `Uint32Array` → `undefined % n = NaN` → swap dengan `arr[NaN]` → password hasil kehilangan karakter (lebih pendek dari 16). Fix: `array[i]`.
+3. **LOW — api.js safeJson `console.warn` production** (non-JSON response + XSRF presence): tersisa dari kebijakan log DEV-only Round 1. Fix: bungkus `debugWarn`.
+4. **LOW — Charts DonutChart skeleton**: kelas Tailwind dinamis `w-[${size}px]` tidak pernah di-generate JIT → skeleton tanpa dimensi. Fix: inline style.
+5. **FEATURE — Subfolder indentation**: `flattenMailboxes` membawa `depth` per folder; sidebar MailPage indent 12px+16px/level; dropdown "Pindah ke...", RulesPage select, dan MessageReader move menu ikut indent. (Dari sesi sebelumnya, belum pernah ter-commit.)
+
+### Note rebase
+- Remote main sudah berisi Round 5 (`d63ef61`: subject object crash, formatAddresses, debug UI, signature sync, dompurify bump) dan Round 6 (`479714f`: donut fiktif, ProgressBar NaN, calendar delete confirm, error UI, search undefined, scheduleDelete 0). Item saya yang sama (donut `||540/180/4`, ProgressBar NaN, debugVal Vacation, `m.from` crash, formatAddresses) diganti versi remote saat resolve konflik.
+- `test:login-flow` yang tadinya gagal kini sudah ditulis ulang di remote (2026-08-11) → diharapkan PASS.
+
+### Validation
+- Build/syntax/diff check + seluruh test suite dijalankan ulang pasca-rebase (lihat hasil batch ini).
 
 ## 2026-08-01T07:08:00Z Initial Setup
 - Project context scaffold created.

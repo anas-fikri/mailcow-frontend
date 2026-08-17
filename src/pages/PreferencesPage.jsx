@@ -71,10 +71,12 @@ function generatePassword(length = 16) {
 
   for (let i = 4; i < length; i++) pw += all[array[i] % all.length];
 
-  // Fisher-Yates shuffle
+  // Fisher-Yates shuffle. Indeks acak harus dari array yang sama — memakai
+  // `array[i + 4]` membaca melewati ujung Uint32Array → undefined → NaN →
+  // swap dengan arr[NaN] yang menghilangkan karakter dari password.
   const arr = pw.split('');
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = array[i + 4] % (i + 1);
+    const j = array[i] % (i + 1);
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr.join('');

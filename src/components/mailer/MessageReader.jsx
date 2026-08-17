@@ -405,6 +405,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                     {folders.filter((f) => f.id !== folder).map((f) => (
                       <button
                         key={f.id}
+                        style={{ paddingLeft: `${12 + (f.depth || 0) * 16}px` }}
                         onClick={() => { moveMutation.mutate(f.id); setMoveOpen(false); }}
                         disabled={moveMutation.isPending}
                         className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors disabled:opacity-50"

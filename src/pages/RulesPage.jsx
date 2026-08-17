@@ -344,7 +344,7 @@ function RuleFormModal({ isOpen, onClose, onSave, allFolders, editRule }) {
               className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {allFolders.map((f) => (
-                <option key={f.id} value={f.id}>{f.label}</option>
+                <option key={f.id} value={f.id}>{'\u00A0'.repeat((f.depth || 0) * 2)}{f.label}</option>
               ))}
             </select>
           </div>

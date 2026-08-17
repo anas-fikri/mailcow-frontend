@@ -54,6 +54,14 @@
     "floating-controls": {
       "status": "done",
       "feature": "Checkbox & star overlay di avatar; mode seleksi mobile via long-press"
+    },
+    "round7-followup": {
+      "status": "done",
+      "feature": "server.js rate limiter per-route, generatePassword OOB shuffle, api.js safeJson debugWarn, DonutChart skeleton inline style"
+    },
+    "subfolder-indentation": {
+      "status": "done",
+      "feature": "Subfolder ditampilkan dengan indentasi di sidebar MailPage, dropdown move, dropdown Rules, dan move menu MessageReader (depth dari flattenMailboxes)"
     }
   },
   "bugs_found": [
@@ -222,12 +230,12 @@
     }
   ],
   "active_task": {
-    "id": "sogo-bug-hunt-2026-08-17",
-    "status": "COMPLETE",
-    "objective": "Round 5: 5 fixes — subject object crash (parse normalization + guards), formatAddresses undefined, Vacation debug UI, RichEditor dirty-tracked hydrate (signature sync), dompurify 3.4.13",
-    "next_step": "None — all tasks complete. Browser smoke test (Chrome unavailable di workspace) tetap direkomendasikan oleh user.",
-    "goal_id": "G1",
-    "sub_goal_id": "SG1.6",
+    "id": "sogo-bug-hunt-2026-08-17-r7",
+    "status": "IN_PROGRESS",
+    "objective": "Round 7 follow-up: rate limiter per-route, generatePassword OOB shuffle, api.js prod logs, DonutChart skeleton, subfolder indentation (rebase dedup terhadap Round 5/6 remote)",
+    "next_step": "Commit + push + deploy batch ini via ./deploy.sh",
+    "goal_id": "G-001",
+    "sub_goal_id": "G-001.S-008",
     "updated_at": "2026-08-17T00:00:00+07:00"
   }
 }

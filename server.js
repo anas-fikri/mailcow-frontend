@@ -137,7 +137,11 @@ setInterval(() => {
 
 function rateLimit({ max = 10, windowMs = 60000, keyFn }) {
   return (req, res, next) => {
-    const key = keyFn(req);
+    // Scope bucket per route, bukan hanya per IP. Tanpa ini semua endpoint
+    // (/api/send, /api/preferences, /api/auth/smtp) berbagi SATU bucket per IP
+    // dan windowMs-nya diambil dari route pertama yang membuat bucket —
+    // mis. 5x POST /api/auth/smtp dalam 1 menit ikut memblokir /api/send.
+    const key = `${keyFn(req)}|${req.method} ${req.path}`;
     const now = Date.now();
     if (!rateLimitBuckets.has(key)) {
       rateLimitBuckets.set(key, { timestamps: [], windowMs });

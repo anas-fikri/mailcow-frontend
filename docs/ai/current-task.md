@@ -1,12 +1,26 @@
 # Current Task
 
-Status: COMPLETE — Round 6 bug hunt: donut data fiktif, ProgressBar NaN, Calendar delete confirm, error UI hidup, search undefined, scheduleDelete 0
-Task ID: sogo-bug-hunt-2026-08-17-r6
+Status: IN_PROGRESS — Round 7 follow-up batch: rate limiter, password generator, prod logs, chart skeleton, subfolder indent (rebase dedup terhadap Round 5/6 remote)
+Task ID: sogo-bug-hunt-2026-08-17-r7
 Started At: 2026-08-17
 Updated At: 2026-08-17
-Project Root: /home/anas.fikri/mailcow-frontend
+Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## Round 6 bug hunt — 6 fixes (detail: `docs/ai/handoff.md` teratas)
+## Context
+Remote main sudah berisi Round 5 (`d63ef61`, LIVE) & Round 6 (`479714f`, LIVE) yang menutup sebagian temuan awal saya (donut fiktif, ProgressBar NaN, debugVal Vacation, m.from crash, formatAddresses). Batch ini di-rebase dan memuat item unik:
+1. server.js rate limiter per-route (`${clientIp}|${method} ${path}`) — MEDIUM
+2. PreferencesPage generatePassword OOB Fisher-Yates (`array[i]`) — MEDIUM
+3. api.js safeJson 2× `console.warn` prod → debugWarn — LOW
+4. Charts DonutChart skeleton dynamic Tailwind class → inline style — LOW
+5. Subfolder indentation (depth flattenMailboxes + sidebar/dropdown/rules/move-menu) — FEATURE
+
+## Validation
+- Rebase selesai, konflik code/docs diresolusi (versi remote diambil untuk item yang sudah di-fix remote).
+- `npm run build` ✅ | `node --check server.js` ✅ | `bash -n deploy.sh` ✅ | `git diff --check` ✅
+- Test suite penuh dijalankan ulang pasca-rebase (termasuk `test:login-flow` yang ditulis ulang remote).
+
+## Next Step
+Commit + push + deploy via `./deploy.sh "fix(...): ..."`.
 
 - [x] **MEDIUM** StatsPage DonutChart data fiktif: `|| 540` / `|| 180` / `|| 4` → `|| 0` (donut menampilkan "Tidak ada data" saat total 0).
 - [x] **MEDIUM** Charts ProgressBar NaN% (storage 0/0): helper murni `src/lib/progressPercent.js` + test baru (12 kasus, guard max<=0, clamp, NaN-safe).

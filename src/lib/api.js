@@ -95,7 +95,7 @@ async function safeJson(res) {
   const text = await res.text().catch(() => '');
 
   // Keep diagnostics metadata-only; response bodies may contain mailbox content.
-  console.warn('[API] Non-JSON response:', res.status, ct || 'unknown content type');
+  debugWarn('[API] Non-JSON response:', res.status, ct || 'unknown content type');
 
   // Jika status 4xx → session/auth error
   if (res.status === 401 || res.status === 403) {
@@ -112,7 +112,7 @@ async function safeJson(res) {
 
   // Periksa apakah XSRF-TOKEN cookie ada — jika tidak, SOGo mungkin return HTML
   const xsrf = getXsrfToken();
-  console.warn('[API] XSRF-TOKEN present:', !!xsrf);
+  debugWarn('[API] XSRF-TOKEN present:', !!xsrf);
 
   // Jika response adalah HTML tapi BUKAN login page, kemungkinan error lain
   const isHtml = ct.includes('text/html') || text.trim().startsWith('<!');
@@ -322,18 +322,18 @@ export async function fetchFolders(sogoToken) {
   debugLog('[DEBUG] fetchFolders START');
 
 
-  function flattenMailboxes(mailboxes) {
+  function flattenMailboxes(mailboxes, depth = 0) {
     const result = [];
     for (const mb of mailboxes || []) {
       const path     = mb.path || mb.name;
       // SOGo folder URL path: "folder" + path (path tidak boleh mengandung "/")
-      // Untuk subfolder pakai encode, tapi semua folder di test ini flat
+      // Untuk subfolder pakai encode
       const folderId = 'folder' + path.replace(/\//g, '%2F');
       const type     = mb.type || 'folder';
       const label    = FOLDER_TYPE_LABELS[type] ?? mb.name;
-      result.push({ id: folderId, label, type, path, name: mb.name });
+      result.push({ id: folderId, label, type, path, name: mb.name, depth });
       if (mb.children?.length) {
-        result.push(...flattenMailboxes(mb.children));
+        result.push(...flattenMailboxes(mb.children, depth + 1));
       }
     }
     return result;

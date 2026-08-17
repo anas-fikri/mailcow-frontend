@@ -74,6 +74,15 @@ Success criteria:
 - MailPage scheduleDelete: early return saat uids kosong (toast "0 pesan" hilang) ✅
 - Validation: 12/12 test PASS, build ✅, `npm audit --omit=dev` 0 vuln | Deployed LIVE: rsync, nginx reload, webmail HTTP 200, asset `index-BBpNrAF9.js` live ✅
 
+### Sub-goal G-001.S-008 — Round 7 follow-up: rate limiter, password generator, subfolder indent (2026-08-17)
+- Status: COMPLETE (code) — commit/push/deploy di batch ini
+- server.js rate limiter: bucket per route (`${clientIp}|${method} ${path}`) — sebelumnya semua `/api/*` berbagi satu bucket per IP, 5x POST `/api/auth/smtp` ikut memblokir `/api/send`/`/api/preferences` ✅
+- PreferencesPage `generatePassword`: Fisher-Yates `array[i+4]` OOB → `array[i]` — password hasil tidak kehilangan karakter ✅
+- api.js safeJson: 2 `console.warn` production → `debugWarn` (kebijakan log DEV-only) ✅
+- Charts DonutChart skeleton: kelas Tailwind dinamis `w-[${size}px]` (tak ter-generate JIT) → inline style ✅
+- Subfolder indentation: `depth` di `flattenMailboxes` + indent sidebar/dropdown/rules/move-menu ✅
+- Validation: build ✅, syntax ✅, diff check ✅ (overlap dgn Round 5/6 remote sudah dedup saat rebase)
+
 ## Goal G-002 — Migration Portal (Eranya → Mailcow)
 
 Status: ACTIVE

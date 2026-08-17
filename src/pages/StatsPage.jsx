@@ -158,7 +158,7 @@ export default function StatsPage() {
                 { label: 'Bersih', value: Math.max(0, (summary?.received || 0) - (summary?.spamCaught || 0) - (summary?.rejected || 0) - (summary?.virusBlocked || 0)), color: '#22c55e' },
                 { label: 'Spam Tag', value: summary?.spamCaught || 0, color: '#f59e0b' },
                 { label: 'Spam Tolak', value: summary?.rejected || 0, color: '#ef4444' },
-                { label: 'Virus', value: summary?.virusBlocked || 0, color: '#8b5cf6' },
+                { label: 'Virus', value: summary?.virusBlocked || 0, color: '#8b5cf6' }
               ]}
               size={160}
               loading={isLoading}
@@ -177,9 +177,9 @@ export default function StatsPage() {
             <div className="space-y-4">
               <ProgressBar
                 value={storage?.used || 0}
-                max={storage?.total || 546}
+                max={storage?.total || 0}
                 label="Storage Mailbox"
-                color={storage?.used && storage?.used / storage?.total > 0.8 ? 'warning' : 'primary'}
+                color={storage?.used && storage?.total && storage.used / storage.total > 0.8 ? 'warning' : 'primary'}
               />
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="bg-muted/30 rounded-xl p-3 text-center">

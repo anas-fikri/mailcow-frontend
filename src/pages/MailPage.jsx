@@ -830,6 +830,7 @@ export default function MailPage() {
               return (
                 <button
                   key={folder.id}
+                  style={{ paddingLeft: `${12 + (folder.depth || 0) * 16}px` }}
                   onClick={() => { setSelectedFolder(folder.id); setFlagFilter(null); setFolderPanelOpen(false); setSearchQuery(''); setSearchInput(''); }}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all ${
                     isActive
@@ -1034,7 +1035,7 @@ export default function MailPage() {
               >
                 <option value="">Pindah ke...</option>
                 {folders.filter((f) => f.id !== selectedFolder).map((f) => (
-                  <option key={f.id} value={f.id}>{f.label}</option>
+                  <option key={f.id} value={f.id}>{'\u00A0'.repeat((f.depth || 0) * 2)}{f.label}</option>
                 ))}
               </select>
               <button
@@ -1133,9 +1134,11 @@ export default function MailPage() {
               {conversationView && conversationGroups.length > 0
                 ? conversationGroups.map((group) => {
                     const isExpanded = expandedConversations.has(group.key);
-                    const senders = [...new Set(group.messages.map(m =>
-                      m.from.split('<')[0].trim() || m.from
-                    ))];
+                    const senders = [...new Set(group.messages.map(m => {
+                      const from = m.from || '';
+                      const name = from.split('<')[0].trim();
+                      return name || from || 'Unknown Sender';
+                    }))];
                     return (
                       <div key={group.key} className="border-b border-border last:border-b-0">
                         {/* Group header */}

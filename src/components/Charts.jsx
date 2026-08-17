@@ -132,7 +132,9 @@ export function BarChart({ data, bars, height = 200, colors, loading }) {
 // ─── Donut Chart ──────────────────────────────────────────────────────────────
 export function DonutChart({ data, size = 140, loading }) {
   if (loading) {
-    return <div className={`w-[${size}px] h-[${size}px] bg-muted/30 rounded-full animate-pulse`} />;
+    // Kelas Tailwind tidak bisa dibuat dinamis dari template literal (`w-[${size}px]`
+    // tidak pernah di-generate JIT) — pakai inline style agar ukurannya benar.
+    return <div className="bg-muted/30 rounded-full animate-pulse" style={{ width: size, height: size }} />;
   }
 
   if (!data || data.length === 0) {
