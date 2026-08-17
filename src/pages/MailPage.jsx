@@ -201,10 +201,17 @@ export default function MailPage() {
   // ── Folder tree (expand/collapse sidebar) ──────────────────────────────────
   // Bangun peta anak-per-parent dari daftar flat (id parent = path tanpa segmen
   // terakhir, di-encode sama seperti flattenMailboxes).
+  // Path/name dipaksa string — SOGo pernah mengembalikan field sebagai object.
+  const folderPathOf = (f) => {
+    if (typeof f?.path === 'string' && f.path) return f.path;
+    if (typeof f?.name === 'string' && f.name) return f.name;
+    return '';
+  };
   const childrenByParent = useMemo(() => {
     const map = {};
-    for (const f of folders) {
-      const p = f.path || f.name;
+    const list = Array.isArray(folders) ? folders : [];
+    for (const f of list) {
+      const p = folderPathOf(f);
       const slash = p.lastIndexOf('/');
       if (slash <= 0) continue;
       const parentId = 'folder' + p.slice(0, slash).replace(/\//g, '%2F');
@@ -904,8 +911,8 @@ export default function MailPage() {
           {loadingFolders ? (
             <FoldersListSkeleton />
           ) : (
-            folders
-              .filter((f) => !((f.path || f.name).includes('/')))
+            (Array.isArray(folders) ? folders : [])
+              .filter((f) => !folderPathOf(f).includes('/'))
               .map(renderFolderRow)
           )}
 

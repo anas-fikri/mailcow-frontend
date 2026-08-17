@@ -14,6 +14,16 @@ export default class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
     console.error('[ErrorBoundary] Caught error:', error, errorInfo);
+    // Simpan error terakhir utk debugging production — tidak ditampilkan ke
+    // layar (keputusan keamanan), hanya bisa diambil via console/localStorage.
+    try {
+      localStorage.setItem('pcp_last_error', JSON.stringify({
+        message: String(error?.message || error),
+        stack: String(error?.stack || ''),
+        info: errorInfo?.componentStack || '',
+        at: new Date().toISOString(),
+      }));
+    } catch { /* storage penuh / tidak tersedia — abaikan */ }
   }
 
   handleReset = () => {
