@@ -1,5 +1,12 @@
 # Handoff Log
 
+## 2026-08-17 — Round 9.3: halaman Panduan Setting Email + autofocus login
+
+- **Bug:** Tombol "Panduan Setting Email" (LoginPage + Sidebar) menunjuk `/webmail/help/email-settings.html` yang tidak pernah ada di dist → 404.
+- **Fix:** buat `public/help/email-settings.html` (statis, Vite salin ke dist): tabel pengaturan IMAP 993/POP 995/SMTP 465-587, panduan cepat Outlook/Thunderbird/iOS/Android, tips keamanan, dark/light auto; host dinamis dari `?domain=` (Sidebar sudah kirim `domain=user.email.split('@')[1]`).
+- **Fix:** field email login diberi `autoFocus` (efek fokus lama kadang tak jalan di lazy load).
+- **Verifikasi:** `curl .com & .co.id /webmail/help/email-settings.html?domain=pcpexpress.com` → 200 ✅; host `mail.pcpexpress.com` ter-render ✅; push `8bfab37`.
+
 ## 2026-08-17 — Round 9.2: login NetworkError di mail.pcpexpress.com → SOGO_BASE same-origin
 
 - **Bug:** Di `https://mail.pcpexpress.com/webmail/login` muncul "NetworkError when attempting to fetch resource" saat login. Root cause: `VITE_SOGO_BASE_URL` di-hardcode `https://mail.pcpexpress.co.id` (deploy.sh default) → halaman `.com` fetch `/SOGo/*` cross-origin ke `.co.id` → diblokir CORS (respon SOGo tanpa `Access-Control-Allow-Origin`) + CSP `connect-src 'self'` → NetworkError.
