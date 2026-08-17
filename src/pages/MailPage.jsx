@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Inbox, Send, Trash2, FileText, Loader2, Edit3, Mail, Menu, X,
   AlertCircle, Search, Trash, CheckSquare, Square, MailOpen, RefreshCw,
-  Folder, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown,
+  Folder, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchFolders, fetchMessages, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged } from '../lib/api';
@@ -140,6 +140,7 @@ export default function MailPage() {
   const [flagPickerOpen, setFlagPickerOpen] = useState(null); // { msgUid, anchorEl }
   const [flagFilter, setFlagFilter] = useState(null); // color key or null
   const [expandedConversations, setExpandedConversations] = useState(new Set());
+  const [collapsedFolders, setCollapsedFolders] = useState(() => new Set()); // folder sidebar yang di-ciutkan
   const [selectionMode, setSelectionMode] = useState(false); // mode seleksi (long-press di layar sentuh)
   const [isTouch] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches
@@ -196,6 +197,30 @@ export default function MailPage() {
     enabled: !!user?.sogoToken,
     staleTime: STALE_TIMES.FOLDERS,
   });
+
+  // ── Folder tree (expand/collapse sidebar) ──────────────────────────────────
+  // Bangun peta anak-per-parent dari daftar flat (id parent = path tanpa segmen
+  // terakhir, di-encode sama seperti flattenMailboxes).
+  const childrenByParent = useMemo(() => {
+    const map = {};
+    for (const f of folders) {
+      const p = f.path || f.name;
+      const slash = p.lastIndexOf('/');
+      if (slash <= 0) continue;
+      const parentId = 'folder' + p.slice(0, slash).replace(/\//g, '%2F');
+      (map[parentId] ||= []).push(f);
+    }
+    return map;
+  }, [folders]);
+
+  const toggleCollapsed = useCallback((id) => {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   // ── Messages ───────────────────────────────────────────────────────────────
   const { 
@@ -791,6 +816,58 @@ export default function MailPage() {
     );
   };
 
+  // Render satu baris folder + anaknya (rekursif) — chevron toggle utk parent.
+  const renderFolderRow = (folder) => {
+    const children = childrenByParent[folder.id] || [];
+    const hasChildren = children.length > 0;
+    const isCollapsed = collapsedFolders.has(folder.id);
+    const Icon = getFolderIcon(folder.type);
+    const isActive = selectedFolder === folder.id && !flagFilter;
+    const badge = folder.type === 'inbox' ? (unseenData?.unseenCount || 0) : 0;
+
+    return (
+      <React.Fragment key={folder.id}>
+        <div
+          className="flex items-center"
+          style={{ paddingLeft: `${(folder.depth || 0) * 16}px` }}
+        >
+          <button
+            type="button"
+            onClick={() => toggleCollapsed(folder.id)}
+            disabled={!hasChildren}
+            aria-expanded={hasChildren ? !isCollapsed : undefined}
+            aria-label={hasChildren ? (isCollapsed ? `Perluas ${folder.label}` : `Ciutkan ${folder.label}`) : undefined}
+            className={`p-1 rounded-md shrink-0 transition-colors ${
+              hasChildren ? 'text-muted-foreground hover:bg-muted hover:text-foreground' : 'invisible'
+            }`}
+          >
+            {hasChildren && (isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />)}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSelectedFolder(folder.id); setFlagFilter(null); setFolderPanelOpen(false); setSearchQuery(''); setSearchInput(''); }}
+            className={`flex-1 flex items-center justify-between min-w-0 px-2 py-2.5 rounded-xl text-sm transition-all ${
+              isActive
+                ? 'bg-primary/10 text-primary font-medium'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Icon size={18} className="shrink-0" />
+              <span className="truncate">{folder.label}</span>
+            </div>
+            {badge > 0 && (
+              <span className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ml-1">
+                {badge > 99 ? '99+' : badge}
+              </span>
+            )}
+          </button>
+        </div>
+        {hasChildren && !isCollapsed && children.map(renderFolderRow)}
+      </React.Fragment>
+    );
+  };
+
   return (
     <div className="flex h-full w-full bg-background overflow-hidden relative">
       {/* Mobile overlay */}
@@ -822,39 +899,14 @@ export default function MailPage() {
           </button>
         </div>
 
-        {/* Folder list */}
-        <nav className="p-3 flex-1 overflow-y-auto space-y-1">
+        {/* Folder list — tree expand/collapse */}
+        <nav className="p-3 flex-1 overflow-y-auto space-y-0.5">
           {loadingFolders ? (
             <FoldersListSkeleton />
           ) : (
-            folders.map((folder) => {
-              const Icon = getFolderIcon(folder.type);
-              const isActive = selectedFolder === folder.id && !flagFilter;
-              const badge = folder.type === 'inbox' ? (unseenData?.unseenCount || 0) : 0;
-
-              return (
-                <button
-                  key={folder.id}
-                  style={{ paddingLeft: `${12 + (folder.depth || 0) * 16}px` }}
-                  onClick={() => { setSelectedFolder(folder.id); setFlagFilter(null); setFolderPanelOpen(false); setSearchQuery(''); setSearchInput(''); }}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all ${
-                    isActive
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Icon size={18} className="shrink-0" />
-                    <span className="truncate">{folder.label}</span>
-                  </div>
-                  {badge > 0 && (
-                    <span className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ml-1">
-                      {badge > 99 ? '99+' : badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })
+            folders
+              .filter((f) => !((f.path || f.name).includes('/')))
+              .map(renderFolderRow)
           )}
 
           {/* ── Flag Color Filter ──────────────────────────────────────── */}

@@ -70,6 +70,10 @@
     "round8-unit-tests": {
       "status": "done",
       "feature": "flattenMailboxes & looksLikeHtmlInPlainText di-extract ke lib murni (mailboxTree.js, messageHtml.js) + test:mailbox-tree & test:message-html — 14/14 PASS"
+    },
+    "folder-tree-collapse": {
+      "status": "done",
+      "feature": "Sidebar folder tree expand/collapse — chevron toggle per parent, default expanded, anak rekursif; childrenByParent dari daftar flat"
     }
   },
   "bugs_found": [
@@ -256,10 +260,10 @@
     }
   ],
   "active_task": {
-    "id": "sogo-bug-hunt-2026-08-17-r8",
+    "id": "sogo-tree-2026-08-17-r9",
     "status": "COMPLETE",
-    "objective": "Round 8 production fixes: subfolder indent (depth fallback dari path), shortcut modifier guard, bounce Mail-delivery-failed dirender HTML — pushed 00c3693, deployed LIVE, bundle terverifikasi, webmail 200",
-    "next_step": "User verifikasi di browser: indent subfolder, bounce ter-render, cmd/ctrl+C/R native (hard refresh sekali).",
+    "objective": "Round 9: sidebar folder tree expand/collapse — chevron toggle, default expanded, anak rekursif; verifikasi tree dgn hierarki Dovecot asli; 14/14 test",
+    "next_step": "Deploy + user verifikasi expand/collapse di browser.",
     "goal_id": "G-001",
     "sub_goal_id": "G-001.S-009",
     "updated_at": "2026-08-17T00:00:00+07:00"

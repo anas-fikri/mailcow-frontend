@@ -1,5 +1,12 @@
 # Handoff Log
 
+## 2026-08-17 — Round 9: sidebar folder expand/collapse (tree)
+
+- **Fitur:** Sidebar folder kini tree expand/collapse. Chevron (ChevronDown/ChevronRight) di folder ber-anak; klik = toggle; default semua expanded (migrasi mulus dari tampilan flat). Anak ter-render rekursif hanya saat parent terbuka.
+- **Impl:** `childrenByParent` (useMemo) — peta anak-per-parent dari daftar flat via id parent = `'folder' + path-tanpa-segmen-terakhir (encode %2F)`; `collapsedFolders` (Set) + `toggleCollapsed`; `renderFolderRow` rekursif menggantikan `.map()` lama; indent depth 16px/level dipindah ke kontainer baris.
+- **Scope:** sidebar MailPage (desktop + panel folder mobile). Move dropdown & RulesPage tetap daftar flat — tidak diminta.
+- **Validation:** 14/14 test PASS | build ✅ | simulasi tree dgn hierarki Dovecot asli: INBOX default expanded (subfolder + nested Backup report/e-kas dll.), collapse INBOX → subtree hilang ✅.
+
 ## 2026-08-17 — Round 8 unit tests: flattenMailboxes + HTML-in-plain-text
 
 - **Refactor (uji-able):** logika murni dipindah ke lib — `flattenMailboxes` + `FOLDER_TYPE_LABELS` → `src/lib/mailboxTree.js` (api.js import ulang); `HTML_IN_PLAIN_RE` + `looksLikeHtmlInPlainText` → `src/lib/messageHtml.js` (MessageReader import ulang). Perilaku identik, tanpa fetch/DOM.
