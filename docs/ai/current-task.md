@@ -1,12 +1,17 @@
 # Current Task
 
-Status: COMPLETE — Round 9 sidebar folder tree expand/collapse (deployed LIVE)
+Status: COMPLETE — Round 9.2 login NetworkError .com fixed (SOGO_BASE same-origin)
 Task ID: sogo-tree-2026-08-17-r9
 Started At: 2026-08-17
 Updated At: 2026-08-17
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## Round 9 (terbaru) — sidebar folder expand/collapse
+## Round 9.2 (terbaru) — login NetworkError di mail.pcpexpress.com
+- `VITE_SOGO_BASE_URL` hardcoded `.co.id` → fetch cross-origin dari `.com` → CORS + CSP `connect-src 'self'` block → NetworkError. Fix: SOGO_BASE same-origin (relatif) di api.js + MessageReader, deploy.sh default kosong, env override tetap didukung.
+- Bundle ter-deploy 0 referensi absolut; cert SAN sudah cover `.com`; push `739a150`.
+- **Open:** error "Terjadi Kesalahan" di .co.id (sebelumnya) — tunggu `pcp_last_error` dari user; hardening + capture sudah LIVE.
+
+## Round 9 — sidebar folder expand/collapse
 - Chevron toggle di folder ber-anak (INBOX, Backup report); anak re-render hanya saat parent terbuka; default expanded.
 - `childrenByParent` useMemo dari daftar flat (parentId = path tanpa segmen terakhir, encode %2F) + `collapsedFolders` Set + `renderFolderRow` rekursif.
 - 14/14 test PASS, build ✅, simulasi tree dgn hierarki Dovecot asli ✅.

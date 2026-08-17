@@ -1,5 +1,18 @@
 # Handoff Log
 
+## 2026-08-17 — Round 9.2: login NetworkError di mail.pcpexpress.com → SOGO_BASE same-origin
+
+- **Bug:** Di `https://mail.pcpexpress.com/webmail/login` muncul "NetworkError when attempting to fetch resource" saat login. Root cause: `VITE_SOGO_BASE_URL` di-hardcode `https://mail.pcpexpress.co.id` (deploy.sh default) → halaman `.com` fetch `/SOGo/*` cross-origin ke `.co.id` → diblokir CORS (respon SOGo tanpa `Access-Control-Allow-Origin`) + CSP `connect-src 'self'` → NetworkError.
+- **Fix:** `SOGO_BASE` default relatif/same-origin di `src/lib/api.js` + `src/components/mailer/MessageReader.jsx` (`VITE_SOGO_BASE_URL || ''`); deploy.sh default `VITE_SOGO_BASE_URL` jadi kosong; `.env.production.example` diupdate. Env override tetap dihormati bila SPA di origin terpisah.
+- **Verifikasi:** cert SAN kedua domain sudah termasuk `mail.pcpexpress.com` ✅; nginx mem-proxy `/SOGo` di kedua vhost (curl 403 tanpa kredensial = SOGo merespons) ✅; bundle ter-deploy 0 referensi `mail.pcpexpress.co.id/SOGo` ✅.
+- **Validasi:** build ✅, test ✅, bash -n ✅, webmail HTTP 200 ✅, push `739a150`.
+
+## 2026-08-17 — Round 9.1: harden folder tree + error capture
+
+- **Bug (user report):** "Maaf, terjadi kesalahan yang tidak terduga" — ErrorBoundary generik setelah deploy tree; error asli disembunyikan di prod (keputusan keamanan).
+- **Fix:** (a) hardening tree — `folderPathOf()` paksa string + guard `Array.isArray(folders)` (SOGo pernah kirim field object); (b) ErrorBoundary simpan error terakhir ke `localStorage.pcp_last_error` (tidak tampil ke layar; diambil via console utk debugging).
+- **Status:** menunggu konfirmasi user — kalau error masih muncul, ambil `localStorage.getItem('pcp_last_error')`.
+
 ## 2026-08-17 — Round 9: sidebar folder expand/collapse (tree)
 
 - **Fitur:** Sidebar folder kini tree expand/collapse. Chevron (ChevronDown/ChevronRight) di folder ber-anak; klik = toggle; default semua expanded (migrasi mulus dari tampilan flat). Anak ter-render rekursif hanya saat parent terbuka.

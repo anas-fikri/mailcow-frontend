@@ -1,7 +1,7 @@
 {
   "version": 1,
   "last_session": "2026-08-17T00:00:00+07:00",
-  "context": "PCP Express Webmail — Round 8 LIVE (00c3693) + unit tests: flattenMailboxes & HTML-in-plain-text di-extract ke lib murni, test:mailbox-tree & test:message-html — 14/14 test, build OK",
+  "context": "PCP Express Webmail — Round 9.x: folder tree expand/collapse, harden tree + error capture (pcp_last_error), login NetworkError .com fixed via SOGO_BASE same-origin (739a150) — tunggu konfirmasi user utk error lama .co.id",
   "modules": {
     "mail-page": {
       "status": "done",
