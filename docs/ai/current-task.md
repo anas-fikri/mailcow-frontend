@@ -1,6 +1,6 @@
 # Current Task
 
-Status: IN PROGRESS — Round 8 production fixes (pending deploy)
+Status: COMPLETE — Round 8 production fixes deployed LIVE (commit 00c3693)
 Task ID: sogo-bug-hunt-2026-08-17-r8
 Started At: 2026-08-17
 Updated At: 2026-08-17
@@ -14,8 +14,11 @@ Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-fronte
 ## Validation
 - `npm run build` ✅ | 12/12 `npm run test:*` PASS ✅ | heuristik: bounce→HTML true, teks biasa (`<`,`>`)→false ✅ | depth flat & nested konsisten (0/1/2) ✅.
 
-## Delivery — PENDING (deploy menyusul)
-- Commit + push + `./deploy.sh` + verifikasi webmail HTTP 200.
+## Delivery — COMPLETE & LIVE
+- Commit `00c3693` dipush ke origin/main ✅.
+- `./deploy.sh`: preflight ✅, build ✅, rsync ✅, nginx reload ✅, webmail HTTP 200 ✅.
+- Bundle terverifikasi: `Math.max(n,c)` (depth fallback) di api chunk, `e.metaKey||e.ctrlKey||e.altKey` di MailPage, regex bounce `(?:div|p|br|table|...` di chunk MessageReader ✅.
+- **Remaining**: user memverifikasi indent subfolder + bounce ter-render + cmd/ctrl+C/R native di browser (hard refresh sekali utk buang cache index lama).
 
 ## Round 7 (sebelumnya) — COMPLETE & LIVE
 - [x] **MEDIUM** StatsPage DonutChart data fiktif: `|| 540` / `|| 180` / `|| 4` → `|| 0` (donut menampilkan "Tidak ada data" saat total 0).

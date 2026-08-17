@@ -1,7 +1,7 @@
 {
   "version": 1,
   "last_session": "2026-08-17T00:00:00+07:00",
-  "context": "PCP Express Webmail — Round 8 production fixes: subfolder indent (depth fallback dari path, SOGo flat tanpa children), shortcut modifier guard (cmd/ctrl+C/R kembali native), bounce Mail-delivery-failed dirender sebagai HTML sanitized — 12/12 test, build OK",
+  "context": "PCP Express Webmail — Round 8 production fixes LIVE (00c3693): subfolder indent (depth fallback dari path), shortcut modifier guard, bounce dirender HTML — 12/12 test, webmail 200",
   "modules": {
     "mail-page": {
       "status": "done",
@@ -64,7 +64,7 @@
       "feature": "Subfolder ditampilkan dengan indentasi di sidebar MailPage, dropdown move, dropdown Rules, dan move menu MessageReader (depth dari flattenMailboxes)"
     },
     "round8-prod-fixes": {
-      "status": "in-progress",
+      "status": "done",
       "feature": "Subfolder depth fallback dari path (SOGo flat tanpa children), shortcut app tidak mencuri cmd/ctrl+C/R, bounce text/plain ber-HTML dirender sanitized"
     }
   },
@@ -253,9 +253,9 @@
   ],
   "active_task": {
     "id": "sogo-bug-hunt-2026-08-17-r8",
-    "status": "IN_PROGRESS",
-    "objective": "Round 8 production fixes: subfolder indent (depth fallback dari path), shortcut modifier guard (cmd/ctrl+C/R native kembali), bounce Mail-delivery-failed dirender HTML — kode siap, menunggu commit+push+deploy",
-    "next_step": "Commit + push + ./deploy.sh + verifikasi webmail HTTP 200; user memverifikasi indent subfolder di browser.",
+    "status": "COMPLETE",
+    "objective": "Round 8 production fixes: subfolder indent (depth fallback dari path), shortcut modifier guard, bounce Mail-delivery-failed dirender HTML — pushed 00c3693, deployed LIVE, bundle terverifikasi, webmail 200",
+    "next_step": "User verifikasi di browser: indent subfolder, bounce ter-render, cmd/ctrl+C/R native (hard refresh sekali).",
     "goal_id": "G-001",
     "sub_goal_id": "G-001.S-009",
     "updated_at": "2026-08-17T00:00:00+07:00"
