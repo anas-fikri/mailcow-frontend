@@ -15,7 +15,10 @@ import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
 import { looksLikeHtmlInPlainText } from '../../lib/messageHtml';
 
-const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
+// Same-origin (relatif) — lihat catatan di src/lib/api.js. SPA & SOGo di origin
+// yang sama (nginx mailcow mem-proxy /SOGo utk semua vhost), jadi base absolut
+// hanya diperlukan bila SPA di-deploy di origin terpisah.
+const SOGO_BASE = import.meta.env.VITE_SOGO_BASE_URL || '';
 
 // ─── Extended DOMPurify config for email HTML ─────────────────────────────────
 const EMAIL_PURIFY_CONFIG = {

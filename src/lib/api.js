@@ -6,7 +6,13 @@ import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFor
 import { flattenMailboxes } from './mailboxTree.js';
 
 const SOGO_ENV = import.meta.env || {};
-const SOGO_BASE = SOGO_ENV.DEV ? '' : (SOGO_ENV.VITE_SOGO_BASE_URL || '');
+// Same-origin secara default (relatif) — SPA & SOGo dilayani nginx yang sama
+// (mailcow mem-proxy /SOGo utk semua vhost: mail.pcpexpress.co.id DAN
+// mail.pcpexpress.com). Base absolut (.co.id) dulu membuat fetch cross-origin
+// saat app dibuka via .com → diblokir CORS + CSP connect-src 'self' →
+// "NetworkError when attempting to fetch resource". VITE_SOGO_BASE_URL tetap
+// dihormati bila di-set eksplisit (mis. SPA di origin terpisah).
+const SOGO_BASE = SOGO_ENV.VITE_SOGO_BASE_URL || '';
 const isDev = !!SOGO_ENV.DEV;
 const debugLog = (...args) => isDev && console.log(...args);
 const debugWarn = (...args) => isDev && console.warn(...args);

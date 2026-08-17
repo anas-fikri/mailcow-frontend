@@ -142,7 +142,7 @@ build() {
         exit 1
     fi
     VITE_API_KEY="$api_key" \
-        VITE_SOGO_BASE_URL="${VITE_SOGO_BASE_URL:-https://mail.pcpexpress.co.id}" \
+        VITE_SOGO_BASE_URL="${VITE_SOGO_BASE_URL:-}" \
         npm run build
     unset api_key
     ok "Build selesai → dist/"
