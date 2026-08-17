@@ -231,9 +231,9 @@
   ],
   "active_task": {
     "id": "sogo-bug-hunt-2026-08-17-r7",
-    "status": "IN_PROGRESS",
-    "objective": "Round 7 follow-up: rate limiter per-route, generatePassword OOB shuffle, api.js prod logs, DonutChart skeleton, subfolder indentation (rebase dedup terhadap Round 5/6 remote)",
-    "next_step": "Commit + push + deploy batch ini via ./deploy.sh",
+    "status": "COMPLETE",
+    "objective": "Round 7 follow-up: rate limiter per-route, generatePassword OOB shuffle, api.js prod logs, DonutChart skeleton, subfolder indentation — pushed 9a1b997, deployed LIVE, host server.js updated (bak-20260817), rate limit verified 200x5/429x1 + send 401 (per-route bucket OK)",
+    "next_step": "None — batch selesai. Browser smoke test tetap direkomendasikan (Chrome tak tersedia di workspace).",
     "goal_id": "G-001",
     "sub_goal_id": "G-001.S-008",
     "updated_at": "2026-08-17T00:00:00+07:00"

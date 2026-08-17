@@ -1,6 +1,6 @@
 # Current Task
 
-Status: IN_PROGRESS — Round 7 follow-up batch: rate limiter, password generator, prod logs, chart skeleton, subfolder indent (rebase dedup terhadap Round 5/6 remote)
+Status: COMPLETE — Round 7 follow-up batch deployed LIVE (commit 9a1b997)
 Task ID: sogo-bug-hunt-2026-08-17-r7
 Started At: 2026-08-17
 Updated At: 2026-08-17
@@ -17,10 +17,13 @@ Remote main sudah berisi Round 5 (`d63ef61`, LIVE) & Round 6 (`479714f`, LIVE) y
 ## Validation
 - Rebase selesai, konflik code/docs diresolusi (versi remote diambil untuk item yang sudah di-fix remote).
 - `npm run build` ✅ | `node --check server.js` ✅ | `bash -n deploy.sh` ✅ | `git diff --check` ✅
-- Test suite penuh dijalankan ulang pasca-rebase (termasuk `test:login-flow` yang ditulis ulang remote).
+- 12/12 `npm run test:*` PASS pasca-rebase (termasuk `test:login-flow` yang ditulis ulang remote).
 
-## Next Step
-Commit + push + deploy via `./deploy.sh "fix(...): ..."`.
+## Delivery — COMPLETE & LIVE
+- Push `0733c19..9a1b997` ke GitLab ✅.
+- `./deploy.sh`: preflight ✅, build ✅, rsync ✅, nginx config/reload ✅, webmail HTTP 200 ✅.
+- Host `server.js` diperbarui manual (backup `server.js.bak-20260817`), service `sogo-smtp-proxy` restart → active, authenticated health 200 ✅.
+- Verifikasi rate limiter per-route: POST /api/auth/smtp = 200×5 lalu 429; /api/send setelahnya = 401 (bucket terpisah, bukan 429) ✅.
 
 - [x] **MEDIUM** StatsPage DonutChart data fiktif: `|| 540` / `|| 180` / `|| 4` → `|| 0` (donut menampilkan "Tidak ada data" saat total 0).
 - [x] **MEDIUM** Charts ProgressBar NaN% (storage 0/0): helper murni `src/lib/progressPercent.js` + test baru (12 kasus, guard max<=0, clamp, NaN-safe).
