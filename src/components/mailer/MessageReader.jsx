@@ -49,12 +49,20 @@ function escapeHtml(str) {
   });
 }
 
+// Pola tag HTML umum — dipakai utk mendeteksi pesan text/plain yang berisi
+// markup (mis. bounce mail "Mail delivery failed" dari SOGo): tampilkan
+// sebagai HTML yang di-sanitize, bukan sumber mentah yang di-escape.
+const HTML_IN_PLAIN_RE = /<(?:div|p|br|table|tr|td|th|ul|ol|li|h[1-6]|a|span|font|b|strong|i|em|u|center|img|blockquote|pre|code|html|body|head|title)[\s>]/i;
+
 function extractHtml(parts) {
   if (!parts) return '';
   if (parts.contentType === 'text/html' && parts.content) return parts.content;
   if (parts.contentType === 'text/plain' && parts.content) {
     // text/plain tetap harus diperlakukan sebagai teks, bukan HTML. Escape
     // markup yang dikirim pengirim agar tag palsu tidak menjadi DOM aktif.
+    // Kecuali kontennya jelas berisi markup HTML (bounce/delivery report) —
+    // render sebagai HTML; DOMPurify tetap memfilter tag/atribut berbahaya.
+    if (HTML_IN_PLAIN_RE.test(parts.content)) return parts.content;
     return `<div style="white-space:pre-wrap">${escapeHtml(parts.content)}</div>`;
   }
   if (Array.isArray(parts.content)) {
@@ -239,7 +247,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   React.useEffect(() => {
     if (!msg) return;
     const handler = (e) => {
-      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName) || e.target.contentEditable === 'true') return;
+      // Jangan curi kombinasi browser/OS (copy, refresh, find, dll)
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key.toLowerCase() === 'r') { e.preventDefault(); handleReply(); }
       else if (e.key.toLowerCase() === 'f') { e.preventDefault(); handleForward(); }
       else if (e.key === 'Delete') { e.preventDefault(); if (!deleteMutation.isPending) deleteMutation.mutate(); }

@@ -331,7 +331,11 @@ export async function fetchFolders(sogoToken) {
       const folderId = 'folder' + path.replace(/\//g, '%2F');
       const type     = mb.type || 'folder';
       const label    = FOLDER_TYPE_LABELS[type] ?? mb.name;
-      result.push({ id: folderId, label, type, path, name: mb.name, depth });
+      // Depth: utamakan hierarki `children` (nested response). Fallback: hitung
+      // dari `path` ("INBOX/Sub" = 1, "INBOX/Sub/Sub2" = 2) — SOGo kadang
+      // mengembalikan daftar flat tanpa children, depth dari path tetap jalan.
+      const pathDepth = path.split('/').filter(Boolean).length - 1;
+      result.push({ id: folderId, label, type, path, name: mb.name, depth: Math.max(depth, pathDepth) });
       if (mb.children?.length) {
         result.push(...flattenMailboxes(mb.children, depth + 1));
       }

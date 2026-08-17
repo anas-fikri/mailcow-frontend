@@ -463,6 +463,11 @@ export default function MailPage() {
         return;
       }
 
+      // Jangan curi kombinasi browser/OS (cmd/ctrl+C copy, cmd/ctrl+R refresh,
+      // cmd+shift+R hard refresh, cmd/ctrl+F find, dll). Shortcut app hanya
+      // tombol tunggal (tanpa modifier) — kombo tetap perilaku asli browser.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
       // Jika compose modal atau keyboard help terbuka — hanya escape yang works
       if (composeOpen || keyboardHelpOpen) {
         if (e.key === 'Escape') {

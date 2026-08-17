@@ -1,7 +1,7 @@
 {
   "version": 1,
   "last_session": "2026-08-17T00:00:00+07:00",
-  "context": "PCP Express Webmail — Round 6 bug hunt: donut data fiktif (540/180/4), ProgressBar NaN, Calendar delete confirm+rejection, error UI hidup (contacts/calendar), search undefined, scheduleDelete 0 — 12/12 test, 0 vuln",
+  "context": "PCP Express Webmail — Round 8 production fixes: subfolder indent (depth fallback dari path, SOGo flat tanpa children), shortcut modifier guard (cmd/ctrl+C/R kembali native), bounce Mail-delivery-failed dirender sebagai HTML sanitized — 12/12 test, build OK",
   "modules": {
     "mail-page": {
       "status": "done",
@@ -62,6 +62,10 @@
     "subfolder-indentation": {
       "status": "done",
       "feature": "Subfolder ditampilkan dengan indentasi di sidebar MailPage, dropdown move, dropdown Rules, dan move menu MessageReader (depth dari flattenMailboxes)"
+    },
+    "round8-prod-fixes": {
+      "status": "in-progress",
+      "feature": "Subfolder depth fallback dari path (SOGo flat tanpa children), shortcut app tidak mencuri cmd/ctrl+C/R, bounce text/plain ber-HTML dirender sanitized"
     }
   },
   "bugs_found": [
@@ -165,6 +169,24 @@
       "issue": "dompurify <=3.4.12 moderate XSS advisory GHSA-55q2-fjhq-7xh7",
       "status": "fixed",
       "fix": "dompurify 3.4.13 via npm audit fix — 0 vulnerabilities"
+    },
+    {
+      "file": "src/lib/api.js",
+      "issue": "Subfolder tidak ber-indent di production — SOGo mengembalikan mailboxes flat tanpa children sehingga depth selalu 0",
+      "status": "fixed",
+      "fix": "flattenMailboxes: depth fallback dari segmen path (INBOX/Sub=1), Math.max(depth, pathDepth)"
+    },
+    {
+      "file": "src/pages/MailPage.jsx",
+      "issue": "Shortcut app tanpa cek modifier mencuri kombinasi browser: cmd/ctrl+C buka compose, cmd/ctrl+R & cmd+shift+R memicu reply",
+      "status": "fixed",
+      "fix": "guard e.metaKey||e.ctrlKey||e.altKey di MailPage + MessageReader; MessageReader juga skip contentEditable"
+    },
+    {
+      "file": "src/components/mailer/MessageReader.jsx",
+      "issue": "Bounce Mail-delivery-failed (text/plain berisi markup HTML) dirender sebagai sumber HTML mentah",
+      "status": "fixed",
+      "fix": "deteksi tag HTML umum (HTML_IN_PLAIN_RE) di konten text/plain → render HTML sanitized DOMPurify"
     }
   ],
   "progress": [
@@ -230,12 +252,12 @@
     }
   ],
   "active_task": {
-    "id": "sogo-bug-hunt-2026-08-17-r7",
-    "status": "COMPLETE",
-    "objective": "Round 7 follow-up: rate limiter per-route, generatePassword OOB shuffle, api.js prod logs, DonutChart skeleton, subfolder indentation — pushed 9a1b997, deployed LIVE, host server.js updated (bak-20260817), rate limit verified 200x5/429x1 + send 401 (per-route bucket OK)",
-    "next_step": "None — batch selesai. Browser smoke test tetap direkomendasikan (Chrome tak tersedia di workspace).",
+    "id": "sogo-bug-hunt-2026-08-17-r8",
+    "status": "IN_PROGRESS",
+    "objective": "Round 8 production fixes: subfolder indent (depth fallback dari path), shortcut modifier guard (cmd/ctrl+C/R native kembali), bounce Mail-delivery-failed dirender HTML — kode siap, menunggu commit+push+deploy",
+    "next_step": "Commit + push + ./deploy.sh + verifikasi webmail HTTP 200; user memverifikasi indent subfolder di browser.",
     "goal_id": "G-001",
-    "sub_goal_id": "G-001.S-008",
+    "sub_goal_id": "G-001.S-009",
     "updated_at": "2026-08-17T00:00:00+07:00"
   }
 }

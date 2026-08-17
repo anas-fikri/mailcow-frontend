@@ -1,30 +1,23 @@
 # Current Task
 
-Status: COMPLETE — Round 7 follow-up batch deployed LIVE (commit 9a1b997)
-Task ID: sogo-bug-hunt-2026-08-17-r7
+Status: IN PROGRESS — Round 8 production fixes (pending deploy)
+Task ID: sogo-bug-hunt-2026-08-17-r8
 Started At: 2026-08-17
 Updated At: 2026-08-17
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## Context
-Remote main sudah berisi Round 5 (`d63ef61`, LIVE) & Round 6 (`479714f`, LIVE) yang menutup sebagian temuan awal saya (donut fiktif, ProgressBar NaN, debugVal Vacation, m.from crash, formatAddresses). Batch ini di-rebase dan memuat item unik:
-1. server.js rate limiter per-route (`${clientIp}|${method} ${path}`) — MEDIUM
-2. PreferencesPage generatePassword OOB Fisher-Yates (`array[i]`) — MEDIUM
-3. api.js safeJson 2× `console.warn` prod → debugWarn — LOW
-4. Charts DonutChart skeleton dynamic Tailwind class → inline style — LOW
-5. Subfolder indentation (depth flattenMailboxes + sidebar/dropdown/rules/move-menu) — FEATURE
+## Context — 3 laporan dari production
+1. **Subfolder inbox tidak ber-indent di production** — kode indent sudah LIVE (bundle `MailPage-*` mengandung `paddingLeft: 12+(depth)*16`), tapi SOGo mengembalikan folder flat tanpa `children` → semua depth 0. Fix: fallback depth dari segmen `path` di `flattenMailboxes` (`Math.max(depth, pathDepth)`).
+2. **Shortcut cmd/ctrl+C, cmd/ctrl+R, cmd+shift+R diculik app** — handler keydown tanpa cek modifier: copy → compose, refresh → reply. Fix: guard `metaKey||ctrlKey||altKey` di MailPage + MessageReader (kombo browser kembali native; shortcut app tetap tombol tunggal).
+3. **Bounce "Mail delivery failed" dirender mentah** — text/plain berisi markup HTML, `extractHtml` meng-escape semua. Fix: deteksi tag HTML umum → render sanitized (DOMPurify tetap aktif).
 
 ## Validation
-- Rebase selesai, konflik code/docs diresolusi (versi remote diambil untuk item yang sudah di-fix remote).
-- `npm run build` ✅ | `node --check server.js` ✅ | `bash -n deploy.sh` ✅ | `git diff --check` ✅
-- 12/12 `npm run test:*` PASS pasca-rebase (termasuk `test:login-flow` yang ditulis ulang remote).
+- `npm run build` ✅ | 12/12 `npm run test:*` PASS ✅ | heuristik: bounce→HTML true, teks biasa (`<`,`>`)→false ✅ | depth flat & nested konsisten (0/1/2) ✅.
 
-## Delivery — COMPLETE & LIVE
-- Push `0733c19..9a1b997` ke GitLab ✅.
-- `./deploy.sh`: preflight ✅, build ✅, rsync ✅, nginx config/reload ✅, webmail HTTP 200 ✅.
-- Host `server.js` diperbarui manual (backup `server.js.bak-20260817`), service `sogo-smtp-proxy` restart → active, authenticated health 200 ✅.
-- Verifikasi rate limiter per-route: POST /api/auth/smtp = 200×5 lalu 429; /api/send setelahnya = 401 (bucket terpisah, bukan 429) ✅.
+## Delivery — PENDING (deploy menyusul)
+- Commit + push + `./deploy.sh` + verifikasi webmail HTTP 200.
 
+## Round 7 (sebelumnya) — COMPLETE & LIVE
 - [x] **MEDIUM** StatsPage DonutChart data fiktif: `|| 540` / `|| 180` / `|| 4` → `|| 0` (donut menampilkan "Tidak ada data" saat total 0).
 - [x] **MEDIUM** Charts ProgressBar NaN% (storage 0/0): helper murni `src/lib/progressPercent.js` + test baru (12 kasus, guard max<=0, clamp, NaN-safe).
 - [x] **MEDIUM** CalendarPage delete popup: `window.confirm` + `.catch` → `toast.error` (sebelumnya tanpa konfirmasi + unhandled rejection, popup tutup duluan).

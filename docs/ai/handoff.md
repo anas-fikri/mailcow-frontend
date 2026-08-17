@@ -1,5 +1,15 @@
 # Handoff Log
 
+## 2026-08-17 — Round 8: subfolder indent prod (path-depth fallback) + shortcut modifier guard + bounce rendering
+
+### Bugs found & fixed (reported dari production)
+1. **Subfolder indent tidak tampil di production** — kode indent sudah LIVE (deployed bundle `MailPage-*` berisi `paddingLeft: 12+(depth)*16`), tapi SOGo mengembalikan daftar folder **flat tanpa `children`** → semua `depth` = 0. Fix `flattenMailboxes` di `src/lib/api.js`: depth fallback dihitung dari segmen `path` (`INBOX/Sub` = 1, `INBOX/Sub/Sub2` = 2), digabung `Math.max(depth, pathDepth)` agar aman utk response nested maupun flat. Terverifikasi kedua bentuk response.
+2. **Shortcut app mencuri kombinasi browser/OS** — handler keydown MailPage & MessageReader menangkap tombol tunggal TANPA cek modifier: `cmd/ctrl+C` buka compose (bukan copy), `cmd/ctrl+R` / `cmd+shift+R` buka reply (bukan refresh/hard refresh), `cmd/ctrl+F` forward (bukan find). Fix: guard `if (e.metaKey || e.ctrlKey || e.altKey) return;` di kedua handler — kombinasi browser kembali native, shortcut app tetap tombol tunggal (c/r/f/s/dll). MessageReader juga kini skip `contentEditable` (editor compose) + input/textArea.
+3. **Email bounce "Mail delivery failed" dirender sebagai sumber HTML mentah** — SOGo bounce adalah `text/plain` yang BERISI markup HTML (`<div class="mailer_plaincontent">...`), dan `extractHtml` meng-escape seluruh text/plain → user lihat kode sumber. Fix: deteksi pola tag HTML umum (`HTML_IN_PLAIN_RE`) di konten text/plain → render sebagai HTML (tetap di-sanitize DOMPurify). Teks biasa dengan `<`/`>` (kode, perbandingan) tetap di-escape.
+
+### Validation
+- `npm run build` ✅ | 12/12 `npm run test:*` PASS | heuristik bounce: bounce→HTML true, plain text→false | depth: flat & nested sama (0/1/2).
+
 ## 2026-08-17 — Round 6 bug hunt: donut data fiktif + ProgressBar NaN + Calendar delete confirm + error UI hidup + search undefined + scheduleDelete 0
 
 ### Bugs found & fixed
