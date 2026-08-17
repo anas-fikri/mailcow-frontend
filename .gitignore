@@ -10,11 +10,15 @@ cookies*.txt
 
 # Debug & test files
 test-*
+test_rq*.js
+test_rq*.jsx
+test_sogo.js
 *.out.txt
 *.txt
 !docs/**/*.md
 full_html.txt
 sogo_main.html
+sogo.html
 html.txt
 
 # Dumps & temp
@@ -22,7 +26,6 @@ dump*.js
 dist.tar.gz
 reset.sh
 *.log
-ai-state.json
 .omo/
 
 # Credentials & test scripts (jangan pernah commit!)
