@@ -917,15 +917,18 @@ export async function fetchPreferences(sogoToken, email, smtpToken = null) {
   }
 
   // ─ Layer 1: Backend DB endpoint ─
+  // Penting: 401/403 dari /api/* adalah masalah sesi SMTP proxy (token
+  // hilang/expired), BUKAN sesi SOGo. Jangan picu session-expired / force
+  // logout webmail — cukup lanjut ke fallback localStorage. Perbaiki isu
+  // "reload halaman → /api/preferences 401 → user di-logout paksa".
   try {
     const url = `/api/preferences?email=${encodeURIComponent(email)}&t=${Date.now()}`;
     const headers = withApiKey();
     if (smtpToken) headers['X-SMTP-Token'] = smtpToken;
     const res  = await fetch(url, { credentials: 'include', headers });
     if (res.status === 401 || res.status === 403) {
-      throwApiError('Sesi preferensi berakhir, silakan login ulang.', res.status);
-    }
-    if (res.ok) {
+      debugWarn('[prefs] /api/preferences ditolak (', res.status, ') — sesi SMTP proxy tidak valid, pakai fallback.');
+    } else if (res.ok) {
       const ct = res.headers.get('content-type') || '';
       if (ct.includes('application/json')) {
         const data = await res.json();
@@ -938,9 +941,8 @@ export async function fetchPreferences(sogoToken, email, smtpToken = null) {
       }
     }
   } catch (e) {
-    // Authentication failures must not fall back to stale account data.
-    if (e?.status === 401 || e?.status === 403) throw e;
-    console.warn('[prefs] /api/preferences error:', e.message);
+    // 401/403 dari /api/* bukan sinyal session-expired SOGo — fallback saja.
+    debugWarn('[prefs] /api/preferences error:', e?.message || e);
   }
 
   // ─ Layer 2: localStorage ─
