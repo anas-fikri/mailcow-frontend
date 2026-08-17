@@ -1,12 +1,18 @@
 # Current Task
 
-Status: COMPLETE — Round 9.4 investigasi keamanan banjir bounce (tidak ada perubahan kode)
-Task ID: sogo-bounce-investigation-2026-08-17
+Status: COMPLETE — Round 9.5 panduan email per-klien + port alternatif (LIVE 9ae9097)
+Task ID: sogo-email-guide-2026-08-17
 Started At: 2026-08-17
 Updated At: 2026-08-17
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## Round 9.4 (terbaru) — investigasi banjir bounce "Mail delivery failed"
+## Round 9.5 (terbaru) — panduan email per-klien + port alternatif
+- Port terverifikasi: internet → 993/465/587 BLOCK, 1993/1465/1587 OPEN; internal → kebalikan. Dua set port disajikan dgn badge.
+- `public/help/email-settings.html` diperluas: tabel port standar/alternatif + langkah per-klien (Outlook Windows, Outlook macOS, Apple Mail, Thunderbird), semua SSL/TLS.
+- LIVE di kedua domain (HTTP 200), push `9ae9097` + docs `de9f4e1`.
+- **Pending user:** konfirmasi IP login 182.2.178.5 & 36.94.139.26; opsional SPF -all; error lama .co.id (pcp_last_error).
+
+## Round 9.4 — investigasi banjir bounce "Mail delivery failed"
 - **Sumber 1 (selesai):** relay keluar semalam port 25 tanpa auth → dnet tolak → bounce. Relay kini :26 + SASL, terbukti sent. Alamat test (utester/dedysugiarto/uutteesstteerr) = tes manual, bukan spam.
 - **Sumber 2 (eksternal):** spoofing From via smtp.mailchannels.net — di luar kendali; DMARC quarantine + SPF ~all sudah membatasi.
 - **Akun aman:** 0 SMTP AUTH 48 jam; volume keluar normal; tidak ada script server pengirim.

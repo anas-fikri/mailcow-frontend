@@ -1,7 +1,7 @@
 {
   "version": 1,
   "last_session": "2026-08-17T00:00:00+07:00",
-  "context": "PCP Express Webmail — Round 9.x: tree, hardening, SOGO_BASE same-origin, panduan email; investigasi bounce: relay dnet :26 OK, spoofing MailChannels eksternal, akun aman (0 SMTP AUTH) — tunggu konfirmasi IP login + error pcp_last_error",
+  "context": "PCP Express Webmail — Round 9.5: panduan email per-klien + port alternatif terverifikasi (1993/1465/1587 publik, 993/465/587 internal); investigasi bounce: relay dnet :26 OK, spoof MailChannels eksternal, akun aman — tunggu konfirmasi IP login",
   "modules": {
     "mail-page": {
       "status": "done",
