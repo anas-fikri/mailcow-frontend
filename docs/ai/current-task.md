@@ -1,12 +1,17 @@
 # Current Task
 
-Status: COMPLETE — Round 9.5 panduan email per-klien + port alternatif (LIVE 9ae9097)
-Task ID: sogo-email-guide-2026-08-17
+Status: COMPLETE — Round 9.6 investigasi hard-refresh logout (tanpa perubahan kode)
+Task ID: sogo-session-logout-2026-08-17
 Started At: 2026-08-17
 Updated At: 2026-08-17
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## Round 9.5 (terbaru) — panduan email per-klien + port alternatif
+## Round 9.6 (terbaru) — hard-refresh → logout
+- `SOGoSessionTimeout` tidak diset → default 30 menit idle → refresh setelah jeda = 403 = kick login.
+- Cookie sesi per-domain: pindah .co.id ↔ .com = logout.
+- **Pending:** konfirmasi user utk set `SOGoSessionTimeout = 480` + restart SOGo.
+
+## Round 9.5 — panduan email per-klien + port alternatif
 - Port terverifikasi: internet → 993/465/587 BLOCK, 1993/1465/1587 OPEN; internal → kebalikan. Dua set port disajikan dgn badge.
 - `public/help/email-settings.html` diperluas: tabel port standar/alternatif + langkah per-klien (Outlook Windows, Outlook macOS, Apple Mail, Thunderbird), semua SSL/TLS.
 - LIVE di kedua domain (HTTP 200), push `9ae9097` + docs `de9f4e1`.

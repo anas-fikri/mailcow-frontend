@@ -1,5 +1,12 @@
 # Handoff Log
 
+## 2026-08-17 — Round 9.6: investigasi hard-refresh → logout
+
+- **Gejala:** user hard refresh langsung ke layar login ("Sesi berakhir").
+- **Temuan:** (1) `SOGoSessionTimeout` TIDAK diset di sogo.conf → default SOGo **30 menit idle** → refresh setelah jeda = sesi mati = 403 = kick login; (2) sesi SOGo = cookie per-domain — login di `.co.id` tidak berlaku di `.com` (app kini jalan di dua domain setelah fix SOGO_BASE) → ganti domain + refresh = logout.
+- **Bukan penyebab:** hard refresh tidak menghapus cookie; SOGo up 10 hari (tanpa restart).
+- **Pending (menunggu konfirmasi user):** naikkan `SOGoSessionTimeout = 480` (8 jam) di sogo.conf + restart SOGo (semua sesi putus sesaat); atau user disiplin satu domain.
+
 ## 2026-08-17 — Round 9.5: panduan email per-klien + port alternatif terverifikasi
 
 - **Verifikasi port (dari jaringan user):** standar 993/465/587 CLOSED di internet, alternatif 1993/1465/1587 OPEN (+995); di IP internal 10.10.10.5 justru standar OPEN & alternatif closed → panduan menyajikan dua set port dgn badge jaringan.

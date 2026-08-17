@@ -1,5 +1,11 @@
 # Decision Log
 
+## 2026-08-17 — Round 9.6: sesi SOGo & hard-refresh logout
+
+- **Decision (temuan):** `SOGoSessionTimeout` tidak diset → default SOGo 30 menit idle; sesi SOGo terikat cookie per-domain. Keduanya menyebabkan "hard refresh → logout" (403 → kick).
+- **Decision (rekomendasi, menunggu konfirmasi):** set `SOGoSessionTimeout = 480` (8 jam) di sogo.conf + restart SOGo — aman & reversibel; alternatif: disiplin satu domain.
+- **Reason:** Hard refresh sendiri tidak menghapus cookie; penyebab adalah sesi yang sudah mati (idle) atau domain berbeda dari sesi dibuat.
+
 ## 2026-08-17 — Round 9.5: port alternatif email (1993/1465/1587)
 
 - **Decision:** Panduan email menyajikan dua set port — standar (993 IMAP/465 SMTP/587 STARTTLS) utk jaringan internal, dan alternatif (1993 IMAP/1465 SMTP SSL/1587 submission STARTTLS) utk akses dari internet.
