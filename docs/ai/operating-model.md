@@ -12,9 +12,14 @@ a secondary index.
 2. `docs/ai/goals.md` — goal/sub-goal hierarchy and measurable outcomes.
 3. `docs/ai/current-task.md` — the active objective and next step.
 4. `docs/ai/handoff.md` — what the previous agent changed and validated.
-5. `docs/ai/decisions.md` — durable decisions and tradeoffs.
-6. `ai-state.json` — machine-readable state for agents and automation.
-7. `.ai-toolkit/project.env` — local project automation settings.
+5. `docs/ai/knowledge.md` — durable findings discovered while completing tasks.
+6. `docs/ai/next-tasks.md` — evidence-based suggestions for the next task.
+7. `docs/ai/decisions.md` — durable decisions and tradeoffs.
+8. `ai-state.json` — machine-readable state for agents and automation.
+9. `.ai-toolkit/project.env` — local project automation settings.
+
+**WAJIB baca juga (engine standard — berlaku semua project):**
+- `~/.ai-toolkit/conventions/STANDARD_DEVELOPMENT.md` — task lifecycle (5 stage + bug hunt loop), rotasi fokus bug hunt, bukti per task, grounding rules anti-halusinasi, onboarding checklist.
 
 Optional capabilities such as Browser MCP are configured in
 `.ai-toolkit/project.env` and may be different on each machine.
@@ -26,7 +31,12 @@ Optional capabilities such as Browser MCP are configured in
 3. `ai-start` marks the active objective in Markdown and `ai-state.json`.
 4. Work is implemented and validated; important decisions are recorded.
 5. `ai-close` writes the handoff and updates machine-readable progress.
-6. `ai-commit`, `ai-push`, or `ai-deploy` performs the requested delivery step.
+6. Before a completed close, the AI records durable findings with
+   `ai-close --knowledge "…"`; this is written to
+   `docs/ai/knowledge.md` and synchronized to Uteke when available.
+7. `ai-close` generates `docs/ai/next-tasks.md` from unresolved next steps,
+   risks, validation gaps, unfinished goals, and repository state.
+8. `ai-commit`, `ai-push`, or `ai-deploy` performs the requested delivery step.
 
 ## Portability Rules
 
