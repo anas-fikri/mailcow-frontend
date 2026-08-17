@@ -113,6 +113,7 @@ export default function LoginPage() {
                 ref={emailRef}
                 type="email"
                 autoComplete="email"
+                autoFocus
                 placeholder="nama@domain.com"
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
