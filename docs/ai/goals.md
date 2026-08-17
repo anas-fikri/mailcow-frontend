@@ -64,6 +64,16 @@ Success criteria:
 - dompurify 3.4.13 → `npm audit --omit=dev` **0 vulnerabilities** ✅
 - Validation: 11/11 test PASS (termasuk case baru subject object), build ✅
 
+### Sub-goal G-001.S-007 — Round 6 bug hunt (2026-08-17)
+- Status: COMPLETE — deployed LIVE at `479714f`
+- StatsPage donut data fiktif (mock 540/180/4 saat data 0/null) → fallback `|| 0`, donut tampil "Tidak ada data" ✅
+- Charts ProgressBar "NaN%" (storage 0/0) → helper murni `src/lib/progressPercent.js` (guard max<=0, clamp, NaN-safe) + test baru `test-progress-percent` (12 kasus) ✅
+- CalendarPage delete popup: `window.confirm` + `.catch` → `toast.error` (sebelumnya tanpa konfirmasi + unhandled rejection) ✅
+- `fetchContacts`/`fetchCalendarEvents` tidak lagi swallow error non-auth → error state UI hidup (kontak/kalender tidak tampil kosong palsu) ✅
+- ContactsPage search: field undefined tidak lagi jadi literal "undefined" (filter(Boolean).join(' ')) ✅
+- MailPage scheduleDelete: early return saat uids kosong (toast "0 pesan" hilang) ✅
+- Validation: 12/12 test PASS, build ✅, `npm audit --omit=dev` 0 vuln | Deployed LIVE: rsync, nginx reload, webmail HTTP 200, asset `index-BBpNrAF9.js` live ✅
+
 ## Goal G-002 — Migration Portal (Eranya → Mailcow)
 
 Status: ACTIVE
