@@ -1,5 +1,20 @@
 # Handoff Log
 
+## 2026-08-17 — Sync workspace + update ai-toolkit engine + rapikan repo
+
+### Changes
+- Workspace (Linux) fast-forward `640e444 → ce215bf` — tadinya tertinggal 21 commit dari origin/macanas/production.
+- ai-toolkit engine terakhir diterapkan ke repo: `AGENTS.md` dedup blok protocol (sebelumnya ganda), tambah `docs/ai/knowledge.md` + `docs/ai/next-tasks.md`, referensi `STANDARD_DEVELOPMENT.md` di `operating-model.md`. Engine `~/.ai-toolkit` sendiri sudah versi terakhir (`fcf404d` = GitHub) — tidak perlu pull.
+- Hapus 5 file debug sisa di root: `test_rq.js`, `test_rq2.js`, `test_rq3.jsx`, `test_sogo.js`, `sogo.html`.
+- Recover 2 test hilang dari macanas: `scripts/test-mailbox-tree.mjs` + `scripts/test-message-html.mjs` (direferensikan `package.json` tapi ter-ignore `test-*` → `git add -f`).
+- Rapikan `.gitignore` (hapus entri `ai-state.json` kontradiktif; tambah pola `test_rq*`/`test_sogo.js`/`sogo.html`).
+
+### Validation
+- Build ✅ | 14/14 `npm run test:*` PASS | `git diff --check` ✅
+
+### Delivery
+- Commit `cdeef98` (chore) + `ec7555a` (docs) dipush ke `origin/main`.
+
 ## 2026-08-17 — Round 9.7: tuntas — IP login bukan sinyal kompromi
 
 - **Konfirmasi IP:** `182.2.178.5` = Telkomsel mobile (West Java), `36.94.139.26` = Telkom ISP (West Java) — keduanya Indonesia, konsisten perangkat normal (IP mobile berputar). IP login BUKAN bukti kompromi.
