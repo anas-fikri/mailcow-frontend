@@ -3,6 +3,7 @@ import { getMessageTotal } from './messageTotals.js';
 import { parseMessageRows } from './messageRows.js';
 import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
 import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFormat } from './loginDiagnostics.js';
+import { flattenMailboxes } from './mailboxTree.js';
 
 const SOGO_ENV = import.meta.env || {};
 const SOGO_BASE = SOGO_ENV.DEV ? '' : (SOGO_ENV.VITE_SOGO_BASE_URL || '');
@@ -310,38 +311,8 @@ export async function logout(smtpToken = null) {
 
 // ─── Mailer ───────────────────────────────────────────────────────────────────
 
-const FOLDER_TYPE_LABELS = {
-  sent:     'Terkirim',
-  drafts:   'Draft',
-  trash:    'Sampah',
-  junk:     'Spam',
-  inbox:    'Kotak Masuk',
-};
-
 export async function fetchFolders(sogoToken) {
   debugLog('[DEBUG] fetchFolders START');
-
-
-  function flattenMailboxes(mailboxes, depth = 0) {
-    const result = [];
-    for (const mb of mailboxes || []) {
-      const path     = mb.path || mb.name;
-      // SOGo folder URL path: "folder" + path (path tidak boleh mengandung "/")
-      // Untuk subfolder pakai encode
-      const folderId = 'folder' + path.replace(/\//g, '%2F');
-      const type     = mb.type || 'folder';
-      const label    = FOLDER_TYPE_LABELS[type] ?? mb.name;
-      // Depth: utamakan hierarki `children` (nested response). Fallback: hitung
-      // dari `path` ("INBOX/Sub" = 1, "INBOX/Sub/Sub2" = 2) — SOGo kadang
-      // mengembalikan daftar flat tanpa children, depth dari path tetap jalan.
-      const pathDepth = path.split('/').filter(Boolean).length - 1;
-      result.push({ id: folderId, label, type, path, name: mb.name, depth: Math.max(depth, pathDepth) });
-      if (mb.children?.length) {
-        result.push(...flattenMailboxes(mb.children, depth + 1));
-      }
-    }
-    return result;
-  }
 
   const maxAttempts = 3;
   try {

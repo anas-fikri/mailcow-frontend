@@ -13,6 +13,7 @@ import Avatar from '../Avatar';
 import { isSentOrDraftFolder } from '../../lib/constants';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
+import { looksLikeHtmlInPlainText } from '../../lib/messageHtml';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
@@ -49,11 +50,6 @@ function escapeHtml(str) {
   });
 }
 
-// Pola tag HTML umum — dipakai utk mendeteksi pesan text/plain yang berisi
-// markup (mis. bounce mail "Mail delivery failed" dari SOGo): tampilkan
-// sebagai HTML yang di-sanitize, bukan sumber mentah yang di-escape.
-const HTML_IN_PLAIN_RE = /<(?:div|p|br|table|tr|td|th|ul|ol|li|h[1-6]|a|span|font|b|strong|i|em|u|center|img|blockquote|pre|code|html|body|head|title)[\s>]/i;
-
 function extractHtml(parts) {
   if (!parts) return '';
   if (parts.contentType === 'text/html' && parts.content) return parts.content;
@@ -62,7 +58,7 @@ function extractHtml(parts) {
     // markup yang dikirim pengirim agar tag palsu tidak menjadi DOM aktif.
     // Kecuali kontennya jelas berisi markup HTML (bounce/delivery report) —
     // render sebagai HTML; DOMPurify tetap memfilter tag/atribut berbahaya.
-    if (HTML_IN_PLAIN_RE.test(parts.content)) return parts.content;
+    if (looksLikeHtmlInPlainText(parts.content)) return parts.content;
     return `<div style="white-space:pre-wrap">${escapeHtml(parts.content)}</div>`;
   }
   if (Array.isArray(parts.content)) {

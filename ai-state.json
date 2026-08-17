@@ -1,7 +1,7 @@
 {
   "version": 1,
   "last_session": "2026-08-17T00:00:00+07:00",
-  "context": "PCP Express Webmail — Round 8 production fixes LIVE (00c3693): subfolder indent (depth fallback dari path), shortcut modifier guard, bounce dirender HTML — 12/12 test, webmail 200",
+  "context": "PCP Express Webmail — Round 8 LIVE (00c3693) + unit tests: flattenMailboxes & HTML-in-plain-text di-extract ke lib murni, test:mailbox-tree & test:message-html — 14/14 test, build OK",
   "modules": {
     "mail-page": {
       "status": "done",
@@ -66,6 +66,10 @@
     "round8-prod-fixes": {
       "status": "done",
       "feature": "Subfolder depth fallback dari path (SOGo flat tanpa children), shortcut app tidak mencuri cmd/ctrl+C/R, bounce text/plain ber-HTML dirender sanitized"
+    },
+    "round8-unit-tests": {
+      "status": "done",
+      "feature": "flattenMailboxes & looksLikeHtmlInPlainText di-extract ke lib murni (mailboxTree.js, messageHtml.js) + test:mailbox-tree & test:message-html — 14/14 PASS"
     }
   },
   "bugs_found": [

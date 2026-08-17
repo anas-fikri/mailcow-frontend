@@ -1,5 +1,12 @@
 # Handoff Log
 
+## 2026-08-17 — Round 8 unit tests: flattenMailboxes + HTML-in-plain-text
+
+- **Refactor (uji-able):** logika murni dipindah ke lib — `flattenMailboxes` + `FOLDER_TYPE_LABELS` → `src/lib/mailboxTree.js` (api.js import ulang); `HTML_IN_PLAIN_RE` + `looksLikeHtmlInPlainText` → `src/lib/messageHtml.js` (MessageReader import ulang). Perilaku identik, tanpa fetch/DOM.
+- **Test baru:** `scripts/test-mailbox-tree.mjs` (flat response kedalaman 0/1/2, nested, child path relatif, null/empty, path hilang, folderId encode, label mapping) + `scripts/test-message-html.mjs` (bounce SOGo→true, tag uppercase/br/a/table→true, teks biasa `<`/`>`→false, script/widget→false, kosong→false).
+- **npm scripts:** `test:mailbox-tree`, `test:message-html`.
+- **Validation:** 14/14 `npm run test:*` PASS (termasuk 2 baru), `npm run build` ✅.
+
 ## 2026-08-17 — Round 8: subfolder indent prod (path-depth fallback) + shortcut modifier guard + bounce rendering
 
 ### Bugs found & fixed (reported dari production)

@@ -12,7 +12,8 @@ Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-fronte
 3. **Bounce "Mail delivery failed" dirender mentah** — text/plain berisi markup HTML, `extractHtml` meng-escape semua. Fix: deteksi tag HTML umum → render sanitized (DOMPurify tetap aktif).
 
 ## Validation
-- `npm run build` ✅ | 12/12 `npm run test:*` PASS ✅ | heuristik: bounce→HTML true, teks biasa (`<`,`>`)→false ✅ | depth flat & nested konsisten (0/1/2) ✅.
+- `npm run build` ✅ | **14/14 `npm run test:*` PASS** ✅ (termasuk 2 test baru: `test:mailbox-tree`, `test:message-html`) | heuristik: bounce→HTML true, teks biasa (`<`,`>`)→false ✅ | depth flat & nested konsisten (0/1/2) ✅.
+- Logika murni dipindah ke `src/lib/mailboxTree.js` (flattenMailboxes) & `src/lib/messageHtml.js` (looksLikeHtmlInPlainText) agar bisa diuji Node tanpa JSX/transpile.
 
 ## Delivery — COMPLETE & LIVE
 - Commit `00c3693` dipush ke origin/main ✅.
