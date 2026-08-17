@@ -1,5 +1,27 @@
 # Handoff Log
 
+## 2026-08-17 — Fix `/api/preferences` 401 (sesi SMTP hilang saat reload) — deployed
+
+### Gejala
+- Setelah reload halaman webmail, console: `GET /api/preferences → 401`; dulu memicu force logout + redirect login + mailbox kosong ("tadi muncul, sekarang kosong") + login berulang.
+
+### Root cause
+- `smtpToken` (UUID sesi SMTP proxy `/api/auth/smtp`) hanya di memori (authStore tidak persist) → hilang saat reload.
+- `/api/preferences` di server butuh `X-SMTP-Token` valid (`requireSmtpSession` → 401; bukan API key — 401 ≠ 403).
+- `fetchPreferences` lama memanggil `throwApiError(401)` → `_onSessionExpired` → clearUser + redirect → `fetchFolders` di-abort → mailbox kosong.
+- SOGo `/send` = 501 → `/api/send` (butuh smtpToken) jalur kirim yang bekerja → tanpa token kirim email gagal setelah reload.
+
+### Changes
+- `src/lib/api.js` — `fetchPreferences`: 401/403 dari `/api/*` TIDAK lagi memicu session-expired; graceful fallback ke localStorage (resolve, bukan reject).
+- `src/store/authStore.js` — `smtpToken` di-persist (partialize); kredensial (user+pass) tetap tidak pernah dipersist.
+- `scripts/test-preferences-fallback.mjs` (baru) + `package.json` `test:preferences-fallback`.
+
+### Validation
+- 15/15 `npm run test:*` PASS (termasuk test baru) | `npx vite build` ✅
+
+### Delivery
+- Commit/push + deploy LIVE via `DEPLOY_SSH_HOST=deploy-mail ./deploy.sh` (preflight → build → rsync → nginx → verify).
+
 ## 2026-08-17 — Sync workspace + update ai-toolkit engine + rapikan repo
 
 ### Changes

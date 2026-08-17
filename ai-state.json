@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "last_session": "2026-08-17T00:00:00+07:00",
-  "context": "PCP Express Webmail — Round 9.7: IP login normal (Telkomsel mobile + Telkom ISP), akun aman, rotasi password ditolak user; sebelumnya: hard-refresh logout (SOGoSessionTimeout 30m), panduan email per-klien, SOGO_BASE same-origin, tree folder, bounce investigation",
+  "last_session": "2026-08-17T21:00:00+07:00",
+  "context": "PCP Express Webmail — fix /api/preferences 401: sesi SMTP hilang saat reload → dulu force logout + mailbox kosong; kini fetchPreferences fallback localStorage (401/403 /api/* tidak memicu session-expired) + smtpToken di-persist. Sebelumnya: Round 9.7 IP login normal, history scrub 6 file debug/credential, sync workspace/macanas, engine ai-toolkit terbaru",
   "modules": {
     "mail-page": {
       "status": "done",
@@ -74,6 +74,14 @@
     "folder-tree-collapse": {
       "status": "done",
       "feature": "Sidebar folder tree expand/collapse — chevron toggle per parent, default expanded, anak rekursif; childrenByParent dari daftar flat"
+    },
+    "smtp-session-persist": {
+      "status": "done",
+      "feature": "smtpToken di-persist + fetchPreferences fallback localStorage utk 401/403 /api/* (fix force logout saat reload)"
+    },
+    "history-scrub": {
+      "status": "done",
+      "feature": "git filter-repo: hapus sogo.html/test_rq*/test_sogo.js/sogo_test.py dari seluruh riwayat; force-push; reset workspace+macanas"
     }
   },
   "bugs_found": [
@@ -260,12 +268,12 @@
     }
   ],
   "active_task": {
-    "id": "sogo-tree-2026-08-17-r9",
+    "id": "sogo-prefs-smtp-401-fix-2026-08-17",
     "status": "COMPLETE",
-    "objective": "Round 9: sidebar folder tree expand/collapse — chevron toggle, default expanded, anak rekursif; verifikasi tree dgn hierarki Dovecot asli; 14/14 test",
-    "next_step": "Deploy + user verifikasi expand/collapse di browser.",
+    "objective": "Fix /api/preferences 401 (sesi SMTP hilang saat reload) — fallback localStorage + persist smtpToken",
+    "next_step": "None — fix deployed. Rekomendasi: konsolidasi proses proxy 3005 (beberapa node server.js orphan, satu di port 3001).",
     "goal_id": "G-001",
     "sub_goal_id": "G-001.S-009",
-    "updated_at": "2026-08-17T00:00:00+07:00"
+    "updated_at": "2026-08-17T21:00:00+07:00"
   }
 }

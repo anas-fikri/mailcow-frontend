@@ -1,12 +1,34 @@
 # Current Task
 
-Status: COMPLETE — Round 9.7 tuntas: IP login normal, akun aman (tanpa perubahan kode)
-Task ID: sogo-security-close-2026-08-17
+Status: COMPLETE — fix `/api/preferences` 401 (sesi SMTP hilang saat reload) + persist smtpToken — commit/push/deploy
+Task ID: sogo-prefs-smtp-401-fix-2026-08-17
 Started At: 2026-08-17
 Updated At: 2026-08-17
-Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
+Project Root: /home/anas.fikri/mailcow-frontend
 
-## Round 9.7 (terbaru) — tuntas — IP login bukan sinyal kompromi
+## Fix /api/preferences 401 + persist smtpToken (terbaru)
+
+### Gejala
+- Setelah reload halaman, console: `GET /api/preferences → 401` → sebelumnya memicu force logout + redirect login + mailbox kosong ("tadi muncul, sekarang kosong").
+
+### Root cause
+- `smtpToken` (UUID sesi SMTP proxy dari `/api/auth/smtp`) hanya di memori → hilang saat reload.
+- `/api/preferences` butuh `X-SMTP-Token` valid (`requireSmtpSession` → 401; bukan soal API key — 401 ≠ 403).
+- `fetchPreferences` lama memanggil `throwApiError(401)` → `_onSessionExpired` → clearUser + redirect → `fetchFolders` di-abort → mailbox kosong.
+- SOGo `/send` = 501 → `/api/send` (butuh smtpToken) jalur kirim yang bekerja → tanpa token, kirim email gagal setelah reload.
+
+### Changes
+- `src/lib/api.js` — `fetchPreferences`: 401/403 dari `/api/*` TIDAK lagi memicu session-expired; graceful fallback ke localStorage (resolve, bukan reject).
+- `src/store/authStore.js` — `smtpToken` di-persist (partialize); kredensial (user+pass) tetap tidak pernah dipersist.
+- `scripts/test-preferences-fallback.mjs` (baru) + `package.json` `test:preferences-fallback`.
+
+### Validation
+- 15/15 `npm run test:*` PASS | `npx vite build` ✅
+
+### Delivery
+- Commit/push + deploy LIVE via `DEPLOY_SSH_HOST=deploy-mail ./deploy.sh`.
+
+## Round 9.7 — tuntas — IP login bukan sinyal kompromi
 - `182.2.178.5` = Telkomsel mobile, `36.94.139.26` = Telkom ISP — dua-duanya Indonesia, normal.
 - Verdict: akun aman (0 SMTP AUTH, volume normal); user menolak rotasi password.
 
