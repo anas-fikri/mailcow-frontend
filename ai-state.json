@@ -1,7 +1,7 @@
 {
   "version": 1,
   "last_session": "2026-08-17T00:00:00+07:00",
-  "context": "PCP Express Webmail — Round 9.6: hard-refresh logout = SOGoSessionTimeout default 30 menit + cookie per-domain; rekomendasi set 480 menit (pending konfirmasi); sebelumnya: panduan email per-klien, SOGO_BASE same-origin, tree folder, bounce investigation",
+  "context": "PCP Express Webmail — Round 9.7: IP login normal (Telkomsel mobile + Telkom ISP), akun aman, rotasi password ditolak user; sebelumnya: hard-refresh logout (SOGoSessionTimeout 30m), panduan email per-klien, SOGO_BASE same-origin, tree folder, bounce investigation",
   "modules": {
     "mail-page": {
       "status": "done",

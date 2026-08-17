@@ -1,12 +1,16 @@
 # Current Task
 
-Status: COMPLETE — Round 9.6 investigasi hard-refresh logout (tanpa perubahan kode)
-Task ID: sogo-session-logout-2026-08-17
+Status: COMPLETE — Round 9.7 tuntas: IP login normal, akun aman (tanpa perubahan kode)
+Task ID: sogo-security-close-2026-08-17
 Started At: 2026-08-17
 Updated At: 2026-08-17
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## Round 9.6 (terbaru) — hard-refresh → logout
+## Round 9.7 (terbaru) — tuntas — IP login bukan sinyal kompromi
+- `182.2.178.5` = Telkomsel mobile, `36.94.139.26` = Telkom ISP — dua-duanya Indonesia, normal.
+- Verdict: akun aman (0 SMTP AUTH, volume normal); user menolak rotasi password.
+
+## Round 9.6 — hard-refresh → logout
 - `SOGoSessionTimeout` tidak diset → default 30 menit idle → refresh setelah jeda = 403 = kick login.
 - Cookie sesi per-domain: pindah .co.id ↔ .com = logout.
 - **Pending:** konfirmasi user utk set `SOGoSessionTimeout = 480` + restart SOGo.

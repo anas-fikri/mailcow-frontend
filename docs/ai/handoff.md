@@ -1,5 +1,11 @@
 # Handoff Log
 
+## 2026-08-17 — Round 9.7: tuntas — IP login bukan sinyal kompromi
+
+- **Konfirmasi IP:** `182.2.178.5` = Telkomsel mobile (West Java), `36.94.139.26` = Telkom ISP (West Java) — keduanya Indonesia, konsisten perangkat normal (IP mobile berputar). IP login BUKAN bukti kompromi.
+- **Verdict keamanan final:** 0 SMTP AUTH 48 jam + volume keluar normal + tanpa script spam = akun tidak terkompromi. User **menolak rotasi password** ("gaaaas") — dicatat; alasan rotasi yang lebih relevan (leak historis `sogo_test.py`) tetap tersedia bila nanti diinginkan.
+- **Status:** item keamanan ditutup.
+
 ## 2026-08-17 — Round 9.6: investigasi hard-refresh → logout
 
 - **Gejala:** user hard refresh langsung ke layar login ("Sesi berakhir").
