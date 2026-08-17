@@ -1,5 +1,11 @@
 # Handoff Log
 
+## 2026-08-17 — Round 9.5: panduan email per-klien + port alternatif terverifikasi
+
+- **Verifikasi port (dari jaringan user):** standar 993/465/587 CLOSED di internet, alternatif 1993/1465/1587 OPEN (+995); di IP internal 10.10.10.5 justru standar OPEN & alternatif closed → panduan menyajikan dua set port dgn badge jaringan.
+- **Isi halaman** `public/help/email-settings.html` diperluas: tabel port standar vs alternatif (1993 IMAP / 1465 SMTP SSL / 1587 submission STARTTLS), langkah per-klien — Outlook Windows, Outlook macOS, Apple Mail (iPhone/iPad/Mac), Thunderbird — semua SSL/TLS, username = email lengkap, host dinamis `mail.<domain>`.
+- **Validasi:** build ✅, HTTP 200 di .com & .co.id ✅, push `9ae9097`.
+
 ## 2026-08-17 — Round 9.4: investigasi banjir bounce "Mail delivery failed" (keamanan)
 
 ### Temuan
