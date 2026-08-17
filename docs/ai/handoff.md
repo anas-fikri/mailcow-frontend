@@ -1,5 +1,16 @@
 # Handoff Log
 
+## 2026-08-17 — Round 9.4: investigasi banjir bounce "Mail delivery failed" (keamanan)
+
+### Temuan
+1. **Dua sumber bounce:** (a) relay keluar semalam (16 Agu) ke `smtp-pre.dnet.net.id:25` tanpa auth → "Relay access denied" → bounce balik; kiriman ke alamat test (utester@dnet.net.id, dedysugiarto041@gmail.com, uutteesstteerr@gmail.com) — pola tes manual, bukan spam. Relay kini `[smtp-pre.dnet.net.id]:26` + SASL — terbukti `status=sent` (09:12, mulyawardhana@gmail.com) ✅. (b) Spoofing eksternal via `smtp.mailchannels.net` (ESA "550 5.7.1 Sender blocked") — infrastruktur kita TIDAK pakai MailChannels; pihak luar memalsukan From anas.fikri@pcpexpress.com → bounce balik ke korban. Ini di luar kendali sumber; DMARC p=quarantine + SPF ~all sudah membatasi dampak.
+2. **Akun aman:** 0 SMTP AUTH sebagai anas.fikri (48 jam); volume keluar normal (11/24 jam, ukuran tes); tidak ada script server yang merujuk alamat test tsb.
+3. **Perlu konfirmasi user:** login webmail/IMAP 48 jam dari `182.2.178.5` (17x) + `36.94.139.26` (1x) — harus dipastikan perangkat milik user; jika bukan → rotasi password.
+4. **Rekomendasi (pending user):** SPF `~all` → `-all` (semua pengirim sah sudah ter-cover include dnet/google).
+
+### Follow-up yang dibutuhkan
+- Konfirmasi 2 IP login; opsional rotasi password; opsional SPF `-all` di DNS.
+
 ## 2026-08-17 — Round 9.3: halaman Panduan Setting Email + autofocus login
 
 - **Bug:** Tombol "Panduan Setting Email" (LoginPage + Sidebar) menunjuk `/webmail/help/email-settings.html` yang tidak pernah ada di dist → 404.

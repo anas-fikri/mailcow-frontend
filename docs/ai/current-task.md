@@ -1,12 +1,18 @@
 # Current Task
 
-Status: COMPLETE — Round 9.2 login NetworkError .com fixed (SOGO_BASE same-origin)
-Task ID: sogo-tree-2026-08-17-r9
+Status: COMPLETE — Round 9.4 investigasi keamanan banjir bounce (tidak ada perubahan kode)
+Task ID: sogo-bounce-investigation-2026-08-17
 Started At: 2026-08-17
 Updated At: 2026-08-17
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## Round 9.2 (terbaru) — login NetworkError di mail.pcpexpress.com
+## Round 9.4 (terbaru) — investigasi banjir bounce "Mail delivery failed"
+- **Sumber 1 (selesai):** relay keluar semalam port 25 tanpa auth → dnet tolak → bounce. Relay kini :26 + SASL, terbukti sent. Alamat test (utester/dedysugiarto/uutteesstteerr) = tes manual, bukan spam.
+- **Sumber 2 (eksternal):** spoofing From via smtp.mailchannels.net — di luar kendali; DMARC quarantine + SPF ~all sudah membatasi.
+- **Akun aman:** 0 SMTP AUTH 48 jam; volume keluar normal; tidak ada script server pengirim.
+- **Pending:** konfirmasi IP login 182.2.178.5 & 36.94.139.26; opsional rotasi password; opsional SPF -all.
+
+## Round 9.2 — login NetworkError di mail.pcpexpress.com
 - `VITE_SOGO_BASE_URL` hardcoded `.co.id` → fetch cross-origin dari `.com` → CORS + CSP `connect-src 'self'` block → NetworkError. Fix: SOGO_BASE same-origin (relatif) di api.js + MessageReader, deploy.sh default kosong, env override tetap didukung.
 - Bundle ter-deploy 0 referensi absolut; cert SAN sudah cover `.com`; push `739a150`.
 - **Open:** error "Terjadi Kesalahan" di .co.id (sebelumnya) — tunggu `pcp_last_error` dari user; hardening + capture sudah LIVE.

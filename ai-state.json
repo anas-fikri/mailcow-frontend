@@ -1,7 +1,7 @@
 {
   "version": 1,
   "last_session": "2026-08-17T00:00:00+07:00",
-  "context": "PCP Express Webmail — Round 9.x: folder tree expand/collapse, harden tree + error capture (pcp_last_error), login NetworkError .com fixed via SOGO_BASE same-origin (739a150) — tunggu konfirmasi user utk error lama .co.id",
+  "context": "PCP Express Webmail — Round 9.x: tree, hardening, SOGO_BASE same-origin, panduan email; investigasi bounce: relay dnet :26 OK, spoofing MailChannels eksternal, akun aman (0 SMTP AUTH) — tunggu konfirmasi IP login + error pcp_last_error",
   "modules": {
     "mail-page": {
       "status": "done",
