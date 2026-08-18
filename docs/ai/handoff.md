@@ -1,5 +1,15 @@
 # Handoff Log
 
+## 2026-08-18 — Quick Rule: buat aturan 1-langkah langsung dari baris email — DONE
+
+- **Permintaan user:** seberapa memungkinkan menambah rule utk email tertentu, fokus kemudahan penggunaan. Jawaban: engine rules SUDAH ada (`src/lib/autoArchive.js` + halaman `/rules`), tapi pembuatan manual (buka halaman → form dari nol) → tidak mudah ditemukan.
+- **Implementasi:**
+  - `src/components/mailer/QuickRuleModal.jsx` (baru): modal kecil dari baris email — pengirim TERISI OTOMATIS (extract email dari sender label), user tinggal pilih folder tujuan (default: Archive bila ada) + nama (default `Arsip dari <email>`) → `addRule` ke store yang SAMA dengan RulesPage (localStorage `auto_archive_rules_<email>`) → dieksekusi otomatis oleh MailPage (executeRules saat pesan dimuat). Aksi: pindah ke folder (sesuai pilihan user; tidak ada mark-read/flag).
+  - `MailPage.jsx`: ikon Filter per-baris (hover desktop, pola sama snooze/arsip) → `setQuickRuleSender(senderLabel)` → render `QuickRuleModal` di root (isOpen = !!quickRuleSender).
+  - Halaman `/rules` TETAP ada utk aturan kompleks (multi-kondisi, AND/OR, test rule) — Quick Rule = pintu cepat.
+- **Catatan:** rules berlaku untuk pesan yang baru dimuat (rulesProcessed per-uid) — pesan lama di inbox tidak di-move ulang; perilaku disengaja.
+- **Validasi:** build OK + 19/19 test PASS. Deploy via deploy.sh.
+
 ## 2026-08-18 — Fix "Gagal memindahkan pesan (404)" saat archive — endpoint moveMessages (bukan batchMoveToMailbox) — FIXED, siap deploy
 
 - **Gejala:** tombol Arsip (header / per-baris) → toast "Gagal memindahkan pesan (404)".

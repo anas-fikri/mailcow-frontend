@@ -10,6 +10,7 @@ import { useAuthStore } from '../store/authStore';
 import { fetchFolders, fetchMessages, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged } from '../lib/api';
 import MessageReader from '../components/mailer/MessageReader';
 import ComposeModal from '../components/mailer/ComposeModal';
+import QuickRuleModal from '../components/mailer/QuickRuleModal';
 import { MessageListSkeleton, FoldersListSkeleton } from '../components/Skeleton';
 import { toast } from '../lib/toast';
 import { DEFAULT_FOLDERS, STALE_TIMES, isSentOrDraftFolder } from '../lib/constants';
@@ -181,6 +182,7 @@ export default function MailPage() {
   const [categoryFilter, setCategoryFilter] = useState(null); // EMAIL_CATEGORIES key or null
   const [unreadOnly, setUnreadOnly] = useState(false); // filter hanya belum dibaca
   const [snoozePicker, setSnoozePicker] = useState(null); // { uid, x, y } — pilih durasi snooze
+  const [quickRuleSender, setQuickRuleSender] = useState(null); // sender label utk QuickRuleModal
   const [snoozeTick, setSnoozeTick] = useState(0); // bump utk re-render setelah prune
   const [expandedConversations, setExpandedConversations] = useState(new Set());
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set()); // folder sidebar yang di-ciutkan
@@ -1035,6 +1037,20 @@ export default function MailPage() {
                 {senderLabel}
               </span>
               <div className="flex items-center gap-1.5 shrink-0">
+                {/* Buat aturan utk pengirim ini — hover desktop */}
+                {!isTouch && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setQuickRuleSender(senderLabel);
+                    }}
+                    tabIndex={-1}
+                    className="p-0.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
+                    title="Buat aturan otomatis untuk pengirim ini"
+                  >
+                    <Filter size={14} />
+                  </button>
+                )}
                 {/* Snooze per-baris — hover desktop; picker durasi */}
                 {selectedFolder === 'folderINBOX' && !isTouch && (
                   <button
@@ -1635,6 +1651,15 @@ export default function MailPage() {
         initialData={composeData}
         sogoToken={user?.sogoToken}
         userFrom={user?.cn ? `${user.cn} <${user.email}>` : user?.email || ''}
+      />
+
+      {/* ── Quick Rule — buat aturan dari baris email ─────────────────────── */}
+      <QuickRuleModal
+        isOpen={!!quickRuleSender}
+        onClose={() => setQuickRuleSender(null)}
+        sender={quickRuleSender}
+        folders={folders}
+        userEmail={user?.email}
       />
 
       {/* ── Keyboard Shortcuts Help ────────────────────────────────────────── */}
