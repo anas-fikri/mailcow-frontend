@@ -5,7 +5,7 @@ import {
   Flag, Printer, FolderOpen, Star, Send, ChevronDown,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, sendMessage } from '../../lib/api';
+import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, sendMessage, fetchPreferences } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
@@ -14,6 +14,7 @@ import { isSentOrDraftFolder } from '../../lib/constants';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
 import { looksLikeHtmlInPlainText } from '../../lib/messageHtml';
+import { getSignatureFor } from '../../lib/signatures';
 
 // Same-origin (relatif) — lihat catatan di src/lib/api.js. SPA & SOGo di origin
 // yang sama (nginx mailcow mem-proxy /SOGo utk semua vhost), jadi base absolut
@@ -208,6 +209,14 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     enabled: !!msgId && !!user?.sogoToken,
   });
 
+  // Preferences utk fallback signature SOGo lama (sama pola ComposeModal)
+  const { data: prefs } = useQuery({
+    queryKey: ['preferences', user?.sogoToken, smtpToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email, smtpToken),
+    enabled: !!user?.sogoToken,
+    staleTime: 5 * 60_000,
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       // Move to trash instead of permanent delete
@@ -367,17 +376,26 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // ── Quick reply ────────────────────────────────────────────────────────────
   // Balas singkat tanpa buka compose penuh — kirim via SOGo compose flow
   // (sama seperti ComposeModal), penerima = replyTo || from.
+  // Signature ikut disisipkan: lokal mode reply (pola Outlook) + fallback
+  // signature SOGo lama (sama logika ComposeModal).
   async function handleQuickSend() {
     const body = quickText.trim();
     if (!body) return;
     const recipient = replyTo || from;
+    // Signature: lokal utk balasan; fallback SOGoMailSignature lama bila belum ada
+    const localSig = user?.email ? getSignatureFor(user.email, 'reply') : null;
+    const sigHtml = localSig?.html || prefs?.defaults?.SOGoMailSignature;
+    const sigEnabled = localSig
+      ? true
+      : prefs?.defaults?.SOGoMailSignatureEnabled === '1';
+    const sigBlock = sigHtml && sigEnabled ? `<br>--<br>${sigHtml}` : '';
     try {
       await sendMessage(user.sogoToken, {
         to: recipient,
         cc: '',
         bcc: '',
         subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
-        body: escapeHtml(body).replace(/\n/g, '<br>'),
+        body: escapeHtml(body).replace(/\n/g, '<br>') + sigBlock,
         isHTML: true,
         from: user?.cn ? `${user.cn} <${user.email}>` : user?.email || '',
       }, smtpToken);
