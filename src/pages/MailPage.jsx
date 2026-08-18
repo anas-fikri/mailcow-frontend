@@ -455,11 +455,13 @@ export default function MailPage() {
   }, [selectionMode, selectedUids.length]);
 
   // Bug fix: clamp focusIdx saat jumlah messages berubah (cegah out-of-bounds)
+  // Catatan: jangan masukkan focusIdx di deps — bisa create loop dgn reset effect
   useEffect(() => {
     if (focusIdx >= messages.length) {
-      setFocusIdx(messages.length - 1);
+      setFocusIdx(Math.max(0, messages.length - 1));
     }
-  }, [messages.length, focusIdx]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
 
   const toggleConversation = useCallback((key) => {
     setExpandedConversations(prev => {
