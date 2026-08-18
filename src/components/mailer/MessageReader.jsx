@@ -203,17 +203,25 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const { data: msg, isLoading, error: msgError } = useQuery({
     queryKey: ['message', user?.sogoToken, folder, msgId],
     queryFn: async () => {
-      const data = await fetchMessage(user?.sogoToken, folder, msgId);
-      markRead(user?.sogoToken, folder, msgId, true).then(() => {
-        queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, folder] });
-        queryClient.invalidateQueries({ queryKey: ['unseen', user?.sogoToken] });
-      }).catch((e) => console.error('[markRead]', e?.message || e));
-      return data;
+      // Bug fix: JANGAN panggil invalidateQueries di dalam queryFn —
+      // bisa cause cascading re-renders → React #310 infinite loop.
+      // markRead dipindah ke useEffect di bawah.
+      return fetchMessage(user?.sogoToken, folder, msgId);
     },
     enabled: !!msgId && !!user?.sogoToken,
     retry: 2,
     retryDelay: 500,
   });
+
+  // Bug fix: markRead dipindah ke useEffect (bukan di dalam queryFn)
+  // agar tidak trigger cascading invalidation saat render.
+  React.useEffect(() => {
+    if (!msg || !user?.sogoToken || !folder || !msgId) return;
+    markRead(user.sogoToken, folder, msgId, true).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, folder] });
+      queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+    }).catch((e) => console.error('[markRead]', e?.message || e));
+  }, [msg?.uid, user?.sogoToken, folder, msgId]);
 
   // Preferences utk fallback signature SOGo lama (sama pola ComposeModal)
   const { data: prefs } = useQuery({
