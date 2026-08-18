@@ -615,33 +615,6 @@ export default function RulesPage() {
   const [deleteTarget, setDeleteTarget] = useState(null); // { id, name }
   const [runningRuleId, setRunningRuleId] = useState(null);
 
-  // Jalankan aturan terhadap email yang SUDAH ada di Inbox (pola Gmail "apply to existing")
-  const handleRunNow = async (rule) => {
-    if (!user?.sogoToken || runningRuleId) return;
-    setRunningRuleId(rule.id);
-    try {
-      const { messages } = await fetchMessages(user.sogoToken, 'folderINBOX', {});
-      const matchedUids = messages
-        .filter((m) => matchRules(user.email, m).includes(rule.id))
-        .map((m) => m.uid);
-      if (matchedUids.length === 0) {
-        toast.info(`Tidak ada email di Inbox yang cocok dengan "${rule.name}"`);
-        return;
-      }
-      await moveMessages(user.sogoToken, 'folderINBOX', matchedUids, rule.actionFolder);
-      updateRule(user.email, rule.id, {
-        runCount: (rule.runCount || 0) + 1,
-        lastRunAt: Date.now(),
-      });
-      toast.success(`${matchedUids.length} email dipindahkan ke ${allFolders.find((f) => f.id === rule.actionFolder)?.label || rule.actionFolder}`);
-      handleRefresh();
-    } catch (err) {
-      toast.error(err?.message || 'Gagal menjalankan aturan.');
-    } finally {
-      setRunningRuleId(null);
-    }
-  };
-
   // Ambil daftar folders untuk dropdown
   const { data: folders = DEFAULT_FOLDERS } = useQuery({
     queryKey: ['folders', user?.sogoToken],
@@ -664,6 +637,37 @@ export default function RulesPage() {
   const handleRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
   }, []);
+
+  // Helper: resolve folder ID → folder object (moveMessages butuh path)
+  const folderById = (id) => allFolders.find((f) => f.id === id) || null;
+
+  // Jalankan aturan terhadap email yang SUDAH ada di Inbox (pola Gmail "apply to existing")
+  const handleRunNow = async (rule) => {
+    if (!user?.sogoToken || runningRuleId) return;
+    setRunningRuleId(rule.id);
+    try {
+      const { messages } = await fetchMessages(user.sogoToken, 'folderINBOX', {});
+      const matchedUids = messages
+        .filter((m) => matchRules(user.email, m).includes(rule.id))
+        .map((m) => m.uid);
+      if (matchedUids.length === 0) {
+        toast.info(`Tidak ada email di Inbox yang cocok dengan "${rule.name}"`);
+        return;
+      }
+      const targetFolder = folderById(rule.actionFolder);
+      await moveMessages(user.sogoToken, 'folderINBOX', matchedUids, targetFolder || rule.actionFolder);
+      updateRule(user.email, rule.id, {
+        runCount: (rule.runCount || 0) + 1,
+        lastRunAt: Date.now(),
+      });
+      toast.success(`${matchedUids.length} email dipindahkan ke ${targetFolder?.label || rule.actionFolder}`);
+      handleRefresh();
+    } catch (err) {
+      toast.error(err?.message || 'Gagal menjalankan aturan.');
+    } finally {
+      setRunningRuleId(null);
+    }
+  };
 
   const handleSave = (data) => {
     if (editingRule) {

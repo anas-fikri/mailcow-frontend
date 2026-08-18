@@ -6,6 +6,13 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — Bugs audit: localStorage silent fail, TDZ fragile code, folder path inconsistency
+
+- **localStorage silent fail pattern:** `saveRules(email, rules)` punya guard `if (!email) return;` → rule TIDAK disimpan tapi caller tidak tahu (addRule tetap return newRule, toast success). Pattern serupa bisa ada di fungsi localStorage lain. Fix: `addRule` throw Error jika email kosong, atau caller validasi sebelum panggil.
+- **TDZ di React functional component:** `const` variabel dideklarasikan SETELAH fungsi yang menggunakannya — aman di runtime (closure capture by reference, dipanggil setelah render), tapi fragile: refactor pindah urutan bisa crash. Best practice: deklarasikan SEMUA helper/const SEBELUM fungsi yang menggunakannya.
+- **Folder path conversion:** SOGo butuh path relatif (`Archive`), bukan id (`folderArchive`). moveMessages sudah handle `typeof string → decodeURIComponent(id.replace(/^folder/,''))`. Tapi konsistensi lebih baik: semua caller kirim objek folder `{path, id, label}`, string id cuma fallback.
+- **Pelajaran:** audit cross-component bug: cek apakah data yang DISIMPAN (component A) formatnya SAMA dengan yang DIBACA (component B). Sumber truth: localStorage key harus identik (email format, casing).
+
 ## 2026-08-18 — Pola fitur harian batch 2: auto-advance, date groups, kontak dari email, kalender UX, rule apply-to-existing
 
 - **Auto-advance reader:** MessageReader terima `siblingUids` (urutan uid yang TAMPIL, dari `visibleOrderUids` MailPage) + `onNavigateTo`; setelah delete/move sukses → buka `siblingUids[idx+1]`, fallback `idx-1`, else onClose. Pola Gmail; jangan onClose() mentah kalau daftar masih ada isi.

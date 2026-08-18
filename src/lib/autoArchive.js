@@ -68,6 +68,7 @@ function saveRules(email, rules) {
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
 
 export function addRule(email, rule) {
+  if (!email) throw new Error('Email pengguna tidak tersedia — silakan login ulang.');
   const rules = getRules(email);
   const newRule = {
     id: `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,

@@ -1,5 +1,14 @@
 # Handoff Log
 
+## 2026-08-18 — Comprehensive bug audit + fix: RulesPage TDZ, addRule silent fail, folder path conversion — DONE + DEPLOYED
+
+- **Permintaan user:** "nah tadi gue sempet bikin aturan dari kotak masuk, tapi ga ada di halmaan /webmail/rules. kayanya lo perlu cek lebih dalam kemungkinan bugs fitur lainnya deh"
+- **Root cause #1 — RulesPage `handleRunNow` TDZ:** variabel `allFolders` + `handleRefresh` dideklarasikan SETELAH `handleRunNow` yang menggunakannya. Meskipun runtime closure capture by reference (no crash), ini fragile. Fix: pindah `allFolders`, `allFolders`, `refreshKey`, `rules`, `handleRefresh`, `folderById` SEBELUM `handleRunNow`.
+- **Root cause #2 — QuickRule silent fail:** `addRule(userEmail, ...)` memanggil `saveRules(email, rules)` yang punya guard `if (!email) return;` → rule TIDAK disimpan ke localStorage tapi toast tetap tampilkan "Aturan dibuat". Fix: `addRule` throw Error jika `email` kosong; QuickRuleModal guard `if (!userEmail)` sebelum `addRule`.
+- **Root cause #3 — handleRunNow pakai string folder ID:** `moveMessages(..., rule.actionFolder)` kirim string `folderArchive`. moveMessages convert `folderArchive` → `Archive` ✓ (sudah handle). Tapi fix: resolve via `folderById(rule.actionFolder)` → kirim object folder ke moveMessages (konsisten dengan pattern lain).
+- **Fix files:** `src/pages/RulesPage.jsx` (reorder + folderById + targetFolder objek), `src/lib/autoArchive.js` (addRule guard), `src/components/mailer/QuickRuleModal.jsx` (userEmail guard).
+- **Validasi:** build OK + 20/20 test PASS + deploy LIVE (commit 7f40e8c).
+
 ## 2026-08-18 — Batch 2 fitur harian: auto-advance, group by tanggal, tambah kontak, kalender UX, rule jalankan-now — DONE (siap deploy)
 
 - **Permintaan user:** "tolong lanjutin" + pilihan: auto-advance setelah hapus/arsip, group by tanggal, tambah ke kontak dari email, + pertimbangkan kemudahan kalender & fleksibilitas rule.

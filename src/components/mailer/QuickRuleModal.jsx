@@ -53,6 +53,9 @@ export default function QuickRuleModal({ isOpen, onClose, sender, folders = [], 
     }
     setSaving(true);
     try {
+      if (!userEmail) {
+        throw new Error('Email pengguna tidak tersedia — silakan muat ulang halaman.');
+      }
       addRule(userEmail, {
         name: name.trim() || `Arsip dari ${email}`,
         conditions: [{ field: 'from', operator: 'contains', value: email }],
