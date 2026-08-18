@@ -32,11 +32,11 @@ for (const folder of folders) {
 const searchResult = await searchMessages('user@example.test', 'folderSent', 'dummy', 'subject');
 assert.equal(searchResult.messages.length, 1);
 const searchCall = calls.at(-1);
-assert.ok(searchCall.url.endsWith('/Mail/0/folderSent/search'));
+// SOGo v5 search = folder view dgn filters (endpoint /search tidak ada → 404)
+assert.ok(searchCall.url.endsWith('/Mail/0/folderSent/view'));
 assert.deepEqual(JSON.parse(searchCall.options.body), {
-  search: 'dummy',
-  criteria: 'subject',
-  headers: SOGO_MESSAGE_HEADERS,
+  sortingAttributes: { sort: 'date', asc: 0 },
+  filters: [{ searchBy: 'subject', searchInput: 'dummy', negative: 0 }],
 });
 
 assert.equal(calls.length, folders.length + 1);

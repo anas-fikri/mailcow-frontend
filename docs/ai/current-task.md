@@ -1,10 +1,34 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: incident-login-massal-2026-08-18
+Task ID: fix-bugs-fitur-baru-deploy-2026-08-18
 Started At: 2026-08-18
-Updated At: 2026-08-18T04:41:44Z
+Updated At: 2026-08-18T06:22:17Z
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
+
+## 2026-08-18 — Audit endpoint SOGo v5 + fix archive 404 + deploy SEMUA fitur — IN PROGRESS
+
+- **Bug: "Gagal memindahkan pesan (404)" saat archive** — root cause: app panggil endpoint `batchMoveToMailbox` yang TIDAK ADA di SOGo v5 (diverifikasi: `grep -aoc` di binary `MailerUI` → 0 hit). SOGo asli pakai `moveMessages` (3 hit): `POST /Mail/0/{folder}/moveMessages` body `{uids, folder}` dengan `folder` = **path relatif** (`Archive`, `INBOX/Sub`), bukan id berprefix (`folderArchive`).
+- **Fix** `src/lib/api.js` `moveMessages`: endpoint `moveMessages` + payload `{uids, folder: path}`; terima objek folder (pakai `path`/`name`) atau string id (`folderX` → strip prefix + decode `%2F`).
+- **Fix** `src/pages/MailPage.jsx`: semua pemanggil kirim objek folder — `trashFolder`/`junkFolder` (resolver `folderById`, fallback `{path:'Trash'/'Junk'}`), `archiveFolder` utk archive, dropdown pindah-ke resolve via `folderById`.
+- **Audit endpoint lain terhadap SOGo v5 (semua OK):** `markMessageRead/Unread`, `markMessageFlagged/Unflagged` (3 hit di binary), `batchDelete` (dipakai SOGo asli), `moveMessages` (baru), search = folder `view` + `filters` (sudah difix sebelumnya).
+- **Validasi:** build OK + 19/19 test PASS.
+- **Aksi:** commit + push + deploy SEMUA fitur sesi ini (kategori, signature, SMTP non-blocking, checkbox/star, range-select, ukuran font, 5 fitur produktivitas, 5 fitur harian, fix search, fix TDZ, fix archive).
+
+## 2026-08-18 — Fitur analisis email (kategori) + signature ala Outlook — DONE (dev, BELUM deploy)
+
+- **Klasifikasi email** (`src/lib/emailCategory.js`): kategori Utama/Promosi/Sosial/Update/Spam dari data list view yang SUDAH ada (folderId + from + subject) — zero request tambahan ke SOGo. Spam = folder Junk. Sosial = domain media sosial (facebookmail/linkedin/instagram/dll). Promo = domain newsletter (mailchimp/sendgrid/brevo/dll) + kata kunci subjek. Update = domain no-reply/notifikasi (github/tokopedia/paypal/dll) + kata kunci. Tab kategori di header MailPage + badge kecil di baris pesan.
+- **Signature ala Outlook** (`src/lib/signatures.js`): banyak signature per-akun (localStorage `pcp_signatures_<email>`, pola userPrefs), default terpisah utk pesan baru vs balasan, dropdown sisipkan di compose, migrate otomatis dari SOGoMailSignature lama. PreferencesPage: kelola (tambah/edit/hapus/default) + tombol "Sinkronkan ke SOGo" (opsional, utk klien SOGo lain). ComposeModal: inject signature lokal sesuai mode (new/reply), fallback ke SOGo lama.
+- **Test:** `test:email-category` + `test:signatures` (baru) — **17/17 PASS**, `npx vite build` OK. Belum deploy — user review via localhost:5173 dulu.
+- Detail: docs/ai/handoff.md (entry teratas).
+
+## 2026-08-18 — Setup dev lokal + review tanpa deploy — DONE
+
+- User mau develop sogo-frontend di workspace mac saja, review perubahan di browser lokal, TANPA deploy langsung.
+- **Alur:** `npm run dev` → `http://localhost:5173/webmail/`. Proxy Vite: `/SOGo` → produksi `mail.pcpexpress.co.id` (cookie rewrite localhost → login SOGo asli jalan dari localhost), `/api` → `127.0.0.1:3001`.
+- **Verifikasi:** index 200; `/SOGo/so/` 200; `/SOGo/connect` dummy → 403 (pipeline normal). Semua test suite hijau + build OK (baseline).
+- **Batasan:** `/api/*` (kirim email/preferences) butuh server.js + env DB — untuk review UI + login + baca mail cukup proxy /SOGo. Tidak ada perubahan production; tidak deploy.
+- Detail: docs/ai/handoff.md (entry teratas).
 
 ## FIX 2026-08-18 — Control Tower mailboxes kosong → restore inject X-API-Key di /api/v1/*
 - Patch hapus gate ikut menghapus FastCGI + inject X-API-Key → Control Tower SPA dapat body kosong. Fix: restore location ^~ /api/v1/ FastCGI + HTTP_X_API_KEY (tanpa gate) → mailboxes 919KB data, semua endpoint 200. UI Mailcow tetap jalan.

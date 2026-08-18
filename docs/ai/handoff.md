@@ -1,5 +1,108 @@
 # Handoff Log
 
+## 2026-08-18 — Fix "Gagal memindahkan pesan (404)" saat archive — endpoint moveMessages (bukan batchMoveToMailbox) — FIXED, siap deploy
+
+- **Gejala:** tombol Arsip (header / per-baris) → toast "Gagal memindahkan pesan (404)".
+- **Root cause:** `moveMessages` (api.js) POST ke `.../Mail/0/{folder}/batchMoveToMailbox` — endpoint itu TIDAK ADA di SOGo v5. Diverifikasi langsung di binary server: `grep -aoc 'moveMessages' MailerUI` = 3 hit, `batchMoveToMailbox` = **0 hit** (di container `mailcow-sogo-mailcow-1`, `/usr/local/lib/GNUstep/SOGo/MailerUI.SOGo/MailerUI`).
+- **Cara SOGo asli** (`Mailer/Mailbox.service.js` `$moveMessages`): `Mailbox.$$resource.post(this.id, 'moveMessages', {uids, folder})` → POST `{folder}/moveMessages` body `{uids, folder}` — `folder` = **path relatif** (`Archive`, `INBOX/Sub`), bukan id berprefix (`folderArchive`). Respon berisi `unseenCount`.
+- **Fix `src/lib/api.js`:** endpoint → `moveMessages`; payload `{uids, folder: targetPath}`. `targetPath` = `decodeURIComponent(id.replace(/^folder/,''))` jika string id, atau `folder.path || folder.name` jika objek.
+- **Fix `src/pages/MailPage.jsx`:** semua pemanggil kirim OBJEK folder (bukan id): `trashFolder`/`junkFolder` via resolver `folderById('folderTrash'/'folderJunk')` + fallback `{path:'Trash'/'Junk'}`; `archiveMutation` & tombol arsip per-baris → `archiveFolder` (objek); dropdown "Pindah ke..." resolve `folderById(e.target.value)`; auto-archive rules tetap kirim string id (di-decode di api.js).
+- **Audit endpoint lain vs binary SOGo (SEMUA valid):** `markMessageRead`, `markMessageUnread`, `markMessageFlagged`, `markMessageUnflagged` (3 hit), `batchDelete` (dipakai `$_deleteMessages` asli), `moveMessages` (3 hit), search = folder `view` + `filters` (fix sebelumnya). Aksi per-message SOGo asli pakai GET, app pakai POST — keduanya diterima (SOGo action routing mendukung POST).
+- **Verifikasi:** build OK + **19/19 test PASS**.
+
+## 2026-08-18 — Fix "Gagal mencari pesan" — search SOGo pakai folder view + filters (bukan /search) — FIXED
+
+- **Gejala:** filter pengirim (klik nama → criteria from) → "Gagal mencari pesan".
+- **Root cause:** `searchMessages` POST ke `/Mail/0/{folder}/search` — endpoint itu TIDAK ADA di SOGo v5 → 404 → error. Diverifikasi di log nginx: 404 utk SEMUA user sejak 13 Agu (bug lama yang baru kelihatan karena fitur cari-per-pengirim baru). Search yang 200 di log itu dari `/index.php?q=result&searchfor=advancesearch` (UI klasik), bukan json_api.
+- **Cara SOGo v5 yang benar** (diverifikasi dari kode SOGo asli `Mailer/Mailbox.service.js` + `VirtualMailbox.service.js`, SOGo 5.12.9): search = `mailbox.$filter()` → `POST /Mail/0/{folder}/view` dengan body `{ sortingAttributes: {sort, asc}, filters: [{searchBy, searchInput, negative, operator}] }`. `searchBy` valid: `subject_or_from`, `subject_or_to`, `contains`, `body`, `from`, `to`, `subject`. Lokasi: `/usr/local/lib/GNUstep/SOGo/WebServerResources/js/Mailer/` di container `mailcow-sogo-mailcow-1`.
+- **Fix:** `buildMessageSearchBody` map criteria UI (all/from/to/subject/body) → searchBy SOGo (all→contains, dari→from, dst), body view dgn filters. `searchMessages` POST ke `/view` (bukan `/search`).
+- **Verifikasi:** test `message-requests` + `message-api` di-update ke format baru — **19/19 PASS**, build OK, HMR live. BELUM deploy.
+
+## 2026-08-18 — Fix TDZ "can't access lexical declaration 'snoozedUids' before initialization" — FIXED
+
+- **Gejala:** halaman mail crash — ErrorBoundary "Terjadi Kesalahan", `can't access lexical declaration 'snoozedUids' before initialization` di MailPage.
+- **Root cause:** `displayMessages` (filter daftar) memakai `snoozedUids.has(...)`, tapi `const snoozedUids = useMemo(...)` dideklarasikan SETELAH `displayMessages` di body komponen → Temporal Dead Zone (TDZ) saat render pertama.
+- **Fix:** pindah deklarasi `snoozedUids` (useMemo) + `archiveFolder` ke ATAS `displayMessages`. Urutan final: `snoozedUids` (374) → `displayMessages` (385) → `sortedMessages` (422) → `conversationGroups` (429) → `visibleOrderUids` (591) → `selectRangeFromAnchor` (600) — semua dependensi mendahului pemakai.
+- **Verifikasi:** build OK, 19/19 test PASS, HMR live (localhost:5173). BELUM deploy.
+- **Pelajaran:** deklarasi useMemo/const yang dipakai di filter/useMemo lain harus URUT — JS hoisting hanya berlaku utk function declarations, bukan const.
+
+## 2026-08-18 — 5 fitur harian: snooze, badge per folder, quick reply, unduh semua lampiran, cari per pengirim — DONE (dev, BELUM deploy)
+
+- **Snooze email (`src/lib/snooze.js` + test):** client-side MURNI (email tetap di Inbox, disembunyikan UI sampai wake) — tanpa folder/endpoint baru, aman. Presets: Nanti malam (3j), Besok pagi (12j), Akhir pekan (48j), Minggu depan (168j). Tombol Clock di baris (hover, INBOX) → picker durasi; `snoozedUids` filter di displayMessages; interval 60s pruneExpired → muncul kembali otomatis.
+- **Badge belum dibaca per folder:** `getUnseenCount(sogoToken, folder)` (api.js, folder param — pathSegment allowEncodedSlash). MailPage `perFolderUnseen` query = `Promise.allSettled` utk folderJunk/folderSent/folderDrafts (paralel ringan, refetch 60s) → badge di sidebar renderFolderRow (folder.type inbox → unseen INBOX; lain → perFolderUnseen).
+- **Quick reply di MessageReader:** tombol "Balas Cepat" (chevron) di toolbar → panel textarea di bawah body; kirim via `sendMessage` (SOGo compose flow + fallback SMTP, smtpToken dari store); Cmd/Ctrl+Enter kirim; penerima = replyTo || from; subjek Re:; body di-escape + newline→br.
+- **Unduh semua lampiran:** tombol "Unduh Semua" di header Lampiran (muncul bila >1 lampiran) → `window.open` tiap downloadURL (toSafeUrl, base SOGO_BASE) di tab baru (session cookie ikut).
+- **Cari per pengirim:** klik nama pengirim di baris → `searchBySender` (MailPage): ambil email dari sender text via regex, set searchInput+searchQuery+searchCriteria='from' → server-side searchMessages (folderId tetap di-set utk klasifikasi).
+- **Validasi:** 19/19 test PASS (baru `test:snooze`), build OK, HMR live. BELUM deploy.
+
+## 2026-08-18 — 5 fitur produktivitas: notifikasi, filter belum dibaca, tandai semua dibaca, arsip cepat, draft autosave — DONE (dev, BELUM deploy)
+
+- **Notifikasi email baru (`MailPage`):** tab title jadi `(n) PCP Express Mail` saat ada belum dibaca (dari polling unseen 1 mnt) + `Notification API` (minta izin sekali; popup "Email baru — n pesan belum dibaca") saat unseen count NAIK di folderINBOX.
+- **Filter Belum Dibaca:** tombol `MailOpen` di header list → `unreadOnly` state → hanya tampil `!m.isRead` (kombinasi dgn filter flag/kategori).
+- **Tandai Semua Dibaca:** tombol `CheckCheck` di header (muncul bila ada pesan) → `markAllReadMutation` = `Promise.all(messages.map(markRead))` + invalidate unseen.
+- **Arsip cepat:** tombol `Archive` di header (arsip semua folder) + per-baris saat hover (desktop). Target = folder root "Archive" yang DIVERIFIKASI ada di semua akun (doveadm mailbox list → Archive root, case-sensitive path). Fallback: jika tidak ketemu, tombol tidak ditampilkan.
+- **Draft autosave (`ComposeModal`):** `createDraft` + `saveDraft` + `deleteDraft` baru di api.js (SOGo `/Mail/0/compose` → `folderDrafts/{id}/save` JSON → `batchDelete`). Autosave debounce 3 detik saat ada konten (to/cc/bcc/subject/body); draft dibuat sekali per bukaan; indikator footer "Menyimpan draf.../Draf tersimpan/gagal"; draft autosave DIHAPUS setelah kirim sukses (tidak menumpuk di Draf).
+- **Test baru:** `test:draft-api` (create/save/delete + no-op uid null) — **18/18 PASS**, build OK, HMR live. BELUM deploy.
+
+## 2026-08-18 — HtmlEditor: kontrol ukuran font (dropdown) — DONE (dev)
+
+- **Permintaan user:** signature bisa atur ukuran font.
+- **Implementasi (`src/components/HtmlEditor.jsx` — dipakai SignatureSection di PreferencesPage):**
+  - Tombol dropdown "A ▾" di toolbar (setelah Underline) → 6 pilihan: Sangat Kecil s/d Sangat Besar Sekali.
+  - `applyFontSize(size)`: `execCommand('styleWithCSS')` + `execCommand('fontSize', size)` → hasil `<span style="font-size:...">` — `style` sudah di `ADD_ATTR` di `PURIFY_CONFIG` (pasteUtils.js), jadi lolos DOMPurify (bukan tag `<font>`).
+  - Dropdown menutup saat klik luar (mousedown listener) — pola sama dropdown lain di app.
+- **Verifikasi:** build OK, HMR live di localhost:5173. BELUM deploy.
+- **Catatan:** fitur ini otomatis tersedia di SEMUA pemakaian HtmlEditor (saat ini hanya SignatureSection).
+
+## 2026-08-18 — Fitur range-select checkbox (Shift+klik, pola Gmail) — DONE (dev)
+
+- **Permintaan user:** tambah blok-seleksi utk checklist (Shift+klik pilih banyak baris sekaligus).
+- **Implementasi (`MailPage.jsx`):**
+  - `lastSelectedUid` (useRef) = anchor seleksi terakhir, di-reset saat ganti folder/search.
+  - `visibleOrderUids` (useMemo) = urutan baris yang TAMPIL (flat `sortedMessages` atau flatten `conversationGroups` saat conversation view) — range select mengikuti urutan visual, bukan urutan uid.
+  - `selectRangeFromAnchor(uid)`: Shift+klik → cari index anchor & target di urutan tampil → pilih semua di antaranya (termasuk keduanya), union dgn seleksi yang ada → anchor pindah ke baris terakhir diklik (bisa extend berulang). Tanpa anchor valid → fallback toggle biasa.
+  - `toggleSelectMsg(e, uid)`: `e.shiftKey` → range select; selain itu toggle + set anchor.
+- **Verifikasi:** build OK, HMR live di localhost:5173. BELUM deploy.
+
+## 2026-08-18 — Rapikan kontrol baris pesan: checkbox ganti avatar (Gmail style), star pindah kanan — DONE (dev)
+
+- **Keluhan user:** checkbox + star overlay di atas avatar (kolom 32px) menumpuk → kurang jelas.
+- **Redesign `MailPage.jsx` renderMessageRow:**
+  - **Checkbox** kini MENG-GANTI avatar saat hover/seleksi (pola Gmail): avatar cross-fade opacity → checkbox di posisi yang sama, lingkaran bg-background + border + shadow → jelas sebagai tombol, tidak menumpuk.
+  - **Star/flag** dipindah ke KANAN baris (sebelah tanggal, di baris sender): berflag/hover desktop → tampil; layar sentuh selalu tampil. Tidak lagi nimpa avatar.
+  - Picker warna flag tetap di-anchor ke posisi klik (e.clientX/Y) — tidak berubah.
+- **Verifikasi:** build OK, HMR live di localhost:5173. BELUM deploy.
+
+## 2026-08-18 — Login "Gagal mendaftarkan sesi SMTP" di dev → SMTP session non-blocking — FIXED
+
+- **Gejala:** user login di localhost:5173 → pesan "Gagal mendaftarkan sesi SMTP." dan tidak masuk.
+- **Root cause:** login sukses di SOGo (proxy → produksi), lalu `registerSmtpSession` POST `/api/auth/smtp` → di dev Vite proxy ke `127.0.0.1:3001` (backend server.js lokal TIDAK jalan — butuh env DB/SMTP Mailcow) → error → LoginPage lama **logout + throw** → login dibatalkan. Ini juga bug production potensial: kalau backend SMTP (sogo-smtp-proxy 3005) down, SEMUA user terkunci dari login padahal baca email tetap bisa.
+- **Fix (`src/pages/LoginPage.jsx`):** `registerSmtpSession` jadi **non-blocking** — kalau gagal, `smtpToken=null` + lanjut login; tampilkan `toast.warning` ("Login berhasil. Sesi SMTP tidak tersedia — kirim email mungkin gagal, baca email tetap bisa."). Login tidak lagi bergantung pada backend SMTP.
+- **Verifikasi:** build OK, `test:login-flow` + `test:preferences-fallback` PASS, HMR live di dev (localhost:5173). BELUM deploy.
+- **Konsekuensi dev:** di localhost, sesi SMTP tidak akan terbentuk (backend lokal tak ada) → kirim email gagal di dev, baca email normal. Di production tidak berubah (nginx → 3005 jalan). Kalau mau kirim email dari dev, perlu backend SMTP lokal — di luar scope.
+
+## 2026-08-18 — Fitur analisis email (kategori) + signature ala Outlook — DONE (dev, BELUM deploy)
+
+- **Tujuan user:** "bagaimana sogo-frontend memudahkan pekerjaan" — analisa email (spam/promo/lainnya) + signature mudah seperti Outlook. Constraints: boleh apa saja asal TIDAK merusak production.
+- **Klasifikasi email** — `src/lib/emailCategory.js` (murni, tanpa JSX): `classifyEmail(msg)` pakai `folderId` + `from` (domain) + `subject` → `utama | promo | sosial | update | spam`. Kategori tab di header MailPage (Semua/Utama/Promosi/Sosial/Update + counter) + badge warna di baris pesan (Promosi oranye, Sosial biru, Update teal). **Zero request tambahan ke SOGo** — semua dari data list view yang sudah ada (`m.folderId` ditambah di `fetchMessages`/`searchMessages` di api.js). Spam = folder Junk (Mailcow/Rspamd sudah menyaring).
+  - Domain sosial: facebookmail/linkedin/instagram/youtube/tiktok/whatsapp/telegram/discord/pinterest/snapchat/reddit/medium/substack/dll.
+  - Domain promo: mailchimp/sendgrid/sendinblue/brevo/mailgun/mailerlite/klaviyo/hubspot/zoho/dll + kata kunci subjek (promo/diskon/sale/voucher/newsletter/dll, batas-kata utk kata pendek agar "sale" tidak cocok "salesman").
+  - Domain update: no-reply/notifications/github/gitlab/paypal/stripe/amazon/google/microsoft/tokopedia/shopee/lazada/bca-bri-mandiri/gojek/grab/traveloka/zoom/slack/dropbox/dll + kata kunci (verifikasi/otp/invoice/pembayaran/resi/dll). Kata ambigu (update/login/pin) TIDAK dipakai agar email personal tidak salah kategori.
+- **Signature ala Outlook** — `src/lib/signatures.js`: storage per-akun `pcp_signatures_<email>` = `{ list: [{id,name,html}], defaults: { new, reply } }`. API: load/add/update/remove/setDefault/getSignatureFor(kind).
+  - `PreferencesPage` SignatureSection ditulis ulang: daftar signature + nama + ukuran, tombol default per mode (Pesan Baru/Balasan), editor HtmlEditor per signature, hapus, "Sinkronkan ke SOGo" (simpan default ke SOGoMailSignature utk klien lain). Migrasi: signature SOGo lama otomatis jadi signature pertama.
+  - `ComposeModal`: inject signature lokal sesuai mode (`composeMode` 'new'|'reply' — ditambah di MessageReader handleReply/handleForward), fallback ke SOGoMailSignature lama bila belum ada signature lokal; dropdown "Signature" di footer utk sisipkan pilihan lain.
+- **Validasi:** 17/17 `npm run test:*` PASS (16 lama + `test:email-category` + `test:signatures`), `npx vite build` OK (219ms). Dev server localhost:5173 melayani modul baru (HMR). **BELUM deploy** — menunggu review user.
+- **Batasan yang disengaja:** klasifikasi client-side heuristik (bukan AI/server filter); header List-Unsubscribe/X-Spam-* tidak diminta dari SOGo karena tidak tersedia di list view — menjaga kompatibilitas. Signature lokal hanya berlaku di webmail ini (klien SOGo lain pakai signature yang di-sync).
+
+## 2026-08-18 — Setup dev lokal (tanpa deploy): Vite dev server + proxy SOGo produksi — VERIFIED
+
+- **Tujuan:** user mau develop sogo-frontend di workspace mac saja, review perubahan di browser lokal, TANPA deploy dulu.
+- **Cara pakai:** `npm run dev` → Vite di `http://localhost:5173/webmail/` (base `/webmail/`). Vite config sudah proxy: `/SOGo` → `https://mail.pcpexpress.co.id` (cookieDomainRewrite localhost + strip Secure/SameSite → login SOGo asli jalan dari localhost), `/api` → `http://127.0.0.1:3001` (butuh server.js lokal bila fitur /api dipakai; UI login+baca mail cukup proxy /SOGo).
+- **Verifikasi (18 Agu):** index 200 ✅; `/SOGo/so/` via proxy → 200 (SOGo produksi merespons) ✅; `POST /SOGo/connect` dummy creds → 403 (pipeline login jalan, ditolak wajar) ✅. Log proxy `[PROXY →/←]` terlihat di console Vite.
+- **Catatan env:** `VITE_SOGO_BASE_URL` default kosong (same-origin) — aman di dev. `VITE_API_KEY` hanya dibutuhkan build production (deploy.sh mengisinya dari mailserver). Tidak perlu `.env` lokal utk review UI.
+- **Catatan sandbox:** proses background Vite mati bila shell sesi berakhir (nohup tidak cukup di lingkungan terminal agent) — user harus jalankan `npm run dev` di terminal sendiri supaya server bertahan.
+- **Batasan dev lokal:** `/api/*` (kirim email via proxy SMTP 3001, preferences, health) tidak jalan tanpa `server.js` + env DB/SMTP (butuh akses DB Mailcow; constraint project-context). Utk review UI/login/baca mail, `/SOGo` proxy cukup.
+
 ## 2026-08-18 — Control Tower mailboxes kosong: /api/v1/* kehilangan inject X-API-Key — FIXED
 
 - **Gejala:** `https://mail.pcpexpress.co.id/control-tower/mailboxes` (dan halaman lain yang pakai /api/v1 Mailcow) kosong — tidak ada data mailbox.
@@ -624,3 +727,216 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/current-task.md
 -  M docs/ai/handoff.md
 -  M docs/ai/knowledge.md
+
+## 2026-08-18T05:11:26Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M package.json
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/pages/MailPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? src/lib/emailCategory.js
+- ?? src/lib/signatures.js
+
+## 2026-08-18T05:29:53Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M package.json
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/pages/LoginPage.jsx
+-  M src/pages/MailPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? src/lib/emailCategory.js
+- ?? src/lib/signatures.js
+
+## 2026-08-18T05:35:52Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M package.json
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/pages/LoginPage.jsx
+-  M src/pages/MailPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? src/lib/emailCategory.js
+- ?? src/lib/signatures.js
+
+## 2026-08-18T05:37:54Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M package.json
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/pages/LoginPage.jsx
+-  M src/pages/MailPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? src/lib/emailCategory.js
+- ?? src/lib/signatures.js
+
+## 2026-08-18T05:47:11Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M package.json
+-  M src/components/HtmlEditor.jsx
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/pages/LoginPage.jsx
+-  M src/pages/MailPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? src/lib/emailCategory.js
+- ?? src/lib/signatures.js
+
+## 2026-08-18T05:54:55Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M package.json
+-  M src/components/HtmlEditor.jsx
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/pages/LoginPage.jsx
+-  M src/pages/MailPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? src/lib/emailCategory.js
+- ?? src/lib/signatures.js
+
+## 2026-08-18T06:03:27Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M package.json
+-  M src/components/HtmlEditor.jsx
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/pages/LoginPage.jsx
+-  M src/pages/MailPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? src/lib/emailCategory.js
+- ?? src/lib/signatures.js
+- ?? src/lib/snooze.js
+
+## 2026-08-18T06:06:36Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M package.json
+-  M src/components/HtmlEditor.jsx
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/pages/LoginPage.jsx
+-  M src/pages/MailPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? src/lib/emailCategory.js
+- ?? src/lib/signatures.js
+- ?? src/lib/snooze.js
+
+## 2026-08-18T06:16:10Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M package.json
+-  M scripts/test-message-api.mjs
+-  M scripts/test-message-requests.mjs
+-  M src/components/HtmlEditor.jsx
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/lib/messageRequests.js
+-  M src/pages/LoginPage.jsx
+-  M src/pages/MailPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? src/lib/emailCategory.js
+- ?? src/lib/signatures.js
+- ?? src/lib/snooze.js
+
+## 2026-08-18T06:22:17Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M package.json
+-  M scripts/test-message-api.mjs
+-  M scripts/test-message-requests.mjs
+-  M src/components/HtmlEditor.jsx
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/lib/messageRequests.js
+-  M src/pages/LoginPage.jsx
+-  M src/pages/MailPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? src/lib/emailCategory.js
+- ?? src/lib/signatures.js
+- ?? src/lib/snooze.js

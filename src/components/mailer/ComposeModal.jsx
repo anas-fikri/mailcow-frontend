@@ -4,13 +4,14 @@ import {
   X, Send, Paperclip, ChevronDown, ChevronUp,
   Loader2, AlertCircle, Bold, Italic, Underline,
   List, ListOrdered, Heading1, Indent, IndentDecrease,
-  ImagePlus, AlertTriangle, Maximize2, Minimize2
+  ImagePlus, AlertTriangle, Maximize2, Minimize2, FileSignature
 } from 'lucide-react';
-import { sendMessage, fetchContacts, fetchPreferences } from '../../lib/api';
+import { sendMessage, createDraft, saveDraft, deleteDraft, fetchContacts, fetchPreferences } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
 import { handleEditorPaste, insertImageFile, PURIFY_CONFIG } from '../../lib/pasteUtils';
+import { loadSignatures, getSignatureFor, getSignatureById } from '../../lib/signatures';
 
 export default function ComposeModal({ isOpen, onClose, initialData = null, sogoToken, userFrom = '' }) {
   const { user, smtpToken } = useAuthStore();
@@ -29,6 +30,11 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   const [sending, setSending] = useState(false);
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState(false);
+  const [draftState, setDraftState] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+  const draftIdRef   = useRef(null); // draftId SOGo utk autosave (sekali per bukaan)
+  const draftUidRef  = useRef(null); // uid terakhir hasil save (utk hapus setelah kirim)
+  const saveTimerRef = useRef(null);
+  const autosaveDirty = useRef(false);
 
   const [showToSugg, setShowToSugg]  = useState(false);
   const [showCcSugg, setShowCcSugg]  = useState(false);
@@ -53,6 +59,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   // Ref untuk mencegah double-inject signature
   const sigInjected = useRef(false);
 
+  // Mode compose: 'new' (tombol Tulis Pesan) atau 'reply' (balasan/forward)
+  const composeMode = initialData?.composeMode === 'reply' ? 'reply' : 'new';
+
   // Reset form saat dibuka / initialData berubah
   useEffect(() => {
     if (isOpen) {
@@ -69,14 +78,65 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       setError('');
       setSuccess(false);
       setSending(false);
+      setDraftState('idle');
+      draftIdRef.current = null;
+      draftUidRef.current = null;
+      autosaveDirty.current = false;
+      clearTimeout(saveTimerRef.current);
     }
   }, [isOpen, initialData]);
 
-  // Inject HTML signature setelah body di-reset dan prefs tersedia
+  // ── Draft autosave ──────────────────────────────────────────────────────────
+  // Simpan otomatis ke folder Draf (SOGo) saat compose berhenti diketik ±3 dtk.
+  // Draft dibuat sekali per bukaan; konten di-save berulang; draft dihapus
+  // setelah email terkirim (deleteDraft) supaya tidak menumpuk di Draf.
+  const hasContent = !!(to.trim() || cc.trim() || bcc.trim() || subject.trim() || body.trim());
+
+  const runAutosave = useCallback(async () => {
+    if (!token || !user?.email || !hasContent) {
+      autosaveDirty.current = false;
+      return;
+    }
+    try {
+      setDraftState('saving');
+      if (!draftIdRef.current) {
+        draftIdRef.current = await createDraft(token);
+      }
+      const uid = await saveDraft(token, draftIdRef.current, {
+        to: to.trim(), cc: cc.trim(), bcc: bcc.trim(),
+        subject: subject.trim(),
+        body: editorMode === 'plain' ? body : DOMPurify.sanitize(body, PURIFY_CONFIG),
+        isHTML: editorMode !== 'plain',
+        from: userFrom,
+      });
+      if (uid) draftUidRef.current = uid;
+      autosaveDirty.current = false;
+      setDraftState('saved');
+    } catch {
+      setDraftState('error'); // gagal autosave — jangan ganggu compose, retry berikutnya
+    }
+  }, [token, user?.email, hasContent, to, cc, bcc, subject, body, editorMode, userFrom]);
+
   useEffect(() => {
-    if (!isOpen || sigInjected.current || !prefs) return;
-    const sigHtml = prefs?.defaults?.SOGoMailSignature;
-    const enabled = prefs?.defaults?.SOGoMailSignatureEnabled === '1';
+    if (!isOpen || success || !hasContent) return;
+    autosaveDirty.current = true;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => { runAutosave(); }, 3000);
+    return () => clearTimeout(saveTimerRef.current);
+  }, [isOpen, success, hasContent, to, cc, bcc, subject, body, editorMode, runAutosave]);
+
+  // Bersihkan timer saat unmount
+  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
+
+  // Signature lokal (pola Outlook) — pilih sesuai mode: new vs reply.
+  // Fallback ke SOGoMailSignature lama bila belum ada signature lokal.
+  useEffect(() => {
+    if (!isOpen || sigInjected.current || !user?.email) return;
+    const localSig = getSignatureFor(user.email, composeMode);
+    const sigHtml = localSig?.html || prefs?.defaults?.SOGoMailSignature;
+    const enabled = localSig
+      ? true
+      : prefs?.defaults?.SOGoMailSignatureEnabled === '1';
     if (sigHtml && enabled) {
       setBody(cur => {
         if (cur.includes(sigHtml.substring(0, 80))) return cur;
@@ -88,7 +148,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       });
     }
     sigInjected.current = true;
-  }, [isOpen, prefs]);
+  }, [isOpen, prefs, user?.email, composeMode]);
 
   // ── Autocomplete ────────────────────────────────────────────────────────────
 
@@ -141,6 +201,14 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       // Refresh Sent folder setelah sukses kirim
       if (token) {
         queryClient.invalidateQueries({ queryKey: ['messages', token, 'folderSent'] });
+        queryClient.invalidateQueries({ queryKey: ['messages', token, 'folderDrafts'] });
+      }
+      // Hapus draft autosave (kalau ada) supaya tidak menumpuk di Draf
+      if (draftUidRef.current) {
+        deleteDraft(token, draftUidRef.current).finally(() => {
+          draftUidRef.current = null;
+          draftIdRef.current = null;
+        });
       }
       setTimeout(() => onClose(), 1500);
     } catch (err) {
@@ -326,6 +394,41 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     <option value="html">HTML Source</option>
                     <option value="plain">Teks Biasa</option>
                   </select>
+
+                  {/* Sisipkan signature (pola Outlook) */}
+                  <SignaturePicker
+                    email={user?.email || ''}
+                    onInsert={(sigHtml) => {
+                      if (!sigHtml) return;
+                      setBody(cur => {
+                        if (cur.includes(sigHtml.substring(0, 80))) return cur;
+                        const bqIdx = cur.indexOf('<blockquote');
+                        const sigBlock = `<br>--<br>${sigHtml}`;
+                        return bqIdx > 0
+                          ? cur.slice(0, bqIdx) + sigBlock + cur.slice(bqIdx)
+                          : cur + sigBlock;
+                      });
+                      sigInjected.current = true;
+                    }}
+                  />
+
+                  {/* Status draft autosave */}
+                  {draftState === 'saving' && (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Loader2 size={10} className="animate-spin" />
+                      Menyimpan draf...
+                    </span>
+                  )}
+                  {draftState === 'saved' && (
+                    <span className="text-[10px] text-green-600 dark:text-green-400">
+                      Draf tersimpan
+                    </span>
+                  )}
+                  {draftState === 'error' && (
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                      Draf gagal disimpan — akan coba lagi
+                    </span>
+                  )}
                 </div>
                 <button
                   type="submit"
@@ -344,6 +447,46 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+// ── Signature Picker (pola Outlook) ──────────────────────────────────────────
+// Dropdown kecil utk menyisipkan salah satu signature yang tersimpan.
+function SignaturePicker({ email, onInsert }) {
+  const [open, setOpen] = useState(false);
+  const sigs = email ? loadSignatures(email).list : [];
+  if (sigs.length === 0) return null;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-xs px-2 py-1 border-none focus:ring-0 rounded-md bg-muted text-muted-foreground hover:bg-muted/80 font-medium transition-colors"
+        title="Sisipkan signature"
+      >
+        <FileSignature size={13} />
+        Signature
+        <ChevronDown size={12} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full left-0 mb-1 z-20 bg-card border border-border shadow-xl rounded-lg overflow-hidden min-w-[160px]">
+            {sigs.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => { onInsert(s.html); setOpen(false); }}
+                className="block w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+              >
+                {s.name || 'Signature'}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

@@ -2,10 +2,10 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, Paperclip,
-  Flag, Printer, FolderOpen, Star,
+  Flag, Printer, FolderOpen, Star, Send, ChevronDown,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages } from '../../lib/api';
+import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, sendMessage } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
@@ -189,9 +189,11 @@ function isImageType(ct) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete }) {
-  const { user } = useAuthStore();
+  const { user, smtpToken } = useAuthStore();
   const queryClient = useQueryClient();
   const [moveOpen, setMoveOpen] = React.useState(false);
+  const [quickOpen, setQuickOpen] = React.useState(false);
+  const [quickText, setQuickText] = React.useState('');
 
   const { data: msg, isLoading } = useQuery({
     queryKey: ['message', user?.sogoToken, folder, msgId],
@@ -341,6 +343,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         <b>Tanggal:</b> ${safeDate}<br>
         <b>Kepada:</b> ${safeTo}<br>
         <b>Subjek:</b> ${safeSubject}<br><br>${cleanHtml}</blockquote>`,
+      composeMode: 'reply',
     });
   }
 
@@ -357,7 +360,43 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         <b>Tanggal:</b> ${safeDate}<br>
         <b>Kepada:</b> ${safeTo}<br>
         <b>Subjek:</b> ${safeSubject}<br><br>${cleanHtml}</blockquote>`,
+      composeMode: 'reply',
     });
+  }
+
+  // ── Quick reply ────────────────────────────────────────────────────────────
+  // Balas singkat tanpa buka compose penuh — kirim via SOGo compose flow
+  // (sama seperti ComposeModal), penerima = replyTo || from.
+  async function handleQuickSend() {
+    const body = quickText.trim();
+    if (!body) return;
+    const recipient = replyTo || from;
+    try {
+      await sendMessage(user.sogoToken, {
+        to: recipient,
+        cc: '',
+        bcc: '',
+        subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
+        body: escapeHtml(body).replace(/\n/g, '<br>'),
+        isHTML: true,
+        from: user?.cn ? `${user.cn} <${user.email}>` : user?.email || '',
+      }, smtpToken);
+      setQuickText('');
+      setQuickOpen(false);
+      toast.success('Balasan terkirim.');
+    } catch (err) {
+      toast.error(err?.message || 'Gagal mengirim balasan.');
+    }
+  }
+
+  // ── Unduh semua lampiran ───────────────────────────────────────────────────
+  // SOGo downloadURL diarahkan ke tab baru per lampiran (session cookie ikut).
+  function handleDownloadAll() {
+    const urls = attachments
+      .map((att) => toSafeUrl(att.downloadURL, { base: SOGO_BASE, allowExternal: false }))
+      .filter(Boolean);
+    if (urls.length === 0) return;
+    urls.forEach((url) => window.open(url, '_blank', 'noopener,noreferrer'));
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -433,6 +472,17 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         </div>
 
         <div className="flex items-center gap-1">
+          <button
+            data-shortcut="quickreply"
+            onClick={() => setQuickOpen(v => !v)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
+              quickOpen ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'
+            }`}
+            title="Balas cepat — kirim langsung tanpa compose"
+          >
+            <ChevronDown size={14} className={`transition-transform ${quickOpen ? 'rotate-180' : ''}`} />
+            Balas Cepat
+          </button>
           <button data-shortcut="reply" onClick={handleReply} className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-muted-foreground hover:bg-muted text-sm font-medium" title="Balas (R)">
             <Reply size={16} /> Balas
           </button>
@@ -476,6 +526,45 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="email-body" dangerouslySetInnerHTML={{ __html: cleanHtml }} />
 
+        {/* Quick reply — balas singkat tanpa compose */}
+        {quickOpen && (
+          <div className="mt-6 pt-4 border-t border-border">
+            <div className="text-sm font-medium text-foreground mb-2">
+              Balas ke: {replyTo || from}
+            </div>
+            <textarea
+              autoFocus
+              rows={3}
+              value={quickText}
+              onChange={(e) => setQuickText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleQuickSend();
+                }
+              }}
+              placeholder="Tulis balasan singkat... (Cmd/Ctrl+Enter utk kirim)"
+              className="w-full bg-muted border-none rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none resize-y"
+            />
+            <div className="flex items-center justify-end gap-2 mt-2">
+              <button
+                onClick={() => { setQuickOpen(false); setQuickText(''); }}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleQuickSend}
+                disabled={!quickText.trim()}
+                className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 transition-colors"
+              >
+                <Send size={13} />
+                Kirim
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Inline images preview */}
         {inlineImages.length > 0 && (
           <div className="mt-6 space-y-4">
@@ -506,10 +595,22 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         {/* Attachments */}
         {attachments.length > 0 && (
           <div className="mt-8 pt-6 border-t border-border">
-            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-              <Paperclip size={16} />
-              Lampiran ({attachments.length})
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Paperclip size={16} />
+                Lampiran ({attachments.length})
+              </h3>
+              {attachments.length > 1 && (
+                <button
+                  onClick={handleDownloadAll}
+                  className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                  title="Unduh semua lampiran (buka tab per file)"
+                >
+                  <Download size={13} />
+                  Unduh Semua
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {attachments.map((att, idx) => {
                 const attUrl = toSafeUrl(att.downloadURL, { base: SOGO_BASE, allowExternal: false });

@@ -363,9 +363,9 @@ export async function fetchFolders(sogoToken) {
   }
 }
 
-export async function getUnseenCount(sogoToken) {
+export async function getUnseenCount(sogoToken, folder = 'folderINBOX') {
   try {
-    const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/folderINBOX/view`, {
+    const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/view`, {
       credentials: 'include',
       headers: sogoHeaders(),
   });
@@ -405,6 +405,9 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
 
     const data = await safeJson(res);
     let messages = parseMessageRows(data);
+
+    // Tandai folder asal utk klasifikasi kategori (spam/promo/sosial/update)
+    for (const m of messages) m.folderId = folder;
 
     // Sort descending by uid (terbaru duluan)
     messages.sort((a, b) => b.uid - a.uid);
@@ -485,12 +488,13 @@ export async function markFlagged(sogoToken, folder, uid, flagged = true) {
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 /**
- * Search messages via SOGo search endpoint.
- * POST /Mail/0/{folder}/search  body: { search, criteria }
+ * Search messages — SOGo v5 search via folder view dengan `filters`
+ * (endpoint /search tidak ada → 404; diverifikasi dari Mailbox.service.js).
+ * POST /Mail/0/{folder}/view  body: { sortingAttributes, filters }
  * criteria: "all", "from", "to", "subject", "body"
  */
 export async function searchMessages(sogoToken, folder, query, criteria = 'all') {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/search`, {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/view`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
@@ -500,6 +504,7 @@ export async function searchMessages(sogoToken, folder, query, criteria = 'all')
   if (!res.ok) throwApiError('Gagal mencari pesan.', res.status);
   const data = await safeJson(res);
   const messages = parseMessageRows(data);
+  for (const m of messages) m.folderId = folder;
   messages.sort((a, b) => b.uid - a.uid);
   return { messages, total: messages.length };
 }
@@ -514,12 +519,20 @@ export async function deleteMessages(sogoToken, folder, uids) {
   if (!res.ok) throwApiError(`Gagal menghapus pesan (${res.status}).`, res.status);
 }
 
+/**
+ * Pindahkan pesan antar folder (endpoint SOGo v5: moveMessages).
+ * `targetFolder` = objek folder hasil flattenMailboxes → kirim `path` relatif
+ * (mis. "Archive" / "INBOX/Sub") sebagai properti `folder`, bukan id berprefix.
+ */
 export async function moveMessages(sogoToken, folder, uids, targetFolder) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/batchMoveToMailbox`, {
+  const targetPath = typeof targetFolder === 'string'
+    ? decodeURIComponent(targetFolder.replace(/^folder/, ''))
+    : targetFolder?.path || targetFolder?.name || String(targetFolder);
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/moveMessages`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ uids, mailbox: targetFolder }),
+    body: JSON.stringify({ uids, folder: targetPath }),
   });
   if (!res.ok) throwApiError(`Gagal memindahkan pesan (${res.status}).`, res.status);
 }
@@ -562,6 +575,65 @@ export async function registerSmtpSession(user, pass) {
   }
   const data = await res.json();
   return data.token;  // UUID session token
+}
+
+/** Buat draft kosong baru — mengembalikan draftId SOGo. */
+export async function createDraft(sogoToken) {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/compose`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: sogoHeaders(),
+  });
+  throwIfAuthError(res);
+  if (!res.ok) throw new Error('Gagal membuat draft.');
+  const data = await res.json().catch(() => ({}));
+  if (!data?.draftId) throw new Error('Gagal membuat draft (respons tidak lengkap).');
+  return data.draftId;
+}
+
+/**
+ * Simpan konten draft. Dipakai autosave di ComposeModal.
+ * @returns {string|null} uid draft di folder Draf (bila SOGo kembalikan)
+ */
+export async function saveDraft(sogoToken, draftId, payload) {
+  const { to = '', cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '' } = payload;
+  const data = {
+    subject,
+    to: to ? to.split(',').map(s => s.trim()) : [],
+    cc: cc ? cc.split(',').map(s => s.trim()) : [],
+    bcc: bcc ? bcc.split(',').map(s => s.trim()) : [],
+    replyTo: '',
+    inReplyTo: '',
+    references: '',
+    text: body,
+    isHTML,
+    from,
+  };
+  const safeDraftId = pathSegment(draftId, 'draftId');
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/folderDrafts/${safeDraftId}/save`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  throwIfAuthError(res);
+  if (!res.ok) throw new Error(`Gagal menyimpan draft (${res.status}).`);
+  const saved = await res.json().catch(() => ({}));
+  return saved?.uid || null;
+}
+
+/** Hapus draft yang sudah tidak dipakai (mis. autosave yang berhasil dikirim). */
+export async function deleteDraft(sogoToken, uid) {
+  if (!uid) return;
+  try {
+    const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/folderDrafts/batchDelete`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ uids: [uid] }),
+    });
+    throwIfAuthError(res);
+  } catch { /* fire-and-forget */ }
 }
 
 export async function sendMessage(sogoToken, payload, smtpToken = null) {

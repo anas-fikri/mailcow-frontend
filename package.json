@@ -23,7 +23,11 @@
     "test:preferences-fallback": "node scripts/test-preferences-fallback.mjs",
     "test:progress-percent": "node scripts/test-progress-percent.mjs",
     "test:mailbox-tree": "node scripts/test-mailbox-tree.mjs",
-    "test:message-html": "node scripts/test-message-html.mjs"
+    "test:message-html": "node scripts/test-message-html.mjs",
+    "test:email-category": "node scripts/test-email-category.mjs",
+    "test:signatures": "node scripts/test-signatures.mjs",
+    "test:draft-api": "node scripts/test-draft-api.mjs",
+    "test:snooze": "node scripts/test-snooze.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

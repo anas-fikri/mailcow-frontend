@@ -3,10 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, Lock, FileSignature, Plane, Eye, EyeOff,
   Loader2, CheckCircle2, AlertCircle, ChevronRight,
-  Sparkles, Copy, Globe, Palette, MessageSquare, Reply, Trash2,
+  Sparkles, Copy, Globe, Palette, MessageSquare, Reply, Trash2, Plus,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { registerSmtpSession, changePassword, fetchPreferences, savePreferences } from '../lib/api';
+import { loadSignatures, addSignature, updateSignature, removeSignature, setDefaultSignature, getSignatureById } from '../lib/signatures';
 import HtmlEditor from '../components/HtmlEditor';
 import Skeleton from '../components/Skeleton';
 
@@ -252,16 +253,22 @@ function ChangePasswordSection() {
   );
 }
 
-// ─── Signature ────────────────────────────────────────────────────────────────
+// ─── Signature (pola Outlook — banyak signature per akun) ────────────────────
 function SignatureSection() {
   const queryClient = useQueryClient();
   const { user, smtpToken } = useAuthStore();
-  const [sig, setSig]       = useState('');
-  const [status, setStatus] = useState(null);
-  const [loaded, setLoaded] = useState(false);
-  const initRef = useRef(false); // Hindari overwrite user edits oleh prefs
+  const email = user?.email || '';
 
-  /* Load existing signature dari SOGo (hanya init sekali) */
+  const [sigList, setSigList]       = useState([]);      // [{id,name,html}]
+  const [defaults, setDefaults]     = useState({ new: null, reply: null });
+  const [editingId, setEditingId]   = useState(null);    // id yang sedang diedit (null = kosong/tambah)
+  const [sigName, setSigName]       = useState('');
+  const [sigHtml, setSigHtml]       = useState('');
+  const [status, setStatus]         = useState(null);
+  const [savingSogo, setSavingSogo] = useState(false);
+
+  // Load signature SOGo yang sudah ada SEKALI — jadikan signature pertama di
+  // daftar lokal bila belum pernah dibuat (migrasi mulus).
   const { data: prefs, isLoading: loadingPrefs } = useQuery({
     queryKey: ['preferences', user?.sogoToken, smtpToken],
     queryFn: () => fetchPreferences(user?.sogoToken, user?.email, smtpToken),
@@ -269,75 +276,211 @@ function SignatureSection() {
     staleTime: 0,
   });
 
+  const migratedRef = useRef(false);
   useEffect(() => {
-    if (prefs?.defaults && !initRef.current) {
-      const saved = prefs.defaults.SOGoMailSignature || '';
-      setSig(saved);
-      setLoaded(true);
-      initRef.current = true;
-    } else if (!loadingPrefs && !prefs) {
-      setLoaded(true);
+    if (!email || migratedRef.current) return;
+    migratedRef.current = true;
+    const local = loadSignatures(email);
+    const savedSogo = prefs?.defaults?.SOGoMailSignature || '';
+    if (local.list.length === 0 && savedSogo.trim()) {
+      addSignature(email, 'Signature', savedSogo);
     }
-  }, [prefs, loadingPrefs]);
+    const fresh = loadSignatures(email);
+    setSigList(fresh.list);
+    setDefaults(fresh.defaults);
+  }, [email, prefs]);
 
-  const mutation = useMutation({
-    mutationFn: () => {
-      const updatedPrefs = {
+  function refresh() {
+    const data = loadSignatures(email);
+    setSigList(data.list);
+    setDefaults(data.defaults);
+  }
+
+  function startEdit(sig) {
+    setEditingId(sig?.id || null);
+    setSigName(sig?.name || '');
+    setSigHtml(sig?.html || '');
+    setStatus(null);
+  }
+
+  function handleSave() {
+    if (!editingId) {
+      addSignature(email, sigName, sigHtml);
+    } else {
+      updateSignature(email, editingId, { name: sigName, html: sigHtml });
+    }
+    refresh();
+    setStatus({ type: 'success', message: 'Signature disimpan.' });
+    startEdit(null);
+  }
+
+  function handleDelete(id) {
+    if (!window.confirm('Hapus signature ini?')) return;
+    removeSignature(email, id);
+    if (editingId === id) startEdit(null);
+    refresh();
+  }
+
+  // Simpan signature default ke SOGo prefs — agar klien SOGo lain (native,
+  // mobile) juga memakai signature utama. Bukan syarat webmail ini (compose
+  // memakai daftar lokal), tapi kompatibilitas ekstra.
+  async function syncToSogo() {
+    const data = loadSignatures(email);
+    const main = getSignatureById(email, data.defaults.new);
+    const html = main?.html || '';
+    setSavingSogo(true);
+    setStatus(null);
+    try {
+      await savePreferences(user.sogoToken, {
         defaults: {
           ...(prefs?.defaults || {}),
-          SOGoMailSignature: sig,
-          SOGoMailSignatureEnabled: sig && sig.trim() ? '1' : '0',
+          SOGoMailSignature: html,
+          SOGoMailSignatureEnabled: html && html.trim() ? '1' : '0',
         },
         settings: prefs?.settings || {},
-      };
-      return savePreferences(user.sogoToken, updatedPrefs, user.email);
-    },
-    onSuccess: () => {
-      initRef.current = false; // allow re-init on next refetch
+      }, user.email);
       queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken, smtpToken] });
-      setStatus({ type: 'success', message: 'Signature berhasil disimpan.' });
-    },
-    onError: (err) => setStatus({ type: 'error', message: err.message }),
-  });
-
-  if (!loaded && loadingPrefs) {
-    return (
-      <Section icon={FileSignature} title="Signature Email">
-        <div className="flex items-center justify-center py-10">
-          <Loader2 size={20} className="animate-spin text-muted-foreground" />
-        </div>
-      </Section>
-    );
+      setStatus({ type: 'success', message: 'Signature utama disinkronkan ke SOGo.' });
+    } catch (err) {
+      setStatus({ type: 'error', message: err.message });
+    } finally {
+      setSavingSogo(false);
+    }
   }
+
+  const editingSig = sigList.find((s) => s.id === editingId) || null;
 
   return (
     <Section icon={FileSignature} title="Signature Email">
-      <div className="space-y-4 max-w-2xl">
+      <div className="space-y-5 max-w-2xl">
         <p className="text-sm text-muted-foreground">
-          Tanda tangan HTML yang otomatis ditambahkan di bawah email yang kamu kirim.
-          Bisa pakai <strong>tebal</strong>, <em>miring</em>, tautan, dan gambar.
+          Buat beberapa signature (pola Outlook), lalu pilih mana yang dipakai utk
+          email baru dan utk balasan. Bisa pakai <strong>tebal</strong>,{' '}
+          <em>miring</em>, tautan, dan gambar.
         </p>
         <StatusMsg status={status} />
-        <HtmlEditor
-          value={sig}
-          onChange={v => { initRef.current = true; setSig(v); }}
-          minHeight={150}
-          placeholder="Tulis signature di sini..."
-        />
+
+        {/* Daftar signature */}
+        {sigList.length === 0 ? (
+          <div className="text-sm text-muted-foreground bg-muted/50 rounded-xl p-6 text-center">
+            Belum ada signature. Klik "Tambah Signature" untuk membuat.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sigList.map((sig) => {
+              const isDefaultNew = defaults.new === sig.id;
+              const isDefaultReply = defaults.reply === sig.id;
+              return (
+                <div key={sig.id} className="border border-border rounded-xl p-3 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(sig)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-foreground">{sig.name}</span>
+                      {isDefaultNew && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Utk pesan baru</span>}
+                      {isDefaultReply && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Utk balasan</span>}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                      {(sig.html.length / 1024).toFixed(1)} KB — {sig.html.includes('<img') ? 'ada gambar' : 'teks saja'}
+                    </div>
+                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <select
+                      value={isDefaultNew ? 'new' : isDefaultReply ? 'reply' : ''}
+                      onChange={(e) => {
+                        if (!e.target.value) return;
+                        setDefaultSignature(email, e.target.value, sig.id);
+                        refresh();
+                      }}
+                      className="bg-muted border-none rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none"
+                      title="Jadikan signature default"
+                    >
+                      <option value="">—</option>
+                      <option value="new">Default: Pesan Baru</option>
+                      <option value="reply">Default: Balasan</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(sig.id)}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      title="Hapus signature"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Editor signature aktif */}
+        {(editingId || !sigList.length) && (
+          <div className="border border-border rounded-xl p-4 space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Nama Signature</label>
+              <input
+                type="text"
+                value={sigName}
+                onChange={(e) => setSigName(e.target.value)}
+                placeholder="mis. Signature Kantor"
+                className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Isi Signature</label>
+              <HtmlEditor
+                value={sigHtml}
+                onChange={setSigHtml}
+                minHeight={140}
+                placeholder="Tulis signature di sini..."
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSave}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-lg text-sm font-medium"
+              >
+                <FileSignature size={14} />
+                {editingId ? 'Simpan Perubahan' : 'Tambah Signature'}
+              </button>
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={() => startEdit(null)}
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Batal
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => { setStatus(null); mutation.mutate(); }}
-            disabled={mutation.isPending}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
-          >
-            {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileSignature size={14} />}
-            Simpan Signature
-          </button>
-          {sig && (
-            <span className="text-xs text-muted-foreground">
-              {(sig.length / 1024).toFixed(1)} KB — {sig.includes('<img') ? 'ada gambar' : 'teks saja'}
-            </span>
+          {!editingId && (
+            <button
+              type="button"
+              onClick={() => startEdit(null)}
+              className="flex items-center gap-2 border border-border hover:bg-muted text-foreground px-4 py-2 rounded-lg text-sm font-medium"
+            >
+              <Plus size={15} />
+              Tambah Signature
+            </button>
           )}
+          <button
+            type="button"
+            onClick={syncToSogo}
+            disabled={savingSogo || !sigList.length}
+            className="flex items-center gap-2 border border-border hover:bg-muted text-foreground px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+            title="Simpan signature utama ke preferensi SOGo agar dipakai klien SOGo lain (native/mobile)"
+          >
+            {savingSogo ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
+            Sinkronkan ke SOGo
+          </button>
         </div>
       </div>
     </Section>

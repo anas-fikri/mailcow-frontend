@@ -4,6 +4,7 @@ import { Mail, Eye, EyeOff, Loader2, AlertCircle, Sun, Moon } from 'lucide-react
 import { login, logout, resetSessionExpiredFlag, registerSmtpSession, revokeSmtpSession } from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router';
+import { toast } from '../lib/toast';
 
 export default function LoginPage() {
   const [userName, setUserName] = useState('');
@@ -50,18 +51,23 @@ export default function LoginPage() {
       clearUser();
       resetSessionExpiredFlag();
       const data = await login(userName, password);
-      // Register SMTP session before marking the UI session as fully logged in.
-      // If this fails, do not leave a SOGo session without its SMTP counterpart.
-      let smtpToken;
+      // Register SMTP session — non-blocking: jika backend SMTP sedang down,
+      // user tetap bisa login & baca email (kirim email saja yang belum bisa).
+      // Dulu kegagalan di sini membatalkan login — salah: SOGo session sudah
+      // valid, dan prod backend SMTP restart = semua user terkunci.
+      let smtpToken = null;
+      let smtpFailed = false;
       try {
         smtpToken = await registerSmtpSession(userName, password);
-      } catch (smtpError) {
-        await logout().catch(() => {});
-        throw smtpError;
+      } catch {
+        smtpFailed = true;
       }
       // login returns { sogoToken, cn, email }
       setUser({ email: data.email, sogoToken: data.sogoToken, cn: data.cn });
       setSmtpToken(smtpToken);
+      if (smtpFailed) {
+        toast.warning('Login berhasil. Sesi SMTP tidak tersedia — kirim email mungkin gagal, baca email tetap bisa.');
+      }
       navigate('/mail');
     } catch (err) {
       setError(err.message || 'Login gagal. Periksa koneksi dan status akun.');

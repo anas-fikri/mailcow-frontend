@@ -6,6 +6,61 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — SOGo v5 move: endpoint `moveMessages`, folder = path relatif (batchMoveToMailbox TIDAK ada)
+
+- **SOGo 5.12 TIDAK punya endpoint `POST /Mail/0/{folder}/batchMoveToMailbox`** — 404 (verified: `grep -aoc` di binary `MailerUI` = 0 hit; `moveMessages` = 3 hit).
+- **Yang benar (dari `Mailer/Mailbox.service.js` `$moveMessages`):** `POST /Mail/0/{folder}/moveMessages` body `{uids: [], folder: <path relatif>}` — mis. `folder: "Archive"` atau `folder: "INBOX/Sub"`. **BUKAN** id berprefix (`folderArchive`) dan bukan `{mailbox: ...}`.
+- **Respon** berisi `unseenCount` (bisa dipakai update badge).
+- **Pola id folder app:** `'folder' + path.replace(/\//g, '%2F')` (flattenMailboxes). Konversi id → path SOGo: `decodeURIComponent(id.replace(/^folder/, ''))` → `folderINBOX%2FSub` → `INBOX/Sub`. Karena itu caller sebaiknya kirim OBJEK folder (`{path, name, id}`) ke `moveMessages`, string id cuma fallback (auto-archive rules).
+- **Endpoint SOGo lain yang valid (verified di binary):** `markMessageRead`, `markMessageUnread`, `markMessageFlagged`, `markMessageUnflagged`, `batchDelete`, `moveMessages`. Aksi per-message SOGo UI asli pakai GET (`$$resource.fetch`), tapi POST juga diterima oleh action routing SOGo.
+- **Pelajaran (sama dgn search):** sebelum panggil endpoint SOGo dari app, verifikasi nama action di bundle JS asli (`WebServerResources/js/Mailer/*.service.js`) + binary `MailerUI` di container `mailcow-sogo-mailcow-1`. Endpoint "masuk akal" (`batchMoveToMailbox`) belum tentu ada.
+
+## 2026-08-18 — SOGo v5 search: folder view + filters (endpoint /search TIDAK ada)
+
+- **SOGo 5.12 TIDAK punya endpoint `POST /Mail/0/{folder}/search`** — 404 (verified di log nginx sejak 13 Agu, semua user). UI SOGo asli mencari via `Mailbox.$filter()` → `POST /Mail/0/{folder}/view` dengan body `{ sortingAttributes: {sort, asc, match?}, filters: [{searchBy, searchInput, negative, operator?}] }`.
+- **searchBy SOGo valid:** `subject_or_from`, `subject_or_to`, `contains`, `body`, `from`, `to`, `subject`. Criteria UI `all` → `contains`; filter kosong (`!searchInput`) di-reject SOGo. `sortingAttributes.match='OR'` utk filter dua-field (subject_or_*).
+- **Sumber kode SOGo:** container `mailcow-sogo-mailcow-1`, `/usr/local/lib/GNUstep/SOGo/WebServerResources/js/Mailer/Mailbox.service.js` (fungsi `$filter`) + `VirtualMailbox.service.js` (`startSearch` → `mailbox.$filter(attrs, params)`).
+- **Pelajaran:** kalau endpoint json SOGo 404, baca kode UI SOGo asli (bundle js di container) sebelum menebak — UI asli adalah dokumentasi terbaik utk JSON API.
+- **Cara lain yang valid:** `POST /Mail/0/{folder}/search` mungkin ada di SOGo <5 versi tertentu; app ini target 5.12 → pakai view+filters.
+
+## 2026-08-18 — Snooze client-side + pola fitur harian (sogo-frontend)
+
+- **Snooze TIDAK perlu folder/endpoint server:** simpan `{uid: wakeEpoch}` di localStorage per akun (`pcp_snooze_<email>`), sembunyikan pesan di daftar via filter client-side, prune tiap menit → muncul kembali otomatis. Email TETAP di folder asli — klien lain tetap melihatnya (trade-off diterima; aman).
+- **`getUnseenCount(sogoToken, folder)`:** SOGo endpoint per-folder `/Mail/0/{folder}/view` mengembalikan `unseenCount` — cukup utk badge sidebar per folder (junk/sent/drafts). `Promise.allSettled` + reduce → map per folder, refetch 60s (paralel ringan, jangan per SEMUA folder user — banyak request).
+- **Quick reply:** kirim via `sendMessage` yang sama (SOGo compose→save→send + fallback `/api/send` SMTP) — tidak ada endpoint khusus. Body textarea di-escape + `\n`→`<br>`; penerima `replyTo || from`.
+- **Unduh semua lampiran:** SOGo `downloadURL` per lampiran (relative — perlu `toSafeUrl(url, {base: SOGO_BASE, allowExternal:false})`); buka tiap URL di tab baru `window.open` — session cookie ikut, tidak perlu token khusus.
+- **Cari per pengirim:** search criteria `'from'` (SOGo search endpoint `criteria: 'from'`) — dari sender text, ekstrak email via regex `/[A-Za-z0-9._%+-]+@.../`, set searchQuery + criteria.
+
+## 2026-08-18 — SOGo draft flow + folder Archive
+
+- **SOGo draft API:** `GET /Mail/0/compose` → `{draftId}`; `POST /Mail/0/folderDrafts/{draftId}/save` (JSON, body `{subject,to:[],cc:[],bcc:[],replyTo,inReplyTo,references,text,isHTML,from}`) → `{uid}`; `POST .../batchDelete` `{uids:[uid]}` utk hapus draft. Draft yang sudah ada TIDAK di-overwrite oleh `sendMessage` (yang membuat compose draft baru) — autosave draft harus dihapus manual setelah kirim sukses biar tidak menumpuk.
+- **Folder Archive:** Dovecot/Mailcow punya folder root `Archive` di SEMUA akun (diverifikasi `doveadm mailbox list`). Path case-sensitive `Archive`; regex cari `/archive$/i` aman. Tombol arsip tidak perlu membuat folder.
+- **Notifikasi browser:** SOGo tidak punya push — polling `getUnseenCount` (refetchInterval 60s) + deteksi kenaikan = notifikasi email baru. `Notification` permission diminta sekali saat login pertama; `document.title` badge selalu diupdate.
+- **markAllRead batch:** SOGo tidak punya endpoint batch mark-read; `Promise.all(messages.map(markRead))` per uid (folder ≤ 50 baris di UI — aman).
+
+## 2026-08-18 — Login TIDAK boleh block pada kegagalan sesi SMTP
+
+- `registerSmtpSession` (POST `/api/auth/smtp`) dulunya memblokir login: gagal → logout + throw → user terkunci walau SOGo session valid. Ini salah: di dev, `/api` → 127.0.0.1:3001 (backend lokal tak jalan) → login selalu gagal; di production, kalau sogo-smtp-proxy (3005) down → semua user terkunci.
+- **Fix:** SMTP session non-blocking — gagal → `smtpToken=null` + `toast.warning`, login lanjut. Baca email tetap jalan; hanya kirim email yang gagal sampai backend SMTP pulih.
+- **Pola:** sesi SOGo (login/read) dan sesi SMTP (send) adalah dua hal terpisah — jangan satukan gate-nya. Sama seperti lesson 401/403 `/api/*` ≠ sesi SOGo expired (lihat entri workspace multi-host).
+
+## 2026-08-18 — Klasifikasi email client-side + signature multi-per-akun (sogo-frontend)
+
+- **SOGo list view TIDAK mengembalikan header arbitrer** (List-Unsubscribe, X-Spam-Flag, Precedence, dll) — request `headers` di `buildMessageViewBody` hanya kolom yang dikenal (Subject/From/To/isRead/hasAtt/isFlagged/uid/dll). Karena itu klasifikasi kategori TIDAK boleh bergantung header tambahan; pakai data yang sudah ada: `folderId` (spam = folderJunk), `from` (domain pengirim), `subject` (kata kunci).
+- **`src/lib/emailCategory.js`** — `classifyEmail({folderId,from,subject})` → utama/promo/sosial/update/spam. Prioritas: spam (folder) > sosial (domain) > promo (domain/keyword) > update (domain/keyword) > utama. `subjectMatches` pakai batas-kata (`\b`) utk kata pendek (<5 huruf, mis. "sale"/"otp") dan includes utk kata panjang (varian promo/promosi). Kata ambigu (update/login/pin) di-exclude dari keyword update.
+- **`src/lib/signatures.js`** — storage multi-signature per-akun localStorage `pcp_signatures_<email>` (pola sama `userPrefs.js`): `{list:[{id,name,html}], defaults:{new,reply}}`. Compose memilih signature via `getSignatureFor(email, 'new'|'reply')` — mode ditentukan `initialData.composeMode` (MessageReader kirim 'reply' utk balasan/forward). Fallback ke `SOGoMailSignature` lama bila belum ada signature lokal (migrasi otomatis di PreferencesPage).
+- **Sinkronisasi SOGo:** SOGo prefs hanya support SATU signature (`SOGoMailSignature`); multi-signature hanya client-side. "Sinkronkan ke SOGo" menulis default `new` ke SOGoMailSignature agar klien SOGo native/mobile ikut pakai — opsional, bukan syarat webmail ini.
+- **Pattern baru:** tambah field kecil (`folderId`, `composeMode`) ke objek hasil parse — aman, tidak mengubah kontrak API; parse row memakai kolom dinamis (bukan index tetap).
+
+## 2026-08-18 — Dev lokal sogo-frontend: Vite dev server + proxy SOGo produksi
+
+- **`npm run dev`** → Vite di `http://localhost:5173/webmail/` (base `/webmail/`; host 0.0.0.0). Tanpa `.env` lokal — `VITE_SOGO_BASE_URL` default kosong (same-origin) aman; `VITE_API_KEY` hanya utk build production (deploy.sh mengisinya dari mailserver).
+- **Proxy Vite (vite.config.js):** `/SOGo` → `https://mail.pcpexpress.co.id` (changeOrigin, `cookieDomainRewrite: {'*':'localhost'}` + strip `Secure`/`SameSite` dari Set-Cookie → cookie sesi SOGo diterima browser di localhost HTTP; hapus `accept-encoding` biar SOGo kirim plain; log `[PROXY →/←]` utk path Mail/connect/logoff), `/api` → `http://127.0.0.1:3001` (butuh server.js lokal + env DB/SMTP — TIDAK jalan tanpa itu; utk review UI/login/baca mail cukup proxy /SOGo).
+- **Verifikasi sehat:** `curl http://localhost:5173/webmail/` → 200; `curl -X POST http://localhost:5173/SOGo/connect` (dummy) → 403 = pipeline login sampai SOGo produksi (ditolak wajar). `/SOGo/so/` → 200.
+- **Batasan dev:** `/api/*` (kirim email, preferences, health) butuh `server.js` + env (DB Mailcow live) — constraint project-context. Preferences punya fallback localStorage jadi UI tetap jalan.
+- **Catatan sandbox terminal agent:** proses background (nohup) MATI saat tool-call selesai — user harus jalankan `npm run dev` di terminal sendiri utk server bertahan.
+- **Flow review tanpa deploy:** edit kode → `npm run dev` → buka `localhost:5173/webmail/` → login akun asli (SOGo produksi di belakang proxy) → review → kalau mau, baru deploy via `./deploy.sh`.
+
 ## 2026-08-18 — /api/v1/* Mailcow: inject X-API-Key di nginx (jangan hapus saat edit config)
 
 - **`site.control-tower.custom`** punya `location ^~ /api/v1/` → FastCGI `php-fpm-mailcow:9001` → `json_api.php` dengan `fastcgi_param HTTP_X_API_KEY "<MC key>"` — ini membuat request apa pun ke /api/v1/* lolos auth Mailcow (UI Mailcow session-cookie ATAU Control Tower SPA Bearer JWT). **Jangan hapus block ini saat mengedit config** — tanpanya SPA Control Tower dapat body kosong (dashboard halaman Mailcow blank) dan UI Mailcow tetap jalan via json_api template.
@@ -109,3 +164,53 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: incident-login-massal-2026-08-18
 - Status: COMPLETED
 - Finding: Control Tower mailboxes kosong: patch hapus gate /api/v1 (18 Agu) ikut menghapus location ^~ /api/v1/ FastCGI + inject X-API-Key server-side — SPA Control Tower dapat body kosong dari json_api tanpa key. Fix: restore block FastCGI + HTTP_X_API_KEY (tanpa gate auth_request yang membunuh UI Mailcow). Verifikasi: mailbox/all 919KB, domain/all 4.5KB, passwordpolicy/html 200, UI Mailcow POST / Login failed normal. Pelajaran: jangan hapus inject X-API-Key di site.control-tower.custom; gate auth_request JANGAN dipasang lagi. Catatan keamanan: /api/v1/* efektif publik (status quo pra-11 Agu).
+
+## 2026-08-18T05:11:26Z
+- Task: fitur-klasifikasi-email-signature-2026-08-18
+- Status: COMPLETED
+- Finding: Klasifikasi email client-side (emailCategory.js: spam=folder Junk, sosial=domain medsos, promo=domain newsletter+keyword subjek, update=domain no-reply+keyword; SOGo list view tidak kirim header arbitrer jadi klasifikasi pakai folderId+from+subject saja). Signature multi-per-akun localStorage (signatures.js, pola userPrefs): default terpisah new/reply, dropdown sisipkan di compose, migrate otomatis dari SOGoMailSignature, sync ke SOGo opsional. 17/17 test PASS + build OK, BELUM deploy (dev localhost:5173).
+
+## 2026-08-18T05:29:53Z
+- Task: fitur-klasifikasi-email-signature-2026-08-18
+- Status: COMPLETED
+- Finding: Login TIDAK boleh block saat registerSmtpSession gagal: SMTP session non-blocking (smtpToken=null + toast.warning), login lanjut — sesi SOGo (read) dan SMTP (send) terpisah. Fix di LoginPage.jsx; di dev /api ke 127.0.0.1:3001 (backend lokal tak ada) jadi kirim email gagal tapi baca email OK; production via nginx->3005 tidak berubah. Build OK + login-flow/preferences-fallback PASS.
+
+## 2026-08-18T05:35:52Z
+- Task: fitur-klasifikasi-email-signature-2026-08-18
+- Status: COMPLETED
+- Finding: Kontrol baris pesan MailPage dirapikan: checkbox menggantikan avatar saat hover/seleksi (pola Gmail, cross-fade, bg-background+border biar jelas), star pindah ke kanan sebelah tanggal. Tidak ada lagi overlay dua tombol di atas avatar 32px. Build OK + HMR, belum deploy.
+
+## 2026-08-18T05:37:54Z
+- Task: fitur-klasifikasi-email-signature-2026-08-18
+- Status: COMPLETED
+- Finding: Range-select checkbox (Shift+klik) di MailPage: anchor lastSelectedUid useRef, urutan tampil visibleOrderUids (flat sortedMessages atau flatten conversationGroups), selectRangeFromAnchor pilih semua antara anchor dan target + union seleksi, anchor ikut pindah. Reset anchor saat ganti folder/search. Build OK + HMR, belum deploy.
+
+## 2026-08-18T05:47:11Z
+- Task: fitur-klasifikasi-email-signature-2026-08-18
+- Status: COMPLETED
+- Finding: HtmlEditor dapat kontrol ukuran font (dropdown A): execCommand styleWithCSS+fontSize (1-6) -> span style font-size yang lolos DOMPurify karena 'style' di ADD_ATTR PURIFY_CONFIG. Terpasang di toolbar HtmlEditor yang dipakai SignatureSection. Build OK + HMR, belum deploy.
+
+## 2026-08-18T05:54:55Z
+- Task: fitur-klasifikasi-email-signature-2026-08-18
+- Status: COMPLETED
+- Finding: 5 fitur produktivitas sogo-frontend: (1) notifikasi email baru via polling unseen + Notification API + tab title badge; (2) filter belum dibaca client-side; (3) tandai semua dibaca = Promise.all markRead per uid (SOGo tak punya batch); (4) arsip cepat ke folder root Archive yang ADA di semua akun (doveadm verified); (5) draft autosave SOGo: GET /Mail/0/compose -> draftId, POST folderDrafts/{id}/save, hapus draft setelah kirim via batchDelete. 18/18 test PASS + build OK, belum deploy.
+
+## 2026-08-18T06:03:27Z
+- Task: fitur-klasifikasi-email-signature-2026-08-18
+- Status: COMPLETED
+- Finding: 5 fitur harian sogo-frontend: (1) snooze client-side localStorage {uid:wakeEpoch}, sembunyi dari daftar + prune 60s, tanpa folder server; (2) badge per folder via getUnseenCount(folder) Promise.allSettled junk/sent/drafts; (3) quick reply di reader via sendMessage biasa; (4) unduh semua lampiran window.open tiap downloadURL; (5) cari per pengirim klik nama -> search criteria 'from'. 19/19 test PASS + build OK, belum deploy.
+
+## 2026-08-18T06:06:36Z
+- Task: fitur-klasifikasi-email-signature-2026-08-18
+- Status: COMPLETED
+- Finding: TDZ bug di React: const useMemo yang dipakai di filter useMemo lain harus dideklarasikan LEBIH DULU (JS hoisting hanya function declarations, bukan const). MailPage: displayMessages pakai snoozedUids tapi snoozedUids dideklarasikan setelahnya -> crash render. Fix: pindah ke atas. 19/19 test PASS + build OK.
+
+## 2026-08-18T06:16:10Z
+- Task: fitur-klasifikasi-email-signature-2026-08-18
+- Status: COMPLETED
+- Finding: SOGo v5 search = POST /Mail/0/{folder}/view + body filters [{searchBy, searchInput, negative}] — endpoint /search TIDAK ADA (404 verified log nginx). searchBy valid: subject_or_from, subject_or_to, contains, body, from, to, subject. Diverifikasi dari kode SOGo asli Mailer/Mailbox.service.js di container mailcow-sogo-mailcow-1. Fix buildMessageSearchBody + searchMessages -> /view. 19/19 test PASS + build OK.
+
+## 2026-08-18T06:22:17Z
+- Task: fix-bugs-fitur-baru-deploy-2026-08-18
+- Status: COMPLETED
+- Finding: SOGo v5 move = POST moveMessages body {uids, folder: path relatif} (Archive, INBOX/Sub), bukan batchMoveToMailbox (0 hit di binary MailerUI) — fix 404 archive; caller kirim objek folder, string id di-decode. Audit endpoint lain (markMessage*, batchDelete) valid. 19/19 test + build OK.

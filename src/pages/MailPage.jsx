@@ -4,6 +4,7 @@ import {
   Inbox, Send, Trash2, FileText, Loader2, Edit3, Mail, Menu, X,
   AlertCircle, Search, Trash, CheckSquare, Square, MailOpen, RefreshCw,
   Folder, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown, ChevronRight,
+  Archive, BellRing, CheckCheck, Clock,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchFolders, fetchMessages, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged } from '../lib/api';
@@ -17,6 +18,8 @@ import SwipeableRow from '../components/SwipeableRow';
 import Avatar from '../components/Avatar';
 import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor } from '../lib/flagColors';
 import { getRuleSummary, executeRules } from '../lib/autoArchive';
+import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
+import { SNOOZE_PRESETS, loadSnoozes, isSnoozed, snoozeMessage, unsnoozeMessage, pruneExpired } from '../lib/snooze';
 
 // ─── Icon mapping ─────────────────────────────────────────────────────────────
 const FOLDER_ICONS = {
@@ -25,6 +28,41 @@ const FOLDER_ICONS = {
 
 function getFolderIcon(type) {
   return FOLDER_ICONS[type] || Folder;
+}
+
+// ─── Category tabs (Utama/Promosi/Sosial/Update) ─────────────────────────────
+function CategoryTabs({ messages, categoryFilter, onSelect }) {
+  const counts = useMemo(() => countCategories(messages), [messages]);
+  const tabs = [
+    { id: null, label: 'Semua', count: messages.length },
+    ...Object.values(EMAIL_CATEGORIES)
+      .filter((c) => c !== EMAIL_CATEGORIES.SPAM)
+      .map((c) => ({ id: c, label: CATEGORY_LABELS[c], count: counts[c] })),
+  ];
+  return (
+    <div className="flex items-center gap-1 overflow-x-auto pb-0.5 -mx-1 px-1">
+      {tabs.map((t) => {
+        const active = categoryFilter === t.id;
+        return (
+          <button
+            key={t.id || 'all'}
+            type="button"
+            onClick={() => onSelect(active ? null : t.id)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+              active
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            {t.label}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${active ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+              {t.count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 // ─── Resize hook ──────────────────────────────────────────────────────────────
@@ -135,12 +173,19 @@ export default function MailPage() {
   const [searchCriteria, setSearchCriteria] = useState('all');
   const [showSearchFilter, setShowSearchFilter] = useState(false);
   const [selectedUids, setSelectedUids] = useState([]);
+  const lastSelectedUid = useRef(null); // anchor utk Shift+klik (range select)
   const [keyboardHelpOpen, setKeyboardHelpOpen] = useState(false);
   const [focusIdx, setFocusIdx] = useState(-1);
   const [flagPickerOpen, setFlagPickerOpen] = useState(null); // { msgUid, anchorEl }
   const [flagFilter, setFlagFilter] = useState(null); // color key or null
+  const [categoryFilter, setCategoryFilter] = useState(null); // EMAIL_CATEGORIES key or null
+  const [unreadOnly, setUnreadOnly] = useState(false); // filter hanya belum dibaca
+  const [snoozePicker, setSnoozePicker] = useState(null); // { uid, x, y } — pilih durasi snooze
+  const [snoozeTick, setSnoozeTick] = useState(0); // bump utk re-render setelah prune
   const [expandedConversations, setExpandedConversations] = useState(new Set());
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set()); // folder sidebar yang di-ciutkan
+  const prevUnseenRef = useRef(null); // notifikasi email baru — bandingkan unseen count
+  const notifGrantedRef = useRef(false); // cegah minta izin berulang
   const [selectionMode, setSelectionMode] = useState(false); // mode seleksi (long-press di layar sentuh)
   const [isTouch] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches
@@ -163,11 +208,12 @@ export default function MailPage() {
   const [folderW, onFolderDrag] = useResizable(220, 160, 320);
   const [listW, onListDrag] = useResizable(340, 240, 560);
 
-  // Reset selection on folder/search change (keep flagFilter)
+  // Reset selection on folder/search change (keep flagFilter + categoryFilter)
   useEffect(() => {
     setSelectedUids([]);
     setSelectedMsgId(null);
     setSelectionMode(false);
+    lastSelectedUid.current = null; // range-select anchor ikut di-reset
     // Reset processed cache saat ganti folder
     rulesProcessed.current = {};
     // Bersihkan state long-press per-baris
@@ -245,7 +291,7 @@ export default function MailPage() {
     staleTime: STALE_TIMES.MESSAGES,
   });
 
-  // ── Unseen count ───────────────────────────────────────────────────────────
+  // ── Unseen count (INBOX + folder utama lain utk badge sidebar) ─────────────
   const { data: unseenData } = useQuery({
     queryKey: ['unseen', user?.sogoToken],
     queryFn: () => getUnseenCount(user?.sogoToken),
@@ -256,20 +302,126 @@ export default function MailPage() {
     refetchInterval: STALE_TIMES.UNSEEN,
   });
 
+  // Badge belum dibaca per folder utama (Junk, Sent, Drafts) — paralel ringan.
+  const PER_FOLDER_IDS = ['folderJunk', 'folderSent', 'folderDrafts'];
+  const perFolderUnseen = useQuery({
+    queryKey: ['unseen-per-folder', user?.sogoToken],
+    queryFn: async () => {
+      const results = await Promise.allSettled(
+        PER_FOLDER_IDS.map((f) => getUnseenCount(user?.sogoToken, f))
+      );
+      return PER_FOLDER_IDS.reduce((acc, f, i) => {
+        acc[f] = results[i]?.status === 'fulfilled' ? results[i].value.unseenCount || 0 : 0;
+        return acc;
+      }, {});
+    },
+    enabled: !!user?.sogoToken && folders !== DEFAULT_FOLDERS && !isFetchingFolders,
+    refetchInterval: STALE_TIMES.UNSEEN,
+  });
+
   const messages = msgData?.messages || [];
   const totalMessageCount = msgData?.total ?? messages.length;
   const ruleSummary = getRuleSummary(user?.email);
   const enabledRules = ruleSummary.enabled;
+
+  // ── Notifikasi email baru ───────────────────────────────────────────────────
+  // Tab title badge (selalu) + Notification API (bila diizinkan).
+  const unseenCount = unseenData?.unseenCount ?? 0;
+  useEffect(() => {
+    const prev = prevUnseenRef.current;
+    const isNewEmail = prev !== null && unseenCount > prev && selectedFolder === 'folderINBOX';
+    prevUnseenRef.current = unseenCount;
+
+    // Tab title: badge "(n)" bila ada belum dibaca
+    document.title = unseenCount > 0
+      ? `(${unseenCount}) PCP Express Mail`
+      : 'PCP Express Mail';
+
+    if (!isNewEmail) return;
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      try {
+        const n = new Notification('Email baru', {
+          body: `${unseenCount} pesan belum dibaca di Kotak Masuk`,
+          tag: 'sogo-new-mail',
+        });
+        n.onclick = () => { window.focus(); n.close(); };
+      } catch { /* Safari/older — abaikan */ }
+    }
+  }, [unseenCount, selectedFolder]);
+
+  // Minta izin notifikasi sekali saat pertama kali (setelah ada unseen > 0)
+  useEffect(() => {
+    if (notifGrantedRef.current || typeof Notification === 'undefined') return;
+    if (Notification.permission === 'granted' || Notification.permission === 'denied') {
+      notifGrantedRef.current = true;
+      return;
+    }
+    // Default — minta saat user sudah login dan mailbox dimuat
+    if (unseenCount > 0 || !loadingMessages) {
+      notifGrantedRef.current = true;
+      Notification.requestPermission().catch(() => {});
+    }
+  }, [unseenCount, loadingMessages]);
 
   // ── Load More (client-side pagination, after messages assignment) ─────────
   const PAGE_SIZE = 50;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const visibleMessages = messages.slice(0, visibleCount);
 
-  // Filter messages by flag color (client-side) — replaces visibleMessages in render
-  const displayMessages = flagFilter
-    ? visibleMessages.filter((m) => getFlagColor(user?.email, m.uid) === flagFilter)
-    : visibleMessages;
+  // ── Snooze (client-side) ───────────────────────────────────────────────────
+  // Pesan yang di-snooze disembunyikan dari daftar; muncul lagi saat waktunya.
+  // Dideklarasikan SEBELUM displayMessages (dipakai di filter di bawah).
+  const snoozedUids = useMemo(() => {
+    if (!user?.email) return new Set();
+    pruneExpired(user.email); // buang yang sudah lewat (muncul kembali otomatis)
+    return new Set(Object.keys(loadSnoozes(user.email)));
+  }, [user?.email, snoozeTick]);
+
+  // Folder Arsip — SOGo/Dovecot punya folder root "Archive" (diverifikasi).
+  const archiveFolder = (Array.isArray(folders) ? folders : [])
+    .find((f) => /(^|\/)archive$/i.test(f.path || f.name || '')) || null;
+
+  // Resolver folder id → objek (moveMessages butuh `path`, bukan id berprefix)
+  const folderById = (id) => (Array.isArray(folders) ? folders : []).find((f) => f.id === id) || null;
+  const trashFolder = folderById('folderTrash') || { path: 'Trash' };
+  const junkFolder  = folderById('folderJunk')  || { path: 'Junk' };
+
+  // Filter messages by flag color / kategori / belum dibaca / snooze (client-side)
+  const displayMessages = visibleMessages.filter((m) => {
+    if (snoozedUids.has(String(m.uid))) return false; // di-snooze → sembunyi
+    if (flagFilter && getFlagColor(user?.email, m.uid) !== flagFilter) return false;
+    if (categoryFilter && classifyEmail(m) !== categoryFilter) return false;
+    if (unreadOnly && m.isRead) return false;
+    return true;
+  });
+
+  function handleSnooze(uid, hours) {
+    if (!user?.email) return;
+    snoozeMessage(user.email, uid, Math.floor(Date.now() / 1000) + hours * 3600);
+    setSnoozePicker(null);
+    setSnoozeTick((t) => t + 1);
+    toast.success(hours >= 24 ? 'Email di-snooze. Akan kembali lagi nanti.' : 'Email di-snooze sementara.');
+  }
+
+  function handleUnsnooze(uid) {
+    if (!user?.email) return;
+    unsnoozeMessage(user.email, uid);
+    setSnoozeTick((t) => t + 1);
+  }
+
+  // Bangun otomatis: cek berkala (menit) — kalau ada snooze yang waktunya lewat,
+  // prune + refresh daftar.
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (!user?.email) return;
+      const before = Object.keys(loadSnoozes(user.email)).length;
+      pruneExpired(user.email);
+      if (before !== Object.keys(loadSnoozes(user.email)).length) {
+        setSnoozeTick((t) => t + 1);
+      }
+    }, 60_000);
+    return () => clearInterval(iv);
+  }, [user?.email]);
 
   // Sort by date (client-side)
   const sortedMessages = useMemo(() => {
@@ -341,7 +493,7 @@ export default function MailPage() {
     const key = Date.now().toString();
 
     pendingTimers.current[key] = setTimeout(() => {
-      moveMutation.mutate({ uids, targetFolder: 'folderTrash' });
+      moveMutation.mutate({ uids, targetFolder: trashFolder });
       delete pendingTimers.current[key];
     }, 6000);
 
@@ -399,6 +551,32 @@ export default function MailPage() {
     },
   });
 
+  // Tandai semua pesan di folder aktif sebagai dibaca (batch per-uid)
+  const markAllReadMutation = useMutation({
+    mutationFn: () =>
+      Promise.all(messages.map((m) => markRead(user.sogoToken, selectedFolder, m.uid, true))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
+      queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+      toast.success('Semua pesan ditandai dibaca.');
+    },
+    onError: () => toast.error('Gagal menandai semua pesan.'),
+  });
+
+  // Arsip: pindahkan semua pesan folder aktif ke folder Archive
+  const archiveMutation = useMutation({
+    mutationFn: () => {
+      if (!archiveFolder) throw new Error('Folder Arsip tidak ditemukan.');
+      return moveMessages(user.sogoToken, selectedFolder, messages.map((m) => m.uid), archiveFolder);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
+      queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+      toast.success('Pesan dipindahkan ke Arsip.');
+    },
+    onError: (err) => toast.error(err?.message || 'Gagal mengarsipkan pesan.'),
+  });
+
   // ── Helpers ────────────────────────────────────────────────────────────────
   const isSentOrDraft = isSentOrDraftFolder(selectedFolder, folders);
 
@@ -414,9 +592,49 @@ export default function MailPage() {
     );
   };
 
+  // Urutan baris yang TAMPIL (flat atau conversation) — dipakai utk range select
+  const visibleOrderUids = useMemo(() => {
+    if (conversationView && conversationGroups.length > 0) {
+      return conversationGroups.flatMap((g) => g.messages.map((m) => m.uid));
+    }
+    return sortedMessages.map((m) => m.uid);
+  }, [conversationView, conversationGroups, sortedMessages]);
+
+  // Shift+klik = range select (pola Gmail): pilih semua antara anchor terakhir
+  // dan baris yang diklik (termasuk keduanya), union dgn seleksi yang ada.
+  const selectRangeFromAnchor = (uid) => {
+    const anchor = lastSelectedUid.current;
+    if (anchor == null || anchor === uid) {
+      toggleSelect(uid);
+      lastSelectedUid.current = uid;
+      return;
+    }
+    const order = visibleOrderUids;
+    const a = order.indexOf(anchor);
+    const b = order.indexOf(uid);
+    if (a === -1 || b === -1) {
+      toggleSelect(uid);
+      lastSelectedUid.current = uid;
+      return;
+    }
+    const [from, to] = a < b ? [a, b] : [b, a];
+    const rangeUids = order.slice(from, to + 1);
+    setSelectedUids((prev) => {
+      const next = new Set(prev);
+      rangeUids.forEach((id) => next.add(id));
+      return [...next];
+    });
+    lastSelectedUid.current = uid;
+  };
+
   const toggleSelectMsg = (e, uid) => {
     e.stopPropagation();
+    if (e.shiftKey) {
+      selectRangeFromAnchor(uid);
+      return;
+    }
     toggleSelect(uid);
+    lastSelectedUid.current = uid;
   };
 
   // ── Long-press (mobile) → mode seleksi ────────────────────────────────────
@@ -473,6 +691,16 @@ export default function MailPage() {
   function handleSearchSubmit(e) {
     e.preventDefault();
     setSearchQuery(searchInput.trim());
+  }
+
+  // Cari semua email dari satu pengirim (klik nama pengirim di baris)
+  function searchBySender(senderText, e) {
+    if (e) e.stopPropagation();
+    const match = String(senderText || '').match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+    const email = match ? match[0] : senderText;
+    setSearchInput(email);
+    setSearchQuery(email);
+    setSearchCriteria('from');
   }
 
   // ── Keyboard Shortcuts ─────────────────────────────────────────────────────
@@ -608,7 +836,7 @@ export default function MailPage() {
 
       if (key === '!' && selectedFolder !== 'folderJunk') {
         e.preventDefault();
-        moveMutation.mutate({ uids: targetUids, targetFolder: 'folderJunk' });
+        moveMutation.mutate({ uids: targetUids, targetFolder: junkFolder });
         return;
       }
 
@@ -706,48 +934,29 @@ export default function MailPage() {
             isActive ? 'bg-muted border-primary' : isFocused ? 'border-primary/40 bg-muted/30' : 'border-transparent'
           } ${isSelected ? 'bg-primary/5' : ''}`}
         >
-          {/* Avatar + kontrol floating (checkbox & star overlay di atas avatar) */}
-          <div className="relative shrink-0 mt-0.5 mr-2">
-            <Avatar name={senderLabel} size="sm" />
-            <div className="absolute inset-0 flex">
-              {/* Checkbox — terpilih, hover, atau mode seleksi (layar sentuh) */}
-              <button
-                onClick={(e) => toggleSelectMsg(e, msg.uid)}
-                tabIndex={checkboxVisible ? 0 : -1}
-                className={`flex-1 flex items-center justify-center transition-opacity ${
-                  checkboxVisible ? '' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
-                }`}
-                aria-label="Pilih pesan"
-              >
-                {isSelected ? (
-                  <CheckSquare size={14} className="text-primary" />
-                ) : (
-                  <Square size={14} className="text-muted-foreground bg-background/70 rounded-[2px]" />
-                )}
-              </button>
-              {/* Star/flag — berflag, hover, atau selalu di layar sentuh */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
-                }}
-                tabIndex={starVisible ? 0 : -1}
-                className={`flex-1 flex items-center justify-center transition-opacity ${
-                  starVisible ? '' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
-                }`}
-                aria-label="Tandai penting"
-              >
-                {(() => {
-                  if (colorKey && FLAG_COLORS[colorKey]) {
-                    return <Star size={13} className={`${FLAG_COLORS[colorKey].text} ${FLAG_COLORS[colorKey].fill}`} />;
-                  }
-                  if (msg.isFlagged) {
-                    return <Star size={13} className="text-amber-500 fill-amber-500" />;
-                  }
-                  return <Star size={13} className="text-muted-foreground" />;
-                })()}
-              </button>
+          {/* Avatar — saat hover/seleksi diganti checkbox (pola Gmail, tidak menumpuk) */}
+          <div className="relative w-8 h-8 shrink-0 mr-2 mt-0.5">
+            <div className={`absolute inset-0 rounded-full overflow-hidden transition-opacity duration-150 ${
+              checkboxVisible ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+            }`}>
+              <Avatar name={senderLabel} size="sm" />
             </div>
+            <button
+              onClick={(e) => toggleSelectMsg(e, msg.uid)}
+              tabIndex={checkboxVisible ? 0 : -1}
+              className={`absolute inset-0 flex items-center justify-center rounded-full bg-background border border-border shadow-sm transition-opacity duration-150 ${
+                checkboxVisible
+                  ? 'opacity-100'
+                  : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+              }`}
+              aria-label="Pilih pesan"
+            >
+              {isSelected ? (
+                <CheckSquare size={15} className="text-primary" />
+              ) : (
+                <Square size={15} className="text-muted-foreground" />
+              )}
+            </button>
 
             {flagPickerOpen?.msgUid === msg.uid && (
               <>
@@ -793,24 +1002,115 @@ export default function MailPage() {
                 </div>
               </>
             )}
+
+            {snoozePicker?.uid === msg.uid && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setSnoozePicker(null)} />
+                <div
+                  className="fixed z-50 bg-card border border-border shadow-xl rounded-xl p-1.5 min-w-[140px]"
+                  style={{ left: Math.min(snoozePicker.x, window.innerWidth - 180), top: Math.min(snoozePicker.y, window.innerHeight - 200) }}
+                >
+                  {SNOOZE_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={(e) => { e.stopPropagation(); handleSnooze(msg.uid, p.hours); }}
+                      className="block w-full text-left px-3 py-1.5 rounded-lg text-sm hover:bg-muted transition-colors"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            <div className="flex justify-between items-baseline mb-1">
-              <span className={`text-sm truncate pr-2 ${msg.isRead ? 'text-muted-foreground font-medium' : 'text-foreground font-bold'}`}>
+            <div className="flex justify-between items-baseline mb-1 gap-2">
+              <span
+                onClick={(e) => searchBySender(senderLabel, e)}
+                title={`Cari semua email dari pengirim ini`}
+                className={`text-sm truncate cursor-pointer hover:underline ${msg.isRead ? 'text-muted-foreground font-medium' : 'text-foreground font-bold'}`}
+              >
                 {senderLabel}
               </span>
-              <span className="text-xs text-muted-foreground shrink-0">{msg.date}</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Snooze per-baris — hover desktop; picker durasi */}
+                {selectedFolder === 'folderINBOX' && !isTouch && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSnoozePicker(snoozePicker?.uid === msg.uid ? null : { uid: msg.uid, x: e.clientX, y: e.clientY });
+                    }}
+                    tabIndex={-1}
+                    className="p-0.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
+                    title="Snooze"
+                  >
+                    <Clock size={14} />
+                  </button>
+                )}
+                {/* Arsip cepat per-baris — hanya saat hover desktop */}
+                {archiveFolder && selectedFolder !== archiveFolder.id && !isTouch && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveMessages(user.sogoToken, selectedFolder, [msg.uid], archiveFolder)
+                        .then(() => {
+                          queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
+                          queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+                        })
+                        .catch(() => toast.error('Gagal mengarsipkan pesan.'));
+                    }}
+                    tabIndex={-1}
+                    className="p-0.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
+                    title="Arsip"
+                  >
+                    <Archive size={14} />
+                  </button>
+                )}
+                {/* Star/flag — di kanan (tidak nimpa avatar): berflag atau hover (desktop);
+                    selalu tampil di layar sentuh */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
+                  }}
+                  tabIndex={starVisible ? 0 : -1}
+                  className={`p-0.5 rounded-md transition-opacity ${
+                    starVisible ? '' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+                  }`}
+                  aria-label="Tandai penting"
+                >
+                  {(() => {
+                    if (colorKey && FLAG_COLORS[colorKey]) {
+                      return <Star size={14} className={`${FLAG_COLORS[colorKey].text} ${FLAG_COLORS[colorKey].fill}`} />;
+                    }
+                    if (msg.isFlagged) {
+                      return <Star size={14} className="text-amber-500 fill-amber-500" />;
+                    }
+                    return <Star size={14} className="text-muted-foreground" />;
+                  })()}
+                </button>
+                <span className="text-xs text-muted-foreground">{msg.date}</span>
+              </div>
             </div>
             <div className={`text-sm truncate ${msg.isRead ? 'text-muted-foreground' : 'text-primary font-medium'}`}>
               {typeof msg.subject === 'string' && msg.subject ? msg.subject : '(Tanpa Subjek)'}
             </div>
-            {msg.hasAtt && (
-              <div className="mt-1">
+            <div className="mt-1 flex items-center gap-1.5">
+              {(() => {
+                const cat = classifyEmail(msg);
+                if (cat === EMAIL_CATEGORIES.UTAMA || cat === EMAIL_CATEGORIES.SPAM) return null;
+                return (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${CATEGORY_BADGE_CLASS[cat] || ''}`}>
+                    {CATEGORY_LABELS[cat]}
+                  </span>
+                );
+              })()}
+              {msg.hasAtt && (
                 <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">📎 Lampiran</span>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {!msg.isRead && (
@@ -830,7 +1130,9 @@ export default function MailPage() {
     const isCollapsed = collapsedFolders.has(folder.id);
     const Icon = getFolderIcon(folder.type);
     const isActive = selectedFolder === folder.id && !flagFilter;
-    const badge = folder.type === 'inbox' ? (unseenData?.unseenCount || 0) : 0;
+    const badge = folder.type === 'inbox'
+      ? (unseenData?.unseenCount || 0)
+      : (perFolderUnseen.data?.[folder.id] || 0);
 
     return (
       <React.Fragment key={folder.id}>
@@ -1008,6 +1310,15 @@ export default function MailPage() {
                 <ArrowUpDown size={16} className={sortAsc ? 'rotate-180' : ''} />
               </button>
               <button
+                onClick={() => setUnreadOnly(!unreadOnly)}
+                className={`p-2 rounded-full transition-colors ${
+                  unreadOnly ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+                }`}
+                title={unreadOnly ? 'Tampilkan semua' : 'Hanya belum dibaca'}
+              >
+                <MailOpen size={16} />
+              </button>
+              <button
                 onClick={() => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] })}
                 className="p-2 rounded-full hover:bg-muted text-muted-foreground"
                 title="Refresh"
@@ -1016,6 +1327,39 @@ export default function MailPage() {
               </button>
             </div>
           </div>
+
+          {/* Aksi cepat: tandai semua dibaca + arsip */}
+          {messages.length > 0 && (
+            <div className="flex items-center gap-1 -mx-1 px-1">
+              <button
+                onClick={() => markAllReadMutation.mutate()}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Tandai semua di folder ini sebagai dibaca"
+              >
+                <CheckCheck size={14} />
+                Tandai Semua Dibaca
+              </button>
+              {archiveFolder && selectedFolder !== archiveFolder.id && (
+                <button
+                  onClick={() => archiveMutation.mutate()}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  title="Pindahkan semua ke Arsip"
+                >
+                  <Archive size={14} />
+                  Arsip
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Category tabs — Utama/Promosi/Sosial/Update (mirip Gmail) */}
+          {!searchQuery && (
+            <CategoryTabs
+              messages={messages}
+              categoryFilter={categoryFilter}
+              onSelect={setCategoryFilter}
+            />
+          )}
 
           {/* Search with filter */}
           <form onSubmit={handleSearchSubmit} className="relative">
@@ -1095,7 +1439,7 @@ export default function MailPage() {
             <div className="flex items-center gap-2">
               <select
                 className="bulk-move-select bg-background border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none"
-                onChange={(e) => { if (e.target.value) { quickMoveMutation.mutate({ targetFolder: e.target.value }); e.target.value = ''; } }}
+                onChange={(e) => { if (e.target.value) { quickMoveMutation.mutate({ targetFolder: folderById(e.target.value) || e.target.value }); e.target.value = ''; } }}
               >
                 <option value="">Pindah ke...</option>
                 {folders.filter((f) => f.id !== selectedFolder).map((f) => (
@@ -1125,7 +1469,7 @@ export default function MailPage() {
               </button>
               {selectedFolder !== 'folderJunk' && (
                 <button
-                  onClick={() => moveMutation.mutate({ uids: selectedUids, targetFolder: 'folderJunk' })}
+                  onClick={() => moveMutation.mutate({ uids: selectedUids, targetFolder: junkFolder })}
                   className="p-1.5 text-orange-500 hover:bg-orange-500/10 rounded"
                   title="Laporkan Spam"
                 >

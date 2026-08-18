@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { Bold, Italic, Underline, Link, ImagePlus, Loader2, AlertTriangle, X } from 'lucide-react';
+import { Bold, Italic, Underline, Link, ImagePlus, Loader2, AlertTriangle, X, ChevronDown } from 'lucide-react';
 import { handleEditorPaste, insertImageFile } from '../lib/pasteUtils';
 import DOMPurify from 'dompurify';
 import { toSafeUrl } from '../lib/safeUrl';
@@ -11,6 +11,8 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
   const [isPasting, setIsPasting] = useState(false);
   const [cidWarning, setCidWarning] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [fontSizeOpen, setFontSizeOpen] = useState(false);
+  const fontSizeRef = useRef(null);
 
   /* Hydrate hanya saat mount pertama */
   useEffect(() => {
@@ -27,6 +29,28 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
       onChange?.(DOMPurify.sanitize(editorRef.current.innerHTML, PURIFY_CONFIG));
     }
   }, [onChange]);
+
+  // Ukuran font via execCommand fontSize (1-7, HTML) + styleWithCSS → hasil
+  // <span style="font-size:...">. style di-ADD_ATTR di PURIFY_CONFIG, jadi
+  // aman lolos sanitize. Klik luar menutup dropdown.
+  const applyFontSize = useCallback((size) => {
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('fontSize', false, size);
+    if (editorRef.current) {
+      editorRef.current.focus();
+      onChange?.(DOMPurify.sanitize(editorRef.current.innerHTML, PURIFY_CONFIG));
+    }
+    setFontSizeOpen(false);
+  }, [onChange]);
+
+  useEffect(() => {
+    if (!fontSizeOpen) return;
+    const onDocClick = (e) => {
+      if (!fontSizeRef.current?.contains(e.target)) setFontSizeOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [fontSizeOpen]);
 
   const handleInput = useCallback(() => {
     onChange?.(DOMPurify.sanitize(editorRef.current?.innerHTML || '', PURIFY_CONFIG));
@@ -116,6 +140,41 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
         </button>
 
         <div className="w-px h-4 bg-border/60 mx-1" />
+
+        {/* Ukuran Font */}
+        <div className="relative" ref={fontSizeRef}>
+          <button
+            type="button"
+            title="Ukuran Font"
+            onMouseDown={e => { e.preventDefault(); setFontSizeOpen(v => !v); }}
+            className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+          >
+            <span className="text-[11px] font-semibold">A</span>
+            <ChevronDown size={11} />
+          </button>
+          {fontSizeOpen && (
+            <div className="absolute top-full left-0 mt-1 z-20 bg-card border border-border shadow-xl rounded-lg overflow-hidden min-w-[130px]">
+              {[
+                { size: 1, label: 'Sangat Kecil' },
+                { size: 2, label: 'Kecil' },
+                { size: 3, label: 'Normal' },
+                { size: 4, label: 'Besar' },
+                { size: 5, label: 'Sangat Besar' },
+                { size: 6, label: 'Sangat Besar Sekali' },
+              ].map((o) => (
+                <button
+                  key={o.size}
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); applyFontSize(o.size); }}
+                  className="block w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+                  style={{ fontSize: `${7 + o.size * 2}px` }}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <button type="button" title="Tautan" onMouseDown={e => { e.preventDefault(); insertLink(); }}
           className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors">
