@@ -456,12 +456,31 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
  * }
  */
 export async function fetchMessage(sogoToken, folder, uid) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/view`, {
-    credentials: 'include',
-    headers: sogoHeaders(),
-  });
-  if (!res.ok) throwApiError(`Gagal memuat isi pesan (${res.status}).`, res.status);
-  return safeJson(res);
+  // Bug fix: retry on transient 500 errors (SOGo偶尔overwhelmed)
+  const MAX_RETRIES = 2;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/view`, {
+        credentials: 'include',
+        headers: sogoHeaders(),
+      });
+      if (res.status === 500 && attempt < MAX_RETRIES) {
+        debugWarn('[API] fetchMessage 500 — retry', attempt);
+        await sleep(300 * attempt);
+        continue;
+      }
+      if (!res.ok) throwApiError(`Gagal memuat isi pesan (${res.status}).`, res.status);
+      return safeJson(res);
+    } catch (err) {
+      if (attempt < MAX_RETRIES && (err?.status === 500 || !err?.status)) {
+        debugWarn('[API] fetchMessage error — retry', attempt, err?.message);
+        await sleep(300 * attempt);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throwApiError('Gagal memuat isi pesan setelah beberapa percobaan.', 500);
 }
 
 export async function markRead(sogoToken, folder, uid, read = true) {

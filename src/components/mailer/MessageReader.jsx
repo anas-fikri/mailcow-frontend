@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, Paperclip,
   Flag, Printer, FolderOpen, Star, Send, ChevronDown, UserPlus, X,
+  AlertCircle, RefreshCw,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, sendMessage, fetchPreferences, createContact } from '../../lib/api';
@@ -199,7 +200,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const [contactSaving, setContactSaving] = React.useState(false);
   const [contactError, setContactError] = React.useState('');
 
-  const { data: msg, isLoading } = useQuery({
+  const { data: msg, isLoading, error: msgError } = useQuery({
     queryKey: ['message', user?.sogoToken, folder, msgId],
     queryFn: async () => {
       const data = await fetchMessage(user?.sogoToken, folder, msgId);
@@ -210,6 +211,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       return data;
     },
     enabled: !!msgId && !!user?.sogoToken,
+    retry: 2,
+    retryDelay: 500,
   });
 
   // Preferences utk fallback signature SOGo lama (sama pola ComposeModal)
@@ -322,6 +325,38 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   if (!msgId) return null;
 
   if (isLoading) return <MessageReaderSkeleton />;
+
+  // Bug fix: tampilkan error UI yang user-friendly (bukan ErrorBoundary crash)
+  if (msgError) {
+    const isNetwork = msgError?.message?.includes('NetworkError') || msgError?.message?.includes('fetch');
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4 px-6">
+        <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+          <AlertCircle size={20} className="text-destructive" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-foreground mb-1">Gagal memuat pesan</p>
+          <p className="text-xs text-muted-foreground">
+            {isNetwork ? 'Periksa koneksi internet Anda.' : 'Server sedang sibuk. Silakan coba lagi.'}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['message', user?.sogoToken, folder, msgId] })}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors"
+          >
+            <RefreshCw size={12} /> Coba Lagi
+          </button>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs font-medium hover:bg-muted/80 transition-colors"
+          >
+            Kembali
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!msg) {
     return (
