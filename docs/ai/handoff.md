@@ -1,5 +1,32 @@
 # Handoff Log
 
+## 2026-08-18 — INCIDENT LIVE: login webmail gagal massal + kantor timeout (resolved sebagian)
+
+### Gejala (user report)
+- Banyak cabang beda lokasi: "Login ditolak SOGo, periksa email/password, status mailbox aktif".
+- Dari jaringan kantor (115.178.128.130): webmail loading terus (timeout semua domain).
+
+### Root cause kantor (RESOLVED ✅)
+- **MikroTik auto spam-blocklist** (`/home/anas.fikri/spam-detect.sh` di mailserver, cron tiap 2 mnt): IP kantor `115.178.128.130` ke-block (≥5 SASL failed/5mnt — mesin di kantor login-loop pakai kredensial lama: abdul.latif 253x, trivina, hervi.meisari dll) → forward rule DROP semua trafik kantor → timeout total.
+- **CrowdSec ban** `115.178.128.130` (postfix-spam, 7 decisions) — false positive: dari IP itu justru auth user perusahaan sendiri (yuni.rahayu sukses kirim).
+- Fix: unban CrowdSec + allowlist permanen `kantor` (cscli allowlists) + hapus dari MikroTik blocklist 2x + **whitelist prefix `115.178.128.` di spam-detect.sh WL_PREFIX** (backup .bak-20260818). Webmail HTTP 200 kedua domain ✅, tidak ke-block lagi setelah 2 siklus script.
+
+### Root cause cabang (BELUM sepenuhnya resolved — butuh reset password)
+- **Bukan bug sistem:** sync password OK (0 mismatch `_sogo_static_view` vs `mailbox`, sync_sogo_passwords.sh jalan), mayoritas user login sukses (195–434 user unik/hari).
+- **Sebagian user password tidak cocok** dgn DB → auth gagal → (a) pesan "Login ditolak SOGo", (b) cascade ban IP (CrowdSec dovecot-spam + MikroTik) → cabang mati total.
+- **Brute force/password spraying 16 Agu:** 9271 failed auth (baseline 400–600/hari), 67 user unik ditarget; 17 Agu 1238, 18 Agu 249 (sejauh ini). IP asing: 66.228.34.203 (181x), 66.132.172.x, 149.56.179.95 (OVH).
+- Skala: 233 user unik gagal dalam 24h terakhir dari 613 aktif; IP unik 191 (campur bot + IP ID Telkom/XL = cabang).
+
+### Insight teknis penting
+- String `lt0qcqr9szh8pm4x9tb7z8whjtgxqdpu` di log SOGo (login IMAP semua user) = **password SSO internal Mailcow** (`sogo-sso.pass`, `cron.creds`, `dovecot/sogo-sso.conf`) — BUKAN password user, BUKAN krisis password tunggal.
+- Auth SOGo: `_sogo_static_view.c_password` = copy `mailbox.password` ({BLF-CRYPT} bcrypt, salt acak → hash beda ≠ password beda).
+- Dovecot failed: 825/24h; user teratas anas.fikri@pcpexpress.com (328x), abdul.latif (262x, 253 dari kantor).
+
+### TODO user
+1. **Reset password akun yang tidak bisa login** (via Mailcow admin UI atau minta daftar akun — bisa dipulihkan dari log).
+2. **Perbaiki mesin/aplikasi email di kantor** yang login-loop dgn kredensial lama (abdul.latif dll) — whitelist hanya cegah blokir, bukan hentikan attempt.
+3. Hardening lanjutan (smtpToken cookie httpOnly, rotasi password, history scrub) masih antri.
+
 ## 2026-08-18 — Sync perubahan server innaka → GitLab → workspace (mac)
 
 - **Cek server innaka** (`/home/anas.fikri/mailcow-frontend`): working tree clean, `main` up-to-date dgn `origin/main`, berisi 2 commit yang belum ada di workspace mac: `8a3867d` (fix: 401/403 dari `/api/*` tidak picu session-expired + persist smtpToken) dan `d427590` (docs handoff) — keduanya sudah di-push server ke GitLab.
@@ -460,6 +487,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - deploy.sh (syntax clean, token leak fixed)
 
 ## 2026-08-18T02:33:56Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+
+## 2026-08-18T02:59:14Z
 - Status: COMPLETED
 - Objective: No objective recorded.
 - Branch: main

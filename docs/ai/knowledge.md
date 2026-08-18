@@ -6,6 +6,15 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — Arsitektur anti-abuse mail server (PCP Express)
+
+- **Dua lapis ban:** (1) MikroTik `spam-blocklist` (address-list) diisi `/home/anas.fikri/spam-detect.sh` di host `mail` (cron */2 mnt): block IP dengan ≥5 SASL failed/5mnt, ≥20 conn, ≥10 deferred, atau ≥5 IP unik satu /24 (password spray → block subnet /24). Whitelist: `WL_EXACT` + `WL_PREFIX` (default: 202.148.2., 192.168.10., 10.100.100., 127.0.0.; kami tambah `115.178.128.` utk IP kantor D-NET). State di `/tmp/spam-blocked-ips.txt` + `/tmp/spam-blocked-subnets.txt`. (2) **CrowdSec** (`mailcow-crowdsec-1`) ban IP via netfilter (postfix-spam/dovecot-spam dll). Allowlist permanen via `cscli allowlists create kantor` + `add` — efektif utk decision berikutnya.
+- **False positive umum:** IP NAT kantor (115.178.128.130, D-NET AS9794) sering ke-ban karena mesin/aplikasi di kantor login-loop dgn kredensial lama → user kantor mati total (timeout semua port). Gejala "loading terus dari kantor" = cek MikroTik `spam-blocklist` + CrowdSec decisions DULU sebelum cek DNS/firewall lain.
+- **Access router MikroTik:** dari mac: `ssh -J mailserver -i ~/.ssh/id_rsa_mikrotik -p 2002 antigravity@192.168.10.1` (Port 2002, user antigravity; Publik 202.148.2.138). NAT dst: 202.148.2.139/141/142 → 192.168.10.200 (mail); 202.148.2.140 → 192.168.20.200.
+- **SOGo auth:** `_sogo_static_view.c_password` = copy `mailbox.password` (bcrypt {BLF-CRYPT}, salt acak). Sync via `/home/anas.fikri/sync_sogo_passwords.sh` (cron */5 mnt, UPDATE JOIN WHERE m.active=1 + flush memcached). Password mismatch SOGo/Dovecot = cek sync ini + `mailbox.active`.
+- **Password SSO internal:** string 32-char hex di log SOGo (`1 login "user" "lt0qcqr9..."`) = password SSO Mailcow (`conf/phpfpm/sogo-sso/sogo-sso.pass`, `conf/sogo/cron.creds`, `conf/dovecot/sogo-sso.conf`) — BUKAN password user. Jangan salah simpulkan "semua user password sama".
+- **Diagnosa auth massal:** `docker logs mailcow-dovecot-mailcow-1 | grep "auth.*failed"` → hitung per hari utk baseline (normal 400–600/hari dari brute force bot; 16 Agu 9271 = ledakan attack).
+
 ## 2026-08-18 — Workspace multi-host + sesi SMTP proxy vs sesi SOGo
 
 - **Repo dijalankan dari banyak host** (mac `sogo-frontend`, server innaka `/home/anas.fikri/mailcow-frontend`, dst.) yang semuanya push ke GitLab yang sama. Sebelum mulai kerja: `git fetch` + cek `git log` remote (atau SSH ke host lain) — workspace mudah tertinggal beberapa commit.
@@ -19,3 +28,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: sync-innaka-workspace-2026-08-18
 - Status: COMPLETED
 - Finding: Sinkronisasi multi-host: repo dipush dari mac + server innaka; selalu fetch+cek log sebelum kerja. 401/403 dari /api/* adalah sesi SMTP proxy (X-SMTP-Token), bukan sesi SOGo — tidak boleh picu logout; fetchPreferences fallback localStorage. smtpToken kini dipersist (UUID sesi, bukan kredensial) agar reload tidak memutus kirim/preferences. Test regression test:preferences-fallback. Validasi: 15/15 test PASS + build OK di workspace mac.
+
+## 2026-08-18T02:59:14Z
+- Task: incident-login-massal-2026-08-18
+- Status: COMPLETED
+- Finding: INCIDENT login massal 2026-08-18. Kantor timeout: MikroTik spam-blocklist (spam-detect.sh, cron */2mnt, threshold 5 SASL fail/5mnt) + CrowdSec ban false positive — resolved via unban + allowlist + whitelist prefix 115.178.128. Cabang Login ditolak = password user tidak cocok (bukan bug), plus brute force 16 Agu 9271 attempt. String lt0qcqr9 di log SOGo = SSO password internal, bukan password user. Backup spam-detect.sh.bak-20260818.

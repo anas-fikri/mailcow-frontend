@@ -1,12 +1,17 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: sync-innaka-workspace-2026-08-18
+Task ID: incident-login-massal-2026-08-18
 Started At: 2026-08-18
-Updated At: 2026-08-18T02:33:56Z
+Updated At: 2026-08-18T02:59:14Z
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## Sync workspace — 2026-08-18
+## INCIDENT 2026-08-18 — login webmail gagal massal
+- Kantor (115.178.128.130) timeout = MikroTik spam-blocklist (spam-detect.sh) + CrowdSec ban → **RESOLVED**: unban + allowlist CrowdSec + whitelist prefix `115.178.128.` di spam-detect.sh → HTTP 200 ✅ stabil 2+ siklus.
+- Cabang "Login ditolak SOGo" = password sebagian user tidak cocok dgn DB (bukan bug sistem; sync OK, 195–434 user sukses/hari). Brute force 16 Agu: 9271 attempt (baseline 400–600).
+- TODO user: reset password akun terdampak + perbaiki mesin kantor yang login-loop (abdul.latif dll). Detail: docs/ai/handoff.md + knowledge.md.
+
+## Sebelumnya — Sync workspace — 2026-08-18
 - Server innaka `/home/anas.fikri/mailcow-frontend` = clean, sudah dipush ke GitLab, punya 2 commit lebih baru dari workspace: `8a3867d` (fix: 401/403 /api/* tidak picu session-expired + persist smtpToken) + `d427590` (docs handoff).
 - Workspace fast-forward `f99431c → d427590` — kini identik dgn origin/main & server.
 - Validasi ulang di workspace: **15/15 `npm run test:*` PASS** (termasuk `test:preferences-fallback` baru) + `npx vite build` ✅.
