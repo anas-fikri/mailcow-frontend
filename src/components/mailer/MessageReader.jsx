@@ -213,15 +213,19 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     retryDelay: 500,
   });
 
-  // Bug fix: markRead dipindah ke useEffect (bukan di dalam queryFn)
-  // agar tidak trigger cascading invalidation saat render.
+  // Bug fix: markRead pakai ref guard — cegah re-fire saat parent re-render.
+  // invalidateQueries bisa trigger MailPage re-render → MessageReader re-render
+  // → effect fire lagi → infinite loop. Ref pastikan hanya fire 1x per mount.
+  const markReadFired = React.useRef(false);
   React.useEffect(() => {
     if (!msg || !user?.sogoToken || !folder || !msgId) return;
+    if (markReadFired.current) return;
+    markReadFired.current = true;
     markRead(user.sogoToken, folder, msgId, true).then(() => {
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, folder] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
     }).catch((e) => console.error('[markRead]', e?.message || e));
-  }, [msg?.uid, user?.sogoToken, folder, msgId]);
+  }, [msg, user?.sogoToken, folder, msgId]);
 
   // Preferences utk fallback signature SOGo lama (sama pola ComposeModal)
   const { data: prefs } = useQuery({
