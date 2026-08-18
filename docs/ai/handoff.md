@@ -1,5 +1,14 @@
 # Handoff Log
 
+## 2026-08-18 — Verifikasi Control Tower pasca-hapus gate /api/v1 — route Express sempat hilang, di-restore
+
+- **Temuan:** patch hapus gate /api/v1 sebelumnya TERLALU BANYAK menghapus — dari `location @api_v1_unauthorized` sampai EOF ikut terhapus route Control Tower: `location ~ ^/api/mcp` → 3004 (MCP) dan `location ~ ^/api/(auth/|crowdsec/|...|monitor/)` → 3003 (Express JWT). Akibatnya `/api/auth/login` dll 404 → Control Tower login JWT mati.
+- **Fix:** restore kedua blok route dari `.bak-20260818` ke `site.control-tower.custom` (append). `nginx -t` OK + reload.
+- **Verifikasi penuh (semua lewat nginx):** POST `/api/auth/login` → 401 `{"error":"Password salah"}` (login pipeline jalan); GET `/api/monitor/status` → 401 (butuh JWT — normal); `/api/version` → 200; `/api/v1/get/status/containers` → 200 (Mailcow); `/api/mcp` → 3004. Control Tower dashboard berfungsi penuh.
+- **Sisa konflik minor:** `GET /api/health` → 403 dicegat `location = /api/health` (webmail → 3005 sogo-proxy). Control Tower pakai `/api/version` (200), health tidak dipakai dashboard — dicatat, bukan blocker.
+- **Catatan keamanan:** `/api/v1/*` kini tanpa gate (Mailcow json_api auth normal: session cookie / X-API-Key). Get/status publik; endpoint add/edit tetap butuh auth Mailcow. Control Tower SPA kirim Bearer JWT (Control Tower) yang json_api abaikan — fitur yang butuh X-API-Key Mailcow tidak jalan dari Control Tower (status quo pra-11 Agu).
+- **Pelajaran:** saat patch nginx, selalu diff hasil terhadap backup & tes SEMUA route keluarga /api sebelum reload; jangan hapus range lebar (dari marker ke EOF) tanpa cek isi setelahnya.
+
 ## 2026-08-18 — Fix halaman email-settings teks putih di sebagian browser
 
 - **Gejala:** sebagian orang lihat `webmail/help/email-settings.html` tulisannya putih (tidak terbaca).
