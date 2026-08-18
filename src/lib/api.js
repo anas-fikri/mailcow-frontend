@@ -520,19 +520,58 @@ export async function deleteMessages(sogoToken, folder, uids) {
 }
 
 /**
+ * Convert a relative folder path to a SOGo absolute CSS identifier path.
+ * SOGo v5 moveMessages expects `folder` as full absolute path:
+ *   /{accountId}/{folderId}
+ * where {folderId} = each path component prefixed with "folder"
+ * e.g. "Archive" → "/anas.fikri@pcpexpress.com/folderArchive"
+ *      "Sub/Foo" → "/anas.fikri@pcpexpress.com/folderSub/folderFoo"
+ *
+ * @param {string} accountId  - SOGo account (email)
+ * @param {string} folderPath - relative path like "Archive" or "INBOX/Sub"
+ * @returns {string} absolute path like "/anas.fikri@pcpexpress.com/folderArchive"
+ */
+function toSogoAbsPath(accountId, folderPath) {
+  const cssId = folderPath
+    .split('/')
+    .filter(Boolean)
+    .map((c) => 'folder' + c)
+    .join('/');
+  return '/' + accountId + '/' + cssId;
+}
+
+/**
  * Pindahkan pesan antar folder (endpoint SOGo v5: moveMessages).
- * `targetFolder` = objek folder hasil flattenMailboxes → kirim `path` relatif
- * (mis. "Archive" / "INBOX/Sub") sebagai properti `folder`, bukan id berprefix.
+ * `targetFolder` = objek folder hasil flattenMailboxes ATAU string id (mis. "folderArchive").
+ * SOGo v5 mengharapkan body `folder` = path absolut (mis. "/email@domain.com/folderArchive").
  */
 export async function moveMessages(sogoToken, folder, uids, targetFolder) {
-  const targetPath = typeof targetFolder === 'string'
-    ? decodeURIComponent(targetFolder.replace(/^folder/, ''))
-    : targetFolder?.path || targetFolder?.name || String(targetFolder);
+  const accountId = pathSegment(sogoToken, 'sogoToken');
+
+  // Resolve relative folder path from targetFolder (object or string)
+  let folderPath;
+  if (typeof targetFolder === 'string') {
+    // Could be "folderArchive" (id) or "Archive" (path) or URL-encoded
+    const decoded = decodeURIComponent(targetFolder);
+    folderPath = decoded.startsWith('folder')
+      ? decoded.replace(/^folder/, '')
+      : decoded;
+  } else {
+    folderPath = targetFolder?.path || targetFolder?.name || '';
+  }
+
+  // If folderPath is still empty, fail explicitly
+  if (!folderPath) {
+    throw new Error('Target folder tidak ditemukan — pastikan folder tersedia.');
+  }
+
+  const absPath = toSogoAbsPath(accountId, folderPath);
+
   const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/moveMessages`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ uids, folder: targetPath }),
+    body: JSON.stringify({ uids, folder: absPath }),
   });
   if (!res.ok) throwApiError(`Gagal memindahkan pesan (${res.status}).`, res.status);
 }
