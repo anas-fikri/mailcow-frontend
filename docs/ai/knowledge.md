@@ -6,6 +6,10 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — Pitfall CSS: `color-scheme: light dark` vs `prefers-color-scheme`
+
+- `color-scheme: light dark` memberitahu browser utk merender default UI (teks/form/scrollbar) sesuai skema OS — TAPI browser yang tidak support media query `prefers-color-scheme` (beberapa WebView/lama) tetap mengikuti skema gelap utk default text → teks putih di background terang. Halaman statis harus set `color-scheme` eksplisit per skema: default `light` + `dark` di dalam media query, dan beri warna eksplisit utk `a`/elemen default.
+
 ## 2026-08-18 — Nginx /api/v1/* konflik Mailcow vs Control Tower
 
 - **Konflik path:** Control Tower dashboard memakai `/api/v1/*` Mailcow. Sejak 11 Agu, `site.control-tower.custom` meng-gate `location ^~ /api/v1/` dgn `auth_request` (JWT/X-API-Key via 3003) + FastCGI langsung ke php-fpm dgn inject X-API-Key → **UI admin Mailcow mati** (semua /api/v1/* 401). Fix 18 Agu: hapus gate → `/api/v1/*` kembali ke Mailcow (template `sites-default.conf.j2`: `location ~ ^/api/v1/(.*)$` → `json_api.php?query=$1`).

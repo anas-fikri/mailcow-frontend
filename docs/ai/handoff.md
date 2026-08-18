@@ -1,5 +1,12 @@
 # Handoff Log
 
+## 2026-08-18 — Fix halaman email-settings teks putih di sebagian browser
+
+- **Gejala:** sebagian orang lihat `webmail/help/email-settings.html` tulisannya putih (tidak terbaca).
+- **Root cause:** `:root { color-scheme: light dark; }` — browser yang memilih skema gelap dari `color-scheme` tapi TIDAK support media query `prefers-color-scheme` → teks default browser jadi putih, background tetap terang (#f6f7f9) → putih di putih. Anchor (`a`) juga tanpa warna eksplisit (ikut default browser).
+- **Fix (public/help/email-settings.html):** `color-scheme: light` default + `color-scheme: dark` di dalam media query dark (konsisten), warna eksplisit utk `a` (#1d4ed8 light / #93c5fd dark). Semua kombinasi browser terbaca.
+- **Delivery:** build ✅ → `./deploy.sh` (rsync + nginx reload) → HTTP 200 kedua domain, CSS fix terverifikasi live.
+
 ## 2026-08-18 — ROOT CAUSE admin Mailcow: gate /api/v1/* (Control Tower) memblokir UI Mailcow — FIXED
 
 - **Gejala:** banyak orang tidak bisa login, termasuk tim utk login admin Mailcow (`mail.pcpexpress.co.id/`).
