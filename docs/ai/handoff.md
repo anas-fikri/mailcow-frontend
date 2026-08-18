@@ -1,5 +1,12 @@
 # Handoff Log
 
+## 2026-08-18 — React #310 persistent: markRead ref guard — DONE + DEPLOYED
+
+- **Gejala:** React error #310 masih muncul meskipun markRead sudah dipindah dari queryFn ke useEffect.
+- **Root cause:** markRead useEffect fires pada setiap render karena deps `[msg?.uid]` berubah saat React Query return data baru (refetch dari invalidateQueries). Setiap fire → invalidateQueries → parent re-render → component re-render → effect fire lagi → loop.
+- **Fix:** Tambah ref guard `markReadFired` — markRead hanya fire 1x per mount. Ref di-reset saat component unmount (implicit: ref hilang saat component unmount).
+- **Validasi:** 20/20 test PASS, build OK, deploy LIVE (commit bac4542, bundle MailPage-BJ_MUnUD.js).
+
 ## 2026-08-18 — React #310 root cause: markRead in queryFn cascading invalidation — DONE + DEPLOYED
 
 - **Gejala production:** React error #310 (Maximum update depth exceeded) — infinite re-render loop di MessageReader (bukan MailPage).
@@ -1063,6 +1070,13 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - No local changes detected
 
 ## 2026-08-18T14:45:38Z
+- Status: COMPLETED
+- Objective: T-BUGHUNT-ROUND2: Bug hunt loop — regressions + deep audit
+- Branch: main
+- Changed Files:
+- No local changes detected
+
+## 2026-08-18T14:54:21Z
 - Status: COMPLETED
 - Objective: T-BUGHUNT-ROUND2: Bug hunt loop — regressions + deep audit
 - Branch: main

@@ -289,3 +289,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260818-142155-180721
 - Status: COMPLETED
 - Finding: React #310 root cause: markRead inside queryFn called queryClient.invalidateQueries → cascading re-renders. Fix: move markRead to useEffect with stable deps [msg?.uid, user?.sogoToken, folder, msgId]. Bundle hash changed to MailPage-DZ-tVu2G.js (confirming new code deployed).
+
+## 2026-08-18T14:54:21Z
+- Task: 20260818-142155-180721
+- Status: COMPLETED
+- Finding: React #310 persistent: markRead useEffect still fires on re-render despite moving from queryFn. Fix: added ref guard (markReadFired) to ensure markRead only fires ONCE per mount. Bundle hash changed to MailPage-BJ_MUnUD.js.
