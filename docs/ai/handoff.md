@@ -1,5 +1,13 @@
 # Handoff Log
 
+## 2026-08-18 — Sync perubahan server innaka → GitLab → workspace (mac)
+
+- **Cek server innaka** (`/home/anas.fikri/mailcow-frontend`): working tree clean, `main` up-to-date dgn `origin/main`, berisi 2 commit yang belum ada di workspace mac: `8a3867d` (fix: 401/403 dari `/api/*` tidak picu session-expired + persist smtpToken) dan `d427590` (docs handoff) — keduanya sudah di-push server ke GitLab.
+- **Workspace** fast-forward `f99431c → d427590` (merge --ff-only), kini identik dgn origin/main.
+- **Validasi ulang di workspace:** 15/15 `npm run test:*` PASS (termasuk `test:preferences-fallback`) + `npx vite build` ✅ (226ms).
+- `knowledge.md` diisi (kosong sejak dibuat); catatan sinkronisasi ditambahkan ke current-task; docs di-commit + push.
+- Pelajaran: repo dijalankan dari BANYAK workspace (mac, server innaka, dll.) — selalu `git fetch` + cek log server sebelum bekerja agar tidak kerja di versi basi.
+
 ## 2026-08-17 — Fix `/api/preferences` 401 (sesi SMTP hilang saat reload) — deployed
 
 ### Gejala
@@ -450,3 +458,12 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - Sidebar, BottomNav, AppLayout, LoginPage, ComposeModal, HtmlEditor
 - autoArchive.js, flagColors.js, userPrefs.js, toast.js
 - deploy.sh (syntax clean, token leak fixed)
+
+## 2026-08-18T02:33:56Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md

@@ -1,12 +1,18 @@
 # Current Task
 
-Status: COMPLETE — fix `/api/preferences` 401 (sesi SMTP hilang saat reload) + persist smtpToken — commit/push/deploy
-Task ID: sogo-prefs-smtp-401-fix-2026-08-17
-Started At: 2026-08-17
-Updated At: 2026-08-17
-Project Root: /home/anas.fikri/mailcow-frontend
+Status: COMPLETED
+Task ID: sync-innaka-workspace-2026-08-18
+Started At: 2026-08-18
+Updated At: 2026-08-18T02:33:56Z
+Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## Fix /api/preferences 401 + persist smtpToken (terbaru)
+## Sync workspace — 2026-08-18
+- Server innaka `/home/anas.fikri/mailcow-frontend` = clean, sudah dipush ke GitLab, punya 2 commit lebih baru dari workspace: `8a3867d` (fix: 401/403 /api/* tidak picu session-expired + persist smtpToken) + `d427590` (docs handoff).
+- Workspace fast-forward `f99431c → d427590` — kini identik dgn origin/main & server.
+- Validasi ulang di workspace: **15/15 `npm run test:*` PASS** (termasuk `test:preferences-fallback` baru) + `npx vite build` ✅.
+- `knowledge.md` diisi (sebelumnya kosong); docs di-commit + push.
+
+## Fix /api/preferences 401 + persist smtpToken (sebelumnya, dari server innaka)
 
 ### Gejala
 - Setelah reload halaman, console: `GET /api/preferences → 401` → sebelumnya memicu force logout + redirect login + mailbox kosong ("tadi muncul, sekarang kosong").
