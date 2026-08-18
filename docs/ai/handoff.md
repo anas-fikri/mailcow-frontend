@@ -1,5 +1,13 @@
 # Handoff Log
 
+## 2026-08-18 — React #310 ROOT CAUSE: useRef after early return — DONE + DEPLOYED
+
+- **ROOT CAUSE:** `contactNameRef`, `contactEmailRef`, `contactPhoneRef` (3x `React.useRef`) dideklarasikan di BARIS 516-518, SETELAH early return `if (!msgId) return null;` di baris 337. React melihat jumlah hook BERBEDA antara render (render pertama: 6 useState + 2 useQuery + 3 useRef + 3 useEffect + 3 useMutation = 17 hooks; render kedua tanpa msgId: 6 useState + 2 useQuery + 1 useRef + 3 useEffect + 3 useMutation = 15 hooks) → Rules of Hooks violation → React #310.
+- **Stack trace analysis:** `st@MailPage:1:9154` = MessageReader; `useRef` di stack = contactRef yang dipanggil secara conditional; `nn@MailPage:26:27724` = MailPage (parent).
+- **Fix:** Pindah `contactNameRef`, `contactEmailRef`, `contactPhoneRef` ke baris 216-220 (SEBELUM semua conditional returns) — bersama `markReadFired`.
+- **Pelajaran:** SEMUA hooks (useState/useRef/useEffect/useQuery/useMutation) WAJIB dipanggil di URUTAN yang SAMA di setiap render — tidak boleh ada di dalam conditional, setelah early return, atau di dalam loop.
+- **Validasi:** 20/20 test PASS, build OK, deploy LIVE (commit fcbbf93, bundle MailPage-DvnK3tH3.js).
+
 ## 2026-08-18 — React #310 persistent: markRead ref guard — DONE + DEPLOYED
 
 - **Gejala:** React error #310 masih muncul meskipun markRead sudah dipindah dari queryFn ke useEffect.
@@ -1077,6 +1085,13 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - No local changes detected
 
 ## 2026-08-18T14:54:21Z
+- Status: COMPLETED
+- Objective: T-BUGHUNT-ROUND2: Bug hunt loop — regressions + deep audit
+- Branch: main
+- Changed Files:
+- No local changes detected
+
+## 2026-08-18T15:00:54Z
 - Status: COMPLETED
 - Objective: T-BUGHUNT-ROUND2: Bug hunt loop — regressions + deep audit
 - Branch: main

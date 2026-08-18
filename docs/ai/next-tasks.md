@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: sogo-frontend
-Generated At: 2026-08-18T14:54:21Z
+Generated At: 2026-08-18T15:00:54Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: React #310 persistent: markRead useEffect still fires on re-render despite moving from queryFn. Fix: added ref guard (markReadFired) to ensure markRead only fires ONCE per mount. Bundle hash changed to MailPage-BJ_MUnUD.js.
+## 1. [MEDIUM] Follow up on discovered knowledge: React #310 ROOT CAUSE: contactNameRef/contactEmailRef/contactPhoneRef (useRef) were declared AFTER early return at line 337 (if (!msgId) return null). React sees different hook count between renders → Rules of Hooks violation → React #310. Fix: move all useRef to BEFORE early returns.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

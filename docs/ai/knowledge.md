@@ -6,6 +6,12 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — React #310 ROOT CAUSE: useRef after early return
+
+- **Root cause sebenarnya:** 3x `React.useRef` (contactNameRef, contactEmailRef, contactPhoneRef) dideklarasikan SETELAH early return `if (!msgId) return null;`. React melihat jumlah hook berbeda antara render → Rules of Hooks violation → React #310.
+- **Cara detect:** stack trace menunjukkan `useRef` di posisi yang tidak biasa; cek SEMUA hook declarations apakah ada yang SETELAH conditional return.
+- **Pelajaran KRITIS:** SEMUA hooks WAJIB di urutan yang SAMA di setiap render. Tidak boleh ada hooks di dalam: (1) conditional (if/ternary), (2) setelah early return, (3) di dalam loop, (4) di dalam callback. Kalau butuh refs utk conditional UI, tetap declare di TOP of component.
+
 ## 2026-08-18 — React #310 root cause: invalidateQueries inside queryFn
 
 - **Root cause sebenarnya:** `queryClient.invalidateQueries` dipanggil di DALAM `queryFn` (via markRead). Ini trigger refetch query lain → re-render parent → component re-render → query run lagi → `invalidateQueries` lagi → infinite loop.
@@ -294,3 +300,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260818-142155-180721
 - Status: COMPLETED
 - Finding: React #310 persistent: markRead useEffect still fires on re-render despite moving from queryFn. Fix: added ref guard (markReadFired) to ensure markRead only fires ONCE per mount. Bundle hash changed to MailPage-BJ_MUnUD.js.
+
+## 2026-08-18T15:00:54Z
+- Task: 20260818-142155-180721
+- Status: COMPLETED
+- Finding: React #310 ROOT CAUSE: contactNameRef/contactEmailRef/contactPhoneRef (useRef) were declared AFTER early return at line 337 (if (!msgId) return null). React sees different hook count between renders → Rules of Hooks violation → React #310. Fix: move all useRef to BEFORE early returns.
