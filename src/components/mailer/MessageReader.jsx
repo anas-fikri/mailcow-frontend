@@ -213,10 +213,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     retryDelay: 500,
   });
 
-  // Bug fix: markRead pakai ref guard — cegah re-fire saat parent re-render.
-  // invalidateQueries bisa trigger MailPage re-render → MessageReader re-render
-  // → effect fire lagi → infinite loop. Ref pastikan hanya fire 1x per mount.
+  // Semua useRef DI SINI (sebelum conditional returns) — Rules of Hooks.
   const markReadFired = React.useRef(false);
+  const contactNameRef = React.useRef(null);
+  const contactEmailRef = React.useRef(null);
+  const contactPhoneRef = React.useRef(null);
   React.useEffect(() => {
     if (!msg || !user?.sogoToken || !folder || !msgId) return;
     if (markReadFired.current) return;
@@ -512,10 +513,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       setContactSaving(false);
     }
   }
-  // Refs utk field modal kontak (prefill dari email, editable)
-  const contactNameRef = React.useRef(null);
-  const contactEmailRef = React.useRef(null);
-  const contactPhoneRef = React.useRef(null);
+  // contactNameRef, contactEmailRef, contactPhoneRef sudah dideklarasikan di atas
+  // (sebelum conditional returns) utk mematuhi Rules of Hooks.
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
