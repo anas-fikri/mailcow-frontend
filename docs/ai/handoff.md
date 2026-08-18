@@ -1,5 +1,14 @@
 # Handoff Log
 
+## 2026-08-18 — Migration portal login rusak: proses tanpa env DB (restart nohup) — FIXED
+
+- **Gejala:** login `/migrate/admin/` dgn kredensial Mailcow (mis. `anas.fikri`) selalu ditolak "Username atau password salah" walau password benar.
+- **Root cause:** proses portal (restart nohup 03:05 saat patch SSHA256) dijalankan **TANPA memuat `.env.server`** → `DBPASS` kosong → query mysql `-p""` memicu prompt interaktif → `Access denied ... using password: NO` → `verifyAdminPassword` selalu false. Unit systemd `migration-portal.service` juga rusak: WorkingDirectory + EnvironmentFile menunjuk `/home/anas.fikri/imapsync-migrate` (salah — seharusnya `/home/anas.fikri/migration-portal`), crash-loop (NRestarts 545, EADDRINUSE + path salah).
+- **Fix:** tambah `DBUSER/DBPASS/DBNAME` ke `/home/anas.fikri/migration-portal/.env.server` (dari mailcow.conf, backup `.env.server.bak-20260818-2`); `chmod +x start.sh`; kill proses systemd yang merebut port, start via `nohup bash start.sh` (env lengkap).
+- **Verifikasi:** env proses (pid 621197) = DBUSER/DBPASS/DBNAME ter-set, cwd migration-portal; login pass salah → 401 JSON normal, `verify error` count TIDAK bertambah; via nginx `/migrate/api/auth/login` 401 normal + `/migrate/health` 200.
+- **⚠️ TODO user (butuh sudo):** perbaiki unit systemd — `WorkingDirectory=/home/anas.fikri/migration-portal`, `EnvironmentFile=/home/anas.fikri/migration-portal/.env.server`, `ExecStart=/usr/bin/node server.js` → `systemctl daemon-reload` + start. Saat ini portal dilayani proses nohup (bukan systemd) — kalau host restart, portal tidak otomatis up (atau unit rusak yang start dengan env salah → login rusak lagi).
+- **Catatan:** login admin portal = username BARE (mis. `anas.fikri`), BUKAN email — query `admin` table exact match.
+
 ## 2026-08-18 — ROOT CAUSE "Sesi SOGo tidak terbentuk": sync_sogo_passwords.sh flush memcached tiap 5 menit — FIXED & TERBUKTI
 
 - **Gejala (user report):** `https://mail.pcpexpress.com/webmail/login` → pesan "Sesi SOGo tidak terbentuk. Periksa cookie browser, proxy, atau status akun lalu coba lagi." = `warmUpSogoSession()` di `src/lib/api.js` dapat 401/403 di shell `/SOGo/so/{user}` / `/Mail/view` / `/Mail/0/view` setelah `/connect` sukses.
@@ -556,6 +565,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/knowledge.md
 
 ## 2026-08-18T03:51:24Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+
+## 2026-08-18T03:57:13Z
 - Status: COMPLETED
 - Objective: No objective recorded.
 - Branch: main

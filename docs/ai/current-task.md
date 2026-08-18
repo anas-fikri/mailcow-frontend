@@ -3,10 +3,13 @@
 Status: COMPLETED
 Task ID: incident-login-massal-2026-08-18
 Started At: 2026-08-18
-Updated At: 2026-08-18T03:51:24Z
+Updated At: 2026-08-18T03:57:13Z
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## FIX BARU 2026-08-18 — "Sesi SOGo tidak terbentuk" → sync_sogo_passwords.sh flush memcached tiap 5 mnt — FIXED & TERBUKTI
+## FIX BARU 2026-08-18 — Migration portal login ditolak walau password benar → proses tanpa env DB
+- Proses portal restart nohup tanpa `.env.server` → DBPASS kosong → mysql Access denied → login selalu 401. Fix: tambah DB vars ke `.env.server`, restart via start.sh (chmod +x). Unit systemd masih salah path (imapsync-migrate) — butuh sudo utk perbaiki (TODO user). Login portal = username bare (`anas.fikri`), bukan email. Detail: handoff entry teratas.
+
+## FIX 2026-08-18 — "Sesi SOGo tidak terbentuk" → sync_sogo_passwords.sh flush memcached tiap 5 mnt — FIXED & TERBUKTI
 - Root cause: cron `sync_sogo_passwords.sh` (tiap 5 mnt) `flush_all` memcached tanpa syarat → sesi SOGo (di memcached) mati semua tiap 5 mnt → race saat login ("Sesi SOGo tidak terbentuk") + logout mendadak massal.
 - Bukti: 03:29 ada sesi → 03:30:20 (setelah tick) NOL → setelah fix (script flush hanya jika ROWS>0) sesi bertahan 4+ tick, keys tidak pernah nol.
 - Detail: docs/ai/handoff.md (entry teratas). Tidak perlu deploy frontend — murni fix script di mailserver.

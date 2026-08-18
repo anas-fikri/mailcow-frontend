@@ -1,7 +1,7 @@
 # Suggested Next Tasks
 
 Project: sogo-frontend
-Generated At: 2026-08-18T03:51:24Z
+Generated At: 2026-08-18T03:57:14Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
@@ -9,7 +9,7 @@ Suggestions are evidence-based from current task state, goals, validation, risks
 - Why:  **14/14 `npm run test:*` PASS** ✅ (termasuk 2 test baru: `test:mailbox-tree`, `test:message-html`) | heuristik: bounce→HTML true, teks biasa (`<`,`>`)→false ✅ | depth flat & nested konsisten (0/1/2) ✅.|Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 2. [MEDIUM] Follow up on discovered knowledge: ROOT CAUSE Sesi SOGo tidak terbentuk: sync_sogo_passwords.sh (cron */5mnt) unconditional flush_all memcached tiap 5 menit — sesi SOGo tersimpan di memcached, jadi semua user webmail ke-logout tiap ≤5 menit  race saat login (connect sukses -> flush -> warm-up 403). Fix: flush hanya jika ROW_COUNT>0 (ada password berubah). Terbukti: sebelum fix sesi hilang tepat setelah cron tick (03:30 nol sesi), setelah fix sesi bertahan 4+ tick (03:35-03:50). Backup sync_sogo_passwords.sh.bak-20260818. Bonus: x+failedlogins (throttle brute-force) tidak di-reset tiap 5 menit lagi.
+## 2. [MEDIUM] Follow up on discovered knowledge: Migration portal login selalu ditolak walau password benar: proses restart nohup tanpa memuat .env.server -> DBPASS kosong -> mysql -p"" prompt interaktif -> Access denied -> verifyAdminPassword false. Fix: tambah DBUSER/DBPASS/DBNAME ke .env.server dari mailcow.conf  chmod x start.sh  restart via nohup bash start.sh. Unit systemd migration-portal.service salah path (imapsync-migrate) crash-loop 545x — perlu sudo utk perbaiki (TODO). Login portal = username bare bukan email. Backup .env.server.bak-20260818-2.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

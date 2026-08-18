@@ -6,6 +6,14 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — Migration portal butuh env DB; start.sh; unit systemd salah path
+
+- **Portal butuh `DBUSER/DBPASS/DBNAME` di env** (`process.env.DBUSER || "mailcow"` dst. di `src/routes/auth.js`). Kalau `DBPASS` kosong, `mysql -p""` memicu prompt interaktif → `Access denied ... using password: NO` → `verifyAdminPassword` selalu false → **login selalu ditolak walau password benar** (silent — hanya terlihat di `logs/app.log`).
+- **Cara start yang benar:** `cd /home/anas.fikri/migration-portal && nohup bash start.sh` (start.sh = `set -a; source .env.server; exec node server.js >> logs/app.log`). Jangan start `node server.js` polos tanpa env.
+- **`.env.server` TIDAK berisi DB vars asli** (hanya PORT/NODE_ENV/JWT_SECRET/MAILCOW_API_KEY/SMTP/IMAP/ADMIN_*) — DB vars ditambahkan 2026-08-18 dari `mailcow.conf` (backup `.env.server.bak-20260818-2`).
+- **Unit systemd `migration-portal.service` RUSAK:** WorkingDirectory + EnvironmentFile menunjuk `/home/anas.fikri/imapsync-migrate` (seharusnya `/home/anas.fikri/migration-portal`), crash-loop (EADDRINUSE + path salah). Portal dilayani proses nohup; setelah host restart, unit rusak akan start dgn env salah → login rusak lagi. **Perlu sudo utk perbaiki unit** (TODO user).
+- **Login admin portal = username BARE** (`anas.fikri`), bukan email — query `admin` table exact match (`username='<user>' AND superadmin=1 AND active=1`).
+
 ## 2026-08-18 — Sesi SOGo tinggal di memcached — flush_all cron = logout massal tiap 5 menit
 
 - **SOGo simpan SESI di memcached** (`SOGoMemcachedHost = "memcached"`; key `session:*`, size 2102B; cache lain: `<user>+attributes/defaults/settings`, `/Users/<user>/...`). `flush_all` = semua sesi mati seketika.
@@ -70,3 +78,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: incident-login-massal-2026-08-18
 - Status: COMPLETED
 - Finding: ROOT CAUSE Sesi SOGo tidak terbentuk: sync_sogo_passwords.sh (cron */5mnt) unconditional flush_all memcached tiap 5 menit — sesi SOGo tersimpan di memcached, jadi semua user webmail ke-logout tiap ≤5 menit + race saat login (connect sukses -> flush -> warm-up 403). Fix: flush hanya jika ROW_COUNT>0 (ada password berubah). Terbukti: sebelum fix sesi hilang tepat setelah cron tick (03:30 nol sesi), setelah fix sesi bertahan 4+ tick (03:35-03:50). Backup sync_sogo_passwords.sh.bak-20260818. Bonus: x+failedlogins (throttle brute-force) tidak di-reset tiap 5 menit lagi.
+
+## 2026-08-18T03:57:13Z
+- Task: incident-login-massal-2026-08-18
+- Status: COMPLETED
+- Finding: Migration portal login selalu ditolak walau password benar: proses restart nohup tanpa memuat .env.server -> DBPASS kosong -> mysql -p"" prompt interaktif -> Access denied -> verifyAdminPassword false. Fix: tambah DBUSER/DBPASS/DBNAME ke .env.server dari mailcow.conf + chmod +x start.sh + restart via nohup bash start.sh. Unit systemd migration-portal.service salah path (imapsync-migrate) crash-loop 545x — perlu sudo utk perbaiki (TODO). Login portal = username bare bukan email. Backup .env.server.bak-20260818-2.
