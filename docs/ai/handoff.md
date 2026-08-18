@@ -1,5 +1,13 @@
 # Handoff Log
 
+## 2026-08-18 — moveMessages UIDs normalization + error body capture — DONE + DEPLOYED
+
+- **Bug:** `moveMessages` mengirim UIDs apa adanya dari `parseMessageRow` — bisa berupa string dari JSON response SOGo. SOGo backend expect `uids` sebagai array integer → 500 error saat auto-archive rule jalan.
+- **Fix:** Tambahkan `parseInt` normalization di `moveMessages`: semua UID dikonversi ke integer via `parseInt(String(u), 10)`. Invalid UIDs (NaN/<=0) di-filter + console.warn. Kalau semua UIDs invalid, throw explicit error.
+- **Improvement:** Tangkap response body saat error 500 (`await res.text()`) — sebelumnya hanya throw generic "Gagal memindahkan pesan (500)" tanpa detail. Sekarang error message include first 200 char dari SOGo response body.
+- **Pelajaran:** SOGo JSON API kirim UIDs sebagai number, tapi parseMessageRow tidak convert ke integer secara eksplisit. Selalu normalize data dari API ke tipe yang diharapkan server sebelum kirim balik.
+- **Validasi:** 20/20 test PASS, build OK, deploy LIVE (commit ef340e0, HTTP 200).
+
 ## 2026-08-18 — React #310 ROOT CAUSE: useRef after early return — DONE + DEPLOYED
 
 - **ROOT CAUSE:** `contactNameRef`, `contactEmailRef`, `contactPhoneRef` (3x `React.useRef`) dideklarasikan di BARIS 516-518, SETELAH early return `if (!msgId) return null;` di baris 337. React melihat jumlah hook BERBEDA antara render (render pertama: 6 useState + 2 useQuery + 3 useRef + 3 useEffect + 3 useMutation = 17 hooks; render kedua tanpa msgId: 6 useState + 2 useQuery + 1 useRef + 3 useEffect + 3 useMutation = 15 hooks) → Rules of Hooks violation → React #310.

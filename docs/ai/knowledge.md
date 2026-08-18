@@ -57,7 +57,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - **Rule apply-to-existing:** `matchRules(email, msg)` di `src/lib/autoArchive.js` bisa dipakai ulang utk "Jalankan Sekarang": `fetchMessages('folderINBOX')` → filter uid yg match → `moveMessages` batch → `updateRule` runCount. Engine rules tidak perlu endpoint baru.
 - **Pelajaran umum:** fitur "mudahkan harian" = reuse engine yang SUDAH ada (matchRules, moveMessages, visibleOrderUids, isSentOrDraftFolder) + komponen modal kecil; semua client-side/localStorage aman; server-side hanya yang SOGo dukung (move, contact create, fetch inbox).
 
-## 2026-08-18 — SOGo v5 move: endpoint `moveMessages`, folder = path relatif (batchMoveToMailbox TIDAK ada)
+## 2026-08-18 — SOGo v5 move: endpoint `moveMessages`, UIDs harus integer, folder = path absolut
 
 - **SOGo 5.12 TIDAK punya endpoint `POST /Mail/0/{folder}/batchMoveToMailbox`** — 404 (verified: `grep -aoc` di binary `MailerUI` = 0 hit; `moveMessages` = 3 hit).
 - **Yang benar (dari `Mailer/Mailbox.service.js` `$moveMessages`):** `POST /Mail/0/{folder}/moveMessages` body `{uids: [], folder: <path relatif>}` — mis. `folder: "Archive"` atau `folder: "INBOX/Sub"`. **BUKAN** id berprefix (`folderArchive`) dan bukan `{mailbox: ...}`.
@@ -305,3 +305,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260818-142155-180721
 - Status: COMPLETED
 - Finding: React #310 ROOT CAUSE: contactNameRef/contactEmailRef/contactPhoneRef (useRef) were declared AFTER early return at line 337 (if (!msgId) return null). React sees different hook count between renders → Rules of Hooks violation → React #310. Fix: move all useRef to BEFORE early returns.
+
+## 2026-08-18T22:55:00Z
+- Task: fix-moveMessages-500
+- Status: COMPLETED
+- Finding: SOGo moveMessages 500 error caused by UIDs being sent as strings instead of integers. `parseMessageRow` returns raw value from JSON response (could be string or number). SOGo backend expects `{uids: [int, ...]}`. Fix: normalize UIDs via `parseInt()` in moveMessages, filter invalid UIDs, capture SOGo response body on error for debugging. Also corrected knowledge entry: SOGo moveMessages expects absolute folder path in body (e.g. `/anas.fikri@pcpexpress.com/folderArchive`), NOT relative path. Previous knowledge entry saying "path relatif" was incorrect.
