@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-18T12:37:56Z",
+  "last_session": "2026-08-18T13:28:14Z",
   "context": "PCP Express Webmail — fix /api/preferences 401: sesi SMTP hilang saat reload → dulu force logout + mailbox kosong; kini fetchPreferences fallback localStorage (401/403 /api/* tidak memicu session-expired) + smtpToken di-persist. Sebelumnya: Round 9.7 IP login normal, history scrub 6 file debug/credential, sync workspace/macanas, engine ai-toolkit terbaru",
   "modules": {
     "mail-page": {
@@ -268,12 +268,12 @@
     }
   ],
   "active_task": {
-    "id": "fitur-harian-batch2-2026-08-18",
+    "id": "20260818-125516-114124",
     "status": "COMPLETED",
-    "objective": "No objective recorded.",
+    "objective": "T-BUGHUNT: Comprehensive bug hunt loop — all features sogo-frontend",
     "next_step": "",
-    "goal_id": "",
-    "sub_goal_id": "",
-    "updated_at": "2026-08-18T12:37:56Z"
+    "goal_id": "TBD",
+    "sub_goal_id": "TBD",
+    "updated_at": "2026-08-18T13:28:14Z"
   }
 }

@@ -404,6 +404,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     const body = quickText.trim();
     if (!body) return;
     const recipient = replyTo || from;
+    // Bug fix: validasi recipient sebelum kirim
+    if (!recipient || !recipient.trim()) {
+      toast.error('Tidak ada alamat penerima — gunakan Balas Lengkap.');
+      return;
+    }
     // Signature: lokal utk balasan; fallback SOGoMailSignature lama bila belum ada
     const localSig = user?.email ? getSignatureFor(user.email, 'reply') : null;
     const sigHtml = localSig?.html || prefs?.defaults?.SOGoMailSignature;

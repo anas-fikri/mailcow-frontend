@@ -6,6 +6,16 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — Bug hunt loop: 7 bugs ditemukan + diperbaiki (5-pass systematic)
+
+- **Side effect di useMemo:** `pruneExpired()` menulis localStorage di dalam `useMemo` → side effect saat render. Pattern ini bahaya: React bisa panggil useMemo berkali-kali (concurrent mode). Fix: pisah ke `useEffect` terpisah.
+- **Pagination reset:** `visibleCount` tidak di-reset saat ganti folder → folder baru dengan pesan lebih sedikit langsung tampil semua. Fix: tambah `setVisibleCount(PAGE_SIZE)` di reset effect.
+- **focusIdx out-of-bounds:** Saat messages berubah (ganti folder/search), `focusIdx` bisa tetap di index lama → `messages[focusIdx]` = undefined → crash di keyboard handler. Fix: `useEffect` clamp ke `messages.length - 1`.
+- **Quick reply tanpa recipient:** `handleQuickSend` tidak validasi `recipient` → SOGo error kalau `replyTo` + `from` kosong. Fix: guard `if (!recipient) toast.error()`.
+- **Toast raw folder ID:** RulesPage `handleRunNow` tampilkan `rule.actionFolder` (mis. `folderArchive`) saat folderById null. Fix: `.replace(/^folder/, '')`.
+- **executeRules silent error:** `.catch` hanya console.warn → user tidak tahu aturan gagal. Fix: tambah `toast.warning`.
+- **autoArchive body field:** SOGo list view TIDAK mengembalikan field `body` → kondisi berbasis body tidak pernah match. Fix: hapus `body` dari `RULE_FIELDS`.
+
 ## 2026-08-18 — Bugs audit: localStorage silent fail, TDZ fragile code, folder path inconsistency
 
 - **localStorage silent fail pattern:** `saveRules(email, rules)` punya guard `if (!email) return;` → rule TIDAK disimpan tapi caller tidak tahu (addRule tetap return newRule, toast success). Pattern serupa bisa ada di fungsi localStorage lain. Fix: `addRule` throw Error jika email kosong, atau caller validasi sebelum panggil.
@@ -245,3 +255,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: fitur-harian-batch2-2026-08-18
 - Status: COMPLETED
 - Finding: SOGo v5 moveMessages expects absolute folder path in body (e.g. /anas.fikri@pcpexpress.com/folderArchive), not just 'Archive' or 'folderArchive'. Sending relative path causes HTTP 500. Also: ErrorBoundary now shows error details in production for debugging; removed 'N aturan' badge from folder header to save space.
+
+## 2026-08-18T13:28:14Z
+- Task: 20260818-125516-114124
+- Status: COMPLETED
+- Finding: Bug hunt loop (5 pass) found 7 bugs: (1) visibleCount not reset on folder change, (2) snoozedUids pruneExpired side effect in useMemo, (3) focusIdx out-of-bounds when messages change, (4) quick reply missing recipient validation, (5) RulesPage toast shows raw folder ID, (6) executeRules silent error no toast, (7) autoArchive body field always fails (SOGo list view has no body). All fixed + 20/20 tests pass.

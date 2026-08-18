@@ -660,7 +660,9 @@ export default function RulesPage() {
         runCount: (rule.runCount || 0) + 1,
         lastRunAt: Date.now(),
       });
-      toast.success(`${matchedUids.length} email dipindahkan ke ${targetFolder?.label || rule.actionFolder}`);
+      // Bug fix: tampilkan label folder yang manusiawi, bukan raw ID
+      const folderLabel = targetFolder?.label || rule.actionFolder?.replace(/^folder/, '') || 'folder';
+      toast.success(`${matchedUids.length} email dipindahkan ke ${folderLabel}`);
       handleRefresh();
     } catch (err) {
       toast.error(err?.message || 'Gagal menjalankan aturan.');

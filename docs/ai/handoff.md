@@ -1,5 +1,17 @@
 # Handoff Log
 
+## 2026-08-18 — Bug hunt loop (5 pass) + fix 7 bugs — DONE + DEPLOYED
+
+- **Metode:** ai-toolkit bug hunt loop (5 pass: self-review, flow logic, edge case, cross-module, security).
+- **Bug 1 — visibleCount not reset on folder change:** Saat user ganti folder, `visibleCount` tetap di nilai lama → jika folder baru punya pesan lebih sedikit, semua pesan langsung tampil (bukan PAGE_SIZE). Fix: tambah `setVisibleCount(PAGE_SIZE)` di useEffect `[selectedFolder, searchQuery]`.
+- **Bug 2 — snoozedUids side effect in render:** `pruneExpired(user.email)` dipanggil di dalam `useMemo` → side effect saat render (menulis localStorage). Fix: pindah ke `useEffect` terpisah sebelum `useMemo`.
+- **Bug 3 — focusIdx out-of-bounds:** Saat messages berubah (ganti folder, search), `focusIdx` bisa tetap di index lama → `messages[focusIdx]` = undefined → crash di keyboard handler. Fix: tambah `useEffect` clamp `focusIdx` ke `messages.length - 1`.
+- **Bug 4 — quick reply tanpa recipient:** `handleQuickSend` tidak validasi `recipient` → kalau `replyTo` + `from` keduanya kosong, `sendMessage` dipanggil dengan `to: ''` → SOGo error. Fix: validasi `if (!recipient) toast.error()`.
+- **Bug 5 — RulesPage toast tampilkan raw folder ID:** `handleRunNow` tampilkan `rule.actionFolder` (mis. `folderArchive`) saat `folderById` return null. Fix: `.replace(/^folder/, '')` utk human-readable label.
+- **Bug 6 — executeRules silent error:** `.catch` hanya `console.warn` → user tidak tahu aturan gagal. Fix: tambah `toast.warning`.
+- **Bug 7 — autoArchive body field selalu gagal:** SOGo list view TIDAK mengembalikan field `body` → kondisi berbasis body tidak pernah match. Fix: hapus `body` dari `RULE_FIELDS`.
+- **Validasi:** build OK + **20/20 test PASS**.
+
 ## 2026-08-18 — Comprehensive bug audit + fix: RulesPage TDZ, addRule silent fail, folder path conversion — DONE + DEPLOYED
 
 - **Permintaan user:** "nah tadi gue sempet bikin aturan dari kotak masuk, tapi ga ada di halmaan /webmail/rules. kayanya lo perlu cek lebih dalam kemungkinan bugs fitur lainnya deh"
@@ -1002,3 +1014,18 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/handoff.md
 -  M docs/ai/knowledge.md
 -  M docs/ai/next-tasks.md
+
+## 2026-08-18T13:28:14Z
+- Status: COMPLETED
+- Objective: T-BUGHUNT: Comprehensive bug hunt loop — all features sogo-frontend
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/autoArchive.js
+-  M src/pages/MailPage.jsx
+-  M src/pages/RulesPage.jsx
+- ?? docs/ai/tasks/20260818-125516-114124.previous.md

@@ -216,6 +216,7 @@ export default function MailPage() {
     setSelectedUids([]);
     setSelectedMsgId(null);
     setSelectionMode(false);
+    setVisibleCount(PAGE_SIZE); // Bug fix: reset pagination saat ganti folder
     lastSelectedUid.current = null; // range-select anchor ikut di-reset
     // Reset processed cache saat ganti folder
     rulesProcessed.current = {};
@@ -374,9 +375,13 @@ export default function MailPage() {
   // ── Snooze (client-side) ───────────────────────────────────────────────────
   // Pesan yang di-snooze disembunyikan dari daftar; muncul lagi saat waktunya.
   // Dideklarasikan SEBELUM displayMessages (dipakai di filter di bawah).
+  // Bug fix: pruneExpired dipindah ke useEffect (bukan di dalam useMemo) utk
+  // menghindari side effect saat render.
+  useEffect(() => {
+    if (user?.email) pruneExpired(user.email);
+  }, [user?.email, snoozeTick]);
   const snoozedUids = useMemo(() => {
     if (!user?.email) return new Set();
-    pruneExpired(user.email); // buang yang sudah lewat (muncul kembali otomatis)
     return new Set(Object.keys(loadSnoozes(user.email)));
   }, [user?.email, snoozeTick]);
 
@@ -449,6 +454,13 @@ export default function MailPage() {
     if (selectionMode && selectedUids.length === 0) setSelectionMode(false);
   }, [selectionMode, selectedUids.length]);
 
+  // Bug fix: clamp focusIdx saat jumlah messages berubah (cegah out-of-bounds)
+  useEffect(() => {
+    if (focusIdx >= messages.length) {
+      setFocusIdx(messages.length - 1);
+    }
+  }, [messages.length, focusIdx]);
+
   const toggleConversation = useCallback((key) => {
     setExpandedConversations(prev => {
       const next = new Set(prev);
@@ -483,6 +495,8 @@ export default function MailPage() {
       }
     }).catch((err) => {
       console.warn('[rules] Gagal menjalankan aturan otomatis:', err?.message || err);
+      // Bug fix: tampilkan toast error ke user (bukan hanya console.warn)
+      toast.warning('Sebagian aturan gagal dijalankan — coba lagi nanti.');
     });
   }, [messages.length, selectedFolder, user?.email, user?.sogoToken]);
 

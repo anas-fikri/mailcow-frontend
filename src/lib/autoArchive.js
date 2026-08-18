@@ -23,7 +23,9 @@ export const RULE_FIELDS = [
   { id: 'from',    label: 'Pengirim (From)' },
   { id: 'to',      label: 'Penerima (To)' },
   { id: 'subject', label: 'Subjek' },
-  { id: 'body',    label: 'Isi Email' },
+  // Bug fix: body dihapus dari available fields — SOGo list view TIDAK mengembalikan
+  // field body (hanya from/to/subject/date/isRead/hasAtt). Rule berbasis body tidak
+  // akan pernah match dari list view. Kalau mau filter body, pakai server-side filter.
 ];
 
 export const RULE_OPS = [
