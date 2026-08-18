@@ -1,5 +1,15 @@
 # Handoff Log
 
+## 2026-08-18 — Batch 2 fitur harian: auto-advance, group by tanggal, tambah kontak, kalender UX, rule jalankan-now — DONE (siap deploy)
+
+- **Permintaan user:** "tolong lanjutin" + pilihan: auto-advance setelah hapus/arsip, group by tanggal, tambah ke kontak dari email, + pertimbangkan kemudahan kalender & fleksibilitas rule.
+- **Auto-advance (`src/components/mailer/MessageReader.jsx`):** prop `siblingUids` + `onNavigateTo`. `navigateAfter()` dipanggil di onSuccess delete (trash/permanen) & move → buka pesan berikutnya di daftar (`siblingUids[idx+1]`, fallback `idx-1`, lalu onClose). MailPage pass `siblingUids={visibleOrderUids}` + `onNavigateTo={(uid)=>setSelectedMsgId(uid)}`.
+- **Group by tanggal (`src/lib/dateGroups.js` + `scripts/test-date-groups.mjs`, 32 kasus):** helper murni `parseMessageDate` (ISO/RFC/epoch/'today'/'yesterday'/garbage→null) + `getDateGroup` (0=Hari Ini, 1=Kemarin, 2-6=Minggu Ini, 7-29=Bulan Lalu, >=30/unparseable=Lebih Lama) + `groupMessagesByDate` (grup kontigu, urutan dipertahankan). Render di MailPage flat list (bukan conversation view): header sticky tipis per grup; `flatIdx` kontigu utk focus keyboard. `package.json` `test:date-groups`.
+- **Tambah ke kontak (`MessageReader.jsx`):** tombol UserPlus di toolbar (muncul bila `contactPerson` ada) → modal prefill `contactPerson?.name/email` dari `msg.from[0]` (Terkirim/Draf: `msg.to[0]`) → `createContact` (`{c_cn, c_mail, c_telephonenumber}`) → toast. Field editable (nama/email/telpon).
+- **Kalender (`src/pages/CalendarPage.jsx`):** sel bulan klik = `onSelectDate` saja; tombol "+" kecil di pojok kanan atas sel — tampil saat hover (selalu utk selected/today) → `onCellClick(date)` buka create modal. Week/day tetap klik-jam = create (natural, pola Google Calendar).
+- **Rule fleksibilitas (`src/pages/RulesPage.jsx`):** tombol Zap "Jalankan Sekarang" di RuleCard → `handleRunNow`: `fetchMessages('folderINBOX')` → `matchRules(email, msg).includes(rule.id)` → `moveMessages` batch → `updateRule` runCount+lastRunAt → toast jumlah dipindahkan; empty → toast.info. Icon Loader2 saat running. Rule kini bisa diterapkan ke email yang SUDAH ada.
+- **Validasi:** build OK + **20/20 test PASS** (baru test:date-groups 32 kasus), HMR live (localhost:5173). BELUM deploy — deploy.sh berikutnya.
+
 ## 2026-08-18 — Quick Rule: buat aturan 1-langkah langsung dari baris email — DONE
 
 - **Permintaan user:** seberapa memungkinkan menambah rule utk email tertentu, fokus kemudahan penggunaan. Jawaban: engine rules SUDAH ada (`src/lib/autoArchive.js` + halaman `/rules`), tapi pembuatan manual (buka halaman → form dari nol) → tidak mudah ditemukan.
@@ -950,3 +960,18 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - ?? src/lib/emailCategory.js
 - ?? src/lib/signatures.js
 - ?? src/lib/snooze.js
+
+## 2026-08-18T07:30:46Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M package.json
+-  M src/components/mailer/MessageReader.jsx
+-  M src/pages/CalendarPage.jsx
+-  M src/pages/MailPage.jsx
+-  M src/pages/RulesPage.jsx
+- ?? src/lib/dateGroups.js

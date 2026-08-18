@@ -27,7 +27,8 @@
     "test:email-category": "node scripts/test-email-category.mjs",
     "test:signatures": "node scripts/test-signatures.mjs",
     "test:draft-api": "node scripts/test-draft-api.mjs",
-    "test:snooze": "node scripts/test-snooze.mjs"
+    "test:snooze": "node scripts/test-snooze.mjs",
+    "test:date-groups": "node scripts/test-date-groups.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

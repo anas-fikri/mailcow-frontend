@@ -6,6 +6,15 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — Pola fitur harian batch 2: auto-advance, date groups, kontak dari email, kalender UX, rule apply-to-existing
+
+- **Auto-advance reader:** MessageReader terima `siblingUids` (urutan uid yang TAMPIL, dari `visibleOrderUids` MailPage) + `onNavigateTo`; setelah delete/move sukses → buka `siblingUids[idx+1]`, fallback `idx-1`, else onClose. Pola Gmail; jangan onClose() mentah kalau daftar masih ada isi.
+- **Group by tanggal (`src/lib/dateGroups.js`):** SOGo `RelativeDate` return display-string (ISO/RFC/'today'/'yesterday'/epoch) — jangan diandalkan formatnya; `parseMessageDate` toleran (epoch 8-11 digit, today/yesterday literal, Date.parse), unparseable → bucket 'older' (tidak crash). Bucket: 0=Hari Ini, 1=Kemarin, 2-6=Minggu Ini, 7-29=Bulan Lalu, >=30=Lebih Lama. Render header sticky tipis di flat list; keyboard focus butuh index kontigu (`flatIdx` manual), jangan pakai index asli msg di sortedMessages.
+- **Tambah kontak dari email:** SOGo contact create = `POST /SOGo/so/{token}/Contacts/personal/new` body `{c_cn, c_mail, c_telephonenumber}` (BUKAN name/email). MessageReader prefill dari `msg.from[0]` ({name,email}) atau `msg.to[0]` utk Terkirim/Draf (`isSentOrDraftFolder`).
+- **Kalender UX:** klik sel bulan = pilih saja; tombol "+" kecil per sel (hover / selalu utk selected+today) utk create. Week/day view: klik jam = create langsung (natural). Jangan buka modal create dari klik sel biasa — user sering cuma mau pilih tanggal.
+- **Rule apply-to-existing:** `matchRules(email, msg)` di `src/lib/autoArchive.js` bisa dipakai ulang utk "Jalankan Sekarang": `fetchMessages('folderINBOX')` → filter uid yg match → `moveMessages` batch → `updateRule` runCount. Engine rules tidak perlu endpoint baru.
+- **Pelajaran umum:** fitur "mudahkan harian" = reuse engine yang SUDAH ada (matchRules, moveMessages, visibleOrderUids, isSentOrDraftFolder) + komponen modal kecil; semua client-side/localStorage aman; server-side hanya yang SOGo dukung (move, contact create, fetch inbox).
+
 ## 2026-08-18 — SOGo v5 move: endpoint `moveMessages`, folder = path relatif (batchMoveToMailbox TIDAK ada)
 
 - **SOGo 5.12 TIDAK punya endpoint `POST /Mail/0/{folder}/batchMoveToMailbox`** — 404 (verified: `grep -aoc` di binary `MailerUI` = 0 hit; `moveMessages` = 3 hit).
@@ -214,3 +223,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: fix-bugs-fitur-baru-deploy-2026-08-18
 - Status: COMPLETED
 - Finding: SOGo v5 move = POST moveMessages body {uids, folder: path relatif} (Archive, INBOX/Sub), bukan batchMoveToMailbox (0 hit di binary MailerUI) — fix 404 archive; caller kirim objek folder, string id di-decode. Audit endpoint lain (markMessage*, batchDelete) valid. 19/19 test + build OK.
+
+## 2026-08-18T07:30:46Z
+- Task: fitur-harian-batch2-2026-08-18
+- Status: COMPLETED
+- Finding: Batch 2 fitur harian sogo-frontend: (1) auto-advance reader via siblingUids+onNavigateTo (buka pesan berikutnya setelah hapus/arsip); (2) group by tanggal di daftar (dateGroups.js, parser toleran ISO/RFC/epoch/today/yesterday, bucket Hari Ini/Kemarin/Minggu Ini/Bulan Lalu/Lebih Lama, 32 test); (3) tambah ke kontak dari email (POST Contacts/personal/new {c_cn,c_mail,c_telephonenumber}, prefill from[0]/to[0]); (4) kalender: klik sel=pilih + tombol + per sel; (5) rule Jalankan Sekarang = matchRules+fetchMessages INBOX+moveMessages. 20/20 test + build OK. BELUM deploy.

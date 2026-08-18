@@ -2,16 +2,16 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Plus, Trash2, ToggleLeft, ToggleRight, Folder, Filter,
-  ChevronDown, ChevronUp, AlertCircle, RefreshCw, Play,
+  ChevronDown, ChevronUp, AlertCircle, RefreshCw, Play, Zap, Loader2,
   CheckCircle2, XCircle, HelpCircle, AlertTriangle,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchFolders, moveMessages } from '../lib/api';
+import { fetchFolders, fetchMessages, moveMessages } from '../lib/api';
 import { toast } from '../lib/toast';
 import {
   getRules, addRule, updateRule, deleteRule, toggleRule,
   RULE_FIELDS, RULE_OPS, RULE_MATCH_TYPES, executeRules,
-  testRuleAgainstMessage,
+  testRuleAgainstMessage, matchRules,
 } from '../lib/autoArchive';
 import { DEFAULT_FOLDERS, STALE_TIMES } from '../lib/constants';
 
@@ -86,7 +86,7 @@ function ConditionRow({ condition, fields, ops, onChange, onRemove, canRemove })
 }
 
 // ─── Rule Card ────────────────────────────────────────────────────────────────
-function RuleCard({ rule, allFolders, onToggle, onEdit, onDelete, onTest }) {
+function RuleCard({ rule, allFolders, onToggle, onEdit, onDelete, onTest, onRun, isRunning }) {
   const [expanded, setExpanded] = useState(false);
 
   const getConditionSummary = (conditions) => {
@@ -144,9 +144,17 @@ function RuleCard({ rule, allFolders, onToggle, onEdit, onDelete, onTest }) {
             {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
           <button
+            onClick={() => onRun(rule)}
+            disabled={isRunning}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors disabled:opacity-50"
+            title="Jalankan sekarang — terapkan ke email yang sudah ada di Inbox"
+          >
+            {isRunning ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />}
+          </button>
+          <button
             onClick={() => onTest(rule)}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-green-500 hover:bg-green-500/10 transition-colors"
-            title="Test Aturan"
+            title="Test Aturan (simulasi)"
           >
             <Play size={15} />
           </button>
@@ -605,6 +613,34 @@ export default function RulesPage() {
   const [editingRule, setEditingRule] = useState(null);
   const [testRule, setTestRule] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null); // { id, name }
+  const [runningRuleId, setRunningRuleId] = useState(null);
+
+  // Jalankan aturan terhadap email yang SUDAH ada di Inbox (pola Gmail "apply to existing")
+  const handleRunNow = async (rule) => {
+    if (!user?.sogoToken || runningRuleId) return;
+    setRunningRuleId(rule.id);
+    try {
+      const { messages } = await fetchMessages(user.sogoToken, 'folderINBOX', {});
+      const matchedUids = messages
+        .filter((m) => matchRules(user.email, m).includes(rule.id))
+        .map((m) => m.uid);
+      if (matchedUids.length === 0) {
+        toast.info(`Tidak ada email di Inbox yang cocok dengan "${rule.name}"`);
+        return;
+      }
+      await moveMessages(user.sogoToken, 'folderINBOX', matchedUids, rule.actionFolder);
+      updateRule(user.email, rule.id, {
+        runCount: (rule.runCount || 0) + 1,
+        lastRunAt: Date.now(),
+      });
+      toast.success(`${matchedUids.length} email dipindahkan ke ${allFolders.find((f) => f.id === rule.actionFolder)?.label || rule.actionFolder}`);
+      handleRefresh();
+    } catch (err) {
+      toast.error(err?.message || 'Gagal menjalankan aturan.');
+    } finally {
+      setRunningRuleId(null);
+    }
+  };
 
   // Ambil daftar folders untuk dropdown
   const { data: folders = DEFAULT_FOLDERS } = useQuery({
@@ -713,6 +749,8 @@ export default function RulesPage() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onTest={setTestRule}
+                onRun={handleRunNow}
+                isRunning={runningRuleId === rule.id}
               />
             ))}
           </div>

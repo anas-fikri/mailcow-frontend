@@ -21,6 +21,7 @@ import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor } from '../lib
 import { getRuleSummary, executeRules } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, isSnoozed, snoozeMessage, unsnoozeMessage, pruneExpired } from '../lib/snooze';
+import { groupMessagesByDate } from '../lib/dateGroups';
 
 // ─── Icon mapping ─────────────────────────────────────────────────────────────
 const FOLDER_ICONS = {
@@ -1595,7 +1596,25 @@ export default function MailPage() {
                       </div>
                     );
                   })
-                : sortedMessages.map((msg, idx) => renderMessageRow(msg, idx))}
+                : (() => {
+                    // Group by tanggal (pola Gmail): Hari Ini / Kemarin / Minggu Ini / Bulan Lalu / Lebih Lama
+                    if (conversationView) {
+                      return sortedMessages.map((msg, idx) => renderMessageRow(msg, idx));
+                    }
+                    const dateGroups = groupMessagesByDate(sortedMessages, (m) => m.date);
+                    let flatIdx = 0;
+                    return dateGroups.map((group) => (
+                      <div key={group.key}>
+                        <div className="sticky top-0 z-10 px-3 py-1.5 bg-background/95 backdrop-blur-sm text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/60">
+                          {group.label}
+                        </div>
+                        {group.messages.map((msg) => {
+                          const idx = flatIdx++;
+                          return renderMessageRow(msg, idx);
+                        })}
+                      </div>
+                    ));
+                  })()}
               {hasMore ? (
                 <div className="px-4 py-3 flex justify-center border-t border-border">
                   <button
@@ -1626,6 +1645,8 @@ export default function MailPage() {
           <MessageReader
             folder={selectedFolder}
             msgId={selectedMsgId}
+            siblingUids={visibleOrderUids}
+            onNavigateTo={(uid) => setSelectedMsgId(uid)}
             onClose={() => setSelectedMsgId(null)}
             onReply={(data) => { setComposeData(data); setComposeOpen(true); }}
             folders={folders}

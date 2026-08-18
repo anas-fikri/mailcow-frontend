@@ -2,10 +2,10 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, Paperclip,
-  Flag, Printer, FolderOpen, Star, Send, ChevronDown,
+  Flag, Printer, FolderOpen, Star, Send, ChevronDown, UserPlus, X,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, sendMessage, fetchPreferences } from '../../lib/api';
+import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, sendMessage, fetchPreferences, createContact } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
@@ -189,12 +189,15 @@ function isImageType(ct) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete }) {
+export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, siblingUids = [], onNavigateTo }) {
   const { user, smtpToken } = useAuthStore();
   const queryClient = useQueryClient();
   const [moveOpen, setMoveOpen] = React.useState(false);
   const [quickOpen, setQuickOpen] = React.useState(false);
   const [quickText, setQuickText] = React.useState('');
+  const [contactOpen, setContactOpen] = React.useState(false);
+  const [contactSaving, setContactSaving] = React.useState(false);
+  const [contactError, setContactError] = React.useState('');
 
   const { data: msg, isLoading } = useQuery({
     queryKey: ['message', user?.sogoToken, folder, msgId],
@@ -217,6 +220,20 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     staleTime: 5 * 60_000,
   });
 
+  // Auto-advance: setelah hapus/arsip/pindah, buka pesan berikutnya (pola Gmail).
+  // Kalau tidak ada, kembali ke daftar.
+  function navigateAfter() {
+    const idx = siblingUids.indexOf(msgId);
+    if (idx >= 0) {
+      const next = siblingUids[idx + 1] ?? siblingUids[idx - 1];
+      if (next) {
+        onNavigateTo?.(next);
+        return;
+      }
+    }
+    onClose();
+  }
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       // Move to trash instead of permanent delete
@@ -229,7 +246,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      onClose();
+      navigateAfter();
       toast.success(folder === 'folderTrash' ? 'Pesan dihapus permanen' : 'Pesan dipindah ke Sampah');
     },
   });
@@ -247,7 +264,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      onClose();
+      navigateAfter();
       onMoveComplete?.();
       toast.success('Pesan dipindahkan');
     },
@@ -333,6 +350,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // Inisial avatar konsisten dengan daftar email: penerima utk Terkirim/Draf, pengirim utk lainnya
   const isSentOrDraft = isSentOrDraftFolder(folder, folders);
   const avatarName = isSentOrDraft ? (to || from) : from;
+  // Orang yang relevan utk "Tambah ke Kontak" — pengirim (inbox) / penerima pertama (Terkirim)
+  const contactSource = isSentOrDraft
+    ? (Array.isArray(msg.to) ? msg.to : [])
+    : (Array.isArray(msg.from) ? msg.from : []);
+  const contactPerson = contactSource[0] || {};
   const cleanHtml = rawHtml
     ? prepareHtmlContent(rawHtml, inlineImages)
     : '<p style="color:var(--muted-foreground);font-size:.875rem;margin:0">Tidak ada konten.</p>';
@@ -417,6 +439,32 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     urls.forEach((url) => window.open(url, '_blank', 'noopener,noreferrer'));
   }
 
+  // ── Tambah ke kontak ───────────────────────────────────────────────────────
+  // Simpan pengirim/penerima email ini ke kontak personal (1 klik, form terisi).
+  async function handleSaveContact(e) {
+    e.preventDefault();
+    if (contactSaving) return;
+    setContactError('');
+    setContactSaving(true);
+    try {
+      await createContact(user.sogoToken, {
+        c_cn: (contactNameRef.current || '').trim(),
+        c_mail: (contactEmailRef.current || '').trim(),
+        c_telephonenumber: (contactPhoneRef.current || '').trim(),
+      });
+      setContactOpen(false);
+      toast.success('Kontak disimpan');
+    } catch (err) {
+      setContactError(err?.message || 'Gagal menyimpan kontak.');
+    } finally {
+      setContactSaving(false);
+    }
+  }
+  // Refs utk field modal kontak (prefill dari email, editable)
+  const contactNameRef = React.useRef(null);
+  const contactEmailRef = React.useRef(null);
+  const contactPhoneRef = React.useRef(null);
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-background w-full">
@@ -487,6 +535,15 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           <button onClick={handlePrint} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted" title="Cetak">
             <Printer size={18} />
           </button>
+          {(contactPerson?.email || contactPerson?.name) && (
+            <button
+              onClick={() => { setContactError(''); setContactOpen(true); }}
+              className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-muted"
+              title="Tambah ke kontak"
+            >
+              <UserPlus size={18} />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -680,6 +737,72 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           </div>
         )}
       </div>
+
+      {/* ── Tambah ke kontak modal ─────────────────────────────────────────── */}
+      {contactOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setContactOpen(false)}>
+          <div
+            className="bg-card w-full max-w-md rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-base font-semibold">Tambah ke Kontak</h2>
+              <button onClick={() => setContactOpen(false)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground">
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveContact} className="p-5 space-y-4">
+              {contactError && (
+                <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg">{contactError}</div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-foreground">Nama Lengkap</label>
+                <input
+                  ref={contactNameRef}
+                  defaultValue={contactPerson?.name || contactPerson?.email || ''}
+                  placeholder="John Doe"
+                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-foreground">Email</label>
+                <input
+                  ref={contactEmailRef}
+                  defaultValue={contactPerson?.email || ''}
+                  type="email"
+                  required
+                  placeholder="email@domain.com"
+                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-foreground">No. Telepon</label>
+                <input
+                  ref={contactPhoneRef}
+                  placeholder="+62..."
+                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setContactOpen(false)}
+                  className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-medium"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={contactSaving}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                >
+                  {contactSaving ? <Loader2 size={14} className="animate-spin" /> : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -535,18 +535,32 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
           return (
             <div
               key={date.getTime()}
-              onClick={() => { onSelectDate(date); onCellClick(date); }}
-              className={`min-h-[80px] border-b border-r border-border/40 p-1.5 flex flex-col text-left hover:bg-muted/50 transition-colors cursor-pointer ${
+              onClick={() => onSelectDate(date)}
+              className={`group relative min-h-[80px] border-b border-r border-border/40 p-1.5 flex flex-col text-left hover:bg-muted/50 transition-colors cursor-pointer ${
                 sel ? 'bg-primary/5 ring-1 ring-inset ring-primary/30' : ''
               }`}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => onDrop(date)}
             >
-              <span className={`w-7 h-7 text-sm flex items-center justify-center rounded-full font-medium shrink-0 ${
-                today ? 'bg-primary text-primary-foreground font-bold' : 'text-foreground'
-              }`}>
-                {date.getDate()}
-              </span>
+              <div className="flex items-center justify-between">
+                <span className={`w-7 h-7 text-sm flex items-center justify-center rounded-full font-medium shrink-0 ${
+                  today ? 'bg-primary text-primary-foreground font-bold' : 'text-foreground'
+                }`}>
+                  {date.getDate()}
+                </span>
+                {/* Tombol buat event: muncul saat hover atau hari terpilih/hari ini */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); onCellClick(date); }}
+                  title="Buat event di tanggal ini"
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                    sel || today
+                      ? 'opacity-100 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground'
+                      : 'opacity-0 group-hover:opacity-100 bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground'
+                  }`}
+                >
+                  +
+                </button>
+              </div>
               <div className="mt-1 space-y-0.5 w-full overflow-hidden">
                 {dayEvs.slice(0, 3).map((ev, idx) => (
                   <div

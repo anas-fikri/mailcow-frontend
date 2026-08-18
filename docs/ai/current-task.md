@@ -1,12 +1,22 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: fix-bugs-fitur-baru-deploy-2026-08-18
+Task ID: fitur-harian-batch2-2026-08-18
 Started At: 2026-08-18
-Updated At: 2026-08-18T06:22:17Z
+Updated At: 2026-08-18T07:30:46Z
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
-## 2026-08-18 — Audit endpoint SOGo v5 + fix archive 404 + deploy SEMUA fitur — IN PROGRESS
+## 2026-08-18 — Batch 2 fitur harian: auto-advance, group by tanggal, tambah kontak, kalender UX, rule jalankan-now — DONE (deploy berikutnya)
+
+- **Permintaan user:** "lanjutin" + pilihan: auto-advance setelah hapus/arsip, group by tanggal di daftar, tambah ke kontak dari email, plus pertimbangkan kemudahan kalender & fleksibilitas rule.
+- **Auto-advance (`MessageReader.jsx`):** prop baru `siblingUids` (dari `visibleOrderUids` MailPage) + `onNavigateTo` → setelah hapus/arsip/pindah, otomatis buka pesan berikutnya (fallback pesan sebelumnya, lalu tutup). Pola Gmail.
+- **Group by tanggal (`src/lib/dateGroups.js` + test 32 kasus):** header Hari Ini/Kemarin/Minggu Ini/Bulan Lalu/Lebih Lama di daftar pesan (flat list saja; conversation view tetap). Parser toleran: ISO, RFC, epoch, 'today'/'yesterday', unparseable → older (tidak crash). `flatIdx` dijaga kontigu utk keyboard focus.
+- **Tambah ke kontak (`MessageReader.jsx`):** tombol UserPlus di toolbar (muncul bila ada pengirim/penerima) → modal prefill nama+email dari `msg.from[0]` (atau `msg.to[0]` utk Terkirim/Draf) → `createContact` → POST /Contacts/personal/new.
+- **Kalender (`CalendarPage.jsx`):** klik sel bulan = PILIH saja (sebelumnya langsung buka modal create — menyebalkan); tombol "+" kecil di sel muncul saat hover (selalu tampil utk hari terpilih/hari ini). Week/day cell click tetap create per jam (natural).
+- **Rule fleksibilitas (`RulesPage.jsx`):** tombol Zap "Jalankan Sekarang" per rule → `fetchMessages(folderINBOX)` → `matchRules(email, msg)` per pesan → `moveMessages` batch uids match → update runCount. Rule kini berlaku utk email yang SUDAH ada, bukan hanya baru.
+- **Validasi:** build OK + **20/20 test PASS** (baru `test:date-groups` 32 kasus), HMR live.
+
+## 2026-08-18 — Audit endpoint SOGo v5 + fix archive 404 + deploy SEMUA fitur — DONE
 
 - **Bug: "Gagal memindahkan pesan (404)" saat archive** — root cause: app panggil endpoint `batchMoveToMailbox` yang TIDAK ADA di SOGo v5 (diverifikasi: `grep -aoc` di binary `MailerUI` → 0 hit). SOGo asli pakai `moveMessages` (3 hit): `POST /Mail/0/{folder}/moveMessages` body `{uids, folder}` dengan `folder` = **path relatif** (`Archive`, `INBOX/Sub`), bukan id berprefix (`folderArchive`).
 - **Fix** `src/lib/api.js` `moveMessages`: endpoint `moveMessages` + payload `{uids, folder: path}`; terima objek folder (pakai `path`/`name`) atau string id (`folderX` → strip prefix + decode `%2F`).
