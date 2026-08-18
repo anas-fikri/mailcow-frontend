@@ -6,6 +6,14 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — DUA proyek migration portal: imapsync-migrate (ASLI) vs migration-portal (salinan)
+
+- **`/home/anas.fikri/imapsync-migrate` = proyek ASLI/LIVE** (unit systemd 17 Agu menunjuk ke sini): auth `scripts/admin-auth-check.sh` — helper bash baca-only yang verifikasi via `doveadm pw -t` terhadap hash tabel `admin` Mailcow (support SEMUA skema: BLF-CRYPT, SSHA256, SSHA, PLAIN, dll). Env di `.env.server`: `MAILCOW_API_KEY/MAILCOW_ADMIN_USER/MAILCOW_ADMIN_PASS/JWT_SECRET/...` — TIDAK butuh DBUSER/DBPASS. Data: `data/jobs.json` (522 job) + `data/tokens.json` (520 token). Server.js punya security headers + `trust proxy` + rate limit per-IP (login admin) + `assertAdminAuthConfigured()`.
+- **`/home/anas.fikri/migration-portal` = salinan TUA**: auth bcryptjs terhadap tabel `admin` (hanya BLF-CRYPT; SSHA256 di-patch manual 18 Agu), env DBUSER/DBPASS/DBNAME dari mailcow.conf, data cuma 1 job. JANGAN dipakai — kalau port 3007 dilayani proyek ini, dashboard kosong.
+- **Gejala salah-proyek:** login portal sukses tapi dashboard cuma 1 user / data kosong. Cek `readlink /proc/<pid>/cwd` proses port 3007 + jumlah key `data/jobs.json`.
+- **Start yang benar:** `cd /home/anas.fikri/imapsync-migrate && (set -a; source .env.server; set +a; exec /usr/bin/node server.js >> logs/app.log 2>&1) &` (nohup via start.sh sama). Helper script tidak perlu chmod +x (dipanggil `bash script`).
+- **Unit systemd** `migration-portal.service` (nama unit historis) harus menunjuk `/home/anas.fikri/imapsync-migrate`; sempat salah diarahkan ke migration-portal (18 Agu 04:26) — kembalikan via sed + daemon-reload (butuh sudo).
+
 ## 2026-08-18 — Migration portal butuh env DB; start.sh; unit systemd salah path
 
 - **Portal butuh `DBUSER/DBPASS/DBNAME` di env** (`process.env.DBUSER || "mailcow"` dst. di `src/routes/auth.js`). Kalau `DBPASS` kosong, `mysql -p""` memicu prompt interaktif → `Access denied ... using password: NO` → `verifyAdminPassword` selalu false → **login selalu ditolak walau password benar** (silent — hanya terlihat di `logs/app.log`).
@@ -83,3 +91,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: incident-login-massal-2026-08-18
 - Status: COMPLETED
 - Finding: Migration portal login selalu ditolak walau password benar: proses restart nohup tanpa memuat .env.server -> DBPASS kosong -> mysql -p"" prompt interaktif -> Access denied -> verifyAdminPassword false. Fix: tambah DBUSER/DBPASS/DBNAME ke .env.server dari mailcow.conf + chmod +x start.sh + restart via nohup bash start.sh. Unit systemd migration-portal.service salah path (imapsync-migrate) crash-loop 545x — perlu sudo utk perbaiki (TODO). Login portal = username bare bukan email. Backup .env.server.bak-20260818-2.
+
+## 2026-08-18T04:32:10Z
+- Task: incident-login-massal-2026-08-18
+- Status: COMPLETED
+- Finding: Dashboard migration portal kosong: ada DUA proyek — imapsync-migrate (ASLI, 522 job/520 token, auth doveadm helper via admin-auth-check.sh, env MAILCOW_API_KEY dkk) vs migration-portal (salinan tua bcryptjs 1 job). Saya restart proyek salah (migration-portal) sehingga dashboard tampil kosong. Fix: kill proses migration-portal, start imapsync-migrate (pid 670022) dengan source .env.server. Verifikasi: stats 522/408/114, health 200, helper HASH anas.fikri OK. TODO user sudo: unit systemd migration-portal.service harus menunjuk imapsync-migrate (sempat diarahkan ke migration-portal 04:26).

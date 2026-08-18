@@ -3,8 +3,11 @@
 Status: COMPLETED
 Task ID: incident-login-massal-2026-08-18
 Started At: 2026-08-18
-Updated At: 2026-08-18T03:57:13Z
+Updated At: 2026-08-18T04:32:10Z
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
+
+## FIX 2026-08-18 — Dashboard migration portal kosong → proyek ASLI = imapsync-migrate, bukan migration-portal
+- Ada DUA proyek portal: `imapsync-migrate` (ASLI, 522 job + 520 token, auth doveadm helper) vs `migration-portal` (salinan tua, 1 job, bcryptjs). Saya restart yang salah (migration-portal) → dashboard kosong. Fix: start imapsync-migrate (pid 670022) → stats 522/408/114 ✅. TODO user (sudo): kembalikan unit systemd ke imapsync-migrate.
 
 ## FIX BARU 2026-08-18 — Migration portal login ditolak walau password benar → proses tanpa env DB
 - Proses portal restart nohup tanpa `.env.server` → DBPASS kosong → mysql Access denied → login selalu 401. Fix: tambah DB vars ke `.env.server`, restart via start.sh (chmod +x). Unit systemd masih salah path (imapsync-migrate) — butuh sudo utk perbaiki (TODO user). Login portal = username bare (`anas.fikri`), bukan email. Detail: handoff entry teratas.

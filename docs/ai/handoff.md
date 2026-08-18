@@ -1,5 +1,22 @@
 # Handoff Log
 
+## 2026-08-18 — Dashboard migration portal kosong: salah direktori (migration-portal vs imapsync-migrate) — FIXED
+
+- **Gejala:** user login `/migrate/admin/` sukses tapi dashboard kosong (1 user, padahal seharusnya 522).
+- **AKAR PENTING — ada DUA proyek portal:**
+  - `/home/anas.fikri/imapsync-migrate` = **proyek ASLI/LIVE** — auth via `scripts/admin-auth-check.sh` (doveadm pw -t, support SEMUA skema Mailcow incl. SSHA256), env `MAILCOW_API_KEY/ADMIN_USER/ADMIN_PASS/JWT_SECRET` di `.env.server`, **data 522 job + 520 token** (update terakhir 18 Agu 01:17).
+  - `/home/anas.fikri/migration-portal` = **salinan TUA** — auth bcryptjs (+ patch SSHA256 18 Agu oleh saya), data cuma 1 job (6 Agu).
+- **Kesalahan saya:** kemarin (03:05) restart portal dari `migration-portal` (ikut handoff lama yang menyebut path itu) → proses nohup migration-portal pegang port 3007 → dashboard tampil data 1 job → "isinya hilang semua". Unit systemd asli (17 Agu 12:06) sebenarnya BENAR menunjuk `imapsync-migrate`, tapi crash-loop EADDRINUSE karena port dipegang proses migration-portal. Catatan: saran sed saya untuk mengubah unit systemd ke `migration-portal` (04:26) juga KELIRU — jangan diikuti; unit harus kembali ke imapsync-migrate.
+- **Fix (LIVE):** kill proses migration-portal (621197), start `imapsync-migrate` via `(set -a; source .env.server; exec /usr/bin/node server.js)` nohup → pid 670022, cwd imapsync-migrate, env lengkap. Verifikasi: `/api/admin/stats` = **total 522, done 408, failed 114**; `/api/admin/users` 200; health 200; helper auth bash jalan (`HASH {BLF-CRYPT}...` utk anas.fikri).
+- **⚠️ TODO user (butuh sudo):** unit systemd `migration-portal.service` sekarang menunjuk `migration-portal` (salah) & crash-loop. Kembalikan ke imapsync-migrate:
+  ```bash
+  sudo sed -i 's|/home/anas.fikri/migration-portal|/home/anas.fikri/imapsync-migrate|g' /etc/systemd/system/migration-portal.service
+  sudo systemctl daemon-reload
+  # unit akan crash-loop EADDRINUSE sampai proses nohup imapsync-migrate mati;
+  # setelah itu unit start sendiri (atau systemctl restart migration-portal.service)
+  ```
+- **Catatan:** `.env.server` migration-portal sempat saya tambahi DB vars (tidak merusak, backup ada). Auth imapsync-migrate TIDAK butuh DBUSER/DBPASS — pakai MAILCOW_API_KEY + helper doveadm. Login portal = username bare (`anas.fikri`).
+
 ## 2026-08-18 — Migration portal login rusak: proses tanpa env DB (restart nohup) — FIXED
 
 - **Gejala:** login `/migrate/admin/` dgn kredensial Mailcow (mis. `anas.fikri`) selalu ditolak "Username atau password salah" walau password benar.
@@ -574,6 +591,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/knowledge.md
 
 ## 2026-08-18T03:57:13Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+
+## 2026-08-18T04:32:10Z
 - Status: COMPLETED
 - Objective: No objective recorded.
 - Branch: main
