@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-18T13:35:00Z",
+  "last_session": "2026-08-18T14:21:55Z",
   "context": "PCP Express Webmail — bug hunt loop (5 pass) + 7 bugs fix + deploy LIVE. Semua fitur baru (search, archive, moveMessages, rules, quick rule, auto-advance, group by tanggal, tambah kontak, quick reply signature) sudah stable. 20/20 test PASS.",
   "modules": {
     "mail-page": {
@@ -266,13 +266,14 @@
       "what": "Edge case: normalizeSubject type guard",
       "status": "done"
     }
-  ],  "active_task": {
-    "id": "T-BUGHUNT-2026-08-18",
-    "status": "COMPLETED",
-    "objective": "Bug hunt loop (5 pass) — comprehensive audit semua fitur sogo-frontend",
-    "next_step": "User request baru atau next-tasks.md",
-    "goal_id": "G-001",
-    "sub_goal_id": "G-001.S-006",
-    "updated_at": "2026-08-18T13:35:00Z"
+  ],
+  "active_task": {
+    "id": "20260818-142155-180721",
+    "status": "ACTIVE",
+    "objective": "T-BUGHUNT-ROUND2: Bug hunt loop — regressions + deep audit",
+    "next_step": "Inspect the current code and context",
+    "goal_id": "",
+    "sub_goal_id": "",
+    "updated_at": "2026-08-18T14:21:55Z"
   }
 }

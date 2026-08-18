@@ -375,8 +375,8 @@ export default function MailPage() {
   // ── Snooze (client-side) ───────────────────────────────────────────────────
   // Pesan yang di-snooze disembunyikan dari daftar; muncul lagi saat waktunya.
   // Dideklarasikan SEBELUM displayMessages (dipakai di filter di bawah).
-  // Bug fix: pruneExpired dipindah ke useEffect (bukan di dalam useMemo) utk
-  // menghindari side effect saat render.
+  // pruneExpired: hanya di useEffect (bukan useMemo) utk menghindari side effect saat render.
+  // Dipanggil saat user login + saat snoozeTick berubah (auto-prune interval).
   useEffect(() => {
     if (user?.email) pruneExpired(user.email);
   }, [user?.email, snoozeTick]);
