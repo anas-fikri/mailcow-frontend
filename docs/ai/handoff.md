@@ -1,5 +1,13 @@
 # Handoff Log
 
+## 2026-08-18 — Fix migration portal: akun SSHA256 tidak bisa login walau password benar
+
+- **Gejala:** user login `https://mail.pcpexpress.co.id/migrate/admin/` dgn password benar → "Username atau password salah". Khawatir mail client kena masalah sama.
+- **Root cause:** `admin@pcpexpress.co.id` di tabel `admin` (Mailcow DB) ber-scheme **`{SSHA256}`** (48B = sha256+salt). `verifyAdminPassword` di `/home/anas.fikri/migration-portal/src/routes/auth.js` hanya pakai **bcryptjs** — TIDAK support SSHA256 (compareSync throw → catch → false) → login akun tsb SELALU gagal. Bonus bug: scheme `CRYPT/SHA256-CRYPT/SHA512-CRYPT` tercantum sebagai didukung padahal bcryptjs tidak bisa memverifikasinya (gagal diam-diam).
+- **Fix (patch di server, backup `auth.js.bak-20260818`):** tambah `verifySsha256()` (sha256(pass+salt) vs digest 32B, `timingSafeEqual`), route SSHA256 ke sana, hapus scheme non-bcrypt dari daftar. `node --check` ✅, login SSHA256 + BLF dgn password salah → 401 normal ✅, portal restart (pid baru, port 3007).
+- **Mail client TIDAK terpengaruh:** semua 615 mailbox `{BLF-CRYPT}` (Dovecot normal). Isu ini khusus migration portal/admin table.
+- **TODO user:** coba login ulang `admin@pcpexpress.co.id` di /migrate/admin/. Kalau masih ditolak → akun yang dipakai mungkin `admin`/`anas.fikri` ({BLF-CRYPT}) → password di DB beda dari yang diketik → reset password via Mailcow admin.
+
 ## 2026-08-18 — INCIDENT LIVE: login webmail gagal massal + kantor timeout (resolved sebagian)
 
 ### Gejala (user report)

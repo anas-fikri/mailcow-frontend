@@ -6,6 +6,13 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — Migration portal auth: skema password + lokasi
+
+- **Lokasi:** `/home/anas.fikri/migration-portal` di host `mail` (BUKAN innaka), port 3007, nginx `/migrate` → `192.168.10.200:3007` (`site.migration.custom`). Jalan via `nohup node server.js` (cwd migration-portal). Route login: `POST /migrate/api/auth/login`.
+- **Auth:** `verifyAdminPassword` query `admin` table (`superadmin=1 AND active=1`), parse `{SCHEME}hash`. Sebelumnya HANYA bcryptjs — support `{BLF-CRYPT}` saja efektif; `{SSHA256}` (digest32+salt16, LDAP-style) TIDAK bisa diverifikasi → login selalu gagal walau password benar. Patch 2026-08-18: `verifySsha256()` via `createHash('sha256')` + `timingSafeEqual`.
+- **Tabel admin** Mailcow berisi: admin/anas.fikri/abdul.latif/mohamad.hidayat/yudhis/dedy.sugiarto = `{BLF-CRYPT}`, admin@pcpexpress.co.id = `{SSHA256}`. Password `AdminMail2026!` (docs 05 Agu) TIDAK lagi match hash `admin` — sudah berubah.
+- **Mailbox** 615 akun = `{BLF-CRYPT}` (bcrypt cost beragam, termasuk $2y$05$). `{RESOURCE}` = resource account (bukan user).
+
 ## 2026-08-18 — Arsitektur anti-abuse mail server (PCP Express)
 
 - **Dua lapis ban:** (1) MikroTik `spam-blocklist` (address-list) diisi `/home/anas.fikri/spam-detect.sh` di host `mail` (cron */2 mnt): block IP dengan ≥5 SASL failed/5mnt, ≥20 conn, ≥10 deferred, atau ≥5 IP unik satu /24 (password spray → block subnet /24). Whitelist: `WL_EXACT` + `WL_PREFIX` (default: 202.148.2., 192.168.10., 10.100.100., 127.0.0.; kami tambah `115.178.128.` utk IP kantor D-NET). State di `/tmp/spam-blocked-ips.txt` + `/tmp/spam-blocked-subnets.txt`. (2) **CrowdSec** (`mailcow-crowdsec-1`) ban IP via netfilter (postfix-spam/dovecot-spam dll). Allowlist permanen via `cscli allowlists create kantor` + `add` — efektif utk decision berikutnya.
