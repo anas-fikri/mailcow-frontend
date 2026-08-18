@@ -563,6 +563,8 @@ function toSogoAbsPath(accountId, folderPath) {
  * Pindahkan pesan antar folder (endpoint SOGo v5: moveMessages).
  * `targetFolder` = objek folder hasil flattenMailboxes ATAU string id (mis. "folderArchive").
  * SOGo v5 mengharapkan body `folder` = path absolut (mis. "/email@domain.com/folderArchive").
+ *
+ * Penting: UIDs harus INTEGER (bukan string). SOGo backend reject kalau uids string.
  */
 export async function moveMessages(sogoToken, folder, uids, targetFolder) {
   const accountId = pathSegment(sogoToken, 'sogoToken');
@@ -586,13 +588,34 @@ export async function moveMessages(sogoToken, folder, uids, targetFolder) {
 
   const absPath = toSogoAbsPath(accountId, folderPath);
 
+  // Pastikan UIDs selalu integer — SOGo reject kalau uids berisi string.
+  const intUids = uids.map((u) => {
+    const n = typeof u === 'number' ? u : parseInt(String(u), 10);
+    if (Number.isNaN(n) || n <= 0) {
+      console.warn('[moveMessages] invalid uid skipped:', u);
+    }
+    return n;
+  }).filter((n) => !Number.isNaN(n) && n > 0);
+
+  if (intUids.length === 0) {
+    throw new Error('Tidak ada pesan valid untuk dipindahkan.');
+  }
+
   const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/moveMessages`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ uids, folder: absPath }),
+    body: JSON.stringify({ uids: intUids, folder: absPath }),
   });
-  if (!res.ok) throwApiError(`Gagal memindahkan pesan (${res.status}).`, res.status);
+  if (!res.ok) {
+    // Tangkap response body utk debugging — SOGo sering return detail error di body.
+    let detail = '';
+    try { detail = await res.text(); } catch { /* ignore */ }
+    const msg = detail
+      ? `Gagal memindahkan pesan (${res.status}): ${detail.slice(0, 200)}`
+      : `Gagal memindahkan pesan (${res.status}).`;
+    throwApiError(msg, res.status);
+  }
 }
 
 /**
