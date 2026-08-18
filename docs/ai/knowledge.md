@@ -6,11 +6,17 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
-## 2026-08-18 — React #310 infinite loop: focusIdx dep interaction
+## 2026-08-18 — React #310 root cause: invalidateQueries inside queryFn
 
-- **React error #310 = Maximum update depth exceeded:** infinite re-render loop. Di MailPage, focusIdx clamp effect punya `focusIdx` di dependency array → berinteraksi dgn reset effect (`setFocusIdx(-1)` saat `visibleMessages.length` berubah) → React schedule berulang.
-- **Fix:** Hapus `focusIdx` dari dependency array — hanya `messages.length` yang penting. Clamp effect hanya perlu tahu kapan jumlah messages berubah, bukan kapan focusIdx berubah.
-- **Pelajaran:** useEffect yang memanggil setState sebaiknya TIDAK memasukkan state yang di-set ke dependency array — bisa create loop. Hanya masukkan dependencies yang MEMBUTUHKAN effect dijalankan ulang.
+- **Root cause sebenarnya:** `queryClient.invalidateQueries` dipanggil di DALAM `queryFn` (via markRead). Ini trigger refetch query lain → re-render parent → component re-render → query run lagi → `invalidateQueries` lagi → infinite loop.
+- **Fix:** Pindah `markRead` + `invalidateQueries` dari `queryFn` ke `useEffect` terpisah. QueryFn harus SUCI — tidak boleh ada side effect yang modify query cache.
+- **Pelajaran penting:** JANGAN panggil `queryClient.invalidateQueries` di dalam `queryFn` — ini bisa cause cascading re-renders → React #310. Invalidatequeries hanya boleh dipanggil dari event handler atau useEffect.
+
+## 2026-08-18 — React #310: focusIdx dep interaction (partial fix)
+
+- **React error #310 = Maximum update depth exceeded:** focusIdx clamp effect punya `focusIdx` di dependency array → bisa berinteraksi dgn reset effect.
+- **Fix:** Hapus `focusIdx` dari dependency array — hanya `messages.length` yang penting.
+- **Pelajaran:** useEffect yang memanggil setState sebaiknya TIDAK memasukkan state yang di-set ke dependency array — bisa create loop.
 
 ## 2026-08-18 — fetchMessage retry + MessageReader error UI
 
@@ -278,3 +284,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260818-142155-180721
 - Status: COMPLETED
 - Finding: Bug hunt round 2: verified no infinite loop from focusIdx clamp (removed focusIdx from deps), pruneExpired only in useEffect (not useMemo), all effects have proper cleanup. React #310 error was caused by focusIdx dep in clamp effect creating interaction with reset effect. All 20/20 tests pass.
+
+## 2026-08-18T14:45:38Z
+- Task: 20260818-142155-180721
+- Status: COMPLETED
+- Finding: React #310 root cause: markRead inside queryFn called queryClient.invalidateQueries → cascading re-renders. Fix: move markRead to useEffect with stable deps [msg?.uid, user?.sogoToken, folder, msgId]. Bundle hash changed to MailPage-DZ-tVu2G.js (confirming new code deployed).

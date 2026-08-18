@@ -1,10 +1,18 @@
 # Handoff Log
 
+## 2026-08-18 — React #310 root cause: markRead in queryFn cascading invalidation — DONE + DEPLOYED
+
+- **Gejala production:** React error #310 (Maximum update depth exceeded) — infinite re-render loop di MessageReader (bukan MailPage).
+- **Root cause SEBENARNYA:** `queryFn` di MessageReader `useQuery` memanggil `markRead()` yang trigger `queryClient.invalidateQueries(['messages', ...])` → MailPage re-render → MessageReader re-render → query run lagi → `markRead` lagi → infinite loop.
+- **Analisa:** Komponen `ot` di stack trace = MessageReader (bukan MailPage). Bundle `MailPage-CWkArTw9.js` = versi LAMA (browser cache). Bundle baru `MailPage-DZ-tVu2G.js` sudah ter-deploy.
+- **Fix:** Pindah `markRead` dari `queryFn` ke `useEffect` terpisah dengan deps stabil `[msg?.uid, user?.sogoToken, folder, msgId]`. QueryFn sekarang hanya `fetchMessage` — tidak ada side effect.
+- **Validasi:** 20/20 test PASS, build OK, deploy LIVE (commit 2d67bbf).
+
 ## 2026-08-18 — Bug hunt round 2: React #310 fix + cleanup — DONE + DEPLOYED
 
 - **Gejala production:** React error #310 (Maximum update depth exceeded) — infinite re-render loop di MailPage.
-- **Root cause:** focusIdx clamp effect punya `focusIdx` di dependency array → bisa berinteraksi dgn reset effect (`setFocusIdx(-1)` saat `visibleMessages.length` berubah) → React schedule berulang.
-- **Fix:** Hapus `focusIdx` dari dependency array clamp effect (hanya `messages.length` yang penting). Tambah `Math.max(0, ...)` utk handle `messages.length = 0`.
+- **Root cause (partial fix):** focusIdx clamp effect punya `focusIdx` di dependency array → bisa berinteraksi dgn reset effect.
+- **Fix:** Hapus `focusIdx` dari dependency array clamp effect. Tambah `Math.max(0, ...)` utk handle `messages.length = 0`.
 - **Additional cleanup:** pruneExpired comment dipermudah, verified semua effects punya cleanup, verified tidak ada side effect di useMemo.
 - **Validasi:** 20/20 test PASS, build OK, deploy LIVE (commit 1ec9207).
 
@@ -1048,6 +1056,13 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - ?? docs/ai/tasks/20260818-125516-114124.previous.md
 
 ## 2026-08-18T14:29:24Z
+- Status: COMPLETED
+- Objective: T-BUGHUNT-ROUND2: Bug hunt loop — regressions + deep audit
+- Branch: main
+- Changed Files:
+- No local changes detected
+
+## 2026-08-18T14:45:38Z
 - Status: COMPLETED
 - Objective: T-BUGHUNT-ROUND2: Bug hunt loop — regressions + deep audit
 - Branch: main

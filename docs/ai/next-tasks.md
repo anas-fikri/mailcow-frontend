@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: sogo-frontend
-Generated At: 2026-08-18T14:29:24Z
+Generated At: 2026-08-18T14:45:39Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Bug hunt round 2: verified no infinite loop from focusIdx clamp (removed focusIdx from deps), pruneExpired only in useEffect (not useMemo), all effects have proper cleanup. React #310 error was caused by focusIdx dep in clamp effect creating interaction with reset effect. All 20/20 tests pass.
+## 1. [MEDIUM] Follow up on discovered knowledge: React #310 root cause: markRead inside queryFn called queryClient.invalidateQueries → cascading re-renders. Fix: move markRead to useEffect with stable deps [msg?.uid, user?.sogoToken, folder, msgId]. Bundle hash changed to MailPage-DZ-tVu2G.js (confirming new code deployed).
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
