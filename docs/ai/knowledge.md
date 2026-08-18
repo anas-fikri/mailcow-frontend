@@ -235,3 +235,13 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: fitur-harian-batch2-2026-08-18
 - Status: COMPLETED
 - Finding: Batch 2 fitur harian sogo-frontend: (1) auto-advance reader via siblingUids+onNavigateTo (buka pesan berikutnya setelah hapus/arsip); (2) group by tanggal di daftar (dateGroups.js, parser toleran ISO/RFC/epoch/today/yesterday, bucket Hari Ini/Kemarin/Minggu Ini/Bulan Lalu/Lebih Lama, 32 test); (3) tambah ke kontak dari email (POST Contacts/personal/new {c_cn,c_mail,c_telephonenumber}, prefill from[0]/to[0]); (4) kalender: klik sel=pilih + tombol + per sel; (5) rule Jalankan Sekarang = matchRules+fetchMessages INBOX+moveMessages. 20/20 test + build OK. BELUM deploy.
+
+## 2026-08-18T10:13:20Z
+- Task: fitur-harian-batch2-2026-08-18
+- Status: COMPLETED
+- Finding: Comprehensive bug audit: (1) RulesPage handleRunNow referenced allFolders/handleRefresh before declaration (TDZ fragile); fix: reorder all deps before usage. (2) addRule + saveRules silently drop rules when email is empty — toast shows success but nothing saved; fix: throw error + guard in QuickRuleModal. (3) RulesPage handleRunNow passed raw string rule.actionFolder to moveMessages; fix: resolve via folderById → object. (4) Pattern lesson: localStorage silent fail is dangerous — always validate email param in save functions. Cross-component data consistency: ensure A saves and B reads same key format.
+
+## 2026-08-18T12:37:56Z
+- Task: fitur-harian-batch2-2026-08-18
+- Status: COMPLETED
+- Finding: SOGo v5 moveMessages expects absolute folder path in body (e.g. /anas.fikri@pcpexpress.com/folderArchive), not just 'Archive' or 'folderArchive'. Sending relative path causes HTTP 500. Also: ErrorBoundary now shows error details in production for debugging; removed 'N aturan' badge from folder header to save space.
