@@ -6,6 +6,12 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — React #310 infinite loop: focusIdx dep interaction
+
+- **React error #310 = Maximum update depth exceeded:** infinite re-render loop. Di MailPage, focusIdx clamp effect punya `focusIdx` di dependency array → berinteraksi dgn reset effect (`setFocusIdx(-1)` saat `visibleMessages.length` berubah) → React schedule berulang.
+- **Fix:** Hapus `focusIdx` dari dependency array — hanya `messages.length` yang penting. Clamp effect hanya perlu tahu kapan jumlah messages berubah, bukan kapan focusIdx berubah.
+- **Pelajaran:** useEffect yang memanggil setState sebaiknya TIDAK memasukkan state yang di-set ke dependency array — bisa create loop. Hanya masukkan dependencies yang MEMBUTUHKAN effect dijalankan ulang.
+
 ## 2026-08-18 — fetchMessage retry + MessageReader error UI
 
 - **SOGo transient 500:** SOGo偶尔return 500 saat overloaded (terutama banyak user login serentak). fetchMessage tanpa retry langsung throw → ErrorBoundary crash. Fix: retry 2x + delay 300ms/600ms.
@@ -267,3 +273,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260818-125516-114124
 - Status: COMPLETED
 - Finding: Bug hunt loop (5 pass) found 7 bugs: (1) visibleCount not reset on folder change, (2) snoozedUids pruneExpired side effect in useMemo, (3) focusIdx out-of-bounds when messages change, (4) quick reply missing recipient validation, (5) RulesPage toast shows raw folder ID, (6) executeRules silent error no toast, (7) autoArchive body field always fails (SOGo list view has no body). All fixed + 20/20 tests pass.
+
+## 2026-08-18T14:29:24Z
+- Task: 20260818-142155-180721
+- Status: COMPLETED
+- Finding: Bug hunt round 2: verified no infinite loop from focusIdx clamp (removed focusIdx from deps), pruneExpired only in useEffect (not useMemo), all effects have proper cleanup. React #310 error was caused by focusIdx dep in clamp effect creating interaction with reset effect. All 20/20 tests pass.

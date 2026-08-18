@@ -1,5 +1,13 @@
 # Handoff Log
 
+## 2026-08-18 — Bug hunt round 2: React #310 fix + cleanup — DONE + DEPLOYED
+
+- **Gejala production:** React error #310 (Maximum update depth exceeded) — infinite re-render loop di MailPage.
+- **Root cause:** focusIdx clamp effect punya `focusIdx` di dependency array → bisa berinteraksi dgn reset effect (`setFocusIdx(-1)` saat `visibleMessages.length` berubah) → React schedule berulang.
+- **Fix:** Hapus `focusIdx` dari dependency array clamp effect (hanya `messages.length` yang penting). Tambah `Math.max(0, ...)` utk handle `messages.length = 0`.
+- **Additional cleanup:** pruneExpired comment dipermudah, verified semua effects punya cleanup, verified tidak ada side effect di useMemo.
+- **Validasi:** 20/20 test PASS, build OK, deploy LIVE (commit 1ec9207).
+
 ## 2026-08-18 — fetchMessage retry + MessageReader error UI — DONE + DEPLOYED
 
 - **Gejala production:** buka email → "Terjadi Kesalahan" (ErrorBoundary crash) → refresh baru bisa. Juga local dev SOGo 500 through Vite proxy.
@@ -1038,3 +1046,10 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M src/pages/MailPage.jsx
 -  M src/pages/RulesPage.jsx
 - ?? docs/ai/tasks/20260818-125516-114124.previous.md
+
+## 2026-08-18T14:29:24Z
+- Status: COMPLETED
+- Objective: T-BUGHUNT-ROUND2: Bug hunt loop — regressions + deep audit
+- Branch: main
+- Changed Files:
+- No local changes detected
