@@ -6,6 +6,14 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — /api/v1/* Mailcow: inject X-API-Key di nginx (jangan hapus saat edit config)
+
+- **`site.control-tower.custom`** punya `location ^~ /api/v1/` → FastCGI `php-fpm-mailcow:9001` → `json_api.php` dengan `fastcgi_param HTTP_X_API_KEY "<MC key>"` — ini membuat request apa pun ke /api/v1/* lolos auth Mailcow (UI Mailcow session-cookie ATAU Control Tower SPA Bearer JWT). **Jangan hapus block ini saat mengedit config** — tanpanya SPA Control Tower dapat body kosong (dashboard halaman Mailcow blank) dan UI Mailcow tetap jalan via json_api template.
+- Gate `auth_request` (JWT/X-API-Key ke 3003) yang ditambah 11 Agu di block ini MEMBUNUH UI admin Mailcow (semua /api/v1/* 401) — gate TIDAK boleh dipasang lagi. Kombinasi benar: FastCGI + inject X-API-Key, TANPA auth_request.
+- Template Mailcow default: `location ~ ^/api/v1/(.*)$` → `try_files ... /json_api.php?query=$1` (tanpa key) — hanya layani request yang bawa X-API-Key sendiri. `^~` di site.custom menang dari regex template.
+- **⚠️ Implikasi keamanan:** /api/v1/* efektif publik (X-API-Key di-inject server-side, tidak pernah ke browser) — siapa pun yang bisa HTTP ke endpoint punya akses penuh API Mailcow. Status quo pra-11 Agu. Mitigasi: batasi source IP/origin atau pisahkan path Control Tower.
+- **Tes cepat:** `curl https://mail.pcpexpress.co.id/api/v1/get/mailbox/all` → 200 + JSON data (bukan body kosong) = inject jalan.
+
 ## 2026-08-18 — DUA proyek migration portal: imapsync-migrate (ASLI) vs migration-portal (salinan)
 
 - **`/home/anas.fikri/imapsync-migrate` = proyek ASLI/LIVE** (unit systemd 17 Agu menunjuk ke sini): auth `scripts/admin-auth-check.sh` — helper bash baca-only yang verifikasi via `doveadm pw -t` terhadap hash tabel `admin` Mailcow (support SEMUA skema: BLF-CRYPT, SSHA256, SSHA, PLAIN, dll). Env di `.env.server`: `MAILCOW_API_KEY/MAILCOW_ADMIN_USER/MAILCOW_ADMIN_PASS/JWT_SECRET/...` — TIDAK butuh DBUSER/DBPASS. Data: `data/jobs.json` (522 job) + `data/tokens.json` (520 token). Server.js punya security headers + `trust proxy` + rate limit per-IP (login admin) + `assertAdminAuthConfigured()`.
@@ -96,3 +104,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: incident-login-massal-2026-08-18
 - Status: COMPLETED
 - Finding: Dashboard migration portal kosong: ada DUA proyek — imapsync-migrate (ASLI, 522 job/520 token, auth doveadm helper via admin-auth-check.sh, env MAILCOW_API_KEY dkk) vs migration-portal (salinan tua bcryptjs 1 job). Saya restart proyek salah (migration-portal) sehingga dashboard tampil kosong. Fix: kill proses migration-portal, start imapsync-migrate (pid 670022) dengan source .env.server. Verifikasi: stats 522/408/114, health 200, helper HASH anas.fikri OK. TODO user sudo: unit systemd migration-portal.service harus menunjuk imapsync-migrate (sempat diarahkan ke migration-portal 04:26).
+
+## 2026-08-18T04:41:44Z
+- Task: incident-login-massal-2026-08-18
+- Status: COMPLETED
+- Finding: Control Tower mailboxes kosong: patch hapus gate /api/v1 (18 Agu) ikut menghapus location ^~ /api/v1/ FastCGI + inject X-API-Key server-side — SPA Control Tower dapat body kosong dari json_api tanpa key. Fix: restore block FastCGI + HTTP_X_API_KEY (tanpa gate auth_request yang membunuh UI Mailcow). Verifikasi: mailbox/all 919KB, domain/all 4.5KB, passwordpolicy/html 200, UI Mailcow POST / Login failed normal. Pelajaran: jangan hapus inject X-API-Key di site.control-tower.custom; gate auth_request JANGAN dipasang lagi. Catatan keamanan: /api/v1/* efektif publik (status quo pra-11 Agu).

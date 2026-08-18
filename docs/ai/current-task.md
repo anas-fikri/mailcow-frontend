@@ -3,8 +3,11 @@
 Status: COMPLETED
 Task ID: incident-login-massal-2026-08-18
 Started At: 2026-08-18
-Updated At: 2026-08-18T04:32:10Z
+Updated At: 2026-08-18T04:41:44Z
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
+
+## FIX 2026-08-18 — Control Tower mailboxes kosong → restore inject X-API-Key di /api/v1/*
+- Patch hapus gate ikut menghapus FastCGI + inject X-API-Key → Control Tower SPA dapat body kosong. Fix: restore location ^~ /api/v1/ FastCGI + HTTP_X_API_KEY (tanpa gate) → mailboxes 919KB data, semua endpoint 200. UI Mailcow tetap jalan.
 
 ## FIX 2026-08-18 — Dashboard migration portal kosong → proyek ASLI = imapsync-migrate, bukan migration-portal
 - Ada DUA proyek portal: `imapsync-migrate` (ASLI, 522 job + 520 token, auth doveadm helper) vs `migration-portal` (salinan tua, 1 job, bcryptjs). Saya restart yang salah (migration-portal) → dashboard kosong. Fix: start imapsync-migrate (pid 670022) → stats 522/408/114 ✅. TODO user (sudo): kembalikan unit systemd ke imapsync-migrate.

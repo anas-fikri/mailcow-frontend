@@ -1,5 +1,13 @@
 # Handoff Log
 
+## 2026-08-18 — Control Tower mailboxes kosong: /api/v1/* kehilangan inject X-API-Key — FIXED
+
+- **Gejala:** `https://mail.pcpexpress.co.id/control-tower/mailboxes` (dan halaman lain yang pakai /api/v1 Mailcow) kosong — tidak ada data mailbox.
+- **Root cause:** patch hapus gate /api/v1 (18 Agu 03:19) menghapus `location ^~ /api/v1/` SELURUHNYA — termasuk **inject X-API-Key server-side via FastCGI** yang selama ini membuat request apa pun ke /api/v1/* lolos auth Mailcow. Setelah patch, /api/v1/* jatuh ke template Mailcow (`location ~ ^/api/v1/(.*)$` → json_api.php) TANPA X-API-Key → SPA Control Tower (Bearer JWT CT) ditolak/body kosong → dashboard kosong.
+- **Fix (04:40):** restore `location ^~ /api/v1/` FastCGI + `fastcgi_param HTTP_X_API_KEY` (dari backup .bak-20260818) **TANPA gate auth_request** (gate-lah yang membunuh UI Mailcow). Sekarang: UI Mailcow (session cookie) DAN Control Tower SPA (Bearer) dua-duanya lolos karena X-API-Key inject server-side.
+- **Verifikasi:** `/api/v1/get/mailbox/all` → 200 **919KB** data; `/api/v1/get/domain/all` 200 4.5KB; `/api/v1/get/passwordpolicy/html` 200; `/api/v1/get/status/containers` 200; `POST /` login Mailcow → 200 "Login failed" (pipeline normal); `/api/version` 200; `/api/monitor/status` 401 (butuh JWT — normal). nginx -t OK + reload.
+- **⚠️ Catatan keamanan (status quo pra-11 Agu):** /api/v1/* kini efektif tanpa autentikasi tambahan — siapa pun yang bisa mencapai endpoint punya akses penuh API Mailcow (X-API-Key di-inject nginx, tidak ke browser). Ini kondisi yang sama dengan pra-11 Agu. Mitigasi jangka panjang: batasi /api/v1/* ke origin yang dikenal atau pindahkan Control Tower ke path sendiri.
+
 ## 2026-08-18 — Dashboard migration portal kosong: salah direktori (migration-portal vs imapsync-migrate) — FIXED
 
 - **Gejala:** user login `/migrate/admin/` sukses tapi dashboard kosong (1 user, padahal seharusnya 522).
@@ -600,6 +608,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/knowledge.md
 
 ## 2026-08-18T04:32:10Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+
+## 2026-08-18T04:41:44Z
 - Status: COMPLETED
 - Objective: No objective recorded.
 - Branch: main
