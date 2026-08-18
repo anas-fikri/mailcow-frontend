@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "last_session": "2026-08-18T13:28:14Z",
-  "context": "PCP Express Webmail — fix /api/preferences 401: sesi SMTP hilang saat reload → dulu force logout + mailbox kosong; kini fetchPreferences fallback localStorage (401/403 /api/* tidak memicu session-expired) + smtpToken di-persist. Sebelumnya: Round 9.7 IP login normal, history scrub 6 file debug/credential, sync workspace/macanas, engine ai-toolkit terbaru",
+  "last_session": "2026-08-18T13:35:00Z",
+  "context": "PCP Express Webmail — bug hunt loop (5 pass) + 7 bugs fix + deploy LIVE. Semua fitur baru (search, archive, moveMessages, rules, quick rule, auto-advance, group by tanggal, tambah kontak, quick reply signature) sudah stable. 20/20 test PASS.",
   "modules": {
     "mail-page": {
       "status": "done",
@@ -266,14 +266,13 @@
       "what": "Edge case: normalizeSubject type guard",
       "status": "done"
     }
-  ],
-  "active_task": {
-    "id": "20260818-125516-114124",
+  ],  "active_task": {
+    "id": "T-BUGHUNT-2026-08-18",
     "status": "COMPLETED",
-    "objective": "T-BUGHUNT: Comprehensive bug hunt loop — all features sogo-frontend",
-    "next_step": "",
-    "goal_id": "TBD",
-    "sub_goal_id": "TBD",
-    "updated_at": "2026-08-18T13:28:14Z"
+    "objective": "Bug hunt loop (5 pass) — comprehensive audit semua fitur sogo-frontend",
+    "next_step": "User request baru atau next-tasks.md",
+    "goal_id": "G-001",
+    "sub_goal_id": "G-001.S-006",
+    "updated_at": "2026-08-18T13:35:00Z"
   }
 }

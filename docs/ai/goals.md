@@ -55,7 +55,13 @@ Success criteria:
 - Test: `test:initials` baru; `test:login-flow` diperbarui ke perilaku JSON-first + warm-up toleran ✅
 - Validation: 11/11 test PASS, build ✅ | Deployed: preflight/build/rsync/nginx/HTTP 200/asset match ✅
 
-### Sub-goal G-001.S-006 — Round 5 bug hunt (2026-08-17)
+### Sub-goal G-001.S-006 — Round 8 bug hunt (2026-08-18)
+- Status: COMPLETE — deployed LIVE at `956bfca`
+- Bug hunt loop (5 pass): self-review, flow logic, edge case, cross-module, security.
+- 7 bugs fixed: pagination reset, useMemo side effect, focusIdx bounds, quick reply validation, toast raw ID, silent error, body field.
+- Validation: 20/20 test PASS, build OK, deploy LIVE.
+
+### Sub-goal G-001.S-007 — Round 5 bug hunt (2026-08-17)
 - Status: COMPLETE — deployed LIVE
 - Subject object crash dihapus di semua jalur (parse normalisasi + guard search/stats/reader/render) ✅
 - `formatAddresses` item string → "undefined" diperbaiki ✅

@@ -1,21 +1,21 @@
 # Suggested Next Tasks
 
 Project: sogo-frontend
-Generated At: 2026-08-18T13:28:14Z
+Generated At: 2026-08-18T13:35:00Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Bug hunt loop (5 pass) found 7 bugs: (1) visibleCount not reset on folder change, (2) snoozedUids pruneExpired side effect in useMemo, (3) focusIdx out-of-bounds when messages change, (4) quick reply missing recipient validation, (5) RulesPage toast shows raw folder ID, (6) executeRules silent error no toast, (7) autoArchive body field always fails (SOGo list view has no body). All fixed  20/20 tests pass.
-- Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
-- Source: knowledge.md
+## 1. [MEDIUM] Browser smoke test — visual verification
+- Why: Bug hunt loop fix belum diverifikasi di browser (pagination reset, focusIdx clamp, quick reply validation). Hard refresh perlu di production utk clear cache.
+- Action: hard refresh https://mail.pcpexpress.co.id/webmail/ → test ganti folder, keyboard nav, quick reply tanpa From.
 
-## 2. [MEDIUM] Advance goal: Sub-goal G-001.S-002 — Documentation currency
-- Why: Goal remains ACTIVE — historical deployment records are complete, but current login delivery status must remain synchronized..
-- Source: goals.md
+## 2. [MEDIUM] SOGo session timeout — konfigurasi 8 jam
+- Why: SOGoSessionTimeout belum diset → default 30 menit idle → hard refresh = logout. User diminta konfirmasi set 480 (8 jam).
+- Source: handoff.md entry 2026-08-17 (Round 9.6)
 
-## 3. [LOW] Review and commit current changes
-- Why: 9 uncommitted file entries remain in the project.
-- Source: git status
+## 3. [LOW] Migration portal systemd unit — kembalikan ke imapsync-migrate
+- Why: Unit systemd masih menunjuk migration-portal (salah) → crash-loop. Butuh sudo utk perbaiki.
+- Source: handoff.md entry 2026-08-18
 
 ## Agent Use
 

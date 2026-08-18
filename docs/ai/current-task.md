@@ -1,28 +1,30 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260818-125516-114124
+Task ID: T-BUGHUNT-2026-08-18
 Started At: 2026-08-18T12:55:16Z
-Updated At: 2026-08-18T13:28:14Z
+Updated At: 2026-08-18T13:35:00Z
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
 
 ## Objective
-T-BUGHUNT: Comprehensive bug hunt loop — all features sogo-frontend
+Bug hunt loop (5 pass) — comprehensive audit semua fitur sogo-frontend
 
 ## Goal Link
-Goal ID: TBD
-Sub-goal ID: TBD
+Goal ID: G-001
+Sub-goal ID: G-001.S-006 (Round 8 bug hunt)
 
 ## Files Involved
-- To be determined
+- src/pages/MailPage.jsx (pagination reset, focusIdx clamp, executeRules toast)
+- src/pages/RulesPage.jsx (toast raw folder ID)
+- src/components/mailer/MessageReader.jsx (quick reply recipient validation)
+- src/lib/autoArchive.js (body field removed from RULE_FIELDS)
 
 ## Next Steps
-- Inspect the current code and context
-- Execute the task
-- Update handoff notes before switching tools
+- Task selesai, semua sudah deployed
+- Berikutnya: user request baru atau next-tasks.md
 
 ## Risks
-- None recorded
+- None
 
 ## Validation
-- Not run
+- 20/20 test PASS + build OK + deploy LIVE (commit 956bfca)
