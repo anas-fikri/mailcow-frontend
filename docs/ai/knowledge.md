@@ -6,6 +6,15 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — Sesi SOGo tinggal di memcached — flush_all cron = logout massal tiap 5 menit
+
+- **SOGo simpan SESI di memcached** (`SOGoMemcachedHost = "memcached"`; key `session:*`, size 2102B; cache lain: `<user>+attributes/defaults/settings`, `/Users/<user>/...`). `flush_all` = semua sesi mati seketika.
+- **`sync_sogo_passwords.sh` (cron */5 mnt di host mail) unconditional `flush_all` memcached** — bahkan saat `ROW_COUNT = 0` (UPDATE tidak mengubah apa pun). Efek: seluruh user webmail ke-logout tiap ≤5 menit; race saat login (`/connect` sukses → flush → warm-up `/SOGo/so/...` 403) = error "Sesi SOGo tidak terbentuk" di `warmUpSogoSession()`.
+- **Fix 2026-08-18:** flush hanya jika `ROWS > 0` (ada password berubah). SOGo cache hash password di memcached (`<user>+attributes` berisi `"password":"<hash>"`) — itu alasan flush ada; tapi invalidasi cukup saat reset password, bukan tiap tick. Backup: `sync_sogo_passwords.sh.bak-20260818`.
+- **Efek samping positif:** `x+failedlogins` (memcached, throttle brute-force) tidak di-reset tiap 5 mnt lagi → deteksi brute force efektif.
+- **Diagnosa cepat:** amati key `session:*` memcached sebelum/sesudah cron tick. Nol sesi tepat setelah tick = ada yang flush memcached. (Observed: 03:29 ada 2 sesi → 03:30:20 nol → setelah fix bertahan 4+ tick.)
+- **Cara akses memcached:** `docker exec mailcow-memcached-mailcow-1 sh -c "echo 'stats cachedump <slab> 500' | nc 127.0.0.1 11211"`.
+
 ## 2026-08-18 — Pitfall CSS: `color-scheme: light dark` vs `prefers-color-scheme`
 
 - `color-scheme: light dark` memberitahu browser utk merender default UI (teks/form/scrollbar) sesuai skema OS — TAPI browser yang tidak support media query `prefers-color-scheme` (beberapa WebView/lama) tetap mengikuti skema gelap utk default text → teks putih di background terang. Halaman statis harus set `color-scheme` eksplisit per skema: default `light` + `dark` di dalam media query, dan beri warna eksplisit utk `a`/elemen default.
@@ -56,3 +65,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: incident-login-massal-2026-08-18
 - Status: COMPLETED
 - Finding: Root cause admin Mailcow ga bisa login: gate auth_request di site.control-tower.custom (location ^~ /api/v1/) sejak 11 Agu blokir semua API Mailcow. Fix: hapus gate, nginx -t + reload, /api/v1/* balik ke Mailcow json_api. Login UI Mailcow = POST / (login_user/pass_user), bukan /api/v1/login (404 normal). Password admin tdk match AdminMail2026! (docs outdated). Backup: site.control-tower.custom.bak-20260818.
+
+## 2026-08-18T03:51:24Z
+- Task: incident-login-massal-2026-08-18
+- Status: COMPLETED
+- Finding: ROOT CAUSE Sesi SOGo tidak terbentuk: sync_sogo_passwords.sh (cron */5mnt) unconditional flush_all memcached tiap 5 menit — sesi SOGo tersimpan di memcached, jadi semua user webmail ke-logout tiap ≤5 menit + race saat login (connect sukses -> flush -> warm-up 403). Fix: flush hanya jika ROW_COUNT>0 (ada password berubah). Terbukti: sebelum fix sesi hilang tepat setelah cron tick (03:30 nol sesi), setelah fix sesi bertahan 4+ tick (03:35-03:50). Backup sync_sogo_passwords.sh.bak-20260818. Bonus: x+failedlogins (throttle brute-force) tidak di-reset tiap 5 menit lagi.

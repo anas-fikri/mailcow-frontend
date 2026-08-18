@@ -3,8 +3,13 @@
 Status: COMPLETED
 Task ID: incident-login-massal-2026-08-18
 Started At: 2026-08-18
-Updated At: 2026-08-18T03:15:00Z
+Updated At: 2026-08-18T03:51:24Z
 Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
+
+## FIX BARU 2026-08-18 — "Sesi SOGo tidak terbentuk" → sync_sogo_passwords.sh flush memcached tiap 5 mnt — FIXED & TERBUKTI
+- Root cause: cron `sync_sogo_passwords.sh` (tiap 5 mnt) `flush_all` memcached tanpa syarat → sesi SOGo (di memcached) mati semua tiap 5 mnt → race saat login ("Sesi SOGo tidak terbentuk") + logout mendadak massal.
+- Bukti: 03:29 ada sesi → 03:30:20 (setelah tick) NOL → setelah fix (script flush hanya jika ROWS>0) sesi bertahan 4+ tick, keys tidak pernah nol.
+- Detail: docs/ai/handoff.md (entry teratas). Tidak perlu deploy frontend — murni fix script di mailserver.
 
 ## INCIDENT 2026-08-18 — login webmail gagal massal
 - Kantor (115.178.128.130) timeout = MikroTik spam-blocklist (spam-detect.sh) + CrowdSec ban → **RESOLVED**: unban + allowlist CrowdSec + whitelist prefix `115.178.128.` di spam-detect.sh → HTTP 200 ✅ stabil 2+ siklus.

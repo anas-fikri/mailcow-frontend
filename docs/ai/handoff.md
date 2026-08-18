@@ -1,5 +1,15 @@
 # Handoff Log
 
+## 2026-08-18 — ROOT CAUSE "Sesi SOGo tidak terbentuk": sync_sogo_passwords.sh flush memcached tiap 5 menit — FIXED & TERBUKTI
+
+- **Gejala (user report):** `https://mail.pcpexpress.com/webmail/login` → pesan "Sesi SOGo tidak terbentuk. Periksa cookie browser, proxy, atau status akun lalu coba lagi." = `warmUpSogoSession()` di `src/lib/api.js` dapat 401/403 di shell `/SOGo/so/{user}` / `/Mail/view` / `/Mail/0/view` setelah `/connect` sukses.
+- **Root cause:** `sync_sogo_passwords.sh` (cron tiap 5 mnt di mailserver) menjalankan **`flush_all` memcached TANPA SYARAT** — bahkan saat `ROW_COUNT = 0` (tidak ada password berubah). SOGo menyimpan SESI di memcached (`SOGoMemcachedHost = "memcached"`; key `session:*` teramati) → **SEMUA sesi webmail mati tiap 5 menit**. Race: user login → `/connect` buat sesi → cron flush di antara `/connect` dan warm-up → warm-up 403 → "Sesi SOGo tidak terbentuk". Juga user yang sedang pakai webmail kena logout mendadak tiap ≤5 menit (pola keluhan "ga bisa login" / "Login ditolak" yang selama ini disalahkan ke password user).
+- **Bukti observasi langsung:** 03:29 ada 2 sesi → 03:30:20 (tepat setelah cron tick) **NOL sesi** → 03:32 sesi baru muncul (user re-login). Setelah fix: sesi bertahan lewat 4 tick cron (03:35/03:40/03:45/03:50), keys memcached 10 → 22 (tidak pernah nol).
+- **Mengapa flush ada:** SOGo cache hash password di memcached (key `<user>+attributes` berisi `"password":"<hash>"`). Flush dimaksudkan utk invalidasi cache password saat reset. Tapi tak perlu tiap 5 mnt saat tidak ada perubahan.
+- **Fix:** edit `/home/anas.fikri/sync_sogo_passwords.sh` — flush hanya jika `ROWS > 0` (backup `.bak-20260818`). `bash -n` ✅, jalan manual → `updated 0 rows (no change, cache kept)` ✅.
+- **Efek samping positif:** `x+failedlogins` (throttle brute-force) tidak lagi di-reset tiap 5 mnt → deteksi brute force lebih efektif.
+- **Catatan:** 403 `/SOGo/so/{user}/Mail` (tanpa `/view`) di log nginx = navigasi langsung browser dgn sesi mati (warisan flush lama), bukan warm-up flow. Warm-up paths (`/Mail/view`, `/Mail/0/view`) mayoritas 200.
+
 ## 2026-08-18 — Verifikasi Control Tower pasca-hapus gate /api/v1 — route Express sempat hilang, di-restore
 
 - **Temuan:** patch hapus gate /api/v1 sebelumnya TERLALU BANYAK menghapus — dari `location @api_v1_unauthorized` sampai EOF ikut terhapus route Control Tower: `location ~ ^/api/mcp` → 3004 (MCP) dan `location ~ ^/api/(auth/|crowdsec/|...|monitor/)` → 3003 (Express JWT). Akibatnya `/api/auth/login` dll 404 → Control Tower login JWT mati.
@@ -542,5 +552,14 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - Objective: No objective recorded.
 - Branch: main
 - Changed Files:
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+
+## 2026-08-18T03:51:24Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
 -  M docs/ai/handoff.md
 -  M docs/ai/knowledge.md
