@@ -1297,11 +1297,7 @@ export default function MailPage() {
                 <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                   {totalMessageCount}
                 </span>
-                {enabledRules > 0 && selectedFolder === 'folderINBOX' && (
-                  <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full font-normal">
-                    {enabledRules} aturan
-                  </span>
-                )}
+
               </h2>
               {isFetchingMessages && !loadingMessages && (
                 <Loader2 size={14} className="animate-spin text-muted-foreground" />

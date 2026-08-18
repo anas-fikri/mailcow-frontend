@@ -49,13 +49,13 @@ export default class ErrorBoundary extends React.Component {
           <p className="text-sm text-muted-foreground text-center max-w-md mb-6">
             Maaf, terjadi kesalahan yang tidak terduga. Silakan coba refresh halaman atau kembali.
           </p>
-          {/* Hanya tampilkan detail teknis di dev mode */}
-          {import.meta.env.DEV && this.state.error && (
-            <details className="w-full max-w-md mb-6">
+          {/* Detail error selalu tampil — utk debugging production */}
+          {this.state.error && (
+            <details className="w-full max-w-md mb-6" open>
               <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-                Detail Teknis (DEV)
+                Detail Error
               </summary>
-              <pre className="mt-2 p-3 bg-muted rounded-lg text-xs text-muted-foreground overflow-auto max-h-32">
+              <pre className="mt-2 p-3 bg-muted rounded-lg text-xs text-muted-foreground overflow-auto max-h-48">
                 {this.state.error.message}
                 {this.state.errorInfo?.componentStack}
               </pre>
