@@ -1,5 +1,14 @@
 # Handoff Log
 
+## 2026-08-18 — ROOT CAUSE admin Mailcow: gate /api/v1/* (Control Tower) memblokir UI Mailcow — FIXED
+
+- **Gejala:** banyak orang tidak bisa login, termasuk tim utk login admin Mailcow (`mail.pcpexpress.co.id/`).
+- **Root cause:** `site.control-tower.custom` (nginx) punya `location ^~ /api/v1/` + **`auth_request` gate** (JWT Bearer dashboard / X-API-Key MCP, via `server.js:3003/api/auth/v1-check`) sejak 11 Agu (diff vs .bak 27 Jul: dulu proxy balik tanpa gate). Gate ini menangkap **SEMUA** `/api/v1/*` — termasuk yang dipakai UI admin Mailcow (`/api/v1/get/passwordpolicy/html`, dll) → semua 401 "Unauthorized: provide Bearer token or X-API-Key" → UI Mailcow tidak bisa login/berfungsi.
+- **Fix:** hapus block `^~ /api/v1/` + `@api_v1_unauthorized` dari site.control-tower.custom (backup `.bak-20260818`), `nginx -t` OK + reload. `/api/v1/*` kembali ke Mailcow (template regex `json_api.php`).
+- **Verifikasi:** GET `/api/v1/get/*` 200; `POST /` (form login Mailcow, `login_user`/`pass_user` → fetch ke halaman sendiri, BUKAN `/api/v1/login`) → 200 "Login failed" utk password salah (pipeline normal); 4 URL user 200; Control Tower SPA + `/api/v1/get/status/containers` 200.
+- **Catatan:** `/api/v1/login` 404 = NORMAL (UI Mailcow login via `POST /`, bukan /api/v1/login). json_api.php mtime 6 Agu.
+- **Password admin `admin` TIDAK match `AdminMail2026!`** (docs 05 Agu) — sudah berubah. Tim yang masih "Login failed" dgn password benar → password di DB beda → reset password (via Mailcow UI yg kini pulih, atau minta bantuan set hash).
+
 ## 2026-08-18 — Fix migration portal: akun SSHA256 tidak bisa login walau password benar
 
 - **Gejala:** user login `https://mail.pcpexpress.co.id/migrate/admin/` dgn password benar → "Username atau password salah". Khawatir mail client kena masalah sama.
@@ -509,5 +518,13 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - Branch: main
 - Changed Files:
 -  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+
+## 2026-08-18T03:15:00Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
 -  M docs/ai/handoff.md
 -  M docs/ai/knowledge.md

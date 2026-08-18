@@ -6,6 +6,13 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — Nginx /api/v1/* konflik Mailcow vs Control Tower
+
+- **Konflik path:** Control Tower dashboard memakai `/api/v1/*` Mailcow. Sejak 11 Agu, `site.control-tower.custom` meng-gate `location ^~ /api/v1/` dgn `auth_request` (JWT/X-API-Key via 3003) + FastCGI langsung ke php-fpm dgn inject X-API-Key → **UI admin Mailcow mati** (semua /api/v1/* 401). Fix 18 Agu: hapus gate → `/api/v1/*` kembali ke Mailcow (template `sites-default.conf.j2`: `location ~ ^/api/v1/(.*)$` → `json_api.php?query=$1`).
+- **Login UI Mailcow = `POST /`** (index.php, form `login_user`/`pass_user`, submit via `fetch(window.location.href)`), BUKAN `/api/v1/login` (route tsb 404 di json_api — normal). API v1 = add/edit/get/del (json_api.php).
+- **Lokasi config:** `/data/docker-data/mailcow/data/conf/nginx/site.*.custom` di host `mail` → di-mount ke container mailcow-nginx (path sama). `nginx -t` + `nginx -s reload` di container utk apply.
+- **Pelajaran:** sebelum menambah `location ^~ /api/v1/` apa pun di Mailcow, ingat bahwa path itu milik UI Mailcow (PHP). Control Tower sebaiknya pakai path sendiri (mis. /control-tower/api) utk tidak mencuri /api/v1/*.
+
 ## 2026-08-18 — Migration portal auth: skema password + lokasi
 
 - **Lokasi:** `/home/anas.fikri/migration-portal` di host `mail` (BUKAN innaka), port 3007, nginx `/migrate` → `192.168.10.200:3007` (`site.migration.custom`). Jalan via `nohup node server.js` (cwd migration-portal). Route login: `POST /migrate/api/auth/login`.
@@ -40,3 +47,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: incident-login-massal-2026-08-18
 - Status: COMPLETED
 - Finding: INCIDENT login massal 2026-08-18. Kantor timeout: MikroTik spam-blocklist (spam-detect.sh, cron */2mnt, threshold 5 SASL fail/5mnt) + CrowdSec ban false positive — resolved via unban + allowlist + whitelist prefix 115.178.128. Cabang Login ditolak = password user tidak cocok (bukan bug), plus brute force 16 Agu 9271 attempt. String lt0qcqr9 di log SOGo = SSO password internal, bukan password user. Backup spam-detect.sh.bak-20260818.
+
+## 2026-08-18T03:15:00Z
+- Task: incident-login-massal-2026-08-18
+- Status: COMPLETED
+- Finding: Root cause admin Mailcow ga bisa login: gate auth_request di site.control-tower.custom (location ^~ /api/v1/) sejak 11 Agu blokir semua API Mailcow. Fix: hapus gate, nginx -t + reload, /api/v1/* balik ke Mailcow json_api. Login UI Mailcow = POST / (login_user/pass_user), bukan /api/v1/login (404 normal). Password admin tdk match AdminMail2026! (docs outdated). Backup: site.control-tower.custom.bak-20260818.
