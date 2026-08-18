@@ -6,6 +6,13 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-18 — fetchMessage retry + MessageReader error UI
+
+- **SOGo transient 500:** SOGo偶尔return 500 saat overloaded (terutama banyak user login serentak). fetchMessage tanpa retry langsung throw → ErrorBoundary crash. Fix: retry 2x + delay 300ms/600ms.
+- **ErrorBoundary vs internal error UI:** ErrorBoundary menangkap SEMUA error di tree → tampil scary page "Terjadi Kesalahan". Untuk error yang BUKAN crash (fetch gagal, data kosong), lebih baik handle internal di komponen → tampil error UI yang user-friendly + tombol retry.
+- **React Query retry vs manual retry:** React Query punya retry bawaan (default 3x), tapi delay-nya terlalu pendek utk SOGo yang butuh waktu recover. Tambahan `retry: 2, retryDelay: 500` di useQuery memberikan waktu lebih.
+- **Pelajaran:** komponen yang fetch data kritis (email body) harus punya 3 lapis defense: (1) fetch retry, (2) React Query retry, (3) internal error UI dengan tombol retry. Jangan biarkan error bubble ke ErrorBoundary untuk kasus transient.
+
 ## 2026-08-18 — Bug hunt loop: 7 bugs ditemukan + diperbaiki (5-pass systematic)
 
 - **Side effect di useMemo:** `pruneExpired()` menulis localStorage di dalam `useMemo` → side effect saat render. Pattern ini bahaya: React bisa panggil useMemo berkali-kali (concurrent mode). Fix: pisah ke `useEffect` terpisah.

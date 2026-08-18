@@ -1,5 +1,14 @@
 # Handoff Log
 
+## 2026-08-18 — fetchMessage retry + MessageReader error UI — DONE + DEPLOYED
+
+- **Gejala production:** buka email → "Terjadi Kesalahan" (ErrorBoundary crash) → refresh baru bisa. Juga local dev SOGo 500 through Vite proxy.
+- **Root cause:** `fetchMessage` tidak punya retry → transient SOGo 500 langsung throw → ErrorBoundary tangkap → error page scary. React Query default retry 3x tapi tetap gagal kalau SOGo lagi sibuk.
+- **Fix #1 — `api.js` fetchMessage retry:** retry 2x dengan delay 300ms/600ms saat SOGo return 500. Juga retry network errors (no status).
+- **Fix #2 — MessageReader error UI:** handle `msgError` dari React Query secara internal — tampilkan UI error yang user-friendly (Ikon AlertCircle + "Gagal memuat pesan" + tombol "Coba Lagi" + "Kembali"). Error TIDAK lagi bubble ke ErrorBoundary → tidak ada scary page.
+- **Fix #3 — React Query retry:** tambah `retry: 2, retryDelay: 500` di useQuery fetchMessage.
+- **Validasi:** 20/20 test PASS, build OK, deploy LIVE (commit e8fe1d7).
+
 ## 2026-08-18 — Bug hunt loop (5 pass) + fix 7 bugs — DONE + DEPLOYED
 
 - **Metode:** ai-toolkit bug hunt loop (5 pass: self-review, flow logic, edge case, cross-module, security).

@@ -20,7 +20,7 @@ Sub-goal ID: G-001.S-006 (Round 8 bug hunt)
 - src/lib/autoArchive.js (body field removed from RULE_FIELDS)
 
 ## Next Steps
-- Task selesai, semua sudah deployed
+- Semua sudah deployed
 - Berikutnya: user request baru atau next-tasks.md
 
 ## Risks
