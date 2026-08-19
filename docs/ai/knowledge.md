@@ -372,3 +372,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260819-142017-382878
 - Status: COMPLETED
 - Finding: Alias SSH produksi kini 'deploy-mail' (SERVER=deploy-mail ./deploy.sh); 'mailserver' tidak lagi resolve dari workspace. docs/ai sempat basi: masih mengklaim deploy BLOCKED/NOT LIVE dan CSP img-src 'self' data: https: — sudah dikoreksi ke state LIVE (HEAD 2feb96c). Decision log bersifat historis: entry lama dipertahankan dan hanya ditandai superseded, bukan ditulis ulang.
+
+## 2026-08-19T14:26:55Z
+- Task: 20260819-142636-337630
+- Status: COMPLETED
+- Finding: DOMPurify EMAIL_PURIFY_CONFIG sudah mengizinkan tag picture/source + srcset, jadi HTML email bisa memuat gambar via srcset dan <picture><source>; rewrite berbasis DOM API (template.content.querySelectorAll) aman dari injection. rewriteSrcset harus mempertahankan whitespace asli antar kandidat (split koma) dan hanya rewrite kandidat http(s). rewriteCssUrls pakai regex url(...) dengan backreference quote agar quote asli dipertahankan.

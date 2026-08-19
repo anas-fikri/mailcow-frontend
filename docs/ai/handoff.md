@@ -1275,3 +1275,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/goals.md
 -  M docs/ai/project-context.md
 - ?? docs/ai/tasks/20260819-142017-382878.previous.md
+
+## 2026-08-19T14:26:55Z
+- Status: COMPLETED
+- Objective: Webmail: perluas proxyExternalImages — srcset, <picture><source>, CSS background-image/url()
+- Summary: Perluas proxyExternalImages: kini menangani <img srcset> + <source srcset> (rewriteSrcset — pertahankan whitespace + descriptor, skip kandidat data:/relatif) dan CSS url(...) pada inline style attribute + <style> block (rewriteCssUrls — dukung quote single/double/tanpa, skip data:/relatif). Vektor srcset/<picture>/CSS background-image yang sebelumnya hanya diblokir CSP kini di-rewrite aktif: gambar tetap tampil via proxy DAN IP tetap aman. 15/15 test PASS, build OK.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M scripts/test-image-proxy.mjs
+-  M src/lib/imageProxy.js
+- ?? docs/ai/tasks/20260819-142636-337630.previous.md

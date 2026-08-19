@@ -24,9 +24,55 @@ export function toProxyUrl(src) {
 }
 
 /**
+ * Rewrite srcset eksternal. Format: kandidat "URL [descriptor]" dipisah koma.
+ * Hanya kandidat yang dimulai http(s) yang di-rewrite; kandidat lain (data:, dll)
+ * dibiarkan utuh dan whitespace asli dipertahankan.
+ * Kembalikan string yang sama bila tidak ada perubahan.
+ */
+export function rewriteSrcset(srcset) {
+  if (typeof srcset !== 'string' || !srcset.trim()) return srcset;
+  let changed = false;
+  const parts = srcset.split(',');
+  const rewritten = parts.map((part) => {
+    const lead = part.slice(0, part.length - part.trimStart().length);
+    const trimmed = part.trimStart();
+    const m = trimmed.match(/^(\S+)(\s+.*)?$/);
+    if (!m) return part;
+    const url = m[1];
+    const descriptor = m[2] || '';
+    if (isExternalImageUrl(url)) {
+      changed = true;
+      return `${lead}${toProxyUrl(url)}${descriptor}`;
+    }
+    return part;
+  });
+  return changed ? rewritten.join(',') : srcset;
+}
+
+/**
+ * Rewrite semua url(...) eksternal pada teks CSS (inline style attribute atau
+ * isi <style>). Menangkap background-image, background, content, list-style,
+ * @import, dll. Quote (', ", atau tanpa quote) dipertahankan.
+ * Kembalikan string yang sama bila tidak ada perubahan.
+ */
+export function rewriteCssUrls(cssText) {
+  if (typeof cssText !== 'string' || !cssText) return cssText;
+  let changed = false;
+  const out = cssText.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (whole, quote, url) => {
+    if (isExternalImageUrl(url)) {
+      changed = true;
+      return `url(${quote}${toProxyUrl(url)}${quote})`;
+    }
+    return whole;
+  });
+  return changed ? out : cssText;
+}
+
+/**
  * Rewrite src eksternal pada HTML yang SUDAH DOMPurify-sanitized ke proxy.
  * Browser-only (pakai DOM API, bukan string concat → aman dari injection).
- * Kembalikan string yang sama bila tidak ada perubahan.
+ * Menangani <img src>, <img|source srcset>, dan CSS url(...) pada style
+ * attribute + <style> block. Kembalikan string yang sama bila tidak ada perubahan.
  */
 export function proxyExternalImages(sanitizedHtml) {
   if (!sanitizedHtml) return sanitizedHtml;
@@ -35,11 +81,39 @@ export function proxyExternalImages(sanitizedHtml) {
   const tpl = document.createElement('template');
   tpl.innerHTML = sanitizedHtml;
 
+  // <img src>
   const imgs = tpl.content.querySelectorAll('img[src]');
   for (const img of imgs) {
     const src = img.getAttribute('src') || '';
     if (isExternalImageUrl(src)) {
       img.setAttribute('src', toProxyUrl(src));
+    }
+  }
+
+  // <img srcset> + <source srcset>
+  const srcsets = tpl.content.querySelectorAll('img[srcset], source[srcset]');
+  for (const el of srcsets) {
+    const next = rewriteSrcset(el.getAttribute('srcset') || '');
+    if (next !== el.getAttribute('srcset')) {
+      el.setAttribute('srcset', next);
+    }
+  }
+
+  // CSS url(...) pada inline style attribute.
+  const styled = tpl.content.querySelectorAll('[style]');
+  for (const el of styled) {
+    const next = rewriteCssUrls(el.getAttribute('style') || '');
+    if (next !== el.getAttribute('style')) {
+      el.setAttribute('style', next);
+    }
+  }
+
+  // CSS url(...) pada <style> block.
+  const styles = tpl.content.querySelectorAll('style');
+  for (const el of styles) {
+    const next = rewriteCssUrls(el.textContent || '');
+    if (next !== el.textContent) {
+      el.textContent = next;
     }
   }
 

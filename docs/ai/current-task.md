@@ -1,29 +1,27 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260819-142017-382878
-Started At: 2026-08-19T14:20:17Z
-Updated At: 2026-08-19T14:22:30Z
+Task ID: 20260819-142636-337630
+Started At: 2026-08-19T14:26:36Z
+Updated At: 2026-08-19T14:26:55Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: documentation currency G-001.S-002 — reconcile docs/ai dgn state deploy terkini (deploy-mail LIVE, image-proxy, backend deploy otomatis)
+Webmail: perluas proxyExternalImages — srcset, <picture><source>, CSS background-image/url()
 
 ## Goal Link
 Goal ID: G-001
-Sub-goal ID: G-001.S-002
+Sub-goal ID: G-001.S-009
 
 ## Files Involved
-- docs/ai/project-context.md — path, tanggal, deploy mechanics (single-source nginx + backend deploy), image-proxy/SSRF, hapus note "pushed but not live"
-- docs/ai/application-map.md — audit date 08-19, endpoint /api/image-proxy, security controls baru, hapus claim BLOCKED/NOT LIVE
-- docs/ai/goals.md — G-001.S-002 → COMPLETE + evidence terkini; tambah G-001.S-009 (security hardening 08-19)
-- docs/ai/decisions.md — tambah entry 08-19 (image-proxy, CSP fail-closed, deploy single-source, header injection, info disclosure); mark note lama superseded
+- src/lib/imageProxy.js — tambah rewriteSrcset() (img|source srcset, pertahankan whitespace/descriptor) + rewriteCssUrls() (url(...) pada style attribute + <style> block); proxyExternalImages kini juga proses srcset + CSS url()
+- scripts/test-image-proxy.mjs — test baru rewriteSrcset + rewriteCssUrls (quote single/double/tanpa, data:, multiple url, gradient)
 
 ## Next Steps
-- (selesai) commit + push
+- (selesai) build + test + deploy
 
 ## Risks
-- Entry historis di decisions.md dipertahankan sebagai audit history (tidak ditulis ulang), hanya ditandai superseded.
+- Vektor srcset/<picture>/CSS background-image sebelumnya hanya diblokir CSP (fail-closed); kini di-rewrite aktif agar gambar tetap tampil + IP tetap aman.
 
 ## Validation
-- git diff --check OK · tidak ada sisa klaim "BLOCKED/NOT LIVE"/"does not resolve locally" yang menyesatkan
+- 15/15 test PASS (test:image-proxy diperluas) · npm run build OK · bundle memuat logika srcset
