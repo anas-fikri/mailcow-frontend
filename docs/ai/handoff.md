@@ -1261,3 +1261,17 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/current-task.md
 -  M scripts/test-nginx-routes.mjs
 - ?? docs/ai/tasks/20260819-141730-202327.previous.md
+
+## 2026-08-19T14:22:30Z
+- Status: COMPLETED
+- Objective: Webmail: documentation currency G-001.S-002 — reconcile docs/ai dgn state deploy terkini (deploy-mail LIVE, image-proxy, backend deploy otomatis)
+- Summary: Documentation currency G-001.S-002: reconcile docs/ai dgn state terkini. project-context/application-map/goals/decisions diperbarui — hapus klaim usang 'deploy BLOCKED/NOT LIVE karena mailserver tidak resolve' (kini LIVE via SSH alias deploy-mail), tambah endpoint /api/image-proxy + security controls (SSRF guard, email validation, CSP fail-closed), deploy mechanics single-source nginx + backend deploy otomatis, dan sub-goal G-001.S-009 (security hardening 08-19). Entry historis decisions.md dipertahankan sebagai audit history (ditandai superseded).
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/application-map.md
+-  M docs/ai/current-task.md
+-  M docs/ai/decisions.md
+-  M docs/ai/goals.md
+-  M docs/ai/project-context.md
+- ?? docs/ai/tasks/20260819-142017-382878.previous.md

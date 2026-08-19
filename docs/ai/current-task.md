@@ -1,27 +1,29 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260819-141730-202327
-Started At: 2026-08-19T14:17:30Z
-Updated At: 2026-08-19T14:17:46Z
+Task ID: 20260819-142017-382878
+Started At: 2026-08-19T14:20:17Z
+Updated At: 2026-08-19T14:22:30Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: deploy.sh verify() tambah health-check /api/image-proxy (SSRF guard + smoke test gambar eksternal)
+Webmail: documentation currency G-001.S-002 — reconcile docs/ai dgn state deploy terkini (deploy-mail LIVE, image-proxy, backend deploy otomatis)
 
 ## Goal Link
 Goal ID: G-001
 Sub-goal ID: G-001.S-002
 
 ## Files Involved
-- deploy.sh — verify() + verify_image_proxy(): cek route image-proxy (internal IP → 403) + smoke test gambar eksternal (200 image/*); tambah fungsi warn() + warna YELLOW (sebelumnya dipakai tanpa definisi); webmail_host() ambil host dari WEBMAIL_URL
-- scripts/test-nginx-routes.mjs — verifikasi verify_image_proxy + warn() ada
+- docs/ai/project-context.md — path, tanggal, deploy mechanics (single-source nginx + backend deploy), image-proxy/SSRF, hapus note "pushed but not live"
+- docs/ai/application-map.md — audit date 08-19, endpoint /api/image-proxy, security controls baru, hapus claim BLOCKED/NOT LIVE
+- docs/ai/goals.md — G-001.S-002 → COMPLETE + evidence terkini; tambah G-001.S-009 (security hardening 08-19)
+- docs/ai/decisions.md — tambah entry 08-19 (image-proxy, CSP fail-closed, deploy single-source, header injection, info disclosure); mark note lama superseded
 
 ## Next Steps
 - (selesai) commit + push
 
 ## Risks
-- Smoke test gambar eksternal bersifat non-fatal (warn) — tergantung koneksi keluar server; cek SSRF guard (403) tetap deterministik/fatal.
+- Entry historis di decisions.md dipertahankan sebagai audit history (tidak ditulis ulang), hanya ditandai superseded.
 
 ## Validation
-- bash -n deploy.sh OK · test:nginx-routes PASS · deploy live: SSRF 403 + gambar eksternal 200 image/png
+- git diff --check OK · tidak ada sisa klaim "BLOCKED/NOT LIVE"/"does not resolve locally" yang menyesatkan

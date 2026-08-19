@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-19T14:17:46Z",
+  "last_session": "2026-08-19T14:22:30Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -336,15 +336,20 @@
       "what": "deploy.sh verify() kini juga memvalidasi /api/image-proxy live: (1) SSRF guard deterministik — request URL internal 127.0.0.1 wajib 403; (2) smoke test gambar eksternal (200 image/*) non-fatal (warn). Tambah fungsi warn() + warna YELLOW yang sebelumnya dipakai tanpa definisi (latent bug), dan helper webmail_host() agar host diambil dari WEBMAIL_URL bukan hardcoded. Deploy live diverifikasi: SSRF 403 + gambar 200 image/png.",
       "status": "done",
       "updated_at": "2026-08-19T14:17:46Z"
+    },
+    {
+      "what": "Documentation currency G-001.S-002: reconcile docs/ai dgn state terkini. project-context/application-map/goals/decisions diperbarui — hapus klaim usang 'deploy BLOCKED/NOT LIVE karena mailserver tidak resolve' (kini LIVE via SSH alias deploy-mail), tambah endpoint /api/image-proxy + security controls (SSRF guard, email validation, CSP fail-closed), deploy mechanics single-source nginx + backend deploy otomatis, dan sub-goal G-001.S-009 (security hardening 08-19). Entry historis decisions.md dipertahankan sebagai audit history (ditandai superseded).",
+      "status": "done",
+      "updated_at": "2026-08-19T14:22:30Z"
     }
   ],
   "active_task": {
-    "id": "20260819-141730-202327",
+    "id": "20260819-142017-382878",
     "status": "COMPLETED",
-    "objective": "Webmail: deploy.sh verify() tambah health-check /api/image-proxy (SSRF guard + smoke test gambar eksternal)",
+    "objective": "Webmail: documentation currency G-001.S-002 — reconcile docs/ai dgn state deploy terkini (deploy-mail LIVE, image-proxy, backend deploy otomatis)",
     "next_step": "",
     "goal_id": "G-001",
     "sub_goal_id": "G-001.S-002",
-    "updated_at": "2026-08-19T14:17:46Z"
+    "updated_at": "2026-08-19T14:22:30Z"
   }
 }

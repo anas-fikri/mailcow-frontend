@@ -1,5 +1,14 @@
 # Decision Log
 
+## 2026-08-19 — Security hardening: image-proxy anti-tracking + deploy single-source
+
+- **Decision (anti tracking-pixel):** Gambar eksternal pada email yang di-render di-rewrite ke `GET /api/image-proxy` (server-side fetch), pola Gmail — IP user tidak bocor ke pengirim. Backend `server.js` guard-nya SSRF-safe (`src/lib/ssrfGuard.js`: blokir IP privat/reserved, DNS-pin, redirect re-validate, image-only, 5MB/10s cap, rate-limit) dan route ditaruh SEBELUM `requireApiKey` karena `<img>` tidak bisa kirim header.
+- **Decision (CSP fail-closed):** `img-src` diketatkan ke `'self' data:` (hapus `https:`). Gambar eksternal yang lolos dari rewrite justru TIDAK tampil (diblokir CSP) — vektor `srcset`/`<picture>`/CSS `background-image` yang belum di-rewrite ikut gagal aman, bukan bocor IP.
+- **Decision (rewrite render-only):** `proxyExternalImages` dipakai HANYA di `displayHtml`; quote balasan/forward & compose tetap URL asli (dikirim sebagai email, harus valid untuk penerima).
+- **Decision (deploy single-source):** `deploy.sh setup_nginx()` kini membaca `configs/site.webmail.custom` langsung (substitusi port via sed) — hapus heredoc nginx terpisah yang sempat drift dan berisiko menimpa hardening. `deploy_backend()` men-sync `server.js` + `src/lib/{ssrfGuard,emailValidation}.js` + restart `sogo-smtp-proxy`, dengan change-detection md5 agar deploy frontend-only tidak menjatuhkan sesi SMTP in-memory.
+- **Decision (header injection):** Validasi email/recipient (`src/lib/emailValidation.js`) menolak SEMUA karakter kontrol (0x00–0x1F + DEL), bukan hanya CRLF — mencegah lone-`\n`/`\0` injection di header SMTP.
+- **Decision (info disclosure):** ErrorBoundary kembali menyembunyikan `error.message` + `componentStack` di production (regresi dari fix Round 3); detail hanya ke console/localStorage.
+
 ## 2026-08-17 — /api/* 401 ≠ SOGo session expiry + persist smtpToken
 
 - **Decision:** 401/403 dari `/api/*` (proxy SMTP: `/api/preferences`, `/api/send`, `/api/auth/smtp`) TIDAK boleh memicu `_onSessionExpired` (force logout webmail). `fetchPreferences` kini fallback ke localStorage saat token SMTP tidak valid.
@@ -97,7 +106,7 @@ Consequences: Any AI tool can resume work by reading repository-local context fi
 
 - **Decision:** Deployed the accumulated hardening/fix batch to production (origin/main @ `e9ecad5`). Steps taken: activated `sogo-smtp-proxy` (was inactive since 2026-07-27), corrected its `.env` `PORT=3004 → 3005` (3004 is Control Tower MCP — violates the guardrail and caused the service to crash-loop on EADDRINUSE), updated the host `server.js` (backup kept), ran `./deploy.sh` (preflight → build → rsync → nginx config with CSP headers → reload → verify 200).
 - **deploy.sh bug:** `get_production_api_key` had unescaped quotes in an inline ssh string — awk always failed at build time (masked previously because preflight failed first). Fixed with the heredoc pattern used by `preflight_sogo_proxy`.
-- **Deploy mechanics note:** `deploy.sh` deploys `dist/` + nginx config only; the host `server.js` is updated manually via scp (keep backup `server.js.bak-YYYYMMDD`).
+- **Deploy mechanics note (superseded 2026-08-19):** `deploy.sh` deploys `dist/` + nginx config only; the host `server.js` is updated manually via scp (keep backup `server.js.bak-YYYYMMDD`). Kini `deploy_backend()` men-sync `server.js` + `src/lib` otomatis — lihat entry 2026-08-19 di atas.
 
 ## 2026-08-04 — Documentation/status reconciliation
 

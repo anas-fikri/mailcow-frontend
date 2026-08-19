@@ -24,15 +24,12 @@ Success criteria:
 
 ### Sub-goal G-001.S-002 — Documentation currency
 
-- Status: ACTIVE — historical deployment records are complete, but current login delivery status must remain synchronized.
+- Status: COMPLETE (2026-08-19 reconciliation) — docs/ai mencerminkan state deploy terkini; deployment records live.
 - Success criteria: docs/ai files reflect verified surfaces, decisions, and handoff after every significant task.
-- Latest evidence: prior remediation patch reviewed; workspace build, safe-url test, syntax checks, production audit (0 vulnerabilities), and diff check pass. Commit/push completed at `91fe620`; deploy attempt was blocked at fail-closed SSH preflight because `mailserver` could not be resolved. A new deep-audit remediation batch is now validated locally and pending commit/push/deploy.
-- New coverage: `npm run test:path-segment` verifies nested-folder `%2F` compatibility and rejects encoded traversal/query payloads.
-- Deep-audit remediation commit/push: `6cf66dd` is present on `origin/main`; docs status commit is `dae9855`. Production deploy is COMPLETE and LIVE: service active on 3005, authenticated health HTTP 200, webmail HTTP/2 200, and security headers verified.
-- Mailbox/statistics consistency remediation `9fa267f` is deployed and LIVE. Stats and MailPage now use the same authoritative SOGo folder total instead of different loaded-page lengths; build, rsync, Nginx reload, webmail HTTP 200, live asset, and proxy stability verification passed. Proxy unit reliability is now `Restart=always` after external SIGTERM behavior was observed.
-- Follow-up mailbox row remediation is COMPLETE and LIVE at commit `d86ed2c`: explicit SOGo headers, dynamic row parsing, and mocked Inbox/Sent/Junk/Trash API coverage pass; public webmail HTTP 200, latest asset `index-CVQcTv-t.js`, proxy health `active/200`, and 6/6 stability samples verified.
-- Login routing remediation COMPLETE and LIVE at `e1fb7a6`: exact Nginx webmail API locations now route auth/session endpoints to proxy 3005, avoiding Control Tower regex overlap; valid-key health/SMTP probes return 200 and missing/bad-key probes return 403.
-- Robust SOGo login/session validation is locally COMPLETE at commits `88dcd9c` + `fe9be0b`: native form-first auth, format-only fallback, safe error diagnostics, authenticated HTML-shell support, and protected mailbox JSON proof. Local full validation passes; no real password was used. Production delivery is BLOCKED by upstream network/firewall/VPN reachability and is not claimed LIVE.
+- Latest evidence: production deploy aktif via SSH alias `deploy-mail` (`SERVER=deploy-mail ./deploy.sh`); legacy `mailserver` alias tidak lagi resolve — catatan lama yang menyebut "BLOCKED/NOT LIVE" sudah dikoreksi. HEAD `origin/main` = `2feb96c`, working tree bersih.
+- Security hardening 2026-08-19 (`73870bd`..`2feb96c`) LIVE: OWASP audit (ErrorBoundary info-disclosure, CSP object-src/frame-src/worker-src + Permissions-Policy), anti tracking-pixel `/api/image-proxy` (SSRF guard + DNS-pin), server.js rate-limit `Retry-After` + session env config + email header-injection hardening, deploy.sh single-source nginx + backend deploy otomatis + verify image-proxy. Validation: 15/15 test PASS, build OK, npm audit 0 vuln, `/api/image-proxy` SSRF 403 + gambar eksternal 200.
+- Feature batch 2026-08-19 LIVE: tombol hapus draft, infinite scroll + batas 5 bulan inbox, lampiran smart (ikon per tipe, unduh semua blob, total ukuran), preview gambar/PDF lightbox, filter email berlampiran, seksi lampiran rapi (shouldDisplayAttachment).
+- Historical deploy records (`e9ecad5`, `9fa267f`, `d86ed2c`, `e1fb7a6`, `88dcd9c`, `fe9be0b`) remain as audit history below this reconciliation.
 
 ### Sub-goal G-001.S-003 — Theme color & inbox preference persistence (2026-08-05)
 - Status: COMPLETE
@@ -88,6 +85,16 @@ Success criteria:
 - Charts DonutChart skeleton: kelas Tailwind dinamis `w-[${size}px]` (tak ter-generate JIT) → inline style ✅
 - Subfolder indentation: `depth` di `flattenMailboxes` + indent sidebar/dropdown/rules/move-menu ✅
 - Validation: build ✅, syntax ✅, diff check ✅ (overlap dgn Round 5/6 remote sudah dedup saat rebase)
+
+### Sub-goal G-001.S-009 — Security hardening & anti-tracking (2026-08-19)
+
+- Status: COMPLETE — deployed LIVE (`73870bd`..`2feb96c`)
+- OWASP audit: fix ErrorBoundary info-disclosure (regresi — error.message + componentStack dirender lagi ke user), CSP object-src 'none'/frame-src 'self'/worker-src 'self' + Permissions-Policy di nginx & server.js ✅
+- Anti tracking-pixel: `GET /api/image-proxy` (SSRF guard + DNS-pin + redirect re-validate + image-only + size/timeout cap) + `proxyExternalImages` di MessageReader (render-only) + CSP `img-src 'self' data:` fail-closed ✅
+- server.js: email validation tolak semua karakter kontrol (header injection), rate-limit `Retry-After`, session SMTP TTL/idle/cap configurable env ✅
+- deploy.sh: nginx single-source (baca configs/site.webmail.custom) + deploy backend otomatis (change-detection md5) + verify `/api/image-proxy` ✅
+- restore 5 test hilang + test baru (email-validation, ssrf-guard, image-proxy) ✅
+- Validation: 15/15 test PASS, build OK, npm audit 0 vuln, `/api/image-proxy` SSRF 403 + external image 200 ✅
 
 ## Goal G-002 — Migration Portal (Eranya → Mailcow)
 

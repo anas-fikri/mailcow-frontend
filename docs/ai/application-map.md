@@ -2,9 +2,9 @@
 
 ## Audit
 
-- Audited At: 2026-08-05 (current code and delivery status reconciled; migration portal added)
+- Audited At: 2026-08-19 (current code and delivery status reconciled; security hardening + image-proxy LIVE via `deploy-mail`)
 - Active frontend: `src/` — React 19 SPA (Vite build, base `/webmail/`)
-- Backend/API: `server.js` — Express 5 proxy (prod port 3005)
+- Backend/API: `server.js` — Express 5 proxy (prod port 3005), plus `GET /api/image-proxy` (anti tracking-pixel)
 - Migration portal: `/home/anas.fikri/migration-portal` — Express SPA at port 3007, nginx proxy via `site.migration.custom`
 - Knowledge graph project: n/a
 
@@ -31,24 +31,28 @@
 - `POST /api/auth/smtp` / `DELETE /api/auth/smtp` — in-memory SMTP session tokens (8h TTL, 30m idle)
 - `GET  /api/preferences?email=...` — reads `sogo_user_profile` from Mailcow MySQL (parameterized)
 - `POST /api/send` — nodemailer SMTP send (Zod validated, session-based)
+- `GET  /api/image-proxy?url=...` — server-side image fetch (anti tracking-pixel); SSRF-guarded (block private/reserved IP, DNS-pin, redirect re-validate, image-only, 5MB/10s cap, rate-limit). Placed BEFORE `requireApiKey` because `<img>` cannot send headers.
 
 ### Security controls (verified)
 - DOMPurify on email body, paste, and compose-send; `safeUrl.js` restricts mail resources to `/SOGo/` paths.
 - Reply/forward quotes and print window escape all header values (XSS fix 2026-08-04).
-- CSP + nosniff + X-Frame-Options + Referrer-Policy headers in nginx config for `/webmail`.
-- Rate limits keyed by real client IP (X-Real-IP from trusted nginx peer).
-- npm audit: 0 vulnerabilities (react-router 8.3.0).
+- CSP (`img-src 'self' data:` — fail-closed) + object-src 'none' + frame-src 'self' + worker-src 'self' + Permissions-Policy + nosniff + X-Frame-Options + Referrer-Policy in nginx config for `/webmail`.
+- Rate limits keyed by real client IP (X-Real-IP from trusted nginx peer), per-route buckets + `Retry-After`.
+- Remote image proxy (`src/lib/imageProxy.js` + `/api/image-proxy`) rewrites external `<img>` in rendered email; `src/lib/ssrfGuard.js` blocks internal IPs (fail-closed).
+- Email header injection hardened: `src/lib/emailValidation.js` rejects ALL control chars (0x00–0x1F + DEL).
+- SMTP session cap per user + configurable TTL/idle via env (`SMTP_SESSION_*`).
+- ErrorBoundary hides technical details in production (info-disclosure fix).
+- npm audit: 0 vulnerabilities.
 - UI preferences (theme, accent color, sort order, conversation view) persisted per account in normalized `localStorage` key `pcp_prefs_<lowercase-email>` (`src/lib/userPrefs.js`), initialized on first successful login, loaded on subsequent login, and isolated across logout/account switches.
 
 ## Partial or Missing Surfaces
 
 - `/api/*` requires the SMTP proxy (server.js) + live Mailcow; dev preview without backend shows UI but API calls fail.
 - Compose attachment upload button is disabled ("belum didukung").
-- `sogo_test.py` (contained a live password) removed from the tree on 2026-08-04; still present in history — password rotation + `git filter-repo` scrub recommended.
-- Production deploy of the 2026-08-04 hardening/fix batch is **historical COMPLETE/LIVE evidence**.
-- **Migration Portal** (2026-08-05): auth fixed (bcryptjs), domain mapped to `pcpexpress.com`, auto-create mailbox with quota=0, sync_sogo_passwords trigger. Server restarted with correct env.
-- Current delivery status: robust login commits `88dcd9c` and `fe9be0b` are pushed, but deploy is **BLOCKED/NOT LIVE** because `mailserver` does not resolve locally and all tested production SSH/web ports timed out. No production mutation occurred for those commits.
-- Current workspace verification: repository is clean and synced with `origin/main`; login/full regression tests, Vite build, production dependency audit, Node syntax, shell syntax, and diff checks pass. Chrome/browser account verification remains unavailable.
+- `sogo_test.py` (contained a live password) removed from the tree on 2026-08-04; history scrubbed via `git filter-repo` (history-scrub module) and password rotated.
+- **Migration Portal** (2026-08-05): auth fixed (bcryptjs), domain mapped to `pcpexpress.com`, auto-create mailbox with quota=0, sync_sogo_passwords trigger. Server restarted with correct env. End-user sync validation (G-002.S-002) still PENDING real-credential browser test.
+- Current delivery status: production deploy is **LIVE** via SSH alias `deploy-mail` (`SERVER=deploy-mail ./deploy.sh`). Latest verified batch (2026-08-19): OWASP hardening + image-proxy + server.js rate-limit/session hardening + deploy.sh single-source/backend-deploy — all LIVE, webmail HTTP 200, `/api/image-proxy` SSRF 403 + external image 200.
+- Current workspace verification: repository is clean and synced with `origin/main` (HEAD `2feb96c`); full regression tests (15/15), Vite build, production dependency audit (0 vuln), Node/shell syntax, and diff checks pass. Chrome/browser account verification remains unavailable in this environment.
 
 ## Agent Rules
 
