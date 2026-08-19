@@ -32,6 +32,11 @@ assert.match(deploy, /rsync -av server\.js/);
 assert.match(deploy, /node --check server\.js/);
 assert.match(deploy, /systemctl --user restart sogo-smtp-proxy/);
 
+// Verify step must health-check /api/image-proxy (SSRF guard + live fetch).
+assert.match(deploy, /verify_image_proxy\(\)/);
+assert.match(deploy, /\/api\/image-proxy\?url=http%3A%2F%2F127\.0\.0\.1/);
+assert.match(deploy, /warn\(\)/);
+
 // No broad /api regex route may shadow the exact locations.
 assert.doesNotMatch(config, /location ~ \^\/api\/\(send\|health\|preferences\|auth\/smtp\)/);
 

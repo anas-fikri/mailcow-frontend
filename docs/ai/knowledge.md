@@ -362,3 +362,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260819-140923-110737
 - Status: COMPLETED
 - Finding: deploy.sh setup_nginx() dulu memelihara heredoc nginx TERPISAH dari configs/site.webmail.custom (dua sumber) — drift bisa menimpa hardening saat deploy. Kini single source + sed substitusi port. Backend server.js + modul import lokal TIDAK ikut ter-deploy oleh deploy.sh sebelumnya — harus di-sync manual; kini otomatis di deploy_backend() dengan hash-change guard.
+
+## 2026-08-19T14:17:46Z
+- Task: 20260819-141730-202327
+- Status: COMPLETED
+- Finding: deploy.sh verify_image_proxy() memvalidasi anti tracking-pixel secara live pasca-deploy: cek SSRF guard pakai URL internal (127.0.0.1 → wajib 403, deterministik, tanpa perlu koneksi keluar server) + smoke test gambar eksternal (non-fatal warn karena tergantung egress network). Fungsi warn() di deploy.sh sebelumnya dipanggil (ensure_ssh) tanpa definisi — latent bug, kini terdefinisi.

@@ -1249,3 +1249,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/current-task.md
 -  M scripts/test-nginx-routes.mjs
 - ?? docs/ai/tasks/20260819-140923-110737.previous.md
+
+## 2026-08-19T14:17:46Z
+- Status: COMPLETED
+- Objective: Webmail: deploy.sh verify() tambah health-check /api/image-proxy (SSRF guard + smoke test gambar eksternal)
+- Summary: deploy.sh verify() kini juga memvalidasi /api/image-proxy live: (1) SSRF guard deterministik — request URL internal 127.0.0.1 wajib 403; (2) smoke test gambar eksternal (200 image/*) non-fatal (warn). Tambah fungsi warn() + warna YELLOW yang sebelumnya dipakai tanpa definisi (latent bug), dan helper webmail_host() agar host diambil dari WEBMAIL_URL bukan hardcoded. Deploy live diverifikasi: SSRF 403 + gambar 200 image/png.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M deploy.sh
+-  M docs/ai/current-task.md
+-  M scripts/test-nginx-routes.mjs
+- ?? docs/ai/tasks/20260819-141730-202327.previous.md

@@ -52,9 +52,10 @@ TUNNEL_USED=0
 # VITE_API_KEY   - Optional local build key; otherwise read from mailserver .env
 
 # ── Warna ──────────────────────────────────────────────────────────────────
-RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 info()  { echo -e "${CYAN}[INFO]${NC}  $*"; }
 ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()   { echo -e "${RED}[ERROR]${NC} $*"; }
 
 # ── SSH dengan fallback tunnel MikroTik ────────────────────────────────────
@@ -252,19 +253,57 @@ deploy_backend() {
 }
 
 # ── Verify ─────────────────────────────────────────────────────────────────
+# Host webmail diambil dari WEBMAIL_URL (default mail.pcpexpress.co.id).
+webmail_host() {
+    printf '%s' "$WEBMAIL_URL" | sed -E 's#^[a-zA-Z]+://([^/:]+).*#\1#'
+}
+
 verify() {
     local webmail_url="$WEBMAIL_URL"
+    local host
+    host="$(webmail_host)"
     info "Verifikasi akses webmail (via 127.0.0.1, bebas DNS publik/hairpin)..."
     local http_code
     local webmail_url_q
     webmail_url_q=$(printf "'%s'" "${webmail_url//\'/\'\\\'\'}")
     # --resolve memaksa koneksi ke nginx lokal — tidak bergantung pada A record
     # publik (sedang migrasi IP) maupun hairpin NAT di firewall.
-    http_code=$(ssh "$SERVER" "curl -sk --resolve mail.pcpexpress.co.id:443:127.0.0.1 -o /dev/null -w '%{http_code}' -- $webmail_url_q")
+    http_code=$(ssh "$SERVER" "curl -sk --resolve ${host}:443:127.0.0.1 -o /dev/null -w '%{http_code}' -- $webmail_url_q")
     if [ "$http_code" = "200" ]; then
         ok "Webmail siap: $webmail_url (HTTP $http_code)"
     else
         err "Webmail mengembalikan HTTP $http_code — cek konfigurasi."
+    fi
+
+    verify_image_proxy "$host"
+}
+
+verify_image_proxy() {
+    local host="$1"
+    info "Verifikasi /api/image-proxy (route + SSRF guard)..."
+    local code_ssrf
+    local url_ssrf="https://${host}/api/image-proxy?url=http%3A%2F%2F127.0.0.1%2Fx.png"
+    # URL internal (127.0.0.1) WAJIB ditolak 403 oleh SSRF guard — membuktikan
+    # route nginx tersambung ke backend DAN guard aktif. Deterministik, tanpa
+    # bergantung pada koneksi internet keluar server.
+    code_ssrf=$(ssh "$SERVER" "curl -sk --resolve ${host}:443:127.0.0.1 -o /dev/null -w '%{http_code}' -- '$url_ssrf'")
+    if [ "$code_ssrf" = "403" ]; then
+        ok "/api/image-proxy terpasang + SSRF guard aktif (internal IP → 403)."
+    else
+        err "/api/image-proxy internal IP → HTTP $code_ssrf (harap 403). Route/guard bermasalah."
+    fi
+
+    # Smoke test gambar eksternal (non-fatal: tergantung koneksi keluar server).
+    local code_img ctype
+    local url_img="https://${host}/api/image-proxy?url=https%3A%2F%2Fwww.google.com%2Fimages%2Fbranding%2Fgooglelogo%2F1x%2Fgooglelogo_color_272x92dp.png"
+    local result
+    result=$(ssh "$SERVER" "curl -sk --max-time 15 --resolve ${host}:443:127.0.0.1 -o /dev/null -w '%{http_code} %{content_type}' -- '$url_img'")
+    code_img="${result%% *}"
+    ctype="${result#* }"
+    if [ "$code_img" = "200" ] && [[ "$ctype" == image/* ]]; then
+        ok "Proxy gambar eksternal OK (200 $ctype)."
+    else
+        warn "Proxy gambar eksternal → HTTP $code_img ($ctype). Cek koneksi keluar server bila tracking-pixel tidak tampil."
     fi
 }
 
