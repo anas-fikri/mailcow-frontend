@@ -234,7 +234,7 @@ async function downloadFileBlob(url, filename) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, siblingUids = [], onNavigateTo }) {
-  const { user, smtpToken } = useAuthStore();
+  const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [moveOpen, setMoveOpen] = React.useState(false);
   const [quickOpen, setQuickOpen] = React.useState(false);
@@ -276,8 +276,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
 
   // Preferences utk fallback signature SOGo lama (sama pola ComposeModal)
   const { data: prefs } = useQuery({
-    queryKey: ['preferences', user?.sogoToken, smtpToken],
-    queryFn: () => fetchPreferences(user?.sogoToken, user?.email, smtpToken),
+    queryKey: ['preferences', user?.sogoToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
     enabled: !!user?.sogoToken,
     staleTime: 5 * 60_000,
   });
@@ -538,7 +538,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         body: escapeHtml(body).replace(/\n/g, '<br>') + sigBlock,
         isHTML: true,
         from: user?.cn ? `${user.cn} <${user.email}>` : user?.email || '',
-      }, smtpToken);
+      });
       setQuickText('');
       setQuickOpen(false);
       toast.success('Balasan terkirim.');

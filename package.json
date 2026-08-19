@@ -33,7 +33,8 @@
     "test:ssrf-guard": "node scripts/test-ssrf-guard.mjs",
     "test:image-proxy": "node scripts/test-image-proxy.mjs",
     "test:tracking-pixel": "node scripts/test-tracking-pixel.mjs",
-    "test:email-validation": "node scripts/test-email-validation.mjs"
+    "test:email-validation": "node scripts/test-email-validation.mjs",
+    "test:smtp-cookie": "node scripts/test-smtp-cookie.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

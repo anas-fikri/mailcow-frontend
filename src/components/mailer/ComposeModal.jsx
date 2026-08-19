@@ -14,7 +14,7 @@ import { handleEditorPaste, insertImageFile, PURIFY_CONFIG } from '../../lib/pas
 import { loadSignatures, getSignatureFor, getSignatureById } from '../../lib/signatures';
 
 export default function ComposeModal({ isOpen, onClose, initialData = null, sogoToken, userFrom = '' }) {
-  const { user, smtpToken } = useAuthStore();
+  const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const token = sogoToken || user?.sogoToken;
 
@@ -50,8 +50,8 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
 
   // Ambil preferences (signature, dll)
   const { data: prefs } = useQuery({
-    queryKey: ['preferences', token, smtpToken],
-    queryFn: () => fetchPreferences(token, user?.email, smtpToken),
+    queryKey: ['preferences', token],
+    queryFn: () => fetchPreferences(token, user?.email),
     enabled: !!token,
     staleTime: 5 * 60_000,
   });
@@ -196,7 +196,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         body: editorMode === 'plain' ? body : DOMPurify.sanitize(body, PURIFY_CONFIG),
         isHTML: editorMode !== 'plain',
         from: userFrom,
-      }, smtpToken);
+      });
       setSuccess(true);
       // Refresh Sent folder setelah sukses kirim
       if (token) {

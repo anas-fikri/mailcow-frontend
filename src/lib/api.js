@@ -302,7 +302,7 @@ export async function login(email, password) {
 }
 
 
-export async function logout(smtpToken = null) {
+export async function logout() {
   try {
     await fetch(`${SOGO_BASE}/SOGo/logoff`, {
     method: 'POST',
@@ -312,7 +312,7 @@ export async function logout(smtpToken = null) {
   } catch {
     // ignore
   }
-  await revokeSmtpSession(smtpToken);
+  await revokeSmtpSession();
 }
 
 // ─── Mailer ───────────────────────────────────────────────────────────────────
@@ -716,24 +716,24 @@ export async function markMessagesAsNotJunk(sogoToken, folder, uids) {
  *
  * @param {string} sogoToken
  * @param {{ to, cc, bcc, subject, body, isHTML, from }} payload
- * @param {string|null} smtpToken  session token SMTP dari /api/auth/smtp
  */
-export async function revokeSmtpSession(smtpToken) {
-  if (!smtpToken) return;
+export async function revokeSmtpSession() {
   try {
+    // Token sesi SMTP ada di cookie httpOnly — browser kirim otomatis (same-origin).
     await fetch('/api/auth/smtp', {
       method: 'DELETE',
-      headers: withApiKey({
-        'Content-Type': 'application/json',
-        'X-SMTP-Token': smtpToken,
-      }),
+      credentials: 'include',
+      headers: withApiKey(),
     });
   } catch {} // fire-and-forget
 }
 
 export async function registerSmtpSession(user, pass) {
+  // Server menyimpan token sesi SMTP sebagai cookie httpOnly (Set-Cookie),
+  // sehingga tidak ada token yang dikembalikan/di-pegang oleh JS.
   const res = await fetch('/api/auth/smtp', {
     method: 'POST',
+    credentials: 'include',
     headers: withApiKey({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ user, pass }),
   });
@@ -741,8 +741,7 @@ export async function registerSmtpSession(user, pass) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || 'Gagal mendaftarkan sesi SMTP.');
   }
-  const data = await res.json();
-  return data.token;  // UUID session token
+  return true;
 }
 
 /** Buat draft kosong baru — mengembalikan draftId SOGo. */
@@ -804,7 +803,7 @@ export async function deleteDraft(sogoToken, uid) {
   } catch { /* fire-and-forget */ }
 }
 
-export async function sendMessage(sogoToken, payload, smtpToken = null) {
+export async function sendMessage(sogoToken, payload) {
   const { to, cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '' } = payload;
 
   // 1. Buat draft baru
@@ -850,13 +849,11 @@ export async function sendMessage(sogoToken, payload, smtpToken = null) {
   if (sendRes.status !== 501) {
     throw new Error(`Gagal mengirim pesan (${sendRes.status}). Silakan coba lagi.`);
   }
-  if (!smtpToken) {
-    throw new Error('Email tidak dapat dikirim. SOGo mengembalikan 501. Silakan login ulang dan coba lagi.');
-  }
   const smtpRes = await fetch('/api/send', {
     method: 'POST',
+    credentials: 'include',
     headers: withApiKey({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from, smtpToken }),
+    body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from }),
   });
   if (!smtpRes.ok) {
     const err = await smtpRes.json().catch(() => ({}));
@@ -1154,7 +1151,7 @@ function loadPrefsFromLocal(email) {
  * @param {string} sogoToken - SOGo session token
  * @param {string} email     - email user (untuk query DB dan localStorage key)
  */
-export async function fetchPreferences(sogoToken, email, smtpToken = null) {
+export async function fetchPreferences(sogoToken, email) {
   // Guard: jangan panggil API jika email tidak valid
   if (!email || !sogoToken) {
     debugWarn('[prefs] Skipped — email atau token tidak valid.');
@@ -1169,8 +1166,8 @@ export async function fetchPreferences(sogoToken, email, smtpToken = null) {
   // "reload halaman → /api/preferences 401 → user di-logout paksa".
   try {
     const url = `/api/preferences?email=${encodeURIComponent(email)}&t=${Date.now()}`;
+    // Sesi SMTP ada di cookie httpOnly — dikirim otomatis (credentials: 'include').
     const headers = withApiKey();
-    if (smtpToken) headers['X-SMTP-Token'] = smtpToken;
     const res  = await fetch(url, { credentials: 'include', headers });
     if (res.status === 401 || res.status === 403) {
       debugWarn('[prefs] /api/preferences ditolak (', res.status, ') — sesi SMTP proxy tidak valid, pakai fallback.');

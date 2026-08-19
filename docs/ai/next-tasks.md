@@ -1,28 +1,16 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-19T14:56:49Z
+Generated At: 2026-08-19T15:06:16Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] (selesai) build + test + deploy
-- Why: Explicit next step recorded on active task.
-- Source: current-task.md
-
-## 2. [HIGH] Resolve risk: Fallback SMTP kini ketat ke 501 — kalau SOGo di production ternyata return kode lain saat /send gagal, kirim akan surface error (lebih aman daripada kirim ganda).
-- Why: Risk was recorded but not marked resolved.
-- Source: current-task.md
-
-## 3. [HIGH] Run or verify validation: 16/16 test PASS · npm run build OK · node --check server.js OK
-- Why: Current task contains validation work that still needs explicit confirmation.
-- Source: current-task.md
-
-## 4. [MEDIUM] Follow up on discovered knowledge: Node http.request timeout = idle timeout, BUKAN total deadline — slow-drip upstream (1 byte tiap <10s) lolos dan menahan koneksi image-proxy tak terbatas. Mitigasi: deadline absolut Date.now()+10s dihitung sekali, diteruskan ke tiap hop, stream di-destroy saat lewat. sendMessage SOGo /send non-ok: fallback ke /api/send harus dibatasi ke 501 saja — status 4xx/5xx lain = SOGo sudah memproses, fallback = risiko kirim ganda.
+## 1. [MEDIUM] Follow up on discovered knowledge: smtpToken dipindah dari localStorage ke cookie httpOnly (smtp_session): HttpOnly+SameSite=Strict+Path=/api+Secure+Max-Age=TTL. server.js /api/auth/smtp POST kini Set-Cookie + return {ok:true}; DELETE clear cookie; requireSmtpSession//api/send baca cookie dengan fallback header/body (kompatibilitas deploy bertahap). Frontend: authStore hapus smtpToken state; api.js registerSmtpSession/revokeSmtpSession/sendMessage/fetchPreferences/logout tidak lagi pegang/kirim token (credentials:'include'). Helper murni src/lib/smtpCookie.js (parseCookies/build/clear) + test:smtp-cookie. CSRF dipertahankan via SameSite=Strict + X-Api-Key (custom header → preflight). Catatan: dev lokal http butuh COOKIE_SECURE=false bila server.js dijalankan manual. 26/26 test PASS + build OK.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
-## 5. [LOW] Review and commit current changes
-- Why: 8 uncommitted file entries remain in the project.
+## 2. [LOW] Review and commit current changes
+- Why: 19 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use

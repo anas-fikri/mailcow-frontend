@@ -21,13 +21,9 @@ export const useAuthStore = create(
         sortAsc: false,    // preferensi per-akun — urutan sortir kotak masuk
         conversationView: false, // preferensi per-akun — tampilan percakapan
 
-        // SMTP session token (UUID dari /api/auth/smtp). Dipersist agar reload
-        // tidak kehilangan sesi SMTP: /api/preferences (DB) dan fallback kirim
-        // /api/send (SOGo /send 501) tetap jalan setelah refresh. Token tidak
-        // berisi password, berumur pendek (8 jam / 30 mnt idle), dan hangus
-        // otomatis saat logout / proxy restart. Kredensial (user+pass) tetap
-        // TIDAK pernah dipersist.
-        smtpToken: null,
+        // Sesi SMTP (UUID dari /api/auth/smtp) kini disimpan sebagai cookie
+        // httpOnly oleh server — BUKAN di state JS / localStorage. XSS tidak
+        // bisa membaca token; kredensial (user+pass) tetap tidak pernah dipersist.
 
         setUser: (user) => set(() => {
           // Selalu pilih preferensi berdasarkan akun yang baru login. Jangan
@@ -38,23 +34,21 @@ export const useAuthStore = create(
           return { user, isLoggedIn: true, ...prefs };
         }),
         // Logout tidak boleh mereset preferensi UI (tema, warna, sortir, percakapan).
-        clearUser: () => set({ user: null, isLoggedIn: false, smtpToken: null }),
+        clearUser: () => set({ user: null, isLoggedIn: false }),
         setTheme: (theme) => { set({ theme }); persistPrefs(); },
         toggleTheme: () => { set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })); persistPrefs(); },
         setThemeColor: (themeColor) => { set({ themeColor }); persistPrefs(); },
         setSortAsc: (sortAsc) => { set({ sortAsc }); persistPrefs(); },
         setConversationView: (conversationView) => { set({ conversationView }); persistPrefs(); },
-        setSmtpToken: (token) => set({ smtpToken: token }), // UUID string
       };
     },
     {
       name: 'pcp-auth',
-      // Persist sesi + smtpToken (UUID sesi proxy, BUKAN kredensial).
-      // Preferensi UI per-akun disimpan terpisah di pcp_prefs_<email>.
+      // Persist sesi (user + flag). smtpToken TIDAK dipersist — disimpan server
+      // sebagai cookie httpOnly. Preferensi UI per-akun terpisah di pcp_prefs_<email>.
       partialize: (state) => ({
         user: state.user,
         isLoggedIn: state.isLoggedIn,
-        smtpToken: state.smtpToken,
         theme: state.theme,
         themeColor: state.themeColor,
         sortAsc: state.sortAsc,

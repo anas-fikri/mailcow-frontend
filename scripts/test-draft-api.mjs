@@ -51,7 +51,7 @@ assert.equal(saveBody.isHTML, true);
 // sendMessage — SOGo success path
 const sendRes = await sendMessage('user@example.test', {
   to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '',
-}, null);
+});
 assert.deepEqual(sendRes, { ok: true });
 const sendCall = calls.find((c) => c.url.endsWith('/send'));
 assert.equal(sendCall.options.method, 'POST');
@@ -61,11 +61,14 @@ sendStatus = 501;
 calls.length = 0;
 const fallbackRes = await sendMessage('user@example.test', {
   to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '',
-}, 'smtp-token-0123456789abcdef0123456789abcdef');
+});
 assert.deepEqual(fallbackRes, { ok: true });
 const smtpCall = calls.find((c) => c.url.endsWith('/api/send'));
 assert.ok(smtpCall, '501 harus memicu fallback /api/send');
 assert.equal(smtpCall.options.method, 'POST');
+assert.equal(smtpCall.options.credentials, 'include', '/api/send harus kirim cookie httpOnly (credentials include)');
+const smtpBody = JSON.parse(smtpCall.options.body);
+assert.equal(smtpBody.smtpToken, undefined, '/api/send tidak boleh lagi mengirim smtpToken di body');
 
 // sendMessage — SOGo 500 → TIDAK fallback (cegah kirim ganda), harus throw.
 sendStatus = 500;
@@ -74,7 +77,7 @@ let threw = null;
 try {
   await sendMessage('user@example.test', {
     to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '',
-  }, 'smtp-token-0123456789abcdef0123456789abcdef');
+  });
 } catch (e) {
   threw = e;
 }

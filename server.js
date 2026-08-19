@@ -26,6 +26,7 @@ import http from 'http';
 import https from 'https';
 import { isBlockedIp } from './src/lib/ssrfGuard.js';
 import { isSafeRecipient, recipientAddress, validateRecipientList, hasControlChars } from './src/lib/emailValidation.js';
+import { parseCookies, buildSmtpSessionCookie, clearSmtpSessionCookie, SMTP_SESSION_COOKIE } from './src/lib/smtpCookie.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -76,6 +77,10 @@ const smtpSessions = new Map();
 const SESSION_MAX_AGE_MS = (parseInt(process.env.SMTP_SESSION_TTL_MIN || '480', 10) || 480) * 60 * 1000;
 const SESSION_IDLE_MS    = (parseInt(process.env.SMTP_SESSION_IDLE_MIN || '30', 10) || 30) * 60 * 1000;
 const SESSION_MAX_PER_USER = parseInt(process.env.SMTP_SESSION_MAX_PER_USER || '10', 10) || 10;
+
+// Cookie sesi SMTP bersifat Secure (HTTPS-only) secara default. Bisa dimatikan
+// via env COOKIE_SECURE=false utk pengujian server.js lokal via http.
+const COOKIE_SECURE = process.env.COOKIE_SECURE !== 'false';
 
 function getSmtpSession(token) {
   const session = smtpSessions.get(token);
@@ -176,8 +181,19 @@ function requireApiKey(req, res, next) {
   next();
 }
 
+// Ambil token sesi SMTP: cookie httpOnly (jalur baru) → header X-SMTP-Token →
+// body.smtpToken (fallback kompatibilitas versi lama saat deploy bertahap).
+function getSmtpSessionToken(req) {
+  const cookies = parseCookies(req.headers.cookie);
+  if (cookies[SMTP_SESSION_COOKIE]) return cookies[SMTP_SESSION_COOKIE];
+  const header = getHeaderToken(req, 'x-smtp-token');
+  if (header) return header;
+  if (typeof req.body?.smtpToken === 'string' && req.body.smtpToken) return req.body.smtpToken;
+  return '';
+}
+
 function requireSmtpSession(req, res, next) {
-  const token = getHeaderToken(req, 'x-smtp-token');
+  const token = getSmtpSessionToken(req);
   const session = token ? getSmtpSession(token) : null;
   if (!session) return res.status(401).json({ message: 'Sesi SMTP sudah berakhir. Silakan login ulang.' });
   req.smtpSession = session;
@@ -455,17 +471,23 @@ app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: clientIp 
     }
   }
 
+  // Token kini disimpan sebagai cookie httpOnly (bukan dikembalikan ke JS).
+  // XSS tidak bisa membaca token; CSRF dimitigasi SameSite=Strict + X-Api-Key.
+  res.setHeader('Set-Cookie', buildSmtpSessionCookie(token, {
+    secure: COOKIE_SECURE,
+    maxAgeSec: Math.floor(SESSION_MAX_AGE_MS / 1000),
+  }));
+
   // Never log credentials or token material, even partially.
   console.log(`[smtp-session] Registered for ${user}`);
-  return res.json({ token });
+  return res.json({ ok: true });
 });
 
 // ── Revoke SMTP Session (logout) ────────────────────────────────────────────
 app.delete('/api/auth/smtp', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), (req, res) => {
-  const headerToken = getHeaderToken(req, 'x-smtp-token');
-  const bodyToken = typeof req.body?.smtpToken === 'string' ? req.body.smtpToken : '';
-  const token = headerToken || bodyToken;
+  const token = getSmtpSessionToken(req);
   if (token) smtpSessions.delete(token);
+  res.setHeader('Set-Cookie', clearSmtpSessionCookie({ secure: COOKIE_SECURE }));
   return res.json({ ok: true });
 });
 
@@ -499,7 +521,6 @@ const sendEmailSchema = z.object({
   // UI dapat mengirim display-name: "Nama <user@example.com>".
   // Format dan alamat akhirnya divalidasi setelah parsing, sebelum Nodemailer.
   from: z.string().max(998).optional().default(''),
-  smtpToken: z.string().min(32, 'smtpToken tidak valid. Silakan login ulang.'),
 });
 
 app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), async (req, res) => {
@@ -509,7 +530,7 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
     const firstError = parsed.error.issues[0];
     return res.status(400).json({ message: firstError?.message || 'Payload tidak valid.' });
   }
-  const { to, cc, bcc, subject, body, isHTML, from, smtpToken } = parsed.data;
+  const { to, cc, bcc, subject, body, isHTML, from } = parsed.data;
 
   // Validate every address-bearing/header field before passing it to Nodemailer.
   if (!validateRecipientList(to)) {
@@ -525,8 +546,8 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
     return res.status(400).json({ message: 'Alamat pengirim tidak valid.' });
   }
 
-  // Look up SMTP session
-  const session = getSmtpSession(smtpToken);
+  // Look up SMTP session — token diambil dari cookie httpOnly (fallback header/body).
+  const session = getSmtpSession(getSmtpSessionToken(req));
   if (!session) {
     return res.status(401).json({ message: 'Sesi SMTP sudah berakhir. Silakan login ulang.' });
   }

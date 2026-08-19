@@ -121,7 +121,7 @@ function PasswordStrengthBar({ password }) {
 
 // ─── Change Password ──────────────────────────────────────────────────────────
 function ChangePasswordSection() {
-  const { user, smtpToken, setSmtpToken } = useAuthStore();
+  const { user } = useAuthStore();
   const [form, setForm]   = useState({ old: '', new: '', confirm: '' });
   const [showPw, setShowPw] = useState({ old: false, new: false, confirm: false });
   const [status, setStatus] = useState(null);
@@ -131,7 +131,7 @@ function ChangePasswordSection() {
     mutationFn: () => changePassword(user.sogoToken, form.old, form.new),
     onSuccess: () => {
       setStatus({ type: 'success', message: 'Password berhasil diubah.' });
-      if (smtpToken) registerSmtpSession(user.email, form.new).then(setSmtpToken).catch(() => {});
+      registerSmtpSession(user.email, form.new).catch(() => {});
       setForm({ old: '', new: '', confirm: '' });
     },
     onError: (err) => setStatus({ type: 'error', message: err.message }),
@@ -256,7 +256,7 @@ function ChangePasswordSection() {
 // ─── Signature (pola Outlook — banyak signature per akun) ────────────────────
 function SignatureSection() {
   const queryClient = useQueryClient();
-  const { user, smtpToken } = useAuthStore();
+  const { user } = useAuthStore();
   const email = user?.email || '';
 
   const [sigList, setSigList]       = useState([]);      // [{id,name,html}]
@@ -270,8 +270,8 @@ function SignatureSection() {
   // Load signature SOGo yang sudah ada SEKALI — jadikan signature pertama di
   // daftar lokal bila belum pernah dibuat (migrasi mulus).
   const { data: prefs, isLoading: loadingPrefs } = useQuery({
-    queryKey: ['preferences', user?.sogoToken, smtpToken],
-    queryFn: () => fetchPreferences(user?.sogoToken, user?.email, smtpToken),
+    queryKey: ['preferences', user?.sogoToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
     enabled: !!(user?.sogoToken && user?.email),
     staleTime: 0,
   });
@@ -339,7 +339,7 @@ function SignatureSection() {
         },
         settings: prefs?.settings || {},
       }, user.email);
-      queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken, smtpToken] });
+      queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken] });
       setStatus({ type: 'success', message: 'Signature utama disinkronkan ke SOGo.' });
     } catch (err) {
       setStatus({ type: 'error', message: err.message });
@@ -490,7 +490,7 @@ function SignatureSection() {
 // ─── Vacation Auto-Reply ──────────────────────────────────────────────────────
 function VacationSection() {
   const queryClient = useQueryClient();
-  const { user, smtpToken } = useAuthStore();
+  const { user } = useAuthStore();
   const [enabled, setEnabled] = useState(false);
   const [subject, setSubject] = useState('Saya sedang tidak di tempat');
   const [message, setMessage] = useState('Terima kasih atas email Anda.\n\nSaya sedang dalam masa cuti dan akan membalas email Anda sesegera mungkin.\n\nSalam.');
@@ -501,8 +501,8 @@ function VacationSection() {
   const initRef = useRef(false);
 
   const { data: prefs, isLoading } = useQuery({
-    queryKey: ['preferences', user?.sogoToken, smtpToken],
-    queryFn: () => fetchPreferences(user?.sogoToken, user?.email, smtpToken),
+    queryKey: ['preferences', user?.sogoToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
     enabled: !!(user?.sogoToken && user?.email),
     staleTime: 0,
   });
@@ -564,7 +564,7 @@ function VacationSection() {
     },
     onSuccess: () => {
       initRef.current = false; // allow re-init on next refetch
-      queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken, smtpToken] });
+      queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken] });
       setStatus({ type: 'success', message: `Auto-reply ${enabled ? 'diaktifkan' : 'dinonaktifkan'}.` });
     },
     onError: (err) => setStatus({ type: 'error', message: err.message }),
@@ -661,7 +661,7 @@ const COLOR_PRESETS = [
 // ─── Display Preferences ─────────────────────────────────────────────────────
 function DisplaySection() {
   const queryClient = useQueryClient();
-  const { user, smtpToken, themeColor, setThemeColor } = useAuthStore();
+  const { user, themeColor, setThemeColor } = useAuthStore();
   const [timezone, setTimezone] = useState('Asia/Jakarta');
   const [language, setLanguage] = useState('Indonesian');
   const [dateFormat, setDateFormat] = useState('%d/%m/%Y');
@@ -674,8 +674,8 @@ function DisplaySection() {
   const initRef = useRef(false);
 
   const { data: prefs, isLoading } = useQuery({
-    queryKey: ['preferences', user?.sogoToken, smtpToken],
-    queryFn: () => fetchPreferences(user?.sogoToken, user?.email, smtpToken),
+    queryKey: ['preferences', user?.sogoToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
     enabled: !!(user?.sogoToken && user?.email),
     staleTime: 0,
   });
@@ -715,7 +715,7 @@ function DisplaySection() {
     },
     onSuccess: () => {
       initRef.current = false;
-      queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken, smtpToken] });
+      queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken] });
       setStatus({ type: 'success', message: 'Preferensi tampilan disimpan.' });
     },
     onError: (err) => setStatus({ type: 'error', message: err.message }),

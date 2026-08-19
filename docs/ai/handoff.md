@@ -1314,3 +1314,26 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M server.js
 -  M src/lib/api.js
 - ?? docs/ai/tasks/20260819-145627-255339.previous.md
+
+## 2026-08-19T15:06:15Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M package.json
+-  M scripts/test-draft-api.mjs
+-  M scripts/test-preferences-fallback.mjs
+-  M server.js
+-  M src/App.jsx
+-  M src/components/layout/Sidebar.jsx
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/pages/LoginPage.jsx
+-  M src/pages/PreferencesPage.jsx
+-  M src/store/authStore.js
+- ?? docs/ai/tasks/20260819-150558-273339.previous.md
+- ?? scripts/test-smtp-cookie.mjs
+- ?? src/lib/smtpCookie.js

@@ -52,8 +52,7 @@ function SessionWatcher({ children }) {
 
   useEffect(() => {
     onSessionExpired(() => {
-      const smtpToken = useAuthStore.getState().smtpToken
-      revokeSmtpSession(smtpToken)
+      revokeSmtpSession()
       queryClient.clear()
       clearUser()
       resetSessionExpiredFlag() // reset agar bisa trigger lagi di session berikutnya

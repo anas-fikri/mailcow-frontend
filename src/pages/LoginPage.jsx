@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  const { isLoggedIn, setUser, setSmtpToken, smtpToken: currentSmtpToken, clearUser, theme, toggleTheme } = useAuthStore();
+  const { isLoggedIn, setUser, clearUser, theme, toggleTheme } = useAuthStore();
   const navigate = useNavigate();
   const emailRef = useRef(null);
 
@@ -47,7 +47,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       // Clear stale persisted user sebelum login baru
-      revokeSmtpSession(currentSmtpToken);
+      revokeSmtpSession();
       clearUser();
       resetSessionExpiredFlag();
       const data = await login(userName, password);
@@ -55,16 +55,14 @@ export default function LoginPage() {
       // user tetap bisa login & baca email (kirim email saja yang belum bisa).
       // Dulu kegagalan di sini membatalkan login — salah: SOGo session sudah
       // valid, dan prod backend SMTP restart = semua user terkunci.
-      let smtpToken = null;
       let smtpFailed = false;
       try {
-        smtpToken = await registerSmtpSession(userName, password);
+        await registerSmtpSession(userName, password);
       } catch {
         smtpFailed = true;
       }
       // login returns { sogoToken, cn, email }
       setUser({ email: data.email, sogoToken: data.sogoToken, cn: data.cn });
-      setSmtpToken(smtpToken);
       if (smtpFailed) {
         toast.warning('Login berhasil. Sesi SMTP tidak tersedia — kirim email mungkin gagal, baca email tetap bisa.');
       }
