@@ -1143,3 +1143,14 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M src/pages/MailPage.jsx
 - ?? docs/ai/tasks/20260819-103030-365882.previous.md
 - ?? src/lib/attachments.js
+
+## 2026-08-19T10:45:22Z
+- Status: COMPLETED
+- Objective: Webmail: preview gambar/PDF dalam lightbox saat klik lampiran
+- Summary: Preview gambar/PDF dalam lightbox: klik gambar → lightbox full-screen (img), klik PDF → lightbox iframe (PDF viewer browser). Tombol Unduh (blob), Tab baru (fallback), Tutup (X/klik luar/Esc). Esc nutup lightbox dulu sebelum menutup reader. extractAttachments simpan viewURL terpisah utk preview. Build OK.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M src/components/mailer/MessageReader.jsx
+- ?? docs/ai/tasks/20260819-104513-330340.previous.md

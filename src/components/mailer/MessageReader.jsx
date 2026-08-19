@@ -5,6 +5,7 @@ import {
   Flag, Printer, FolderOpen, Star, Send, ChevronDown, UserPlus, X,
   AlertCircle, RefreshCw, AlertTriangle,
   File, FileArchive, FileSpreadsheet, FileImage, FileAudio, FileVideo, FileCode,
+  Eye, ExternalLink,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, sendMessage, fetchPreferences, createContact } from '../../lib/api';
@@ -104,6 +105,7 @@ function extractAttachments(parts, result = []) {
       size: parts.size || 0,
       contentType: ct,
       downloadURL: parts.downloadURL || parts.viewURL,
+      viewURL: parts.viewURL || parts.downloadURL,
     });
   }
   if (Array.isArray(parts.content)) {
@@ -240,6 +242,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const [contactError, setContactError] = React.useState('');
   const [downloadingAll, setDownloadingAll] = React.useState(false);
   const [downloadProgress, setDownloadProgress] = React.useState('');
+  const [lightbox, setLightbox] = React.useState(null); // { name, url, kind } | null
 
   const { data: msg, isLoading, error: msgError } = useQuery({
     queryKey: ['message', user?.sogoToken, folder, msgId],
@@ -352,11 +355,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       else if (e.key.toLowerCase() === 'f') { e.preventDefault(); handleForward(); }
       else if (e.key === 'Delete') { e.preventDefault(); if (!deleteMutation.isPending) deleteMutation.mutate(); }
       else if (e.key.toLowerCase() === 's') { e.preventDefault(); flagMutation.mutate(!(msg.isFlagged)); }
-      else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      else if (e.key === 'Escape') { e.preventDefault(); if (lightbox) setLightbox(null); else onClose(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [msg, deleteMutation.isPending]);
+  }, [msg, deleteMutation.isPending, lightbox]);
 
   function handlePrint() {
     if (!msg) return;
@@ -560,6 +563,18 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     } finally {
       setDownloadingAll(false);
       setDownloadProgress('');
+    }
+  }
+
+  // Buka preview lightbox utk gambar/PDF; file lain → unduh di tab baru.
+  function openPreview(att) {
+    const url = toSafeUrl(att.viewURL || att.downloadURL, { base: SOGO_BASE, allowExternal: false });
+    if (!url) return;
+    const kind = getFileKind(att.name, att.contentType);
+    if (kind === 'image' || kind === 'pdf') {
+      setLightbox({ name: att.name, url, kind });
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
   }
 
@@ -836,7 +851,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                       href={attUrl || undefined}
                       target="_blank"
                       rel="noreferrer"
+                      onClick={(e) => { e.preventDefault(); openPreview(att); }}
                       className="group relative rounded-xl overflow-hidden border border-border bg-card hover:ring-2 hover:ring-primary/30 transition-all"
+                      title="Pratinjau gambar"
                     >
                       <img src={attUrl} alt={att.name} className="w-full h-36 object-cover" loading="lazy" />
                       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-3">
@@ -844,20 +861,23 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                         <div className="text-white/80 text-xs">{formatFileSize(att.size)}</div>
                       </div>
                       <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Download size={14} className="text-white" />
+                        <Eye size={14} className="text-white" />
                       </div>
                     </a>
                   );
                 }
 
-                // Non-image attachments: file card
+                // Non-image attachments: file card (PDF → preview lightbox)
+                const isPdf = kind === 'pdf';
                 return (
                   <a
                     key={idx}
                     href={attUrl || undefined}
-                    target="_blank"
-                    rel="noreferrer"
+                    target={isPdf ? undefined : '_blank'}
+                    rel={isPdf ? undefined : 'noreferrer'}
+                    onClick={isPdf ? (e) => { e.preventDefault(); openPreview(att); } : undefined}
                     className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-muted transition-colors group"
+                    title={isPdf ? 'Pratinjau PDF' : undefined}
                   >
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${iconClass}`}>
                       <FileIcon size={20} />
@@ -866,7 +886,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                       <div className="text-sm font-medium text-foreground truncate">{att.name}</div>
                       <div className="text-xs text-muted-foreground">{formatFileSize(att.size) || att.contentType || ''}</div>
                     </div>
-                    <Download size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />
+                    {isPdf
+                      ? <Eye size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />
+                      : <Download size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />}
                   </a>
                 );
               })}
@@ -874,6 +896,53 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           </div>
         )}
       </div>
+
+      {/* ── Preview lampiran (lightbox) ────────────────────────────────────── */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/85 flex flex-col items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <div
+            className="flex flex-col w-full max-w-5xl max-h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <span className="text-white text-sm font-medium truncate flex-1">{lightbox.name}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => downloadFileBlob(lightbox.url, lightbox.name)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
+                >
+                  <Download size={14} /> Unduh
+                </button>
+                <a
+                  href={lightbox.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
+                >
+                  <ExternalLink size={14} /> Tab baru
+                </a>
+                <button
+                  onClick={() => setLightbox(null)}
+                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  aria-label="Tutup pratinjau"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 rounded-xl overflow-hidden bg-black/40 border border-white/10">
+              {lightbox.kind === 'image' ? (
+                <img src={lightbox.url} alt={lightbox.name} className="w-full h-[80vh] object-contain" />
+              ) : (
+                <iframe src={lightbox.url} title={lightbox.name} className="w-full h-[80vh] bg-white" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Tambah ke kontak modal ─────────────────────────────────────────── */}
       {contactOpen && (

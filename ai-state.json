@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "last_session": "2026-08-19T10:30:43Z",
-  "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob tanpa banyak tab, total ukuran di header). Build OK + test:attachments PASS.",
+  "last_session": "2026-08-19T10:45:22Z",
+  "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox (img/iframe + Unduh + Tab baru + Esc). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
       "status": "done",
@@ -306,15 +306,20 @@
       "what": "3 fitur follow-up webmail: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll Kotak Masuk + batas 5 bulan terakhir, (3) lampiran smart — ikon per tipe file, unduh semua via blob (tanpa banyak tab), total ukuran header. Build OK + test:attachments PASS.",
       "status": "done",
       "updated_at": "2026-08-19T10:30:43Z"
+    },
+    {
+      "what": "Preview gambar/PDF dalam lightbox: klik gambar → lightbox full-screen (img), klik PDF → lightbox iframe (PDF viewer browser). Tombol Unduh (blob), Tab baru (fallback), Tutup (X/klik luar/Esc). Esc nutup lightbox dulu sebelum menutup reader. extractAttachments simpan viewURL terpisah utk preview. Build OK.",
+      "status": "done",
+      "updated_at": "2026-08-19T10:45:22Z"
     }
   ],
   "active_task": {
-    "id": "20260819-103030-365882",
+    "id": "20260819-104513-330340",
     "status": "COMPLETED",
-    "objective": "Webmail: hapus draft di daftar + infinite scroll 5 bulan inbox + lampiran smart (ikon tipe, unduh semua blob, total ukuran)",
+    "objective": "Webmail: preview gambar/PDF dalam lightbox saat klik lampiran",
     "next_step": "",
     "goal_id": "TBD",
     "sub_goal_id": "TBD",
-    "updated_at": "2026-08-19T10:30:43Z"
+    "updated_at": "2026-08-19T10:45:22Z"
   }
 }
