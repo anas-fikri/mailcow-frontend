@@ -389,16 +389,21 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Finding: Node http.request timeout = idle timeout, BUKAN total deadline — slow-drip upstream (1 byte tiap <10s) lolos dan menahan koneksi image-proxy tak terbatas. Mitigasi: deadline absolut Date.now()+10s dihitung sekali, diteruskan ke tiap hop, stream di-destroy saat lewat. sendMessage SOGo /send non-ok: fallback ke /api/send harus dibatasi ke 501 saja — status 4xx/5xx lain = SOGo sudah memproses, fallback = risiko kirim ganda.
 
 ## 2026-08-19T15:06:15Z
-- Task: 
+- Task:
 - Status: COMPLETED
 - Finding: smtpToken dipindah dari localStorage ke cookie httpOnly (smtp_session): HttpOnly+SameSite=Strict+Path=/api+Secure+Max-Age=TTL. server.js /api/auth/smtp POST kini Set-Cookie + return {ok:true}; DELETE clear cookie; requireSmtpSession//api/send baca cookie dengan fallback header/body (kompatibilitas deploy bertahap). Frontend: authStore hapus smtpToken state; api.js registerSmtpSession/revokeSmtpSession/sendMessage/fetchPreferences/logout tidak lagi pegang/kirim token (credentials:'include'). Helper murni src/lib/smtpCookie.js (parseCookies/build/clear) + test:smtp-cookie. CSRF dipertahankan via SameSite=Strict + X-Api-Key (custom header → preflight). Catatan: dev lokal http butuh COOKIE_SECURE=false bila server.js dijalankan manual. 26/26 test PASS + build OK.
 
 ## 2026-08-19T15:15:17Z
-- Task: 
+- Task:
 - Status: COMPLETED
 - Finding: Hardening paste-XSS + anti tabnabbing pada webmail: PURIFY_CONFIG.ALLOWED_URI_REGEXP mengizinkan data: (utk img base64 composer) tapi DOMPurify tidak membedakan per-atribut, sehingga <a href="data:text/html,..."> dari paste lolos sanitasi (phishing payload). Fix: hook DOMPurify afterSanitizeAttributes hardenAnchorNode(node) — hapus data: href pada <a> + paksa rel=noopener noreferrer pada <a target=_blank> (anti tabnabbing window.opener). Hook dipasang sekali di pasteUtils.js (import oleh MessageReader/HtmlEditor/ComposeModal) sehingga berlaku utk render email + editor. DOMPurify TIDAK bisa jalan di Node/linkedom (linkedom tanpa document.implementation → isSupported false → sanitize no-op), jadi test murni ke logic hardenAnchorNode via linkedom + mock addHook utk registerPurifyHardening. 27/27 test PASS + build OK. deploy.sh BACKEND_LIB_FILES += smtpCookie.js (ikut commit ini).
 
 ## 2026-08-19T15:21:04Z
-- Task: 
+- Task:
 - Status: COMPLETED
 - Finding: Ekstraksi fetch image proxy dari server.js ke src/lib/remoteImage.js (parseImageProxyUrl/resolveSafeAddresses/pinLookup/requestImageOnce/fetchRemoteImage) dgn opsi injectable timeoutMs/maxBytes/maxRedirects/resolve agar testable. Bonus bug fix DoS: branch remaining<=0 di requestImageOnce dulu destroy res tanpa settle promise → await hang selamanya; kini reject 504. Test DoS test:remote-image: (1) slow-drip 1 byte/50ms tanpa selesai → hard deadline potong 504 <3s (bukan hang), (2) happy path gambar valid sukses, (3) headers lewat deadline → reject 504. Resolver injectable bypass SSRF guard (127.0.0.1) utk test lokal. server.js kini import fetchRemoteImage; import dns/http/https/isBlockedIp dihapus. deploy.sh BACKEND_LIB_FILES += remoteImage.js. 28/28 test PASS + build OK.
+
+## 2026-08-19T15:26:26Z
+- Task:
+- Status: COMPLETED
+- Finding: Rekonsiliasi docs (G-001.S-002): goals.md tambah G-001.S-010 (smtpToken cookie httpOnly + paste-XSS/tabnabbing + DoS slow-drip test, 482df26..3cd39af, 28/28 test); G-002.S-002 status PENDING→BLOCKED (butuh kredensial Eranya asli + tes browser, tanpa akses agen). next-tasks.md entry auto-generated basi diganti akurat (#1 G-002.S-002 blocked, #2 backlog rotasi password + history scrub). handoff.md prepend entry Security batch 2 (DEPLOYED) + BACKEND_LIB_FILES terbaru (ssrfGuard, emailValidation, smtpCookie, remoteImage).

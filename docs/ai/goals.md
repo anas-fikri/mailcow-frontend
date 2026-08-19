@@ -96,6 +96,14 @@ Success criteria:
 - restore 5 test hilang + test baru (email-validation, ssrf-guard, image-proxy) ✅
 - Validation: 15/15 test PASS, build OK, npm audit 0 vuln, `/api/image-proxy` SSRF 403 + external image 200 ✅
 
+### Sub-goal G-001.S-010 — Security hardening batch 2: cookie httpOnly + paste-XSS + DoS (2026-08-19)
+
+- Status: COMPLETE — deployed LIVE (`482df26`..`3cd39af`)
+- **smtpToken → cookie httpOnly:** sesi SMTP (`/api/auth/smtp`) kini disimpan sebagai cookie `smtp_session` (HttpOnly + SameSite=Strict + Path=/api + Secure + Max-Age=TTL) — XSS tidak bisa mencuri token. Server baca token dari cookie (fallback header/body utk deploy bertahap); frontend tidak lagi menyimpan/mengirim token. Helper murni `src/lib/smtpCookie.js` + `test:smtp-cookie`. CSRF dipertahankan via SameSite=Strict + X-Api-Key (custom header → preflight).
+- **Paste-XSS + anti tabnabbing:** hook DOMPurify `afterSanitizeAttributes` (`hardenAnchorNode` di pasteUtils.js) hapus `data:` href pada `<a>` — `ALLOWED_URI_REGEXP` izinkan `data:` utk img base64 composer, tapi bocor sbg link phishing saat paste — + paksa `rel="noopener noreferrer"` pada `<a target=_blank>`. Berlaku utk render email (MessageReader) DAN editor. `test:purify-hardening`.
+- **DoS slow-drip test:** ekstrak fetch image proxy ke `src/lib/remoteImage.js` (timeout/limit/resolve injectable). Test slow-drip (1 byte/50ms tanpa selesai) → hard deadline 504 <3s (bukan hang); bonus fix branch `remaining<=0` (dulu destroy res tanpa settle promise → hang) → reject 504. `test:remote-image`.
+- Validation: 28/28 test PASS, build OK, npm audit 0 vuln, deploy LIVE (webmail HTTP 200, SSRF 403, proxy gambar 200 `image/png`).
+
 ## Goal G-002 — Migration Portal (Eranya → Mailcow)
 
 Status: ACTIVE
@@ -112,6 +120,6 @@ Success criteria:
 - E2E test: login, token generation, job status, SSE progress — all pass.
 
 ### Sub-goal G-002.S-002 — Production sync validation
-- Status: PENDING
+- Status: BLOCKED — butuh kredensial Eranya asli + tes browser (tanpa akses agen; menunggu user).
 - End-user sync flow needs browser testing with real Eranya credentials.
 - Verify Sent/Trash/Draft folders are correctly mapped by `--automap`.

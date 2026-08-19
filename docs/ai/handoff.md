@@ -1,5 +1,13 @@
 # Handoff Log
 
+## 2026-08-19 — Security batch 2 (smtpToken cookie + paste-XSS + DoS test) — DONE + DEPLOYED
+
+- **smtpToken → cookie httpOnly (`482df26`):** sesi SMTP kini cookie `smtp_session` (HttpOnly+SameSite=Strict+Path=/api+Secure+Max-Age=TTL) — XSS tak bisa baca token. Server `getSmtpSessionToken()` baca cookie → header → body (fallback deploy bertahap). Frontend tak lagi simpan/kirim token (`credentials:'include'`). Helper murni `src/lib/smtpCookie.js` + `test:smtp-cookie`. CSRF: SameSite=Strict + X-Api-Key.
+- **Paste-XSS + anti tabnabbing (`fc86032`):** hook DOMPurify `afterSanitizeAttributes` = `hardenAnchorNode` (pasteUtils.js) — hapus `data:` href pada `<a>` + paksa `rel=noopener noreferrer` pada `<a target=_blank>`. Berlaku render email + editor. `test:purify-hardening`. Catatan: DOMPurify tak bisa jalan di Node/linkedom (linkedom tanpa `document.implementation`) → test murni ke logic hook.
+- **DoS slow-drip test (`3cd39af`):** fetch image proxy di-extract ke `src/lib/remoteImage.js` (injectable timeout/maxBytes/maxRedirects/resolve). Test slow-drip → hard deadline 504 <3s. Bonus fix: branch `remaining<=0` di `requestImageOnce` dulu destroy res tanpa settle promise (hang) → reject 504. `test:remote-image`. server.js import fetchRemoteImage; import dns/http/https/isBlockedIp dihapus.
+- **deploy.sh `BACKEND_LIB_FILES`** kini: ssrfGuard, emailValidation, smtpCookie, remoteImage.
+- **Validasi:** 28/28 test PASS, build OK, npm audit 0 vuln. Deploy LIVE: webmail HTTP 200, SSRF 403, proxy gambar 200, sogo-smtp-proxy active/running.
+
 ## 2026-08-19 — server.js audit: rate-limit & session hardening — DONE (siap deploy)
 
 - **Permintaan user:** audit ulang `server.js` (proxy SMTP) untuk rate-limit dan session hardening.
@@ -1364,3 +1372,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - ?? docs/ai/tasks/20260819-152048-151547.previous.md
 - ?? scripts/test-remote-image.mjs
 - ?? src/lib/remoteImage.js
+
+## 2026-08-19T15:26:26Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/goals.md
+-  M docs/ai/handoff.md
+-  M docs/ai/next-tasks.md
+- ?? docs/ai/tasks/20260819-152539-885255.previous.md
