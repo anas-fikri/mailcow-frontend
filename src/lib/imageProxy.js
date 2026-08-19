@@ -70,19 +70,25 @@ export function rewriteCssUrls(cssText) {
 
 /**
  * Rewrite src eksternal pada HTML yang SUDAH DOMPurify-sanitized ke proxy.
- * Browser-only (pakai DOM API, bukan string concat → aman dari injection).
- * Menangani <img src>, <img|source srcset>, dan CSS url(...) pada style
- * attribute + <style> block. Kembalikan string yang sama bila tidak ada perubahan.
+ * Pakai DOM API (bukan string concat → aman dari injection). Menangani
+ * <img src>, <img|source srcset>, dan CSS url(...) pada style attribute +
+ * <style> block. Kembalikan string yang sama bila tidak ada perubahan.
+ *
+ * `doc` adalah implementasi DOM (default: global `document`). Injectable agar
+ * bisa diuji di Node memakai DOM buatan (linkedom) tanpa browser asli.
+ * Pakai wrapper <div> (bukan <template>) karena getter innerHTML <template>
+ * di linkedom tidak merefleksikan mutasi pada content-nya.
  */
-export function proxyExternalImages(sanitizedHtml) {
+export function proxyExternalImages(sanitizedHtml, doc) {
   if (!sanitizedHtml) return sanitizedHtml;
-  if (typeof document === 'undefined') return sanitizedHtml;
+  const d = doc || (typeof document !== 'undefined' ? document : null);
+  if (!d) return sanitizedHtml;
 
-  const tpl = document.createElement('template');
-  tpl.innerHTML = sanitizedHtml;
+  const wrapper = d.createElement('div');
+  wrapper.innerHTML = sanitizedHtml;
 
   // <img src>
-  const imgs = tpl.content.querySelectorAll('img[src]');
+  const imgs = wrapper.querySelectorAll('img[src]');
   for (const img of imgs) {
     const src = img.getAttribute('src') || '';
     if (isExternalImageUrl(src)) {
@@ -91,7 +97,7 @@ export function proxyExternalImages(sanitizedHtml) {
   }
 
   // <img srcset> + <source srcset>
-  const srcsets = tpl.content.querySelectorAll('img[srcset], source[srcset]');
+  const srcsets = wrapper.querySelectorAll('img[srcset], source[srcset]');
   for (const el of srcsets) {
     const next = rewriteSrcset(el.getAttribute('srcset') || '');
     if (next !== el.getAttribute('srcset')) {
@@ -100,7 +106,7 @@ export function proxyExternalImages(sanitizedHtml) {
   }
 
   // CSS url(...) pada inline style attribute.
-  const styled = tpl.content.querySelectorAll('[style]');
+  const styled = wrapper.querySelectorAll('[style]');
   for (const el of styled) {
     const next = rewriteCssUrls(el.getAttribute('style') || '');
     if (next !== el.getAttribute('style')) {
@@ -109,7 +115,7 @@ export function proxyExternalImages(sanitizedHtml) {
   }
 
   // CSS url(...) pada <style> block.
-  const styles = tpl.content.querySelectorAll('style');
+  const styles = wrapper.querySelectorAll('style');
   for (const el of styles) {
     const next = rewriteCssUrls(el.textContent || '');
     if (next !== el.textContent) {
@@ -117,5 +123,5 @@ export function proxyExternalImages(sanitizedHtml) {
     }
   }
 
-  return tpl.innerHTML;
+  return wrapper.innerHTML;
 }

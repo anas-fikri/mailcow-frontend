@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-19T14:26:55Z",
+  "last_session": "2026-08-19T14:38:25Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -346,15 +346,20 @@
       "what": "Perluas proxyExternalImages: kini menangani <img srcset> + <source srcset> (rewriteSrcset — pertahankan whitespace + descriptor, skip kandidat data:/relatif) dan CSS url(...) pada inline style attribute + <style> block (rewriteCssUrls — dukung quote single/double/tanpa, skip data:/relatif). Vektor srcset/<picture>/CSS background-image yang sebelumnya hanya diblokir CSP kini di-rewrite aktif: gambar tetap tampil via proxy DAN IP tetap aman. 15/15 test PASS, build OK.",
       "status": "done",
       "updated_at": "2026-08-19T14:26:55Z"
+    },
+    {
+      "what": "Test otomatis anti tracking-pixel: tambah scripts/test-tracking-pixel.mjs pakai linkedom (devDependency). Simulasi email tracking-pixel lengkap (img src, img srcset, picture/source, CSS background-image inline + style block) → jalankan proxyExternalImages ASLI → assert 0 URL eksternal tersisa (semua jadi /api/image-proxy) + round-trip decode. Refactor proxyExternalImages: doc injectable (default global document) + wrapper <div> karena getter innerHTML <template> di linkedom tidak merefleksikan mutasi content. 16/16 test PASS, build OK.",
+      "status": "done",
+      "updated_at": "2026-08-19T14:38:25Z"
     }
   ],
   "active_task": {
-    "id": "20260819-142636-337630",
+    "id": "20260819-143808-382111",
     "status": "COMPLETED",
-    "objective": "Webmail: perluas proxyExternalImages — srcset, <picture><source>, CSS background-image/url()",
+    "objective": "Webmail: test otomatis anti tracking-pixel (linkedom) — simulasi render email & assert tidak ada request langsung ke domain pengirim",
     "next_step": "",
     "goal_id": "G-001",
     "sub_goal_id": "G-001.S-009",
-    "updated_at": "2026-08-19T14:26:55Z"
+    "updated_at": "2026-08-19T14:38:25Z"
   }
 }

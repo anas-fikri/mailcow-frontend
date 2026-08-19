@@ -1287,3 +1287,17 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M scripts/test-image-proxy.mjs
 -  M src/lib/imageProxy.js
 - ?? docs/ai/tasks/20260819-142636-337630.previous.md
+
+## 2026-08-19T14:38:25Z
+- Status: COMPLETED
+- Objective: Webmail: test otomatis anti tracking-pixel (linkedom) — simulasi render email & assert tidak ada request langsung ke domain pengirim
+- Summary: Test otomatis anti tracking-pixel: tambah scripts/test-tracking-pixel.mjs pakai linkedom (devDependency). Simulasi email tracking-pixel lengkap (img src, img srcset, picture/source, CSS background-image inline + style block) → jalankan proxyExternalImages ASLI → assert 0 URL eksternal tersisa (semua jadi /api/image-proxy) + round-trip decode. Refactor proxyExternalImages: doc injectable (default global document) + wrapper <div> karena getter innerHTML <template> di linkedom tidak merefleksikan mutasi content. 16/16 test PASS, build OK.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M package-lock.json
+-  M package.json
+-  M src/lib/imageProxy.js
+- ?? docs/ai/tasks/20260819-143808-382111.previous.md
+- ?? scripts/test-tracking-pixel.mjs

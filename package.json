@@ -1,7 +1,7 @@
 {
   "name": "sogo-frontend",
   "version": "1.0.0",
-  "description": "PCP Express Modern Webmail \u2014 SOGo React Frontend",
+  "description": "PCP Express Modern Webmail — SOGo React Frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -32,6 +32,7 @@
     "test:attachments": "node scripts/test-attachments.mjs",
     "test:ssrf-guard": "node scripts/test-ssrf-guard.mjs",
     "test:image-proxy": "node scripts/test-image-proxy.mjs",
+    "test:tracking-pixel": "node scripts/test-tracking-pixel.mjs",
     "test:email-validation": "node scripts/test-email-validation.mjs"
   },
   "dependencies": {
@@ -54,6 +55,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.0.5",
     "concurrently": "^10.0.3",
+    "linkedom": "^0.18.13",
     "puppeteer": "^25.3.0",
     "tailwindcss": "^4.0.0",
     "vite": "^8.2.0"

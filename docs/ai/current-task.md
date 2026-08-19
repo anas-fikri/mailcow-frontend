@@ -1,27 +1,28 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260819-142636-337630
-Started At: 2026-08-19T14:26:36Z
-Updated At: 2026-08-19T14:26:55Z
+Task ID: 20260819-143808-382111
+Started At: 2026-08-19T14:38:08Z
+Updated At: 2026-08-19T14:38:25Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: perluas proxyExternalImages — srcset, <picture><source>, CSS background-image/url()
+Webmail: test otomatis anti tracking-pixel (linkedom) — simulasi render email & assert tidak ada request langsung ke domain pengirim
 
 ## Goal Link
 Goal ID: G-001
 Sub-goal ID: G-001.S-009
 
 ## Files Involved
-- src/lib/imageProxy.js — tambah rewriteSrcset() (img|source srcset, pertahankan whitespace/descriptor) + rewriteCssUrls() (url(...) pada style attribute + <style> block); proxyExternalImages kini juga proses srcset + CSS url()
-- scripts/test-image-proxy.mjs — test baru rewriteSrcset + rewriteCssUrls (quote single/double/tanpa, data:, multiple url, gradient)
+- src/lib/imageProxy.js — proxyExternalImages kini pakai wrapper <div> (bukan <template>) + parameter doc injectable (default global document) agar bisa diuji di Node
+- scripts/test-tracking-pixel.mjs — test baru pakai linkedom: simulasi email tracking-pixel (img src, srcset, picture/source, CSS inline + <style>), assert 0 URL eksternal tersisa + round-trip proxy
+- package.json + package-lock.json — tambah devDependency linkedom + script test:tracking-pixel
 
 ## Next Steps
 - (selesai) build + test + deploy
 
 ## Risks
-- Vektor srcset/<picture>/CSS background-image sebelumnya hanya diblokir CSP (fail-closed); kini di-rewrite aktif agar gambar tetap tampil + IP tetap aman.
+- getter innerHTML <template> di linkedom tidak merefleksikan mutasi content → ganti wrapper <div> agar konsisten browser & Node.
 
 ## Validation
-- 15/15 test PASS (test:image-proxy diperluas) · npm run build OK · bundle memuat logika srcset
+- 16/16 test PASS (baru test:tracking-pixel) · npm run build OK
