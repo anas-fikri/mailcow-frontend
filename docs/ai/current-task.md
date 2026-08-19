@@ -1,32 +1,33 @@
 # Current Task
 
-Status: DEPLOYED (2026-08-19)
-Task ID: 20260819-090000-3fitur
-Started At: 2026-08-19T09:00:00Z
-Updated At: 2026-08-19T10:30:00Z
-Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
+Status: COMPLETED
+Task ID: 20260819-103030-365882
+Started At: 2026-08-19T10:30:30Z
+Updated At: 2026-08-19T10:30:43Z
+Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-3 fitur webmail: (1) tombol Laporkan Spam per-message (native SOGo), (2) fix lampiran tidak muncul, (3) buat/hapus subfolder di sidebar. SELESAI + DEPLOYED.
+Webmail: hapus draft di daftar + infinite scroll 5 bulan inbox + lampiran smart (ikon tipe, unduh semua blob, total ukuran)
 
 ## Goal Link
 Goal ID: TBD
 Sub-goal ID: TBD
 
 ## Files Involved
-- src/lib/api.js — createFolder, deleteFolder, markMessagesAsJunk, markMessagesAsNotJunk, normalizeUids
-- src/components/mailer/MessageReader.jsx — extract* fix (parts array), formatFileSize string, tombol spam + spamMutation
-- src/pages/MailPage.jsx — junkMutation native, subfolder UI + folder dialog modal, keyboard '!' native
+- src/lib/attachments.js — helper murni: getFileKind, parseSizeToBytes, formatFileSize, totalAttachmentSize, fileExtension
+- src/components/mailer/MessageReader.jsx — ikon per tipe file (FILE_KIND_META), unduh semua via blob + loading state, total ukuran di header lampiran
+- src/pages/MailPage.jsx — tombol hapus draft di daftar (hover), infinite scroll (IntersectionObserver) + batas 5 bulan inbox (messagesInWindow)
+- package.json — script test:attachments
+- scripts/test-attachments.mjs — assertions kind/size/total
 
 ## Next Steps
-- Verifikasi live manual (user skip otomatis): tombol spam, lampiran tampil, buat/hapus subfolder
-- Kredensial test `anas.fikri@pcpexpress.co.id` stale (403 LDAPPasswordPolicyError 65535) — perlu kredensial segar utk verifikasi
+- Commit, push, deploy (SERVER=deploy-mail ./deploy.sh)
+- Verifikasi live manual: hapus draft, scroll infinite, lampiran
 
 ## Risks
-- Live verify belum dilakukan manual — verifikasi visual oleh user/QA disarankan
+- Infinite scroll hanya me-reveal ~250 email yang sudah di-fetch SOGo (cap list view) — pagination server-side (offset) belum dibuat
+- Batas 5 bulan bergantung parseMessageDate (date SOGo ISO/RFC/literal/epoch); date tak terbaca dipertahankan (aman)
 
 ## Validation
-- npm run build OK (285ms, VITE_API_KEY production)
-- test:message-html / test:mailbox-tree / test:path-segment PASS
-- Deploy: rsync dist → mailserver + nginx reload, HTTP 200 via 127.0.0.1 --resolve
-- Commit 200b250 pushed ke GitLab main
+- npm run build OK (4.04s)
+- npm run test:attachments PASS

@@ -21,7 +21,10 @@ import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor } from '../lib
 import { getRuleSummary, executeRules } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, isSnoozed, snoozeMessage, unsnoozeMessage, pruneExpired } from '../lib/snooze';
-import { groupMessagesByDate } from '../lib/dateGroups';
+import { groupMessagesByDate, parseMessageDate } from '../lib/dateGroups';
+
+// Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
+const MESSAGE_WINDOW_MONTHS = 5;
 
 // ─── Icon mapping ─────────────────────────────────────────────────────────────
 const FOLDER_ICONS = {
@@ -328,6 +331,17 @@ export default function MailPage() {
 
   const messages = msgData?.messages || [];
   const totalMessageCount = msgData?.total ?? messages.length;
+  // Kotak Masuk dibatasi ke N bulan terakhir (sisanya hanya via pencarian).
+  // `date` dari SOGo adalah string display; unparseable → dianggap dalam window.
+  const messagesInWindow = useMemo(() => {
+    if (selectedFolder !== 'folderINBOX') return messages;
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - MESSAGE_WINDOW_MONTHS);
+    return messages.filter((m) => {
+      const d = parseMessageDate(m.date);
+      return d === null || d.getTime() >= cutoff.getTime();
+    });
+  }, [messages, selectedFolder]);
   const ruleSummary = getRuleSummary(user?.email);
   const enabledRules = ruleSummary.enabled;
 
@@ -373,7 +387,7 @@ export default function MailPage() {
   // ── Load More (client-side pagination, after messages assignment) ─────────
   const PAGE_SIZE = 50;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const visibleMessages = messages.slice(0, visibleCount);
+  const visibleMessages = messagesInWindow.slice(0, visibleCount);
 
   // ── Snooze (client-side) ───────────────────────────────────────────────────
   // Pesan yang di-snooze disembunyikan dari daftar; muncul lagi saat waktunya.
@@ -474,7 +488,7 @@ export default function MailPage() {
     });
   }, []);
 
-  const hasMore = visibleCount < messages.length;
+  const hasMore = visibleCount < messagesInWindow.length;
 
   // Jalankan rules untuk pesan yang baru dimuat
   useEffect(() => {
@@ -504,9 +518,24 @@ export default function MailPage() {
     });
   }, [messages.length, selectedFolder, user?.email, user?.sogoToken]);
 
-  function loadMore() {
-    setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, messages.length));
-  }
+  const loadMore = useCallback(() => {
+    setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, messagesInWindow.length));
+  }, [messagesInWindow.length]);
+
+  // ── Infinite scroll: auto-load saat sentinel bawah terlihat ────────────────
+  const listRef = useRef(null);
+  const loadMoreSentinelRef = useRef(null);
+  useEffect(() => {
+    if (!hasMore) return;
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel) return;
+    const io = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) loadMore(); },
+      { root: listRef.current, rootMargin: '240px' }
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [hasMore, loadMore]);
 
   // ── Undo Delete ────────────────────────────────────────────────────────────
   function scheduleDelete(uids) {
@@ -636,6 +665,9 @@ export default function MailPage() {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const isSentOrDraft = isSentOrDraftFolder(selectedFolder, folders);
+  // Folder Draf (default maupun custom) — utk tombol hapus cepat per-baris.
+  const isDraftFolder = selectedFolder === 'folderDrafts' ||
+    folders.some((f) => f.id === selectedFolder && (f.type === 'draft' || f.type === 'drafts'));
 
   const toggleSelectAll = () => {
     setSelectedUids((prev) =>
@@ -1139,6 +1171,20 @@ export default function MailPage() {
                     <Archive size={14} />
                   </button>
                 )}
+                {/* Hapus cepat per-baris — hanya folder Draf (hover desktop) */}
+                {isDraftFolder && !isTouch && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      scheduleDelete([msg.uid]);
+                    }}
+                    tabIndex={-1}
+                    className="p-0.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-destructive transition-opacity"
+                    title="Hapus"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
                 {/* Star/flag — di kanan (tidak nimpa avatar): berflag atau hover (desktop);
                     selalu tampil di layar sentuh */}
                 <button
@@ -1591,7 +1637,7 @@ export default function MailPage() {
         )}
 
         {/* Message list */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={listRef} className="flex-1 overflow-y-auto">
           {loadingMessages ? (
             <MessageListSkeleton count={8} />
           ) : msgError ? (
@@ -1691,20 +1737,19 @@ export default function MailPage() {
                     ));
                   })()}
               {hasMore ? (
-                <div className="px-4 py-3 flex justify-center border-t border-border">
-                  <button
-                    onClick={loadMore}
-                    className="flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground rounded-lg text-xs font-medium transition-colors"
-                  >
-                    Muat {Math.min(PAGE_SIZE, messages.length - visibleCount)} lainnya ({messages.length - visibleCount} tersisa)
-                  </button>
+                <div ref={loadMoreSentinelRef} className="px-4 py-4 flex justify-center">
+                  <Loader2 size={16} className="animate-spin text-muted-foreground" />
                 </div>
-              ) : totalMessageCount > messages.length && (
-                <div className="px-4 py-3 flex justify-center border-t border-border">
-                  <span className="text-[10px] text-muted-foreground">
-                    Menampilkan {messages.length} dari {totalMessageCount} email terbaru. Cari email lama via pencarian.
-                  </span>
-                </div>
+              ) : (
+                (selectedFolder === 'folderINBOX' || totalMessageCount > messages.length) && (
+                  <div className="px-4 py-3 flex justify-center border-t border-border">
+                    <span className="text-[10px] text-muted-foreground">
+                      {selectedFolder === 'folderINBOX'
+                        ? `Menampilkan ${messagesInWindow.length} email (5 bulan terakhir). Email lebih lama bisa dicari.`
+                        : `Menampilkan ${messages.length} dari ${totalMessageCount} email terbaru. Cari email lama via pencarian.`}
+                    </span>
+                  </div>
+                )
               )}
             </div>
           )}

@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "last_session": "2026-08-19T17:05:00Z",
-  "context": "PCP Express Webmail — 3 fitur baru DEPLOYED ke production: (1) Laporkan Spam per-message + bulk native SOGo markMessagesAsJunk, (2) fix lampiran tidak muncul (msg.parts bisa ARRAY + size string), (3) buat/hapus subfolder di sidebar (createFolder/deleteFolder + folder dialog modal). Commit 200b250 pushed GitLab main. Build OK + tests PASS + HTTP 200. Pending: verifikasi live manual (kredensial test stale).",
+  "last_session": "2026-08-19T10:30:43Z",
+  "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob tanpa banyak tab, total ukuran di header). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
       "status": "done",
@@ -301,15 +301,20 @@
     {
       "what": "Edge case: normalizeSubject type guard",
       "status": "done"
+    },
+    {
+      "what": "3 fitur follow-up webmail: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll Kotak Masuk + batas 5 bulan terakhir, (3) lampiran smart — ikon per tipe file, unduh semua via blob (tanpa banyak tab), total ukuran header. Build OK + test:attachments PASS.",
+      "status": "done",
+      "updated_at": "2026-08-19T10:30:43Z"
     }
   ],
   "active_task": {
-    "id": "20260819-090000-3fitur",
+    "id": "20260819-103030-365882",
     "status": "COMPLETED",
-    "objective": "3 fitur webmail: spam native SOGo per-message + bulk, fix lampiran tidak muncul, buat/hapus subfolder di sidebar",
-    "next_step": "Verifikasi live manual dengan kredensial test segar (tombol spam, lampiran, subfolder)",
+    "objective": "Webmail: hapus draft di daftar + infinite scroll 5 bulan inbox + lampiran smart (ikon tipe, unduh semua blob, total ukuran)",
+    "next_step": "",
     "goal_id": "TBD",
     "sub_goal_id": "TBD",
-    "updated_at": "2026-08-19T17:05:00Z"
+    "updated_at": "2026-08-19T10:30:43Z"
   }
 }

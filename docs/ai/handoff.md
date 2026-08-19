@@ -1129,3 +1129,17 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 **Done:** spam native SOGo per-message + bulk (markMessagesAsJunk), fix lampiran (parts ARRAY root cause + size string), subfolder create/delete UI (createFolder/deleteFolder + dialog modal). Build OK, tests PASS, deployed via ./deploy.sh (HTTP 200), pushed ke GitLab main.
 
 **Next:** verifikasi live manual — tombol spam, lampiran, subfolder. Kredensial test stale (403 LDAPPasswordPolicyError 65535); perlu kredensial segar.
+
+## 2026-08-19T10:30:43Z
+- Status: COMPLETED
+- Objective: Webmail: hapus draft di daftar + infinite scroll 5 bulan inbox + lampiran smart (ikon tipe, unduh semua blob, total ukuran)
+- Summary: 3 fitur follow-up webmail: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll Kotak Masuk + batas 5 bulan terakhir, (3) lampiran smart — ikon per tipe file, unduh semua via blob (tanpa banyak tab), total ukuran header. Build OK + test:attachments PASS.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M package.json
+-  M src/components/mailer/MessageReader.jsx
+-  M src/pages/MailPage.jsx
+- ?? docs/ai/tasks/20260819-103030-365882.previous.md
+- ?? src/lib/attachments.js

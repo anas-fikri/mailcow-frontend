@@ -4,6 +4,7 @@ import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, Paperclip,
   Flag, Printer, FolderOpen, Star, Send, ChevronDown, UserPlus, X,
   AlertCircle, RefreshCw, AlertTriangle,
+  File, FileArchive, FileSpreadsheet, FileImage, FileAudio, FileVideo, FileCode,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, sendMessage, fetchPreferences, createContact } from '../../lib/api';
@@ -16,6 +17,7 @@ import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
 import { looksLikeHtmlInPlainText } from '../../lib/messageHtml';
 import { getSignatureFor } from '../../lib/signatures';
+import { getFileKind, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
 
 // Same-origin (relatif) — lihat catatan di src/lib/api.js. SPA & SOGo di origin
 // yang sama (nginx mailcow mem-proxy /SOGo utk semua vhost), jadi base absolut
@@ -196,18 +198,33 @@ function formatAddresses(arr) {
   }).filter(Boolean).join(', ');
 }
 
-function formatFileSize(size) {
-  // SOGo kirim `size` sebagai STRING terformat ("1.2 MB") — bukan bytes.
-  // Tampilkan langsung; hanya angka numerik yang diformat ulang.
-  if (!size || size === 0) return '';
-  if (typeof size === 'string') return size;
-  return size > 1024 * 1024
-    ? `${(size / 1024 / 1024).toFixed(1)} MB`
-    : `${Math.round(size / 1024)} KB`;
-}
+// Ikon + warna per tipe lampiran (cepat dikenali tanpa buka file).
+const FILE_KIND_META = {
+  image:        { Icon: FileImage,        className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+  pdf:          { Icon: FileText,         className: 'bg-rose-500/10 text-rose-600 dark:text-rose-400' },
+  archive:      { Icon: FileArchive,      className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+  spreadsheet:  { Icon: FileSpreadsheet,  className: 'bg-green-500/10 text-green-600 dark:text-green-400' },
+  document:     { Icon: FileText,         className: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  presentation: { Icon: File,             className: 'bg-orange-500/10 text-orange-600 dark:text-orange-400' },
+  audio:        { Icon: FileAudio,        className: 'bg-purple-500/10 text-purple-600 dark:text-purple-400' },
+  video:        { Icon: FileVideo,        className: 'bg-pink-500/10 text-pink-600 dark:text-pink-400' },
+  code:         { Icon: FileCode,         className: 'bg-teal-500/10 text-teal-600 dark:text-teal-400' },
+  other:        { Icon: File,             className: 'bg-primary/10 text-primary' },
+};
 
-function isImageType(ct) {
-  return ct?.startsWith('image/');
+// Unduh satu file sebagai blob (same-origin → session cookie ikut), tanpa tab baru.
+async function downloadFileBlob(url, filename) {
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) throw new Error(`${filename || 'file'} (${res.status})`);
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename || 'attachment';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -221,6 +238,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const [contactOpen, setContactOpen] = React.useState(false);
   const [contactSaving, setContactSaving] = React.useState(false);
   const [contactError, setContactError] = React.useState('');
+  const [downloadingAll, setDownloadingAll] = React.useState(false);
+  const [downloadProgress, setDownloadProgress] = React.useState('');
 
   const { data: msg, isLoading, error: msgError } = useQuery({
     queryKey: ['message', user?.sogoToken, folder, msgId],
@@ -431,6 +450,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const rawHtml = extractHtml(msg.parts);
   const attachments = extractAttachments(msg.parts);
   const inlineImages = extractInlineImages(msg.parts);
+  const totalSize = totalAttachmentSize(attachments);
   // Inisial avatar konsisten dengan daftar email: penerima utk Terkirim/Draf, pengirim utk lainnya
   const isSentOrDraft = isSentOrDraftFolder(folder, folders);
   const avatarName = isSentOrDraft ? (to || from) : from;
@@ -520,12 +540,27 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
 
   // ── Unduh semua lampiran ───────────────────────────────────────────────────
   // SOGo downloadURL diarahkan ke tab baru per lampiran (session cookie ikut).
-  function handleDownloadAll() {
-    const urls = attachments
-      .map((att) => toSafeUrl(att.downloadURL, { base: SOGO_BASE, allowExternal: false }))
-      .filter(Boolean);
-    if (urls.length === 0) return;
-    urls.forEach((url) => window.open(url, '_blank', 'noopener,noreferrer'));
+  async function handleDownloadAll() {
+    if (downloadingAll) return;
+    const files = attachments
+      .map((att) => ({ url: toSafeUrl(att.downloadURL, { base: SOGO_BASE, allowExternal: false }), name: att.name }))
+      .filter((f) => f.url);
+    if (files.length === 0) return;
+    setDownloadingAll(true);
+    try {
+      let done = 0;
+      for (const f of files) {
+        await downloadFileBlob(f.url, f.name);
+        done += 1;
+        setDownloadProgress(`${done}/${files.length}`);
+      }
+      toast.success(`${done} lampiran diunduh.`);
+    } catch (err) {
+      toast.error(err?.message || 'Gagal mengunduh lampiran.');
+    } finally {
+      setDownloadingAll(false);
+      setDownloadProgress('');
+    }
   }
 
   // ── Tambah ke kontak ───────────────────────────────────────────────────────
@@ -771,22 +806,27 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Paperclip size={16} />
                 Lampiran ({attachments.length})
+                {totalSize && <span className="text-xs font-normal text-muted-foreground">· {totalSize}</span>}
               </h3>
               {attachments.length > 1 && (
                 <button
                   onClick={handleDownloadAll}
-                  className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
-                  title="Unduh semua lampiran (buka tab per file)"
+                  disabled={downloadingAll}
+                  className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-60"
+                  title="Unduh semua lampiran"
                 >
-                  <Download size={13} />
-                  Unduh Semua
+                  {downloadingAll ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                  {downloadingAll ? (downloadProgress ? `Mengunduh ${downloadProgress}` : 'Mengunduh…') : 'Unduh Semua'}
                 </button>
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {attachments.map((att, idx) => {
                 const attUrl = toSafeUrl(att.downloadURL, { base: SOGO_BASE, allowExternal: false });
-                const isImage = isImageType(att.contentType);
+                const kind = getFileKind(att.name, att.contentType);
+                const isImage = kind === 'image';
+                const FileIcon = (FILE_KIND_META[kind] || FILE_KIND_META.other).Icon;
+                const iconClass = (FILE_KIND_META[kind] || FILE_KIND_META.other).className;
 
                 // Image attachments: show thumbnail preview
                 if (isImage) {
@@ -819,8 +859,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                     rel="noreferrer"
                     className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-muted transition-colors group"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                      <FileText size={20} />
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${iconClass}`}>
+                      <FileIcon size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-foreground truncate">{att.name}</div>
