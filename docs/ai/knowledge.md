@@ -382,3 +382,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260819-143808-382111
 - Status: COMPLETED
 - Finding: linkedom = DOM Node kecil (0.18.13, zero-dep) untuk menguji fungsi DOM-based (proxyExternalImages) tanpa browser. Catatan penting: getter innerHTML pada HTMLTemplateElement di linkedom TIDAK merefleksikan mutasi content (innerHTML menyimpan salinan asli) — gunakan wrapper <div> agar serialisasi konsisten antara browser & Node. Puppeteer Chrome TIDAK ter-download (cache dir kosong) jadi bukan opsi untuk test unit DOM.
+
+## 2026-08-19T14:56:49Z
+- Task: 20260819-145627-255339
+- Status: COMPLETED
+- Finding: Node http.request timeout = idle timeout, BUKAN total deadline — slow-drip upstream (1 byte tiap <10s) lolos dan menahan koneksi image-proxy tak terbatas. Mitigasi: deadline absolut Date.now()+10s dihitung sekali, diteruskan ke tiap hop, stream di-destroy saat lewat. sendMessage SOGo /send non-ok: fallback ke /api/send harus dibatasi ke 501 saja — status 4xx/5xx lain = SOGo sudah memproses, fallback = risiko kirim ganda.

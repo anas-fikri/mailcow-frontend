@@ -237,7 +237,7 @@ function pinLookup(records) {
   return (_hostname, _opts, cb) => cb(null, first.address, first.family);
 }
 
-function requestImageOnce(url, records) {
+function requestImageOnce(url, records, deadline) {
   return new Promise((resolve, reject) => {
     const lib = url.protocol === 'https:' ? https : http;
     const req = lib.request({
@@ -251,8 +251,21 @@ function requestImageOnce(url, records) {
         Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
         'Accept-Encoding': 'identity',
       },
+      // Idle timeout: socket yang diam (bukan slow-drip).
       timeout: IMAGE_PROXY_TIMEOUT_MS,
-    }, (res) => resolve(res));
+    }, (res) => {
+      // Hard deadline utk seluruh transfer (anti slow-loris/slow-read):
+      // hancurkan stream bila total waktu (resolve + connect + read) melebihi
+      // IMAGE_PROXY_TIMEOUT_MS. Deadline absolut dihitung sekali di awal.
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        res.destroy(imageProxyError(504, 'Gambar timeout.'));
+        return;
+      }
+      const timer = setTimeout(() => res.destroy(imageProxyError(504, 'Gambar timeout.')), remaining);
+      res.on('close', () => clearTimeout(timer));
+      resolve(res);
+    });
     req.on('timeout', () => req.destroy(imageProxyError(504, 'Gambar timeout.')));
     req.on('error', reject);
     req.end();
@@ -263,9 +276,14 @@ async function fetchRemoteImage(initialUrl) {
   let url = parseImageProxyUrl(initialUrl);
   if (!url) throw imageProxyError(400, 'URL gambar tidak valid.');
 
+  // Deadline absolut satu kali untuk SELURUH fetch (semua redirect hop) —
+  // mencegah slow-drip yang menahan koneksi tak terbatas meski tiap socket
+  // masih 'hidup' (byte dikirim <10s sekali).
+  const deadline = Date.now() + IMAGE_PROXY_TIMEOUT_MS;
+
   for (let hop = 0; hop <= IMAGE_PROXY_MAX_REDIRECTS; hop++) {
     const records = await resolveSafeAddresses(url.hostname);
-    const res = await requestImageOnce(url, records);
+    const res = await requestImageOnce(url, records, deadline);
 
     const status = res.statusCode || 0;
     const location = res.headers.location;

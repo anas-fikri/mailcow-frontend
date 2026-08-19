@@ -1301,3 +1301,16 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M src/lib/imageProxy.js
 - ?? docs/ai/tasks/20260819-143808-382111.previous.md
 - ?? scripts/test-tracking-pixel.mjs
+
+## 2026-08-19T14:56:49Z
+- Status: COMPLETED
+- Objective: Webmail: ai-loop bug hunt — fix slow-loris image-proxy + duplicate-send fallback SMTP
+- Summary: ai-loop bug hunt: (1) image proxy rentan slow-loris/slow-read — socket idle timeout saja tidak cukup (byte dikirim <10s sekali menahan koneksi tak terbatas); fix hard deadline absolut untuk seluruh fetch + destroy stream. (2) sendMessage fallback SMTP pada SEMUA non-ok SOGo berisiko kirim ganda (SOGo memproses lalu error); kini fallback hanya pada 501. Validasi 16/16 test + build OK.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M scripts/test-draft-api.mjs
+-  M server.js
+-  M src/lib/api.js
+- ?? docs/ai/tasks/20260819-145627-255339.previous.md

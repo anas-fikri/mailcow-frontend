@@ -843,7 +843,13 @@ export async function sendMessage(sogoToken, payload, smtpToken = null) {
   throwIfAuthError(sendRes);
   if (sendRes.ok) return { ok: true };
 
-  // Fallback: SMTP proxy (workaround SOGo 501)
+  // Fallback: SMTP proxy (workaround SOGo 501 — endpoint /send tidak
+  // diimplementasikan). HANYA pada 501: status lain (400/422/500/502/dll)
+  // berarti SOGo memproses tapi gagal/berhasil sebagian — fallback ke SMTP
+  // berisiko kirim GANDA, jadi surface error-nya saja.
+  if (sendRes.status !== 501) {
+    throw new Error(`Gagal mengirim pesan (${sendRes.status}). Silakan coba lagi.`);
+  }
   if (!smtpToken) {
     throw new Error('Email tidak dapat dikirim. SOGo mengembalikan 501. Silakan login ulang dan coba lagi.');
   }

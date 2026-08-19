@@ -21,6 +21,9 @@ globalThis.fetch = async (url, options = {}) => {
   if (u.endsWith('/folderDrafts/batchDelete')) {
     return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => ({}) };
   }
+  if (u.endsWith('/api/send')) {
+    return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => ({ ok: true }) };
+  }
   return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => ({}) };
 };
 
@@ -52,6 +55,35 @@ const sendRes = await sendMessage('user@example.test', {
 assert.deepEqual(sendRes, { ok: true });
 const sendCall = calls.find((c) => c.url.endsWith('/send'));
 assert.equal(sendCall.options.method, 'POST');
+
+// sendMessage — SOGo 501 → fallback ke SMTP /api/send (tanpa throw).
+sendStatus = 501;
+calls.length = 0;
+const fallbackRes = await sendMessage('user@example.test', {
+  to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '',
+}, 'smtp-token-0123456789abcdef0123456789abcdef');
+assert.deepEqual(fallbackRes, { ok: true });
+const smtpCall = calls.find((c) => c.url.endsWith('/api/send'));
+assert.ok(smtpCall, '501 harus memicu fallback /api/send');
+assert.equal(smtpCall.options.method, 'POST');
+
+// sendMessage — SOGo 500 → TIDAK fallback (cegah kirim ganda), harus throw.
+sendStatus = 500;
+calls.length = 0;
+let threw = null;
+try {
+  await sendMessage('user@example.test', {
+    to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '',
+  }, 'smtp-token-0123456789abcdef0123456789abcdef');
+} catch (e) {
+  threw = e;
+}
+assert.ok(threw, 'SOGo 500 harus throw, bukan fallback ke SMTP');
+assert.match(threw.message, /500/);
+assert.equal(calls.some((c) => c.url.endsWith('/api/send')), false, '500 tidak boleh memicu /api/send');
+
+// reset untuk test deleteDraft
+sendStatus = 200;
 
 // deleteDraft with a uid → batchDelete
 calls.length = 0;

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-19T14:38:25Z",
+  "last_session": "2026-08-19T14:56:49Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -351,15 +351,20 @@
       "what": "Test otomatis anti tracking-pixel: tambah scripts/test-tracking-pixel.mjs pakai linkedom (devDependency). Simulasi email tracking-pixel lengkap (img src, img srcset, picture/source, CSS background-image inline + style block) → jalankan proxyExternalImages ASLI → assert 0 URL eksternal tersisa (semua jadi /api/image-proxy) + round-trip decode. Refactor proxyExternalImages: doc injectable (default global document) + wrapper <div> karena getter innerHTML <template> di linkedom tidak merefleksikan mutasi content. 16/16 test PASS, build OK.",
       "status": "done",
       "updated_at": "2026-08-19T14:38:25Z"
+    },
+    {
+      "what": "ai-loop bug hunt: (1) image proxy rentan slow-loris/slow-read — socket idle timeout saja tidak cukup (byte dikirim <10s sekali menahan koneksi tak terbatas); fix hard deadline absolut untuk seluruh fetch + destroy stream. (2) sendMessage fallback SMTP pada SEMUA non-ok SOGo berisiko kirim ganda (SOGo memproses lalu error); kini fallback hanya pada 501. Validasi 16/16 test + build OK.",
+      "status": "done",
+      "updated_at": "2026-08-19T14:56:49Z"
     }
   ],
   "active_task": {
-    "id": "20260819-143808-382111",
+    "id": "20260819-145627-255339",
     "status": "COMPLETED",
-    "objective": "Webmail: test otomatis anti tracking-pixel (linkedom) — simulasi render email & assert tidak ada request langsung ke domain pengirim",
+    "objective": "Webmail: ai-loop bug hunt — fix slow-loris image-proxy + duplicate-send fallback SMTP",
     "next_step": "",
     "goal_id": "G-001",
     "sub_goal_id": "G-001.S-009",
-    "updated_at": "2026-08-19T14:38:25Z"
+    "updated_at": "2026-08-19T14:56:49Z"
   }
 }
