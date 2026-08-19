@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-19T13:47:29Z",
+  "last_session": "2026-08-19T14:13:57Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -326,15 +326,20 @@
       "what": "Commit+push+deploy akumulasi hardening keamanan webmail: OWASP audit (ErrorBoundary info-disclosure, CSP), image-proxy anti tracking-pixel (SSRF guard), server.js rate-limit/session hardening, dan sinkron deploy.sh nginx config. Validasi 14/14 test, build OK.",
       "status": "done",
       "updated_at": "2026-08-19T13:47:29Z"
+    },
+    {
+      "what": "Refactor deploy.sh: setup_nginx() kini membaca configs/site.webmail.custom sebagai single source of truth (hapus heredoc hardcoded yang berisiko drift/revert hardening), dan tambah deploy_backend() yang men-sync server.js + src/lib/{ssrfGuard,emailValidation}.js lalu restart sogo-smtp-proxy — dengan change-detection md5 agar deploy frontend-only tidak menjatuhkan sesi SMTP in-memory. Deploy idempotent diverifikasi live (skip backend, HTTP 200).",
+      "status": "done",
+      "updated_at": "2026-08-19T14:13:57Z"
     }
   ],
   "active_task": {
-    "id": "20260819-134645-308275",
+    "id": "20260819-140923-110737",
     "status": "COMPLETED",
-    "objective": "Webmail: commit+push+deploy akumulasi hardening keamanan (OWASP audit, image-proxy anti tracking-pixel, server.js rate-limit/session) + sinkron deploy.sh nginx config",
+    "objective": "Webmail: refactor deploy.sh — nginx config single-source (baca configs/site.webmail.custom) + deploy backend server.js otomatis",
     "next_step": "",
     "goal_id": "G-001",
-    "sub_goal_id": "G-001.S-009",
-    "updated_at": "2026-08-19T13:47:29Z"
+    "sub_goal_id": "G-001.S-002",
+    "updated_at": "2026-08-19T14:13:57Z"
   }
 }

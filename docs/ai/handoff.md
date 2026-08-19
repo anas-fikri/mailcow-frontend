@@ -1237,3 +1237,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - ?? src/lib/emailValidation.js
 - ?? src/lib/imageProxy.js
 - ?? src/lib/ssrfGuard.js
+
+## 2026-08-19T14:13:57Z
+- Status: COMPLETED
+- Objective: Webmail: refactor deploy.sh — nginx config single-source (baca configs/site.webmail.custom) + deploy backend server.js otomatis
+- Summary: Refactor deploy.sh: setup_nginx() kini membaca configs/site.webmail.custom sebagai single source of truth (hapus heredoc hardcoded yang berisiko drift/revert hardening), dan tambah deploy_backend() yang men-sync server.js + src/lib/{ssrfGuard,emailValidation}.js lalu restart sogo-smtp-proxy — dengan change-detection md5 agar deploy frontend-only tidak menjatuhkan sesi SMTP in-memory. Deploy idempotent diverifikasi live (skip backend, HTTP 200).
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M deploy.sh
+-  M docs/ai/current-task.md
+-  M scripts/test-nginx-routes.mjs
+- ?? docs/ai/tasks/20260819-140923-110737.previous.md

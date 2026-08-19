@@ -179,87 +179,13 @@ git_commit_push() {
 
 # ── Setup Nginx config (pertama kali) ──────────────────────────────────────
 setup_nginx() {
-    info "Pasang Nginx config..."
-    local nginx_config
-    nginx_config=$(cat <<NGINX_EOF
-# site.webmail.custom — SOGo React Frontend (auto-deployed)
-# CSP: SPA murni tanpa inline script; email-body pakai inline style (unsafe-inline style)
-# dan Google Fonts. connect-src 'self' cukup karena SOGo & /api dilayani origin yang sama.
-location /webmail {
-    root /web;
-    index index.html;
-    try_files \$uri \$uri/ /webmail/index.html;
-
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; frame-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
-
-    location ~* \.html$ {
-        add_header Cache-Control "no-store, no-cache, must-revalidate";
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; frame-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
-        add_header X-Content-Type-Options "nosniff" always;
-        add_header X-Frame-Options "DENY" always;
-        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-        add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
-        expires -1;
-    }
-
-    location ~* \.(css|js|woff2?|svg|gif|png|jpe?g|ico)$ {
-        add_header Cache-Control "public, max-age=31536000, immutable";
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; frame-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
-        add_header X-Content-Type-Options "nosniff" always;
-        add_header X-Frame-Options "DENY" always;
-        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-        add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
-    }
-}
-
-# Exact locations must win over Control Tower's broader /api regex routes.
-location = /api/health {
-    proxy_pass http://172.25.1.1:${SOGO_API_PORT};
-    proxy_set_header Host \$host;
-    proxy_set_header X-Real-IP \$remote_addr;
-    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto \$scheme;
-    proxy_read_timeout 120s;
-}
-location = /api/auth/smtp {
-    proxy_pass http://172.25.1.1:${SOGO_API_PORT};
-    proxy_set_header Host \$host;
-    proxy_set_header X-Real-IP \$remote_addr;
-    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto \$scheme;
-    proxy_read_timeout 120s;
-}
-location = /api/preferences {
-    proxy_pass http://172.25.1.1:${SOGO_API_PORT};
-    proxy_set_header Host \$host;
-    proxy_set_header X-Real-IP \$remote_addr;
-    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto \$scheme;
-    proxy_read_timeout 120s;
-}
-location = /api/send {
-    proxy_pass http://172.25.1.1:${SOGO_API_PORT};
-    proxy_set_header Host \$host;
-    proxy_set_header X-Real-IP \$remote_addr;
-    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto \$scheme;
-    proxy_read_timeout 120s;
-}
-# Remote image proxy (anti tracking-pixel) — SSRF-guarded di server.js.
-location = /api/image-proxy {
-    proxy_pass http://172.25.1.1:${SOGO_API_PORT};
-    proxy_set_header Host \$host;
-    proxy_set_header X-Real-IP \$remote_addr;
-    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto \$scheme;
-    proxy_read_timeout 30s;
-}
-NGINX_EOF
-)
+    info "Pasang Nginx config (single source: configs/$NGINX_FILE)..."
+    local nginx_config src_file
+    src_file="$PROJECT_DIR/configs/$NGINX_FILE"
+    [ -f "$src_file" ] || { err "Nginx config source tidak ditemukan: $src_file"; exit 1; }
+    # Single source of truth = configs/site.webmail.custom. Port disubstitusi
+    # dari SOGO_API_PORT (default 3005) agar tetap configurable saat deploy.
+    nginx_config="$(sed "s/172\.25\.1\.1:3005/172.25.1.1:${SOGO_API_PORT}/g" "$src_file")"
     local nginx_path_q
     nginx_path_q=$(printf "'%s'" "${NGINX_DIR//\'/\'\\\'\'}/$NGINX_FILE")
     printf '%s\n' "$nginx_config" | ssh "$SERVER" "cat > $nginx_path_q"
@@ -283,6 +209,46 @@ deploy() {
     ssh "$SERVER" "docker exec mailcow-nginx-mailcow-1 nginx -s reload" 2>/dev/null \
         || ssh "$SERVER" "docker restart mailcow-nginx-mailcow-1"
     ok "Nginx reloaded."
+}
+
+# ── Deploy backend (server.js SMTP proxy) ──────────────────────────────────
+# server.js + modul lokal yang di-import (src/lib/*.js) berjalan sebagai
+# systemd user service `sogo-smtp-proxy` di $REMOTE_BACKEND_DIR. deploy.sh
+# sebelumnya TIDAK men-sync ini — backend bisa kedaluwarsa meski frontend live.
+REMOTE_BACKEND_DIR="${REMOTE_BACKEND_DIR:-/home/anas.fikri/sogo-proxy}"
+BACKEND_LIB_FILES="src/lib/ssrfGuard.js src/lib/emailValidation.js"
+
+deploy_backend() {
+    info "Deploy backend (server.js + src/lib) ke $SERVER:$REMOTE_BACKEND_DIR..."
+    local remote_dir_q
+    remote_dir_q=$(printf "'%s'" "${REMOTE_BACKEND_DIR//\'/\'\\\'\'}")
+
+    # Deteksi perubahan: hanya sync+restart kalau file backend benar-benar beda.
+    # Restart sogo-smtp-proxy menjatuhkan sesi SMTP in-memory (smtpToken), jadi
+    # hindari restart pada deploy yang murni frontend.
+    local local_hash remote_hash
+    local_hash=$(md5sum server.js $BACKEND_LIB_FILES 2>/dev/null | md5sum | awk '{print $1}')
+    remote_hash=$(ssh "$SERVER" "cd ${remote_dir_q} && md5sum server.js src/lib/ssrfGuard.js src/lib/emailValidation.js 2>/dev/null | md5sum | awk '{print \$1}'")
+
+    if [ "$local_hash" = "$remote_hash" ]; then
+        ok "Backend tidak berubah — skip sync + restart."
+        return 0
+    fi
+
+    # Backup server.js sebelum menimpa (rollback cepat bila perlu).
+    local backup_name="server.js.bak-\$(date +%Y%m%d)"
+    ssh "$SERVER" "cp -p ${remote_dir_q}/server.js ${remote_dir_q}/${backup_name}"
+
+    ssh "$SERVER" "mkdir -p -- ${remote_dir_q}/src/lib"
+    rsync -av server.js "${SERVER}:${REMOTE_BACKEND_DIR}/server.js"
+    rsync -av $BACKEND_LIB_FILES "${SERVER}:${REMOTE_BACKEND_DIR}/src/lib/"
+
+    info "Cek sintaks server.js di remote..."
+    ssh "$SERVER" "cd ${remote_dir_q} && node --check server.js"
+
+    info "Restart sogo-smtp-proxy (user service)..."
+    ssh "$SERVER" "systemctl --user restart sogo-smtp-proxy"
+    ok "Backend selesai + sogo-smtp-proxy direstart."
 }
 
 # ── Verify ─────────────────────────────────────────────────────────────────
@@ -326,6 +292,9 @@ main() {
 
     echo ""
     deploy
+
+    echo ""
+    deploy_backend
 
     echo ""
     verify

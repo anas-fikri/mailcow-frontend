@@ -357,3 +357,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260819-134645-308275
 - Status: COMPLETED
 - Finding: deploy.sh setup_nginx() menulis konfig nginx HARDCODED (heredoc), bukan membaca configs/site.webmail.custom — kalau dua sumber ini beda, deploy akan menimpa hardening di server. Harus selalu disinkronkan keduanya.
+
+## 2026-08-19T14:13:57Z
+- Task: 20260819-140923-110737
+- Status: COMPLETED
+- Finding: deploy.sh setup_nginx() dulu memelihara heredoc nginx TERPISAH dari configs/site.webmail.custom (dua sumber) — drift bisa menimpa hardening saat deploy. Kini single source + sed substitusi port. Backend server.js + modul import lokal TIDAK ikut ter-deploy oleh deploy.sh sebelumnya — harus di-sync manual; kini otomatis di deploy_backend() dengan hash-change guard.
