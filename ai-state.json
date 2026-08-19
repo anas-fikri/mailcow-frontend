@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "last_session": "2026-08-19T09:45:00Z",
-  "context": "PCP Express Webmail — 3 fitur baru selesai: (1) Laporkan Spam per-message + bulk native SOGo markMessagesAsJunk, (2) fix lampiran tidak muncul (msg.parts bisa ARRAY + size string), (3) buat/hapus subfolder di sidebar (createFolder/deleteFolder + folder dialog modal). Build OK + tests PASS. BELUM deploy — live verify terblokir kredensial stale.",
+  "last_session": "2026-08-19T17:05:00Z",
+  "context": "PCP Express Webmail — 3 fitur baru DEPLOYED ke production: (1) Laporkan Spam per-message + bulk native SOGo markMessagesAsJunk, (2) fix lampiran tidak muncul (msg.parts bisa ARRAY + size string), (3) buat/hapus subfolder di sidebar (createFolder/deleteFolder + folder dialog modal). Commit 200b250 pushed GitLab main. Build OK + tests PASS + HTTP 200. Pending: verifikasi live manual (kredensial test stale).",
   "modules": {
     "api-native-endpoints": {
       "status": "done",
@@ -307,9 +307,9 @@
     "id": "20260819-090000-3fitur",
     "status": "COMPLETED",
     "objective": "3 fitur webmail: spam native SOGo per-message + bulk, fix lampiran tidak muncul, buat/hapus subfolder di sidebar",
-    "next_step": "Deploy via ./deploy.sh + verifikasi live (butuh kredensial test segar)",
+    "next_step": "Verifikasi live manual dengan kredensial test segar (tombol spam, lampiran, subfolder)",
     "goal_id": "TBD",
     "sub_goal_id": "TBD",
-    "updated_at": "2026-08-19T09:45:00Z"
+    "updated_at": "2026-08-19T17:05:00Z"
   }
 }
