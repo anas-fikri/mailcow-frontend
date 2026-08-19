@@ -334,3 +334,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260819-104513-330340
 - Status: COMPLETED
 - Finding: Preview lampiran WAJIB pakai URL langsung /SOGo/ (same-origin 'self'), BUKAN blob: URL — CSP img-src 'self' data: https: & default-src 'self' (frame-src fallback) memblokir blob:. URL.createObjectURL hanya aman utk anchor download (navigasi, bukan render). SOGo part punya viewURL (inline) + downloadURL terpisah — simpan keduanya: viewURL utk preview, downloadURL utk unduh.
+
+## 2026-08-19T11:00:07Z
+- Task: 20260819-105957-306646
+- Status: COMPLETED
+- Finding: SOGo leaf part punya shouldDisplayAttachment (boolean): false = gambar inline (CID) di body, true = lampiran asli. extractAttachments harus skip part dengan shouldDisplayAttachment === false agar gambar inline tidak diduplikasi di daftar Lampiran. Gambar inline tetap di-render di body via resolveCidImages (extractInlineImages). Filter lampiran pakai msg.hasAtt (kolom hasAttachment di SOGO_MESSAGE_HEADERS).

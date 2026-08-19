@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "last_session": "2026-08-19T10:45:22Z",
-  "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox (img/iframe + Unduh + Tab baru + Esc). Build OK + test:attachments PASS.",
+  "last_session": "2026-08-19T11:00:07Z",
+  "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
       "status": "done",
@@ -311,15 +311,20 @@
       "what": "Preview gambar/PDF dalam lightbox: klik gambar → lightbox full-screen (img), klik PDF → lightbox iframe (PDF viewer browser). Tombol Unduh (blob), Tab baru (fallback), Tutup (X/klik luar/Esc). Esc nutup lightbox dulu sebelum menutup reader. extractAttachments simpan viewURL terpisah utk preview. Build OK.",
       "status": "done",
       "updated_at": "2026-08-19T10:45:22Z"
+    },
+    {
+      "what": "Filter email berlampiran (toggle Paperclip di header list) + rapikan seksi lampiran: hapus seksi 'Gambar' (inline images) yang bikin tampak 2 grup, extractAttachments hormati shouldDisplayAttachment=false (gambar inline CID tidak masuk daftar Lampiran). Build OK.",
+      "status": "done",
+      "updated_at": "2026-08-19T11:00:07Z"
     }
   ],
   "active_task": {
-    "id": "20260819-104513-330340",
+    "id": "20260819-105957-306646",
     "status": "COMPLETED",
-    "objective": "Webmail: preview gambar/PDF dalam lightbox saat klik lampiran",
+    "objective": "Webmail: filter email berlampiran + rapikan seksi lampiran (hapus Gambar, hormati shouldDisplayAttachment)",
     "next_step": "",
     "goal_id": "TBD",
     "sub_goal_id": "TBD",
-    "updated_at": "2026-08-19T10:45:22Z"
+    "updated_at": "2026-08-19T11:00:07Z"
   }
 }

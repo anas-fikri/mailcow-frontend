@@ -1,28 +1,28 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260819-104513-330340
-Started At: 2026-08-19T10:45:13Z
-Updated At: 2026-08-19T10:45:22Z
+Task ID: 20260819-105957-306646
+Started At: 2026-08-19T10:59:57Z
+Updated At: 2026-08-19T11:00:07Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: preview gambar/PDF dalam lightbox saat klik lampiran
+Webmail: filter email berlampiran + rapikan seksi lampiran (hapus Gambar, hormati shouldDisplayAttachment)
 
 ## Goal Link
 Goal ID: TBD
 Sub-goal ID: TBD
 
 ## Files Involved
-- src/components/mailer/MessageReader.jsx — lightbox preview (img/iframe), openPreview, viewURL di extractAttachments, Esc nutup lightbox dulu
+- src/pages/MailPage.jsx — state hasAttachmentOnly + filter displayMessages + tombol Paperclip di header list
+- src/components/mailer/MessageReader.jsx — hapus seksi 'Gambar' (inline images), extractAttachments skip shouldDisplayAttachment===false
 
 ## Next Steps
 - Commit, push, deploy (SERVER=deploy-mail ./deploy.sh)
-- Verifikasi live manual: preview gambar & PDF di lightbox
+- Verifikasi live manual: toggle filter lampiran, footer lampiran satu blok
 
 ## Risks
-- Preview PDF bergantung SOGo menyajikan file inline di iframe; bila Content-Disposition: attachment → fallback tombol "Tab baru"
-- CSP (img-src 'self' data: https:, default-src 'self') memblokir blob: → preview WAJIB URL langsung /SOGo/
+- Bila SOGo tidak kirim shouldDisplayAttachment utk beberapa akun, gambar inline tetap masuk Lampiran (fallback aman, tanpa crash)
 
 ## Validation
-- npm run build OK (10.32s)
+- npm run build OK (5.82s)

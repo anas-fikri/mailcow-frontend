@@ -1154,3 +1154,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/current-task.md
 -  M src/components/mailer/MessageReader.jsx
 - ?? docs/ai/tasks/20260819-104513-330340.previous.md
+
+## 2026-08-19T11:00:07Z
+- Status: COMPLETED
+- Objective: Webmail: filter email berlampiran + rapikan seksi lampiran (hapus Gambar, hormati shouldDisplayAttachment)
+- Summary: Filter email berlampiran (toggle Paperclip di header list) + rapikan seksi lampiran: hapus seksi 'Gambar' (inline images) yang bikin tampak 2 grup, extractAttachments hormati shouldDisplayAttachment=false (gambar inline CID tidak masuk daftar Lampiran). Build OK.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M src/components/mailer/MessageReader.jsx
+-  M src/pages/MailPage.jsx
+- ?? docs/ai/tasks/20260819-105957-306646.previous.md

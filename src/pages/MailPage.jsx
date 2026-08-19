@@ -4,7 +4,7 @@ import {
   Inbox, Send, Trash2, FileText, Loader2, Edit3, Mail, Menu, X,
   AlertCircle, Search, Trash, CheckSquare, Square, MailOpen, RefreshCw,
   Folder, FolderPlus, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown, ChevronRight,
-  Archive, BellRing, CheckCheck, Clock,
+  Archive, BellRing, CheckCheck, Clock, Paperclip,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchFolders, fetchMessages, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder } from '../lib/api';
@@ -185,6 +185,7 @@ export default function MailPage() {
   const [flagFilter, setFlagFilter] = useState(null); // color key or null
   const [categoryFilter, setCategoryFilter] = useState(null); // EMAIL_CATEGORIES key or null
   const [unreadOnly, setUnreadOnly] = useState(false); // filter hanya belum dibaca
+  const [hasAttachmentOnly, setHasAttachmentOnly] = useState(false); // filter hanya yang berlampiran
   const [snoozePicker, setSnoozePicker] = useState(null); // { uid, x, y } — pilih durasi snooze
   const [quickRuleSender, setQuickRuleSender] = useState(null); // sender label utk QuickRuleModal
   const [snoozeTick, setSnoozeTick] = useState(0); // bump utk re-render setelah prune
@@ -416,6 +417,7 @@ export default function MailPage() {
     if (flagFilter && getFlagColor(user?.email, m.uid) !== flagFilter) return false;
     if (categoryFilter && classifyEmail(m) !== categoryFilter) return false;
     if (unreadOnly && m.isRead) return false;
+    if (hasAttachmentOnly && !m.hasAtt) return false;
     return true;
   });
 
@@ -1455,6 +1457,15 @@ export default function MailPage() {
                 title={unreadOnly ? 'Tampilkan semua' : 'Hanya belum dibaca'}
               >
                 <MailOpen size={16} />
+              </button>
+              <button
+                onClick={() => setHasAttachmentOnly(!hasAttachmentOnly)}
+                className={`p-2 rounded-full transition-colors ${
+                  hasAttachmentOnly ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+                }`}
+                title={hasAttachmentOnly ? 'Tampilkan semua' : 'Hanya email berlampiran'}
+              >
+                <Paperclip size={16} />
               </button>
               <button
                 onClick={() => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] })}

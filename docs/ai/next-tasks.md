@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-19T10:45:22Z
+Generated At: 2026-08-19T11:00:08Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Preview lampiran WAJIB pakai URL langsung /SOGo/ (same-origin 'self'), BUKAN blob: URL — CSP img-src 'self' data: https: & default-src 'self' (frame-src fallback) memblokir blob:. URL.createObjectURL hanya aman utk anchor download (navigasi, bukan render). SOGo part punya viewURL (inline) + downloadURL terpisah — simpan keduanya: viewURL utk preview, downloadURL utk unduh.
+## 1. [MEDIUM] Follow up on discovered knowledge: SOGo leaf part punya shouldDisplayAttachment (boolean): false = gambar inline (CID) di body, true = lampiran asli. extractAttachments harus skip part dengan shouldDisplayAttachment === false agar gambar inline tidak diduplikasi di daftar Lampiran. Gambar inline tetap di-render di body via resolveCidImages (extractInlineImages). Filter lampiran pakai msg.hasAtt (kolom hasAttachment di SOGO_MESSAGE_HEADERS).
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
@@ -14,7 +14,7 @@ Suggestions are evidence-based from current task state, goals, validation, risks
 - Source: goals.md
 
 ## 3. [LOW] Review and commit current changes
-- Why: 6 uncommitted file entries remain in the project.
+- Why: 7 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use

@@ -99,7 +99,8 @@ function extractAttachments(parts, result = []) {
   const isInline = ct === 'text/html' || ct === 'text/plain';
   // Hanya part leaf dengan URL unduhan — container (multipart/mixed,
   // alternative) tidak punya downloadURL, dilewati dan direkursi.
-  if ((parts.downloadURL || parts.viewURL) && !isInline) {
+  // `shouldDisplayAttachment === false` = gambar inline (CID) di body, bukan lampiran.
+  if ((parts.downloadURL || parts.viewURL) && !isInline && parts.shouldDisplayAttachment !== false) {
     result.push({
       name: parts.filename || parts.name || 'attachment',
       size: parts.size || 0,
@@ -783,33 +784,6 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 <Send size={13} />
                 Kirim
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* Inline images preview */}
-        {inlineImages.length > 0 && (
-          <div className="mt-6 space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Gambar</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {inlineImages.map((img, idx) => (
-                <a
-                  key={idx}
-                  href={toSafeUrl(img.downloadURL, { base: SOGO_BASE, allowExternal: false }) || undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group relative rounded-xl overflow-hidden border border-border bg-card hover:ring-2 hover:ring-primary/30 transition-all"
-                >
-                  <img
-                    src={toSafeUrl(img.downloadURL, { base: SOGO_BASE, allowExternal: false }) || undefined}
-                    alt={img.name}
-                    className="w-full h-32 object-cover"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                  <div className="px-2 py-1 text-xs text-muted-foreground truncate">{img.name}</div>
-                </a>
-              ))}
             </div>
           </div>
         )}
