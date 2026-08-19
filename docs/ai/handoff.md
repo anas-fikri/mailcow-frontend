@@ -1123,3 +1123,9 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - Branch: main
 - Changed Files:
 -  M ai-state.json
+
+## 2026-08-19 — 3 fitur DEPLOYED (commit 200b250)
+
+**Done:** spam native SOGo per-message + bulk (markMessagesAsJunk), fix lampiran (parts ARRAY root cause + size string), subfolder create/delete UI (createFolder/deleteFolder + dialog modal). Build OK, tests PASS, deployed via ./deploy.sh (HTTP 200), pushed ke GitLab main.
+
+**Next:** verifikasi live manual — tombol spam, lampiran, subfolder. Kredensial test stale (403 LDAPPasswordPolicyError 65535); perlu kredensial segar.
