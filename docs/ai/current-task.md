@@ -3,25 +3,28 @@
 **Tanggal:** 2026-08-19
 
 ## Objektif aktif
-Pindahkan `smtpToken` dari localStorage ke cookie httpOnly — menutup vektor XSS
-pencurian token sesi SMTP (risiko terdokumentasi di knowledge.md sejak round
-sebelumnya). Selesai, divalidasi, di-deploy.
+Audit + hardening `ComposeModal`/`HtmlEditor` untuk paste-based XSS dan
+tabnabbing pada link keluar. Selesai, divalidasi.
 
-## Ringkasan perubahan
-- **Server (`server.js` + `src/lib/smtpCookie.js` baru):** `/api/auth/smtp` POST kini
-  menyetel `Set-Cookie: smtp_session=…; HttpOnly; SameSite=Strict; Path=/api; Secure; Max-Age=TTL`
-  dan mengembalikan `{ ok: true }` (bukan `{ token }`). DELETE menghapus sesi + clear cookie.
-  `requireSmtpSession` / `/api/send` membaca token dari cookie → fallback header/body
-  (kompatibilitas deploy bertahap).
-- **Frontend:** `authStore` tidak lagi menyimpan `smtpToken`; `api.js`
-  (`registerSmtpSession`/`revokeSmtpSession`/`sendMessage`/`fetchPreferences`/`logout`)
-  tidak lagi mengirim/menerima token — cookie dikirim otomatis via `credentials: 'include'`.
-- **Keamanan:** HttpOnly (anti XSS theft) + SameSite=Strict + X-Api-Key (anti CSRF).
+## Temuan & perbaikan
+- **Paste-XSS (`data:` href):** `PURIFY_CONFIG.ALLOWED_URI_REGEXP` mengizinkan
+  `data:` (diperlukan utk `<img src>` base64 di composer), tapi DOMPurify tidak
+  membedakan per-atribut — jadi `<a href="data:text/html,...">` dari paste
+  **lolos** sanitasi. → Hook `hardenAnchorNode` menghapus `data:` href pada `<a>`.
+- **Tabnabbing:** email/paste bisa berisi `<a target="_blank">` tanpa `rel`;
+  hook memaksa `rel="noopener noreferrer"` (defense-in-depth; browser modern
+  sudah default noopener).
+
+## Implementasi
+- `src/lib/pasteUtils.js`: `hardenAnchorNode(node)` (pure) +
+  `registerPurifyHardening(d)` + auto-register `afterSanitizeAttributes` saat
+  modul dimuat (browser). Hook berlaku utk render email (MessageReader) DAN editor.
+- `scripts/test-purify-hardening.mjs` + `test:purify-hardening` (27 test total).
+- `deploy.sh`: `BACKEND_LIB_FILES` += `smtpCookie.js` (ikut commit ini, sisa task sebelumnya).
 
 ## Status
-- [x] Implementasi server + frontend + test
-- [x] 26/26 test PASS + build OK
-- [x] Deploy live (frontend + backend restart)
-- [ ] (opsional) httpOnly cookie untuk sogoToken SOGo — di luar scope task ini
+- [x] Implementasi + test
+- [x] 27/27 test PASS + build OK
+- [ ] deploy + commit/push
 Status: COMPLETED
-Updated At: 2026-08-19T15:06:15Z
+Updated At: 2026-08-19T15:15:17Z

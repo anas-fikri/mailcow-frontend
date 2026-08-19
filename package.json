@@ -34,7 +34,8 @@
     "test:image-proxy": "node scripts/test-image-proxy.mjs",
     "test:tracking-pixel": "node scripts/test-tracking-pixel.mjs",
     "test:email-validation": "node scripts/test-email-validation.mjs",
-    "test:smtp-cookie": "node scripts/test-smtp-cookie.mjs"
+    "test:smtp-cookie": "node scripts/test-smtp-cookie.mjs",
+    "test:purify-hardening": "node scripts/test-purify-hardening.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

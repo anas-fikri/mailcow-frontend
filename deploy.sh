@@ -217,7 +217,7 @@ deploy() {
 # systemd user service `sogo-smtp-proxy` di $REMOTE_BACKEND_DIR. deploy.sh
 # sebelumnya TIDAK men-sync ini — backend bisa kedaluwarsa meski frontend live.
 REMOTE_BACKEND_DIR="${REMOTE_BACKEND_DIR:-/home/anas.fikri/sogo-proxy}"
-BACKEND_LIB_FILES="src/lib/ssrfGuard.js src/lib/emailValidation.js"
+BACKEND_LIB_FILES="src/lib/ssrfGuard.js src/lib/emailValidation.js src/lib/smtpCookie.js"
 
 deploy_backend() {
     info "Deploy backend (server.js + src/lib) ke $SERVER:$REMOTE_BACKEND_DIR..."
@@ -229,7 +229,7 @@ deploy_backend() {
     # hindari restart pada deploy yang murni frontend.
     local local_hash remote_hash
     local_hash=$(md5sum server.js $BACKEND_LIB_FILES 2>/dev/null | md5sum | awk '{print $1}')
-    remote_hash=$(ssh "$SERVER" "cd ${remote_dir_q} && md5sum server.js src/lib/ssrfGuard.js src/lib/emailValidation.js 2>/dev/null | md5sum | awk '{print \$1}'")
+    remote_hash=$(ssh "$SERVER" "cd ${remote_dir_q} && md5sum server.js $BACKEND_LIB_FILES 2>/dev/null | md5sum | awk '{print \$1}'")
 
     if [ "$local_hash" = "$remote_hash" ]; then
         ok "Backend tidak berubah — skip sync + restart."

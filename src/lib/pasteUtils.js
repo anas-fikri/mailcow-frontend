@@ -13,6 +13,41 @@ export const PURIFY_CONFIG = {
   ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
 };
 
+// ─── DOMPurify hardening hook (anti tabnabbing + paste-XSS) ──────────────────
+// Dipasang lewat afterSanitizeAttributes sehingga berlaku untuk SEMUA sanitize
+// (render email MessageReader, editor compose, paste). Aturan:
+//   1. <a target="_blank"> wajib rel="noopener noreferrer" — cegah tabnabbing
+//      (window.opener) pada link keluar. Browser modern default noopener, tapi
+//      ini defense-in-depth utk browser lama / non-standar.
+//   2. Blokir data: URI pada <a href>. ALLOWED_URI_REGEXP mengizinkan data:
+//      utk <img src> base64 (inline image composer), tapi sebagai LINK
+//      data:text/html adalah payload phishing/malicious yang lolos sanitasi.
+//      (javascript:/vbscript: sudah diblokir DOMPurify via regex di atas.)
+export function hardenAnchorNode(node) {
+  if (!node || String(node.tagName).toUpperCase() !== 'A') return;
+  const href = node.getAttribute('href');
+  if (href && /^\s*data:/i.test(href)) {
+    node.removeAttribute('href');
+  }
+  if (node.getAttribute('target') === '_blank') {
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
+}
+
+/**
+ * Pasang hook hardening ke instance DOMPurify (default: singleton global).
+ * Injectable agar bisa diuji tanpa DOMPurify asli (Node/test).
+ */
+export function registerPurifyHardening(d = DOMPurify) {
+  d.addHook('afterSanitizeAttributes', hardenAnchorNode);
+}
+
+// Pasang sekali saat modul dimuat (browser). Di Node DOMPurify tanpa window
+// tidak punya .addHook — skip (hook dipasang manual di test).
+if (typeof DOMPurify?.addHook === 'function') {
+  registerPurifyHardening(DOMPurify);
+}
+
 /** Baca File sebagai base64 data URL */
 export function readFileAsBase64(file) {
   return new Promise(resolve => {
