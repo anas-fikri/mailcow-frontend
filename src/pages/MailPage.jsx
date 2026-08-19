@@ -3,11 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Inbox, Send, Trash2, FileText, Loader2, Edit3, Mail, Menu, X,
   AlertCircle, Search, Trash, CheckSquare, Square, MailOpen, RefreshCw,
-  Folder, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown, ChevronRight,
+  Folder, FolderPlus, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown, ChevronRight,
   Archive, BellRing, CheckCheck, Clock,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchFolders, fetchMessages, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged } from '../lib/api';
+import { fetchFolders, fetchMessages, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder } from '../lib/api';
 import MessageReader from '../components/mailer/MessageReader';
 import ComposeModal from '../components/mailer/ComposeModal';
 import QuickRuleModal from '../components/mailer/QuickRuleModal';
@@ -193,6 +193,9 @@ export default function MailPage() {
   const [isTouch] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches
   );
+  // Dialog folder: { mode: 'create', parent } | { mode: 'delete', folder } | null
+  const [folderDialog, setFolderDialog] = useState(null);
+  const [newFolderName, setNewFolderName] = useState('');
 
   // Refs untuk compose/search
   const searchInputRef = useRef(null);
@@ -392,7 +395,6 @@ export default function MailPage() {
   // Resolver folder id → objek (moveMessages butuh `path`, bukan id berprefix)
   const folderById = (id) => (Array.isArray(folders) ? folders : []).find((f) => f.id === id) || null;
   const trashFolder = folderById('folderTrash') || { path: 'Trash' };
-  const junkFolder  = folderById('folderJunk')  || { path: 'Junk' };
 
   // Filter messages by flag color / kategori / belum dibaca / snooze (client-side)
   const displayMessages = visibleMessages.filter((m) => {
@@ -568,6 +570,42 @@ export default function MailPage() {
       setSelectedUids([]);
       toast.success('Pesan dipindahkan');
     },
+  });
+
+  // Laporkan Spam — native SOGo markMessagesAsJunk (set flag + pindah ke Junk).
+  const junkMutation = useMutation({
+    mutationFn: ({ uids }) => markMessagesAsJunk(user.sogoToken, selectedFolder, uids),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
+      queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+      setSelectedUids([]);
+      toast.success('Pesan dilaporkan sebagai spam');
+    },
+    onError: (err) => toast.error(err?.message || 'Gagal melaporkan spam.'),
+  });
+
+  // Buat subfolder — native SOGo createFolder.
+  const createFolderMutation = useMutation({
+    mutationFn: ({ parentId, name }) => createFolder(user.sogoToken, parentId, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['folders', user.sogoToken] });
+      toast.success('Folder berhasil dibuat');
+    },
+    onError: (err) => toast.error(err?.message || 'Gagal membuat folder.'),
+  });
+
+  // Hapus subfolder — native SOGo delete (permanen, tanpaTrash).
+  const deleteFolderMutation = useMutation({
+    mutationFn: ({ folderId }) => deleteFolder(user.sogoToken, folderId),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['folders', user.sogoToken] });
+      // Jika folder yang dihapus sedang aktif (atau induknya), reset ke INBOX.
+      if (selectedFolder === vars.folderId || selectedFolder.startsWith(`${vars.folderId}%2F`)) {
+        setSelectedFolder('folderINBOX');
+      }
+      toast.success('Folder berhasil dihapus');
+    },
+    onError: (err) => toast.error(err?.message || 'Gagal menghapus folder.'),
   });
 
   // Tandai semua pesan di folder aktif sebagai dibaca (batch per-uid)
@@ -855,7 +893,7 @@ export default function MailPage() {
 
       if (key === '!' && selectedFolder !== 'folderJunk') {
         e.preventDefault();
-        moveMutation.mutate({ uids: targetUids, targetFolder: junkFolder });
+        junkMutation.mutate({ uids: targetUids });
         return;
       }
 
@@ -1166,11 +1204,13 @@ export default function MailPage() {
     const badge = folder.type === 'inbox'
       ? (unseenData?.unseenCount || 0)
       : (perFolderUnseen.data?.[folder.id] || 0);
+    const isDefault = DEFAULT_FOLDERS.some((d) => d.id === folder.id);
+    const rowActionsVisible = isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100';
 
     return (
       <React.Fragment key={folder.id}>
         <div
-          className="flex items-center"
+          className="flex items-center group"
           style={{ paddingLeft: `${(folder.depth || 0) * 16}px` }}
         >
           <button
@@ -1204,6 +1244,29 @@ export default function MailPage() {
               </span>
             )}
           </button>
+          {/* Aksi folder: buat subfolder (+), hapus (non-default only) */}
+          <div className={`flex items-center gap-0.5 shrink-0 pr-1 transition-opacity ${rowActionsVisible}`}>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setFolderDialog({ mode: 'create', parent: folder }); }}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted"
+              title={`Buat subfolder di ${folder.label}`}
+              aria-label={`Buat subfolder di ${folder.label}`}
+            >
+              <FolderPlus size={14} />
+            </button>
+            {!isDefault && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setFolderDialog({ mode: 'delete', folder }); }}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                title={`Hapus ${folder.label}`}
+                aria-label={`Hapus ${folder.label}`}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </div>
         </div>
         {hasChildren && !isCollapsed && children.map(renderFolderRow)}
       </React.Fragment>
@@ -1498,7 +1561,7 @@ export default function MailPage() {
               </button>
               {selectedFolder !== 'folderJunk' && (
                 <button
-                  onClick={() => moveMutation.mutate({ uids: selectedUids, targetFolder: junkFolder })}
+                  onClick={() => junkMutation.mutate({ uids: selectedUids })}
                   className="p-1.5 text-orange-500 hover:bg-orange-500/10 rounded"
                   title="Laporkan Spam"
                 >
@@ -1694,6 +1757,90 @@ export default function MailPage() {
         folders={folders}
         userEmail={user?.email}
       />
+
+      {/* ── Folder Dialog: buat subfolder / hapus folder ──────────────────── */}
+      {folderDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => { setFolderDialog(null); setNewFolderName(''); }}
+          />
+          <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-sm p-5">
+            {folderDialog.mode === 'create' ? (
+              <>
+                <h3 className="text-base font-semibold mb-1">Buat Subfolder</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Folder baru di dalam <span className="font-medium text-foreground">{folderDialog.parent.label}</span>
+                </p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newFolderName.trim()) return;
+                    createFolderMutation.mutate(
+                      { parentId: folderDialog.parent.id, name: newFolderName.trim() },
+                      { onSuccess: () => { setFolderDialog(null); setNewFolderName(''); } }
+                    );
+                  }}
+                >
+                  <input
+                    autoFocus
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    placeholder="Nama folder"
+                    className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 mb-4"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setFolderDialog(null); setNewFolderName(''); }}
+                      className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!newFolderName.trim() || createFolderMutation.isPending}
+                      className="px-4 py-2 rounded-xl text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      {createFolderMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Buat Folder'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <>
+                <h3 className="text-base font-semibold mb-1">Hapus Folder</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Hapus <span className="font-medium text-foreground">{folderDialog.folder.label}</span> beserta isinya?
+                  Tindakan ini permanen (tidak masuk Sampah).
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFolderDialog(null)}
+                    className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleteFolderMutation.isPending}
+                    onClick={() => {
+                      deleteFolderMutation.mutate(
+                        { folderId: folderDialog.folder.id },
+                        { onSuccess: () => setFolderDialog(null) }
+                      );
+                    }}
+                    className="px-4 py-2 rounded-xl text-sm bg-destructive text-destructive-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                  >
+                    {deleteFolderMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Hapus'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Keyboard Shortcuts Help ────────────────────────────────────────── */}
       <KeyboardShortcutsModal

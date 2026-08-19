@@ -1,11 +1,19 @@
 {
   "version": 1,
-  "last_session": "2026-08-18T14:54:21Z",
-  "context": "PCP Express Webmail — bug hunt loop (5 pass) + 7 bugs fix + deploy LIVE. Semua fitur baru (search, archive, moveMessages, rules, quick rule, auto-advance, group by tanggal, tambah kontak, quick reply signature) sudah stable. 20/20 test PASS.",
+  "last_session": "2026-08-19T09:45:00Z",
+  "context": "PCP Express Webmail — 3 fitur baru selesai: (1) Laporkan Spam per-message + bulk native SOGo markMessagesAsJunk, (2) fix lampiran tidak muncul (msg.parts bisa ARRAY + size string), (3) buat/hapus subfolder di sidebar (createFolder/deleteFolder + folder dialog modal). Build OK + tests PASS. BELUM deploy — live verify terblokir kredensial stale.",
   "modules": {
+    "api-native-endpoints": {
+      "status": "done",
+      "feature": "markMessagesAsJunk/markMessagesAsNotJunk (native SOGo, set flag + pindah) + createFolder/deleteFolder + normalizeUids helper"
+    },
     "mail-page": {
       "status": "done",
-      "feature": "Sort by date, conversation view, mark as SPAM — persisted to authStore (survives logout)"
+      "feature": "Bulk spam native (button + keyboard '!'), subfolder UI (FolderPlus + Trash2 per folder row), folder dialog modal create/delete, deleteFolderMutation reset ke INBOX"
+    },
+    "message-reader": {
+      "status": "done",
+      "feature": "extractHtml/extractAttachments/extractInlineImages handle parts ARRAY (root cause lampiran hilang), formatFileSize handle size string SOGo, tombol Laporkan Spam per-message"
     },
     "preferences-page": {
       "status": "done",
@@ -85,6 +93,30 @@
     }
   },
   "bugs_found": [
+    {
+      "file": "src/components/mailer/MessageReader.jsx",
+      "issue": "Lampiran tidak muncul — SOGo kirim msg.parts sebagai ARRAY langsung (bukan object {type, content}), extractAttachments cek parts.contentType pada array → undefined → return []",
+      "status": "fixed",
+      "fix": "Guard Array.isArray(parts) di TOP extractHtml/extractAttachments/extractInlineImages (rekursi tiap elemen); fallback downloadURL || viewURL"
+    },
+    {
+      "file": "src/components/mailer/MessageReader.jsx",
+      "issue": "formatFileSize NaN — SOGo kirim size sebagai STRING terformat (\"1.2 MB\") bukan bytes",
+      "status": "fixed",
+      "fix": "Tampilkan string langsung; hanya number yang diformat ulang"
+    },
+    {
+      "file": "src/pages/MailPage.jsx",
+      "issue": "Bulk spam + shortcut '!' pakai moveMessages manual ke folder Junk (tanpa flag Junk) — klasifikasi spam tidak ter-set",
+      "status": "fixed",
+      "fix": "Upgrade ke markMessagesAsJunk native (set flag + pindah); hapus junkFolder var unused"
+    },
+    {
+      "file": "src/lib/api.js",
+      "issue": "moveMessages mengirim UIDs apa adanya dari parseMessageRow — bisa string → SOGo 500",
+      "status": "fixed",
+      "fix": "parseInt normalization + filter invalid + error body capture"
+    },
     {
       "file": "src/pages/MailPage.jsx",
       "issue": "normalizeSubject() crashes on non-string subject (object from SOGo)",
@@ -207,6 +239,10 @@
   ],
   "progress": [
     {
+      "what": "3 fitur: spam native SOGo per-message + bulk, fix lampiran (parts array + size string), buat/hapus subfolder UI",
+      "status": "done"
+    },
+    {
       "what": "Theme color picker in PreferencesPage (8 presets via CSS --theme-hue)",
       "status": "done"
     },
@@ -268,12 +304,12 @@
     }
   ],
   "active_task": {
-    "id": "20260818-142155-180721",
+    "id": "20260819-090000-3fitur",
     "status": "COMPLETED",
-    "objective": "T-BUGHUNT-ROUND2: Bug hunt loop — regressions + deep audit",
-    "next_step": "",
+    "objective": "3 fitur webmail: spam native SOGo per-message + bulk, fix lampiran tidak muncul, buat/hapus subfolder di sidebar",
+    "next_step": "Deploy via ./deploy.sh + verifikasi live (butuh kredensial test segar)",
     "goal_id": "TBD",
     "sub_goal_id": "TBD",
-    "updated_at": "2026-08-18T14:54:21Z"
+    "updated_at": "2026-08-19T09:45:00Z"
   }
 }

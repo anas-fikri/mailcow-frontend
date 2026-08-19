@@ -618,6 +618,93 @@ export async function moveMessages(sogoToken, folder, uids, targetFolder) {
   }
 }
 
+// ─── Folder management (subfolder) ───────────────────────────────────────────
+// Ground truth dari UIxMailFolderActions.m (SOGo v5, deployed == master):
+//   POST /so/{user}/Mail/0/{parentFolder}/createFolder  body {"name": "..."} → 204 / 500 {message}
+//   POST /so/{user}/Mail/0/{folder}/delete              body {"withoutTrash": true} → 204
+
+/** Buat subfolder baru di bawah parentFolder (id SOGo, mis. "folderINBOX"). */
+export async function createFolder(sogoToken, parentFolderId, name) {
+  const safeName = String(name || '').trim();
+  if (!safeName) throw new Error('Nama folder tidak boleh kosong.');
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(parentFolderId, 'folder', { allowEncodedSlash: true })}/createFolder`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ name: safeName }),
+  });
+  if (!res.ok) {
+    // Tangkap response body — SOGo return {message} saat gagal (mis. nama duplikat).
+    let detail = '';
+    try { detail = await res.text(); } catch { /* ignore */ }
+    const msg = detail
+      ? `Gagal membuat folder (${res.status}): ${detail.slice(0, 200)}`
+      : `Gagal membuat folder (${res.status}).`;
+    throwApiError(msg, res.status);
+  }
+}
+
+/** Hapus folder SOGo secara permanen (tanpa pindah ke Sampah). */
+export async function deleteFolder(sogoToken, folderId) {
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folderId, 'folder', { allowEncodedSlash: true })}/delete`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ withoutTrash: true }),
+  });
+  if (!res.ok) throwApiError(`Gagal menghapus folder (${res.status}).`, res.status);
+}
+
+// ─── Junk/Spam (native SOGo) ──────────────────────────────────────────────────
+// Ground truth dari UIxMailFolderActions.m:
+//   POST /Mail/0/{folder}/markMessagesAsJunk    body {"uids": [int]} → 204
+//   POST /Mail/0/{folder}/markMessagesAsNotJunk  body {"uids": [int]} → 204
+// Native lebih baik daripada move manual ke folder Junk — SOGo set flag Junk
+// sekaligus memindahkan, sehingga klasifikasi spam berfungsi penuh.
+
+/** Normalisasi UIDs ke integer (SOGo reject string uid). */
+function normalizeUids(uids) {
+  return (Array.isArray(uids) ? uids : [])
+    .map((u) => {
+      const n = typeof u === 'number' ? u : parseInt(String(u), 10);
+      return Number.isNaN(n) || n <= 0 ? null : n;
+    })
+    .filter((n) => n !== null);
+}
+
+/** Tandai pesan sebagai spam (junk) — native SOGo. */
+export async function markMessagesAsJunk(sogoToken, folder, uids) {
+  const intUids = normalizeUids(uids);
+  if (intUids.length === 0) throw new Error('Tidak ada pesan valid untuk ditandai spam.');
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/markMessagesAsJunk`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ uids: intUids }),
+  });
+  if (!res.ok) {
+    let detail = '';
+    try { detail = await res.text(); } catch { /* ignore */ }
+    const msg = detail
+      ? `Gagal menandai spam (${res.status}): ${detail.slice(0, 200)}`
+      : `Gagal menandai spam (${res.status}).`;
+    throwApiError(msg, res.status);
+  }
+}
+
+/** Batalkan penandaan spam (bukan junk) — native SOGo. */
+export async function markMessagesAsNotJunk(sogoToken, folder, uids) {
+  const intUids = normalizeUids(uids);
+  if (intUids.length === 0) throw new Error('Tidak ada pesan valid.');
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/markMessagesAsNotJunk`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ uids: intUids }),
+  });
+  if (!res.ok) throwApiError(`Gagal membatalkan spam (${res.status}).`, res.status);
+}
+
 /**
  * Kirim email via SOGo compose → save draft → send.
  *

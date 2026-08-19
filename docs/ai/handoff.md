@@ -1,5 +1,16 @@
 # Handoff Log
 
+## 2026-08-19 — 3 fitur: spam native SOGo + fix lampiran + subfolder UI — DONE (siap deploy)
+
+- **Permintaan user:** (1) tombol mark as SPAM per-message, (2) lampiran yang tidak muncul, (3) buat/hapus subfolder di sidebar.
+- **Fitur 1 — Laporkan Spam native (`markMessagesAsJunk`):** SOGo punya endpoint native `POST /Mail/0/{folder}/markMessagesAsJunk` body `{"uids":[int]}` → 204 (dari `UIxMailFolderActions.m` — source master diverifikasi == deployed bundle checksum `372f2e21`/`aa1f7a75`, build `@localhost 20260611`). Lebih benar daripada move manual: SOGo set flag Junk + pindah sekaligus → klasifikasi spam Rspamd tetap jalan. Endpoint tambahan: `markMessagesAsNotJunk` (kebalikan).
+  - `api.js`: `normalizeUids()` helper (int, filter invalid) + 2 fungsi (pola `moveMessages`: `pathSegment` + `allowEncodedSlash`, `sogoHeaders`, error body capture).
+  - `MessageReader.jsx`: tombol AlertTriangle di toolbar setelah Hapus, hidden saat `folder === 'folderJunk'`, `spamMutation` → toast + invalidate messages/unseen + navigateAfter.
+  - `MailPage.jsx`: bulk spam button (baris ~1500) DAN shortcut `'!'` (baris ~856) di-upgrade dari `moveMutation → junkFolder` ke `junkMutation` native. `junkFolder` var kini unused → dihapus.
+- **Fitur 2 — Lampiran tidak muncul:** ROOT CAUSE teridentifikasi dari source `UIxMailPartViewer.m renderedPart`: SOGo bisa kirim `parts` sebagai **ARRAY langsung** (bukan object `{type, content:[...]}`). `extractAttachments`/`extractInlineImages`/`extractHtml` cek `parts.contentType` pada array → undefined → return [] → lampiran tidak pernah tampil. Fix: tambah guard `Array.isArray(parts)` di TOP semua extract function (rekursi tiap elemen). Juga: `size` dari SOGo = **STRING terformat** ("1.2 MB"), bukan bytes → `formatFileSize` NaN → fix tampilkan string langsung. Fix defensif tambahan: fallback `downloadURL || viewURL`, skip part teks (html/plain) dari lampiran.
+- **Fitur 3 — Subfolder:** `createFolder` = `POST /Mail/0/{parentFolder}/createFolder` body `{"name"}` → 204/500 `{message}`; `deleteFolder` = `POST /Mail/0/{folder}/delete` body `{"withoutTrash":true}` → 204 (permanen). MailPage: tombol `FolderPlus` (buat subfolder) + `Trash2` (hapus, non-default only via `DEFAULT_FOLDERS`) per baris folder, muncul saat hover/touch; modal create (input nama) + delete (konfirmasi permanen). `deleteFolderMutation` reset ke folderINBOX bila folder aktif/di dalamnya dihapus. Invalidate `['folders', sogoToken]` setelah create/delete.
+- **Validasi:** build OK (844ms), test:message-html / test:mailbox-tree / test:path-segment PASS. BELUM deploy — live verify terblokir (kredensial stale: 403 LDAPPasswordPolicyError 65535).
+- **Catatan:** verifikasi live response SOGo masih pending (butuh kredensial test segar). Implementasi defensive mengikuti ground truth source SOGo (deployed == master).
 ## 2026-08-18 — moveMessages UIDs normalization + error body capture — DONE + DEPLOYED
 
 - **Bug:** `moveMessages` mengirim UIDs apa adanya dari `parseMessageRow` — bisa berupa string dari JSON response SOGo. SOGo backend expect `uids` sebagai array integer → 500 error saat auto-archive rule jalan.
@@ -1105,3 +1116,10 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-18T16:08:05Z
+- Status: COMPLETED
+- Objective: T-BUGHUNT-ROUND2: Bug hunt loop — regressions + deep audit
+- Branch: main
+- Changed Files:
+-  M ai-state.json

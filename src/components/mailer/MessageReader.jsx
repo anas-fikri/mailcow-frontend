@@ -3,10 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, Paperclip,
   Flag, Printer, FolderOpen, Star, Send, ChevronDown, UserPlus, X,
-  AlertCircle, RefreshCw,
+  AlertCircle, RefreshCw, AlertTriangle,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, sendMessage, fetchPreferences, createContact } from '../../lib/api';
+import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, sendMessage, fetchPreferences, createContact } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
@@ -57,6 +57,15 @@ function escapeHtml(str) {
 
 function extractHtml(parts) {
   if (!parts) return '';
+  // SOGo bisa mengembalikan parts sebagai ARRAY langsung (bukan object
+  // {type, content: [...]}) — rekursi tiap elemen.
+  if (Array.isArray(parts)) {
+    for (const child of parts) {
+      const html = extractHtml(child);
+      if (html) return html;
+    }
+    return '';
+  }
   if (parts.contentType === 'text/html' && parts.content) return parts.content;
   if (parts.contentType === 'text/plain' && parts.content) {
     // text/plain tetap harus diperlakukan sebagai teks, bukan HTML. Escape
@@ -79,14 +88,20 @@ function extractHtml(parts) {
 
 function extractAttachments(parts, result = []) {
   if (!parts) return result;
+  if (Array.isArray(parts)) {
+    parts.forEach((child) => extractAttachments(child, result));
+    return result;
+  }
   const ct = parts.contentType || '';
   const isInline = ct === 'text/html' || ct === 'text/plain';
-  if (parts.downloadURL && !isInline) {
+  // Hanya part leaf dengan URL unduhan — container (multipart/mixed,
+  // alternative) tidak punya downloadURL, dilewati dan direkursi.
+  if ((parts.downloadURL || parts.viewURL) && !isInline) {
     result.push({
       name: parts.filename || parts.name || 'attachment',
       size: parts.size || 0,
       contentType: ct,
-      downloadURL: parts.downloadURL,
+      downloadURL: parts.downloadURL || parts.viewURL,
     });
   }
   if (Array.isArray(parts.content)) {
@@ -97,11 +112,15 @@ function extractAttachments(parts, result = []) {
 
 function extractInlineImages(parts, result = []) {
   if (!parts) return result;
-  if (parts.contentType?.startsWith('image/') && parts.downloadURL) {
+  if (Array.isArray(parts)) {
+    parts.forEach((child) => extractInlineImages(child, result));
+    return result;
+  }
+  if (parts.contentType?.startsWith('image/') && (parts.downloadURL || parts.viewURL)) {
     result.push({
       name: parts.filename || parts.name || 'image',
       contentType: parts.contentType,
-      downloadURL: parts.downloadURL,
+      downloadURL: parts.downloadURL || parts.viewURL,
     });
   }
   if (Array.isArray(parts.content)) {
@@ -177,11 +196,14 @@ function formatAddresses(arr) {
   }).filter(Boolean).join(', ');
 }
 
-function formatFileSize(bytes) {
-  if (!bytes || bytes === 0) return '';
-  return bytes > 1024 * 1024
-    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
-    : `${Math.round(bytes / 1024)} KB`;
+function formatFileSize(size) {
+  // SOGo kirim `size` sebagai STRING terformat ("1.2 MB") — bukan bytes.
+  // Tampilkan langsung; hanya angka numerik yang diformat ulang.
+  if (!size || size === 0) return '';
+  if (typeof size === 'string') return size;
+  return size > 1024 * 1024
+    ? `${(size / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.round(size / 1024)} KB`;
 }
 
 function isImageType(ct) {
@@ -284,6 +306,20 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       onMoveComplete?.();
       toast.success('Pesan dipindahkan');
     },
+  });
+
+  // Laporkan Spam — endpoint native SOGo markMessagesAsJunk (set flag Junk +
+  // pindahkan ke folder Junk sekaligus, lebih benar daripada move manual).
+  const spamMutation = useMutation({
+    mutationFn: () => markMessagesAsJunk(user.sogoToken, folder, [msgId]),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
+      queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+      navigateAfter();
+      onMoveComplete?.();
+      toast.success('Pesan dilaporkan sebagai spam');
+    },
+    onError: (err) => toast.error(err?.message || 'Gagal melaporkan spam.'),
   });
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
@@ -552,6 +588,16 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           >
             {deleteMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
           </button>
+          {folder !== 'folderJunk' && (
+            <button
+              onClick={() => spamMutation.mutate()}
+              disabled={spamMutation.isPending}
+              className="p-2 rounded-xl text-orange-500 hover:bg-orange-500/10"
+              title="Laporkan Spam"
+            >
+              {spamMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <AlertTriangle size={18} />}
+            </button>
+          )}
           {/* Move to folder — click toggle (mobile-friendly) */}
           <div className="relative">
             <button

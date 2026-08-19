@@ -310,3 +310,17 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: fix-moveMessages-500
 - Status: COMPLETED
 - Finding: SOGo moveMessages 500 error caused by UIDs being sent as strings instead of integers. `parseMessageRow` returns raw value from JSON response (could be string or number). SOGo backend expects `{uids: [int, ...]}`. Fix: normalize UIDs via `parseInt()` in moveMessages, filter invalid UIDs, capture SOGo response body on error for debugging. Also corrected knowledge entry: SOGo moveMessages expects absolute folder path in body (e.g. `/anas.fikri@pcpexpress.com/folderArchive`), NOT relative path. Previous knowledge entry saying "path relatif" was incorrect.
+
+## 2026-08-18T16:08:05Z
+- Task: 20260818-142155-180721
+- Status: COMPLETED
+- Finding: moveMessages 500 fix: SOGo backend expects uids as integer array. parseMessageRow returns raw value from JSON (could be string). Added parseInt normalization + invalid UID filtering. Also capture SOGo response body on error for debugging. Corrected knowledge entry: SOGo moveMessages expects absolute folder path (e.g. /anas.fikri@pcpexpress.com/folderArchive), NOT relative path.
+
+## 2026-08-19 — Endpoint native SOGo: junk/spam + subfolder + struktur parts
+
+- **Native spam SOGo (dari `UIxMailFolderActions.m`):** `POST /so/{user}/Mail/0/{folder}/markMessagesAsJunk` body `{"uids":[int]}` → 204; kebalikan `markMessagesAsNotJunk`. Native jauh lebih baik daripada move manual ke folder Junk — SOGo set flag Junk + pindahkan sekaligus, klasifikasi spam (Rspamd/Mailcow) tetap berfungsi. Folder id pakai `pathSegment` + `allowEncodedSlash` (pola `moveMessages`).
+- **Subfolder SOGo:** `POST /so/{user}/Mail/0/{parentFolder}/createFolder` body `{"name":"Sub"}` → 204/500 `{message}` (nama duplikat → error body dimasukkan ke toast); `POST /so/{user}/Mail/0/{folder}/delete` body `{"withoutTrash":true}` → 204 hapus PERMANEN (tanpa `withoutTrash` = pindah Trash). Action lain tersedia: `renameFolder` `{"name"}`, `moveFolder`, `setAsJunkFolderAction`.
+- **`msg.parts` bisa ARRAY langsung** (bukan object `{type, content:[...]}`): dari `UIxMailPartViewer.m renderedPart` + `UIxMailPartMessageViewer` (top-level `{type, content:[...]}` TANPA contentType). Semua fungsi extract (`extractHtml`/`extractAttachments`/`extractInlineImages`) WAJIB guard `Array.isArray(parts)` di TOP — tanpa itu, cek `parts.contentType` pada array = undefined → attachment/body tidak pernah tampil (bug "lampiran tidak muncul").
+- **`size` part SOGo = STRING terformat** ("1.2 MB") bukan bytes: `formatFileSize` harus handle string (tampilkan langsung); hanya number yang diformat ulang. `dictionaryWithObjectsAndKeys` (ObjC) berhenti di nil pertama — part teks tanpa filename TIDAK punya downloadURL (filter `!isInline` redundan tapi harmless).
+- **Struktur leaf part:** `{type, contentType, content, filename, extension, size, viewURL, downloadURL, shouldDisplayAttachment}`. MixedViewer → `content` array; AlternativeViewer → `{content, preferredPart}`; Image/Link/Text/HTML viewer TIDAK override renderedPart (inherits base). Download fallback `downloadURL || viewURL`.
+- **Verifikasi source:** deployed SOGo bundle == master source (checksum `372f2e21…` Message.service.js, `aa1f7a75…` MessageController.js, build `@localhost 20260611`) — ground truth valid tanpa akses live.
