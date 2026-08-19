@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-19T11:00:07Z",
+  "last_session": "2026-08-19T13:47:29Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -316,15 +316,25 @@
       "what": "Filter email berlampiran (toggle Paperclip di header list) + rapikan seksi lampiran: hapus seksi 'Gambar' (inline images) yang bikin tampak 2 grup, extractAttachments hormati shouldDisplayAttachment=false (gambar inline CID tidak masuk daftar Lampiran). Build OK.",
       "status": "done",
       "updated_at": "2026-08-19T11:00:07Z"
+    },
+    {
+      "what": "OWASP security audit + hardening webmail frontend: (1) fix ErrorBoundary info disclosure — error.message + componentStack dirender lagi ke user (regresi dari fix Round 3), sekarang detail hanya di console/localStorage; (2) CSP hardening nginx+server.js: object-src 'none', frame-src 'self', worker-src 'self', header Permissions-Policy; (3) log hygiene api.js fetchPreferences console.warn→debugWarn; (4) restore 5 test files hilang (email-category, signatures, draft-api, snooze, date-groups) + un-ignore scripts/test-*.mjs di .gitignore. Validasi: npm audit 0 vuln, build OK, 21/21 test PASS.",
+      "status": "done",
+      "updated_at": "2026-08-19T13:08:29Z"
+    },
+    {
+      "what": "Commit+push+deploy akumulasi hardening keamanan webmail: OWASP audit (ErrorBoundary info-disclosure, CSP), image-proxy anti tracking-pixel (SSRF guard), server.js rate-limit/session hardening, dan sinkron deploy.sh nginx config. Validasi 14/14 test, build OK.",
+      "status": "done",
+      "updated_at": "2026-08-19T13:47:29Z"
     }
   ],
   "active_task": {
-    "id": "20260819-105957-306646",
+    "id": "20260819-134645-308275",
     "status": "COMPLETED",
-    "objective": "Webmail: filter email berlampiran + rapikan seksi lampiran (hapus Gambar, hormati shouldDisplayAttachment)",
+    "objective": "Webmail: commit+push+deploy akumulasi hardening keamanan (OWASP audit, image-proxy anti tracking-pixel, server.js rate-limit/session) + sinkron deploy.sh nginx config",
     "next_step": "",
-    "goal_id": "TBD",
-    "sub_goal_id": "TBD",
-    "updated_at": "2026-08-19T11:00:07Z"
+    "goal_id": "G-001",
+    "sub_goal_id": "G-001.S-009",
+    "updated_at": "2026-08-19T13:47:29Z"
   }
 }

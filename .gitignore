@@ -8,8 +8,9 @@ dist
 cookies.txt
 cookies*.txt
 
-# Debug & test files
+# Debug & test files (ad-hoc/throwaway, BUKAN test suite resmi di scripts/)
 test-*
+!scripts/test-*.mjs
 test_rq*.js
 test_rq*.jsx
 test_sogo.js

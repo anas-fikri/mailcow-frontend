@@ -19,6 +19,7 @@ import { toSafeUrl } from '../../lib/safeUrl';
 import { looksLikeHtmlInPlainText } from '../../lib/messageHtml';
 import { getSignatureFor } from '../../lib/signatures';
 import { getFileKind, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
+import { proxyExternalImages } from '../../lib/imageProxy';
 
 // Same-origin (relatif) — lihat catatan di src/lib/api.js. SPA & SOGo di origin
 // yang sama (nginx mailcow mem-proxy /SOGo utk semua vhost), jadi base absolut
@@ -388,7 +389,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         <p><strong>Tanggal:</strong> ${safeDate}</p>
       </div>
       <hr>
-      ${cleanHtml}
+      ${displayHtml}
     </body></html>`);
     win.document.close();
     win.print();
@@ -466,6 +467,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const cleanHtml = rawHtml
     ? prepareHtmlContent(rawHtml, inlineImages)
     : '<p style="color:var(--muted-foreground);font-size:.875rem;margin:0">Tidak ada konten.</p>';
+  // Gambar eksternal di-proxy (anti tracking-pixel) HANYA utk tampilan di layar;
+  // quote balasan/forward & compose tetap pakai cleanHtml (URL asli) karena
+  // konten itu dikirim sebagai email dan harus valid untuk penerima.
+  const displayHtml = proxyExternalImages(cleanHtml);
 
   function handleReply() {
     // Semua header email (from/to/date/subject) adalah input dari pengirim dan
@@ -747,7 +752,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
 
       {/* Message body */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="email-body" dangerouslySetInnerHTML={{ __html: cleanHtml }} />
+        <div className="email-body" dangerouslySetInnerHTML={{ __html: displayHtml }} />
 
         {/* Quick reply — balas singkat tanpa compose */}
         {quickOpen && (

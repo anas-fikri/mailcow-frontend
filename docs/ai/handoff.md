@@ -1,5 +1,24 @@
 # Handoff Log
 
+## 2026-08-19 — server.js audit: rate-limit & session hardening — DONE (siap deploy)
+
+- **Permintaan user:** audit ulang `server.js` (proxy SMTP) untuk rate-limit dan session hardening.
+- **Input validation (HEADER INJECTION):** validasi email sebelumnya hanya menolak `\r\n` — lone `\n`/`\0`/control char lain lolos. Sekarang `isSafeEmail`/`isSafeRecipient`/`hasControlChars` menolak SEMUA karakter kontrol (0x00–0x1F + DEL). Di-extract ke `src/lib/emailValidation.js` (pure) + `test:email-validation`. Subject `/api/send` ikut pakai `hasControlChars`.
+- **Rate limit:** respons 429 kini kirim header `Retry-After`. `clientIp` bisa diketatkan via `TRUSTED_PROXY_IPS` (koma, exact IP) — fallback tetap loopback + 172.16/12.
+- **Session:** TTL/idle/cap per-user kini configurable via env `SMTP_SESSION_TTL_MIN` (480) / `SMTP_SESSION_IDLE_MIN` (30) / `SMTP_SESSION_MAX_PER_USER` (10) + evict session tertua per user (cegah Map tumbuh tanpa batas).
+- **Headers `/api/*`:** tambah `Referrer-Policy` + `Permissions-Policy` (konsisten dgn nginx).
+- **Risiko diterima (dokumentasi):** password plaintext di memori 8 jam (nodemailer butuh kredensial); smtpToken di localStorage bisa dicuri XSS — dimitigasi TTL pendek + rate limit kirim per IP.
+- **Validasi:** build OK, 24/24 test PASS, `node --check server.js` OK. BELUM deploy.
+
+## 2026-08-19 — Remote image proxy (anti tracking-pixel, pola Gmail) — DONE (siap deploy)
+
+- **Permintaan user:** tambah proxy gambar remote seperti Gmail agar IP user tidak bocor ke pengirim (tracking pixel 1x1 / read-receipt) saat render email.
+- **Backend (`server.js`):** endpoint baru `GET /api/image-proxy?url=...` — didefinisikan SEBELUM `app.use('/api', requireApiKey)` karena `<img>` tak bisa kirim header X-Api-Key. Keamanan: (1) SSRF guard `src/lib/ssrfGuard.js` — blokir IPv4/IPv6 privat/loopback/link-local/reserved/multicast (fail-closed), (2) resolve DNS sekali lalu PIN koneksi ke IP tervalidasi (cegah DNS rebinding via `lookup` kustom), (3) redirect dibatasi 3 hop + re-validasi tiap hop, (4) content-type wajib image/*, (5) batas 5MB + timeout 10s, (6) rate limit 120/menit/IP, (7) `Sec-Fetch-Site: cross-site` ditolak (anti-hotlink).
+- **Frontend (`src/lib/imageProxy.js` + `MessageReader.jsx`):** `proxyExternalImages(cleanHtml)` rewrite `<img src="http(s)://...">` → `/api/image-proxy?url=...` HANYA untuk tampilan (`displayHtml`). `cleanHtml` tetap dipakai untuk quote balasan/forward & print (URL asli — valid untuk penerima email).
+- **Nginx:** route `location = /api/image-proxy` → 3005; CSP `img-src 'self' data: https:` → `img-src 'self' data:` (fail-closed: gambar eksternal yang tak ter-proxy tidak akan load).
+- **Validasi:** build OK (2.73s), 23/23 test PASS (baru `test:ssrf-guard` + `test:image-proxy`), `node --check server.js` OK. BELUM deploy — butuh restart `sogo-smtp-proxy` + nginx reload.
+- **Catatan:** belum mencakup `srcset`/`<picture><source>`/CSS `background-image` — tapi CSP img-src yang diketatkan memblokir vektor itu (fail-closed: gambar tak tampil daripada bocor). Bisa ditambah nanti.
+
 ## 2026-08-19 — 3 fitur: spam native SOGo + fix lampiran + subfolder UI — DONE (siap deploy)
 
 - **Permintaan user:** (1) tombol mark as SPAM per-message, (2) lampiran yang tidak muncul, (3) buat/hapus subfolder di sidebar.
@@ -1166,3 +1185,55 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M src/components/mailer/MessageReader.jsx
 -  M src/pages/MailPage.jsx
 - ?? docs/ai/tasks/20260819-105957-306646.previous.md
+
+## 2026-08-19T13:08:29Z
+- Status: COMPLETED
+- Objective: Webmail frontend: bug & vulnerability hunt (OWASP minimum) — security audit + hardening
+- Summary: OWASP security audit + hardening webmail frontend: (1) fix ErrorBoundary info disclosure — error.message + componentStack dirender lagi ke user (regresi dari fix Round 3), sekarang detail hanya di console/localStorage; (2) CSP hardening nginx+server.js: object-src 'none', frame-src 'self', worker-src 'self', header Permissions-Policy; (3) log hygiene api.js fetchPreferences console.warn→debugWarn; (4) restore 5 test files hilang (email-category, signatures, draft-api, snooze, date-groups) + un-ignore scripts/test-*.mjs di .gitignore. Validasi: npm audit 0 vuln, build OK, 21/21 test PASS.
+- Branch: main
+- Changed Files:
+-  M .gitignore
+-  M ai-state.json
+-  M configs/site.webmail.custom
+-  M docs/ai/current-task.md
+-  M server.js
+-  M src/components/ErrorBoundary.jsx
+-  M src/lib/api.js
+- ?? docs/ai/tasks/20260819-130705-700312.previous.md
+- ?? scripts/test-date-groups.mjs
+- ?? scripts/test-draft-api.mjs
+- ?? scripts/test-email-category.mjs
+- ?? scripts/test-signatures.mjs
+- ?? scripts/test-snooze.mjs
+
+## 2026-08-19T13:47:29Z
+- Status: COMPLETED
+- Objective: Webmail: commit+push+deploy akumulasi hardening keamanan (OWASP audit, image-proxy anti tracking-pixel, server.js rate-limit/session) + sinkron deploy.sh nginx config
+- Summary: Commit+push+deploy akumulasi hardening keamanan webmail: OWASP audit (ErrorBoundary info-disclosure, CSP), image-proxy anti tracking-pixel (SSRF guard), server.js rate-limit/session hardening, dan sinkron deploy.sh nginx config. Validasi 14/14 test, build OK.
+- Branch: main
+- Changed Files:
+-  M .gitignore
+-  M ai-state.json
+-  M configs/site.webmail.custom
+-  M deploy.sh
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M package.json
+-  M server.js
+-  M src/components/ErrorBoundary.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+- ?? docs/ai/tasks/20260819-130705-700312.previous.md
+- ?? scripts/test-date-groups.mjs
+- ?? scripts/test-draft-api.mjs
+- ?? scripts/test-email-category.mjs
+- ?? scripts/test-email-validation.mjs
+- ?? scripts/test-image-proxy.mjs
+- ?? scripts/test-signatures.mjs
+- ?? scripts/test-snooze.mjs
+- ?? scripts/test-ssrf-guard.mjs
+- ?? src/lib/emailValidation.js
+- ?? src/lib/imageProxy.js
+- ?? src/lib/ssrfGuard.js

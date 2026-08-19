@@ -21,6 +21,11 @@ import { execFileSync } from 'child_process';
 import { readFileSync } from 'fs';
 import crypto from 'crypto';
 import { z } from 'zod';
+import { promises as dnsPromises } from 'dns';
+import http from 'http';
+import https from 'https';
+import { isBlockedIp } from './src/lib/ssrfGuard.js';
+import { isSafeRecipient, recipientAddress, validateRecipientList, hasControlChars } from './src/lib/emailValidation.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -54,36 +59,9 @@ const DB_PORT         = parseInt(process.env.DB_PORT || '3306', 10);
 // ── Config API Key (wajib di production) ──────────────────────────────────────
 const API_KEY = process.env.API_KEY || '';
 
-// ── Input validation helpers ───────────────────────────────────────────────────
-
-function isSafeEmail(value) {
-  if (typeof value !== 'string' || value.length > 254) return false;
-  const at = value.indexOf('@');
-  return at > 0 && at === value.lastIndexOf('@') && at < value.length - 1 &&
-    !value.includes(' ') && !value.includes('<') && !value.includes('>');
-}
-
-function isSafeRecipient(value) {
-  if (typeof value !== 'string' || /[\r\n]/.test(value)) return false;
-  const trimmed = value.trim();
-  const open = trimmed.lastIndexOf('<');
-  if (open >= 0 && trimmed.endsWith('>')) return isSafeEmail(trimmed.slice(open + 1, -1));
-  return isSafeEmail(trimmed);
-}
-
-function recipientAddress(value) {
-  const trimmed = String(value || '').trim();
-  const open = trimmed.lastIndexOf('<');
-  return (open >= 0 && trimmed.endsWith('>')
-    ? trimmed.slice(open + 1, -1)
-    : trimmed).trim().toLowerCase();
-}
-
-function validateRecipientList(value) {
-  if (!value) return true;
-  const recipients = value.split(',').map((item) => item.trim()).filter(Boolean);
-  return recipients.length > 0 && recipients.every(isSafeRecipient);
-}
+// ── Input validation helpers (pure — lihat src/lib/emailValidation.js) ────────
+// isSafeEmail / isSafeRecipient / recipientAddress / validateRecipientList /
+// hasControlChars diimpor dari src/lib/emailValidation.js (diuji terpisah).
 
 function getHeaderToken(req, name) {
   const value = req.headers[name];
@@ -94,8 +72,10 @@ function getHeaderToken(req, name) {
 // Key: session token (UUID), Value: { user, pass, createdAt, lastUsed }
 // Session expired setelah 8 jam atau 30 menit idle
 const smtpSessions = new Map();
-const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;  // 8 jam
-const SESSION_IDLE_MS   = 30 * 60 * 1000;        // 30 menit
+// TTL dapat diketatkan via env (menit). Default: 8 jam total, 30 menit idle.
+const SESSION_MAX_AGE_MS = (parseInt(process.env.SMTP_SESSION_TTL_MIN || '480', 10) || 480) * 60 * 1000;
+const SESSION_IDLE_MS    = (parseInt(process.env.SMTP_SESSION_IDLE_MIN || '30', 10) || 30) * 60 * 1000;
+const SESSION_MAX_PER_USER = parseInt(process.env.SMTP_SESSION_MAX_PER_USER || '10', 10) || 10;
 
 function getSmtpSession(token) {
   const session = smtpSessions.get(token);
@@ -149,6 +129,7 @@ function rateLimit({ max = 10, windowMs = 60000, keyFn }) {
     const bucket = rateLimitBuckets.get(key);
     bucket.timestamps = bucket.timestamps.filter(t => now - t < windowMs);
     if (bucket.timestamps.length >= max) {
+      res.setHeader('Retry-After', String(Math.ceil(windowMs / 1000)));
       return res.status(429).json({ message: 'Terlalu banyak permintaan. Silakan coba lagi nanti.' });
     }
     bucket.timestamps.push(now);
@@ -161,12 +142,21 @@ function rateLimit({ max = 10, windowMs = 60000, keyFn }) {
 // client tidak dipercaya), jadi header ini aman dipakai sebagai rate-limit key.
 // Tanpa ini, semua user di belakang nginx berbagi satu bucket karena req.ip
 // selalu IP proxy — limit 10 kirim/menit akan tersedot oleh satu orang.
+//
+// Hanya percaya X-Real-IP bila koneksi datang dari proxy terpercaya. Bisa
+// diketatkan via env TRUSTED_PROXY_IPS (koma, exact IP), mis.
+// TRUSTED_PROXY_IPS=172.25.1.1. Fallback default: loopback (dev) atau jaringan
+// docker bridge 172.16/12 tempat nginx mailcow berada.
+const TRUSTED_PROXY_IPS = (process.env.TRUSTED_PROXY_IPS || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+
 function clientIp(req) {
   const peer = (req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
-  // Hanya percaya X-Real-IP jika koneksi datang dari proxy terpercaya:
-  // loopback (dev) atau jaringan docker bridge tempat nginx mailcow berada.
-  // Jika 3005 diakses langsung dari luar, header spoof tidak boleh diterima.
-  const isTrustedPeer = peer === '127.0.0.1' || /^172\.(1[6-9]|2\d|3[01])\./.test(peer);
+  const isTrustedPeer = peer === '127.0.0.1' || (
+    TRUSTED_PROXY_IPS.length > 0
+      ? TRUSTED_PROXY_IPS.includes(peer)
+      : /^172\.(1[6-9]|2\d|3[01])\./.test(peer)
+  );
   if (isTrustedPeer && req.headers['x-real-ip']) return req.headers['x-real-ip'];
   return peer || 'unknown';
 }
@@ -194,16 +184,162 @@ function requireSmtpSession(req, res, next) {
   next();
 }
 
+// ── Remote image proxy (anti tracking-pixel) ────────────────────────────────
+// <img src> tidak bisa kirim header X-Api-Key, jadi route ini didefinisikan
+// SEBELUM requireApiKey. Keamanan dipegang oleh SSRF guard (blokir IP privat/
+// loopback/reserved + pin DNS utk cegah rebinding) + rate limit per IP +
+// Sec-Fetch-Site anti-hotlink — BUKAN mengandalkan API key (yang tersemat di
+// bundle frontend dan bukan rahasia nyata).
+const IMAGE_PROXY_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const IMAGE_PROXY_TIMEOUT_MS = 10000;
+const IMAGE_PROXY_MAX_REDIRECTS = 3;
+
+function imageProxyError(status, message) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
+function parseImageProxyUrl(raw) {
+  if (typeof raw !== 'string') return null;
+  const value = raw.trim();
+  if (!value || value.length > 2048) return null;
+  let u;
+  try { u = new URL(value); } catch { return null; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (u.username || u.password) return null; // tolak kredensial tersemat
+  return u;
+}
+
+// Resolve semua address host lalu tolak bila SATU pun privat/reserved.
+async function resolveSafeAddresses(hostname) {
+  let records;
+  try {
+    records = await dnsPromises.lookup(hostname, { all: true });
+  } catch {
+    throw imageProxyError(502, 'Gagal me-resolve host gambar.');
+  }
+  if (!Array.isArray(records) || records.length === 0) {
+    throw imageProxyError(502, 'Gagal me-resolve host gambar.');
+  }
+  for (const r of records) {
+    if (isBlockedIp(r.address)) {
+      throw imageProxyError(403, 'Host gambar diblokir.');
+    }
+  }
+  return records;
+}
+
+// Pin koneksi ke IP yang sudah divalidasi — cegah DNS rebinding (koneksi memakai
+// IP hasil resolusi pertama, bukan resolusi ulang yang bisa mengarah ke privat).
+function pinLookup(records) {
+  const first = records[0];
+  return (_hostname, _opts, cb) => cb(null, first.address, first.family);
+}
+
+function requestImageOnce(url, records) {
+  return new Promise((resolve, reject) => {
+    const lib = url.protocol === 'https:' ? https : http;
+    const req = lib.request({
+      hostname: url.hostname,
+      port: url.port || undefined,
+      path: url.pathname + url.search,
+      method: 'GET',
+      lookup: pinLookup(records),
+      headers: {
+        'User-Agent': 'PCPExpress-Webmail-ImageProxy/1.0',
+        Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Accept-Encoding': 'identity',
+      },
+      timeout: IMAGE_PROXY_TIMEOUT_MS,
+    }, (res) => resolve(res));
+    req.on('timeout', () => req.destroy(imageProxyError(504, 'Gambar timeout.')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function fetchRemoteImage(initialUrl) {
+  let url = parseImageProxyUrl(initialUrl);
+  if (!url) throw imageProxyError(400, 'URL gambar tidak valid.');
+
+  for (let hop = 0; hop <= IMAGE_PROXY_MAX_REDIRECTS; hop++) {
+    const records = await resolveSafeAddresses(url.hostname);
+    const res = await requestImageOnce(url, records);
+
+    const status = res.statusCode || 0;
+    const location = res.headers.location;
+
+    // Ikuti redirect (terbatas) + re-validasi tiap hop.
+    if (status >= 300 && status < 400 && location) {
+      res.resume();
+      if (hop >= IMAGE_PROXY_MAX_REDIRECTS) throw imageProxyError(502, 'Terlalu banyak redirect.');
+      try { url = new URL(location, url); } catch { throw imageProxyError(502, 'Redirect tidak valid.'); }
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') throw imageProxyError(502, 'Redirect tidak valid.');
+      if (url.username || url.password) throw imageProxyError(502, 'Redirect tidak valid.');
+      continue;
+    }
+
+    if (status !== 200) {
+      res.resume();
+      throw imageProxyError(502, 'Gambar gagal dimuat.');
+    }
+
+    const contentType = String(res.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+    if (!contentType.startsWith('image/')) {
+      res.resume();
+      throw imageProxyError(415, 'Konten bukan gambar.');
+    }
+
+    const chunks = [];
+    let total = 0;
+    let tooBig = false;
+    for await (const chunk of res) {
+      total += chunk.length;
+      if (total > IMAGE_PROXY_MAX_BYTES) {
+        tooBig = true;
+        res.destroy();
+        break;
+      }
+      chunks.push(chunk);
+    }
+    if (tooBig) throw imageProxyError(413, 'Gambar terlalu besar.');
+    return { contentType, buffer: Buffer.concat(chunks) };
+  }
+  throw imageProxyError(502, 'Gagal memuat gambar.');
+}
+
+app.get('/api/image-proxy', rateLimit({ max: 120, windowMs: 60000, keyFn: clientIp }), async (req, res) => {
+  // Anti-hotlink: browser menyetel Sec-Fetch-Site: cross-site saat embed lintas origin.
+  if (getHeaderToken(req, 'sec-fetch-site') === 'cross-site') {
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+  try {
+    const { contentType, buffer } = await fetchRemoteImage(req.query.url);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    return res.send(buffer);
+  } catch (err) {
+    const status = err && typeof err.status === 'number' ? err.status : 500;
+    const message = err && err.message ? err.message : 'Gagal memuat gambar.';
+    return res.status(status).json({ message });
+  }
+});
+
 // ── Security middleware (applied to all /api/* routes) ──────────────────────────
 app.use('/api', requireApiKey);
 app.use('/api', (req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '0');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
   // Strict CSP: only allow resources from same origin + inline styles (Tailwind)
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; frame-ancestors 'none';"
+    "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; object-src 'none'; frame-ancestors 'none';"
   );
   next();
 });
@@ -288,6 +424,19 @@ app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: clientIp 
     lastUsed: Date.now(),
   });
 
+  // Batasi session per user (evict tertua) — cegah Map tumbuh tanpa batas
+  // akibat login berulang / token bocor yang tidak direvoke.
+  const userSessions = [];
+  for (const [t, s] of smtpSessions) {
+    if (s.user === user) userSessions.push({ token: t, createdAt: s.createdAt });
+  }
+  if (userSessions.length > SESSION_MAX_PER_USER) {
+    userSessions.sort((a, b) => a.createdAt - b.createdAt);
+    for (let i = 0; i < userSessions.length - SESSION_MAX_PER_USER; i++) {
+      smtpSessions.delete(userSessions[i].token);
+    }
+  }
+
   // Never log credentials or token material, even partially.
   console.log(`[smtp-session] Registered for ${user}`);
   return res.json({ token });
@@ -351,7 +500,7 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
   if (!validateRecipientList(cc) || !validateRecipientList(bcc)) {
     return res.status(400).json({ message: 'Cc/Bcc harus berisi email yang valid.' });
   }
-  if (/[\r\n]/.test(subject)) {
+  if (hasControlChars(subject)) {
     return res.status(400).json({ message: 'Subjek email tidak valid.' });
   }
   if (from && !isSafeRecipient(from)) {

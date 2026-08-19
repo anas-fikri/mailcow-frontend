@@ -1151,7 +1151,7 @@ function loadPrefsFromLocal(email) {
 export async function fetchPreferences(sogoToken, email, smtpToken = null) {
   // Guard: jangan panggil API jika email tidak valid
   if (!email || !sogoToken) {
-    console.warn('[prefs] Skipped — email atau token tidak valid.');
+    debugWarn('[prefs] Skipped — email atau token tidak valid.');
     const local = loadPrefsFromLocal(email);
     return local || null;
   }
@@ -1192,7 +1192,7 @@ export async function fetchPreferences(sogoToken, email, smtpToken = null) {
     return local;
   }
 
-  console.warn('[prefs] No preferences found — using defaults.');
+  debugWarn('[prefs] No preferences found — using defaults.');
   return null;
 }
 

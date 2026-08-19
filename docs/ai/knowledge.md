@@ -339,3 +339,21 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260819-105957-306646
 - Status: COMPLETED
 - Finding: SOGo leaf part punya shouldDisplayAttachment (boolean): false = gambar inline (CID) di body, true = lampiran asli. extractAttachments harus skip part dengan shouldDisplayAttachment === false agar gambar inline tidak diduplikasi di daftar Lampiran. Gambar inline tetap di-render di body via resolveCidImages (extractInlineImages). Filter lampiran pakai msg.hasAtt (kolom hasAttachment di SOGO_MESSAGE_HEADERS).
+
+## 2026-08-19T13:08:29Z
+- Task: 20260819-130705-700312
+- Status: COMPLETED
+- Finding: .gitignore rule 'test-*' diam-diam mengabaikan suite test resmi scripts/test-*.mjs — 5 test yang dirujuk package.json (email-category/signatures/draft-api/snooze/date-groups) tidak pernah ter-commit; fix dengan exception !scripts/test-*.mjs; ErrorBoundary REGRESI dari fix Round 3: menampilkan error.message + componentStack ke user lagi (info disclosure). Hapus detail di layar, pertahankan console.error + localStorage pcp_last_error; CSP webmail/API kurang object-src 'none' dan frame-src 'self' eksplisit (frame-src dibutuhkan iframe preview PDF lightbox); tambah Permissions-Policy (camera/mic/geolocation/payment/usb off); npm audit --omit=dev = 0 vulnerabilities (dompurify 3.4.13); safeUrl.js/pathSegment.js/DOMPurify/escapeHtml terverifikasi aman — semua sink innerHTML/document.write sudah sanitized
+
+## 2026-08-19 — image proxy (anti tracking-pixel)
+- Status: DONE (siap deploy)
+- Finding: Gambar eksternal email di-proxy server-side via GET /api/image-proxy agar IP user tidak bocor ke pengirim. SSRF guard di src/lib/ssrfGuard.js (klasifikasi IP privat/reserved murni tanpa dep Node, fail-closed) dipakai server.js untuk blokir fetch internal; DNS rebinding dicegah dengan pin lookup (koneksi ke IP hasil resolusi pertama yang tervalidasi, bukan resolusi ulang). Route /api/image-proxy wajib didefinisikan SEBELUM app.use('/api', requireApiKey) karena <img> tidak bisa kirim header X-Api-Key. CSP img-src diketatkan jadi 'self' data: agar vektor non-<img> (CSS background-image, srcset, picture/source) fail-closed. Frontend proxyExternalImages dipakai HANYA di path render (displayHtml); quote balasan/forward & compose tetap pakai URL asli karena dikirim sebagai email.
+
+## 2026-08-19 — server.js SMTP proxy audit (rate-limit + session hardening)
+- Status: DONE (siap deploy)
+- Finding: Validasi email server.js diperkuat — tolak SEMUA karakter kontrol (0x00–0x1F + DEL), bukan hanya CRLF (cegah header injection lone-`\n`/`\0`). Di-extract ke src/lib/emailValidation.js (pure) + test:email-validation. Rate limiter kini kirim header `Retry-After`. Session SMTP: TTL/idle/cap per-user configurable via env `SMTP_SESSION_TTL_MIN`/`SMTP_SESSION_IDLE_MIN`/`SMTP_SESSION_MAX_PER_USER` (default 480/30/10) + evict session tertua per user. `clientIp` bisa diketatkan via `TRUSTED_PROXY_IPS` (exact IP, koma) — fallback tetap 172.16/12. Header `/api/*` kini sertakan `Referrer-Policy` + `Permissions-Policy`. Risiko diterima: password plaintext di memori (8 jam) karena nodemailer butuh kredensial; smtpToken di localStorage bisa dicuri lewat XSS → mitigasi TTL pendek + rate limit kirim per IP.
+
+## 2026-08-19T13:47:29Z
+- Task: 20260819-134645-308275
+- Status: COMPLETED
+- Finding: deploy.sh setup_nginx() menulis konfig nginx HARDCODED (heredoc), bukan membaca configs/site.webmail.custom — kalau dua sumber ini beda, deploy akan menimpa hardening di server. Harus selalu disinkronkan keduanya.

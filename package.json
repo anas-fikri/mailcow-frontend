@@ -29,7 +29,10 @@
     "test:draft-api": "node scripts/test-draft-api.mjs",
     "test:snooze": "node scripts/test-snooze.mjs",
     "test:date-groups": "node scripts/test-date-groups.mjs",
-    "test:attachments": "node scripts/test-attachments.mjs"
+    "test:attachments": "node scripts/test-attachments.mjs",
+    "test:ssrf-guard": "node scripts/test-ssrf-guard.mjs",
+    "test:image-proxy": "node scripts/test-image-proxy.mjs",
+    "test:email-validation": "node scripts/test-email-validation.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
