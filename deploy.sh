@@ -217,7 +217,7 @@ deploy() {
 # systemd user service `sogo-smtp-proxy` di $REMOTE_BACKEND_DIR. deploy.sh
 # sebelumnya TIDAK men-sync ini — backend bisa kedaluwarsa meski frontend live.
 REMOTE_BACKEND_DIR="${REMOTE_BACKEND_DIR:-/home/anas.fikri/sogo-proxy}"
-BACKEND_LIB_FILES="src/lib/ssrfGuard.js src/lib/emailValidation.js src/lib/smtpCookie.js"
+BACKEND_LIB_FILES="src/lib/ssrfGuard.js src/lib/emailValidation.js src/lib/smtpCookie.js src/lib/remoteImage.js"
 
 deploy_backend() {
     info "Deploy backend (server.js + src/lib) ke $SERVER:$REMOTE_BACKEND_DIR..."

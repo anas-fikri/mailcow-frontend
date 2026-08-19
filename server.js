@@ -21,12 +21,9 @@ import { execFileSync } from 'child_process';
 import { readFileSync } from 'fs';
 import crypto from 'crypto';
 import { z } from 'zod';
-import { promises as dnsPromises } from 'dns';
-import http from 'http';
-import https from 'https';
-import { isBlockedIp } from './src/lib/ssrfGuard.js';
 import { isSafeRecipient, recipientAddress, validateRecipientList, hasControlChars } from './src/lib/emailValidation.js';
 import { parseCookies, buildSmtpSessionCookie, clearSmtpSessionCookie, SMTP_SESSION_COOKIE } from './src/lib/smtpCookie.js';
+import { fetchRemoteImage } from './src/lib/remoteImage.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -201,147 +198,10 @@ function requireSmtpSession(req, res, next) {
 }
 
 // ── Remote image proxy (anti tracking-pixel) ────────────────────────────────
+// Logika fetch (SSRF guard, hard deadline anti slow-drip, redirect, size cap)
+// dipindah ke src/lib/remoteImage.js agar bisa diuji tanpa menyalakan Express.
 // <img src> tidak bisa kirim header X-Api-Key, jadi route ini didefinisikan
-// SEBELUM requireApiKey. Keamanan dipegang oleh SSRF guard (blokir IP privat/
-// loopback/reserved + pin DNS utk cegah rebinding) + rate limit per IP +
-// Sec-Fetch-Site anti-hotlink — BUKAN mengandalkan API key (yang tersemat di
-// bundle frontend dan bukan rahasia nyata).
-const IMAGE_PROXY_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-const IMAGE_PROXY_TIMEOUT_MS = 10000;
-const IMAGE_PROXY_MAX_REDIRECTS = 3;
-
-function imageProxyError(status, message) {
-  const err = new Error(message);
-  err.status = status;
-  return err;
-}
-
-function parseImageProxyUrl(raw) {
-  if (typeof raw !== 'string') return null;
-  const value = raw.trim();
-  if (!value || value.length > 2048) return null;
-  let u;
-  try { u = new URL(value); } catch { return null; }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-  if (u.username || u.password) return null; // tolak kredensial tersemat
-  return u;
-}
-
-// Resolve semua address host lalu tolak bila SATU pun privat/reserved.
-async function resolveSafeAddresses(hostname) {
-  let records;
-  try {
-    records = await dnsPromises.lookup(hostname, { all: true });
-  } catch {
-    throw imageProxyError(502, 'Gagal me-resolve host gambar.');
-  }
-  if (!Array.isArray(records) || records.length === 0) {
-    throw imageProxyError(502, 'Gagal me-resolve host gambar.');
-  }
-  for (const r of records) {
-    if (isBlockedIp(r.address)) {
-      throw imageProxyError(403, 'Host gambar diblokir.');
-    }
-  }
-  return records;
-}
-
-// Pin koneksi ke IP yang sudah divalidasi — cegah DNS rebinding (koneksi memakai
-// IP hasil resolusi pertama, bukan resolusi ulang yang bisa mengarah ke privat).
-function pinLookup(records) {
-  const first = records[0];
-  return (_hostname, _opts, cb) => cb(null, first.address, first.family);
-}
-
-function requestImageOnce(url, records, deadline) {
-  return new Promise((resolve, reject) => {
-    const lib = url.protocol === 'https:' ? https : http;
-    const req = lib.request({
-      hostname: url.hostname,
-      port: url.port || undefined,
-      path: url.pathname + url.search,
-      method: 'GET',
-      lookup: pinLookup(records),
-      headers: {
-        'User-Agent': 'PCPExpress-Webmail-ImageProxy/1.0',
-        Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-        'Accept-Encoding': 'identity',
-      },
-      // Idle timeout: socket yang diam (bukan slow-drip).
-      timeout: IMAGE_PROXY_TIMEOUT_MS,
-    }, (res) => {
-      // Hard deadline utk seluruh transfer (anti slow-loris/slow-read):
-      // hancurkan stream bila total waktu (resolve + connect + read) melebihi
-      // IMAGE_PROXY_TIMEOUT_MS. Deadline absolut dihitung sekali di awal.
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) {
-        res.destroy(imageProxyError(504, 'Gambar timeout.'));
-        return;
-      }
-      const timer = setTimeout(() => res.destroy(imageProxyError(504, 'Gambar timeout.')), remaining);
-      res.on('close', () => clearTimeout(timer));
-      resolve(res);
-    });
-    req.on('timeout', () => req.destroy(imageProxyError(504, 'Gambar timeout.')));
-    req.on('error', reject);
-    req.end();
-  });
-}
-
-async function fetchRemoteImage(initialUrl) {
-  let url = parseImageProxyUrl(initialUrl);
-  if (!url) throw imageProxyError(400, 'URL gambar tidak valid.');
-
-  // Deadline absolut satu kali untuk SELURUH fetch (semua redirect hop) —
-  // mencegah slow-drip yang menahan koneksi tak terbatas meski tiap socket
-  // masih 'hidup' (byte dikirim <10s sekali).
-  const deadline = Date.now() + IMAGE_PROXY_TIMEOUT_MS;
-
-  for (let hop = 0; hop <= IMAGE_PROXY_MAX_REDIRECTS; hop++) {
-    const records = await resolveSafeAddresses(url.hostname);
-    const res = await requestImageOnce(url, records, deadline);
-
-    const status = res.statusCode || 0;
-    const location = res.headers.location;
-
-    // Ikuti redirect (terbatas) + re-validasi tiap hop.
-    if (status >= 300 && status < 400 && location) {
-      res.resume();
-      if (hop >= IMAGE_PROXY_MAX_REDIRECTS) throw imageProxyError(502, 'Terlalu banyak redirect.');
-      try { url = new URL(location, url); } catch { throw imageProxyError(502, 'Redirect tidak valid.'); }
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') throw imageProxyError(502, 'Redirect tidak valid.');
-      if (url.username || url.password) throw imageProxyError(502, 'Redirect tidak valid.');
-      continue;
-    }
-
-    if (status !== 200) {
-      res.resume();
-      throw imageProxyError(502, 'Gambar gagal dimuat.');
-    }
-
-    const contentType = String(res.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-    if (!contentType.startsWith('image/')) {
-      res.resume();
-      throw imageProxyError(415, 'Konten bukan gambar.');
-    }
-
-    const chunks = [];
-    let total = 0;
-    let tooBig = false;
-    for await (const chunk of res) {
-      total += chunk.length;
-      if (total > IMAGE_PROXY_MAX_BYTES) {
-        tooBig = true;
-        res.destroy();
-        break;
-      }
-      chunks.push(chunk);
-    }
-    if (tooBig) throw imageProxyError(413, 'Gambar terlalu besar.');
-    return { contentType, buffer: Buffer.concat(chunks) };
-  }
-  throw imageProxyError(502, 'Gagal memuat gambar.');
-}
+// SEBELUM requireApiKey.
 
 app.get('/api/image-proxy', rateLimit({ max: 120, windowMs: 60000, keyFn: clientIp }), async (req, res) => {
   // Anti-hotlink: browser menyetel Sec-Fetch-Site: cross-site saat embed lintas origin.

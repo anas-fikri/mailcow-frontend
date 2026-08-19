@@ -3,28 +3,27 @@
 **Tanggal:** 2026-08-19
 
 ## Objektif aktif
-Audit + hardening `ComposeModal`/`HtmlEditor` untuk paste-based XSS dan
-tabnabbing pada link keluar. Selesai, divalidasi.
+Tambah test DoS utk image proxy: simulasi upstream slow-drip dan assert hard
+deadline aktif. Selesai.
 
-## Temuan & perbaikan
-- **Paste-XSS (`data:` href):** `PURIFY_CONFIG.ALLOWED_URI_REGEXP` mengizinkan
-  `data:` (diperlukan utk `<img src>` base64 di composer), tapi DOMPurify tidak
-  membedakan per-atribut — jadi `<a href="data:text/html,...">` dari paste
-  **lolos** sanitasi. → Hook `hardenAnchorNode` menghapus `data:` href pada `<a>`.
-- **Tabnabbing:** email/paste bisa berisi `<a target="_blank">` tanpa `rel`;
-  hook memaksa `rel="noopener noreferrer"` (defense-in-depth; browser modern
-  sudah default noopener).
-
-## Implementasi
-- `src/lib/pasteUtils.js`: `hardenAnchorNode(node)` (pure) +
-  `registerPurifyHardening(d)` + auto-register `afterSanitizeAttributes` saat
-  modul dimuat (browser). Hook berlaku utk render email (MessageReader) DAN editor.
-- `scripts/test-purify-hardening.mjs` + `test:purify-hardening` (27 test total).
-- `deploy.sh`: `BACKEND_LIB_FILES` += `smtpCookie.js` (ikut commit ini, sisa task sebelumnya).
+## Perubahan
+- **Ekstraksi `src/lib/remoteImage.js`:** pindahkan `parseImageProxyUrl`,
+  `resolveSafeAddresses`, `pinLookup`, `requestImageOnce`, `fetchRemoteImage`
+  dari server.js → modul testable. Timeout/maxBytes/maxRedirects/resolve kini
+  injectable (default sama). Bonus bug fix: branch `remaining <= 0` di
+  `requestImageOnce` dulu destroy res tapi TIDAK settle promise (hang) →
+  sekarang `reject(504)`.
+- **`server.js`:** import `fetchRemoteImage` dari modul; hapus import
+  `dns`/`http`/`https`/`isBlockedIp` yang sudah tak dipakai.
+- **`scripts/test-remote-image.mjs` + `test:remote-image`:**
+  1. slow-drip (1 byte/50ms tanpa selesai) → harus 504 timeout <3s.
+  2. happy path (gambar valid) → sukses (ekstraksi tidak merusak).
+  3. headers lewat deadline → reject 504 (bug fix, tidak hang).
+- **`deploy.sh`:** `BACKEND_LIB_FILES` += `remoteImage.js`.
 
 ## Status
 - [x] Implementasi + test
-- [x] 27/27 test PASS + build OK
-- [ ] deploy + commit/push
+- [x] 28/28 test PASS + build OK + bash -n deploy.sh
+- [ ] commit + push + deploy
 Status: COMPLETED
-Updated At: 2026-08-19T15:15:17Z
+Updated At: 2026-08-19T15:21:04Z
