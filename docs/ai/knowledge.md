@@ -457,3 +457,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-125654-156816
 - Status: COMPLETED
 - Finding: sendMessage di src/lib/api.js sebelumnya melempar Error mentah pada 401 /api/send sehingga _onSessionExpired tidak terpanggil — user tetap logged-in tapi tidak bisa kirim email (SMTP proxy session sudah berakhir di server). Fix: kedua branch /api/send (path utama dgn lampiran + fallback setelah SOGo-501) sekarang memanggil throwIfAuthError(res) untuk 401, sehingga App.jsx logout paksa + navigate /login. 403 TIDAK logout (From-mismatch). TTL cookie + server tetap 8 jam (SESSION_MAX_AGE_MS=480min, Max-Age=28800); idle 30 min (SESSION_IDLE_MS env SMTP_SESSION_IDLE_MIN). Test: scripts/test-smtp-session-expired.mjs — memanggil callback=1 utk sendMessage 401 dgn lampiran, callback=0 utk registerSmtpSession 401 (saat login, _onSessionExpired null).
+
+## 2026-08-20T13:14:38Z
+- Task: 20260820-131428-282178
+- Status: COMPLETED
+- Finding: Server endpoint baru GET /api/auth/smtp/status dengan rate-limit 30/menit mengembalikan {user, createdAt, lastUsed, maxAgeMs, idleMs, remainingMs} dimana remainingMs = min(SESSION_MAX_AGE_MS - (now - createdAt), SESSION_IDLE_MS - (now - lastUsed)). requireSmtpSession middleware dipakaI jadi 401 = sesi berakhir otomatis picu logout via throwIfAuthError di fetchSmtpSessionStatus(). Client Sidebar poll tiap 60s + tick lokal 1s; tampil badge 'SMTP MM:SS' saat < 15 menit (show below SHOW_BELOW_MINUTES=15). Palette: muted ≤15m, amber ≤5m, destructive+animate-pulse ≤1m. Helper pure di src/lib/sessionCountdown.js: formatRemaining(ms) → 'M:SS' atau 'H:MM:SS', sessionWarningLevel(ms) → 'ok'|'warn'|'urgent'. Test test:session-countdown.

@@ -1,14 +1,37 @@
-import React from 'react'
-import { Mail, LogOut, ChevronRight, HelpCircle } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { Mail, LogOut, ChevronRight, HelpCircle, Timer } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
-import { logout } from '../../lib/api'
+import { logout, fetchSmtpSessionStatus } from '../../lib/api'
 import { Sun, Moon, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
 import { NAV_ITEMS } from '../../constants/navigation'
+import { formatRemaining, sessionWarningLevel, SHOW_BELOW_MINUTES } from '../../lib/sessionCountdown'
 
 export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
   const { user, clearUser, theme, toggleTheme } = useAuthStore()
   const navigate = useNavigate()
+
+  // ── Countdown sesi SMTP proxy ───────────────────────────────────────────────
+  // Poll /api/auth/smtp/status setiap 60 dtk (rate-limit server 30/menit cukup);
+  // tick local setiap detik agar countdown bergerak tanpa round-trip tiap detik.
+  // Hanya render saat sisa sesi < SHOW_BELOW_MINUTES menit.
+  const { data: sessionStatus } = useQuery({
+    queryKey: ['smtp-session-status'],
+    queryFn: () => fetchSmtpSessionStatus(),
+    refetchInterval: 60 * 1000,
+    enabled: Boolean(user?.sogoToken),
+    staleTime: 30 * 1000,
+  });
+  const [remainingMs, setRemainingMs] = useState(null);
+  useEffect(() => {
+    if (!sessionStatus?.remainingMs) { setRemainingMs(null); return; }
+    setRemainingMs(sessionStatus.remainingMs);
+    const tick = setInterval(() => {
+      setRemainingMs((prev) => (prev == null ? null : Math.max(0, prev - 1000)));
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [sessionStatus?.remainingMs]);
 
   async function handleLogout() {
     await logout().catch(() => {})
@@ -106,6 +129,10 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
             <span className="text-xs text-muted-foreground truncate flex-1">{user?.cn || user?.email}</span>
           </div>
         )}
+        {/* Countdown sesi SMTP — hanya tampil saat < 15 mnt agar tidak berisik */}
+        {!collapsed && remainingMs != null && remainingMs < SHOW_BELOW_MINUTES * 60_000 && (
+          <SessionCountdown remainingMs={remainingMs} />
+        )}
         <button
           onClick={handleLogout}
           className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all ${collapsed ? 'justify-center' : ''}`}
@@ -117,4 +144,27 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
       </div>
     </aside>
   )
+}
+
+/**
+ * Badge countdown sesi SMTP — tampil tipis di bawah info user.
+ * Warna: muted (≤15m), amber (≤5m), destructive + pulse (≤1m).
+ */
+function SessionCountdown({ remainingMs }) {
+  const level = sessionWarningLevel(remainingMs);
+  const text = formatRemaining(remainingMs);
+  const palette = {
+    ok:     'bg-muted text-muted-foreground',
+    warn:   'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+    urgent: 'bg-destructive/10 text-destructive animate-pulse',
+  }[level];
+  return (
+    <div
+      className={`mx-2 mb-1 px-2.5 py-1 rounded-md text-[11px] flex items-center gap-1.5 ${palette}`}
+      title="Sesi SMTP akan berakhir — klik Keluar untuk perpanjang."
+    >
+      <Timer size={11} className="shrink-0" />
+      <span>SMTP {text}</span>
+    </div>
+  );
 }

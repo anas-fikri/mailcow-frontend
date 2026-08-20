@@ -1,24 +1,28 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-20T12:57:04Z
+Generated At: 2026-08-20T13:14:38Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [HIGH] Resolve risk: Idle 30 min — user yang cuma baca email tanpa ngirim >30 min akan ke-logout
+## 1. [HIGH] Resolve risk: Tick mengandalkan Date.now() lokal — jam klien meleset bisa bikin count tidak
 - Why: Risk was recorded but not marked resolved.
 - Source: current-task.md
 
-## 2. [HIGH] Run or verify validation: 15/15 test PASS (baru: test:smtp-session-expired) · npm run build OK
+## 2. [HIGH] Resolve risk: Polling 60s saat user idle masih hit server; rate-limit 30/menit masih aman.
+- Why: Risk was recorded but not marked resolved.
+- Source: current-task.md
+
+## 3. [HIGH] Run or verify validation: 16/16 test PASS · npm run build OK
 - Why: Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 3. [MEDIUM] Follow up on discovered knowledge: sendMessage di src/lib/api.js sebelumnya melempar Error mentah pada 401 /api/send sehingga _onSessionExpired tidak terpanggil — user tetap logged-in tapi tidak bisa kirim email (SMTP proxy session sudah berakhir di server). Fix: kedua branch /api/send (path utama dgn lampiran + fallback setelah SOGo-501) sekarang memanggil throwIfAuthError(res) untuk 401, sehingga App.jsx logout paksa + navigate /login. 403 TIDAK logout (From-mismatch). TTL cookie + server tetap 8 jam (SESSION_MAX_AGE_MS=480min, Max-Age=28800); idle 30 min (SESSION_IDLE_MS env SMTP_SESSION_IDLE_MIN). Test: scripts/test-smtp-session-expired.mjs — memanggil callback=1 utk sendMessage 401 dgn lampiran, callback=0 utk registerSmtpSession 401 (saat login, _onSessionExpired null).
-- Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
+## 4. [MEDIUM] Follow up on discovered knowledge: Server endpoint baru GET /api/auth/smtp/status dengan rate-limit 30/menit mengembalikan {user, createdAt, lastUsed, maxAgeMs, idleMs, remainingMs} dimana remainingMs = min(SESSION_MAX_AGE_MS - (now - createdAt), SESSION_IDLE_MS - (now - lastUsed)). requireSmtpSession middleware dipakaI jadi 401 = sesi berakhir otomatis picu logout via throwIfAuthError di fetchSmtpSessionStatus(). Client Sidebar poll tiap 60s + tick lokal 1s; tampil badge 'SMTP MM:SS' saat < 15 menit (show below SHOW_BELOW_MINUTES=15). Palette: muted ≤15m, amber ≤5m, destructive+animate-pulse ≤1m. Helper pure di src/lib/sessionCountdown.js: formatRemaining(ms) → 'M:SS' atau 'H:MM:SS', sessionWarningLevel(ms) → 'ok'
+- Why: 'warn'|'urgent'. Test test:session-countdown.|Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
-## 4. [LOW] Review and commit current changes
-- Why: 8 uncommitted file entries remain in the project.
+## 5. [LOW] Review and commit current changes
+- Why: 11 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use

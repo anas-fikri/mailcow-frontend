@@ -354,6 +354,26 @@ app.delete('/api/auth/smtp', rateLimit({ max: 10, windowMs: 60000, keyFn: client
   return res.json({ ok: true });
 });
 
+// ── SMTP Session Status (countdown timer di header) ──────────────────────────
+// Kembalikan sisa waktu sesi proxy (ambil minimum dari max-age dan idle) agar
+// frontend bisa menampilkan countdown sebelum sesi berakhir dan memicu
+// auto-logout via _onSessionExpired. Tidak mengembalikan pass/token apapun.
+app.get('/api/auth/smtp/status', rateLimit({ max: 30, windowMs: 60000, keyFn: clientIp }), requireSmtpSession, (req, res) => {
+  const session = req.smtpSession;
+  const now = Date.now();
+  const remainingAbs  = Math.max(0, SESSION_MAX_AGE_MS - (now - session.createdAt));
+  const remainingIdle = Math.max(0, SESSION_IDLE_MS    - (now - session.lastUsed));
+  res.json({
+    user: session.user,
+    createdAt: session.createdAt,
+    lastUsed: session.lastUsed,
+    maxAgeMs: SESSION_MAX_AGE_MS,
+    idleMs: SESSION_IDLE_MS,
+    // Sesi berakhir bilamana salah satu habis — minimum yg berlaku.
+    remainingMs: Math.min(remainingAbs, remainingIdle),
+  });
+});
+
 // ── GET Preferences ────────────────────────────────────────────────────────────
 app.get('/api/preferences', rateLimit({ max: 30, windowMs: 60000, keyFn: clientIp }), requireSmtpSession, async (req, res) => {
   const sessionEmail = req.smtpSession.user;

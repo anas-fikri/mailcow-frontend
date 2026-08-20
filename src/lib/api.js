@@ -763,6 +763,40 @@ export async function revokeSmtpSession() {
   } catch {} // fire-and-forget
 }
 
+/**
+ * Ambil sisa sesi SMTP proxy dari server — dipakai header countdown timer.
+ *
+ * Return: { user, createdAt, lastUsed, maxAgeMs, idleMs, remainingMs }
+ *   remainingMs = min(maxAge-remaining, idle-remaining) — sesi berakhir
+ *                 begitu salah satu mencapai 0.
+ *
+ * 401 (atau 403 di luar login grace): sesi berakhir → picu _onSessionExpired
+ * supaya App.jsx auto-logout seperti /api/send 401. Tidak untuk polling
+ * yang jarang (≥30s); rate-limit server 30/menit cukup.
+ */
+export async function fetchSmtpSessionStatus() {
+  const res = await fetch('/api/auth/smtp/status', {
+    credentials: 'include',
+    headers: withApiKey(),
+  });
+  // 401/403 = sesi SMTP berakhir/akun mismatch → trigger auto-logout.
+  throwIfAuthError(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Gagal membaca status sesi (${res.status}).`);
+  }
+  const data = await res.json();
+  // Defensive validation agar rendering tidak NaN/undefined.
+  return {
+    user: String(data?.user || ''),
+    createdAt: Number(data?.createdAt) || 0,
+    lastUsed: Number(data?.lastUsed) || 0,
+    maxAgeMs: Number(data?.maxAgeMs) || 0,
+    idleMs: Number(data?.idleMs) || 0,
+    remainingMs: Number(data?.remainingMs) || 0,
+  };
+}
+
 export async function registerSmtpSession(user, pass) {
   // Server menyimpan token sesi SMTP sebagai cookie httpOnly (Set-Cookie),
   // sehingga tidak ada token yang dikembalikan/di-pegang oleh JS.

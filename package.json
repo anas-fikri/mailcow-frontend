@@ -36,6 +36,7 @@
     "test:email-validation": "node scripts/test-email-validation.mjs",
     "test:smtp-cookie": "node scripts/test-smtp-cookie.mjs",
     "test:smtp-session-expired": "node scripts/test-smtp-session-expired.mjs",
+    "test:session-countdown": "node scripts/test-session-countdown.mjs",
     "test:purify-hardening": "node scripts/test-purify-hardening.mjs",
     "test:remote-image": "node scripts/test-remote-image.mjs",
     "test:attachment-validation": "node scripts/test-attachment-validation.mjs",
