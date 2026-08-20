@@ -7,7 +7,7 @@ import {
   Archive, BellRing, CheckCheck, Clock, Paperclip,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchFolders, fetchMessages, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder } from '../lib/api';
+import { fetchFolders, fetchMessages, fetchMessageHeaders, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder } from '../lib/api';
 import MessageReader from '../components/mailer/MessageReader';
 import ComposeModal from '../components/mailer/ComposeModal';
 import QuickRuleModal from '../components/mailer/QuickRuleModal';
@@ -224,6 +224,9 @@ export default function MailPage() {
     setSelectedMsgId(null);
     setSelectionMode(false);
     setVisibleCount(PAGE_SIZE); // Bug fix: reset pagination saat ganti folder
+    setExtraMessages([]);
+    setLoadingMore(false);
+    stopFetchingRef.current = false;
     lastSelectedUid.current = null; // range-select anchor ikut di-reset
     // Reset processed cache saat ganti folder
     rulesProcessed.current = {};
@@ -291,7 +294,8 @@ export default function MailPage() {
     data: msgData, 
     isLoading: loadingMessages, 
     isFetching: isFetchingMessages, 
-    error: msgError 
+    error: msgError,
+    dataUpdatedAt,
   } = useQuery({
     queryKey: ['messages', user?.sogoToken, selectedFolder, searchQuery, searchCriteria],
     queryFn: () => searchQuery
@@ -330,8 +334,35 @@ export default function MailPage() {
     refetchInterval: STALE_TIMES.UNSEEN,
   });
 
-  const messages = msgData?.messages || [];
+  // ── Server-side pagination (auto-load) ─────────────────────────────────────
+  // SOGo /view mem-prefetch hanya ~100 header (headersPrefetchMaxSize). UID
+  // sisanya dimuat bertahap lewat /headers saat user scroll (pola native SOGo).
+  const [extraMessages, setExtraMessages] = useState([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const stopFetchingRef = useRef(false);
+
+  const baseMessages = msgData?.messages || [];
+  const allUids = Array.isArray(msgData?.uids) ? msgData.uids : null;
+  // Gabung header awal (/view) + header tambahan (/headers), dedup by uid,
+  // lalu urutkan descending. /headers membalas baris dalam urutan IMAP (bukan
+  // urutan yang diminta), jadi tanpa sort ulang visibleCount.slice(0, n) akan
+  // me-reveal email lama sebelum email baru di batch yang sama.
+  const messages = useMemo(() => {
+    if (extraMessages.length === 0) return baseMessages;
+    const seen = new Set(baseMessages.map((m) => String(m.uid)));
+    const fresh = extraMessages.filter((m) => !seen.has(String(m.uid)));
+    return [...baseMessages, ...fresh].sort((a, b) => b.uid - a.uid);
+  }, [baseMessages, extraMessages]);
+
   const totalMessageCount = msgData?.total ?? messages.length;
+
+  // UID yang belum punya header (urut SOGo: terbaru → lama).
+  const remainingUids = useMemo(() => {
+    if (!allUids) return [];
+    const loaded = new Set(messages.map((m) => String(m.uid)));
+    return allUids.filter((u) => !loaded.has(String(u)));
+  }, [allUids, messages]);
+
   // Kotak Masuk dibatasi ke N bulan terakhir (sisanya hanya via pencarian).
   // `date` dari SOGo adalah string display; unparseable → dianggap dalam window.
   const messagesInWindow = useMemo(() => {
@@ -343,6 +374,13 @@ export default function MailPage() {
       return d === null || d.getTime() >= cutoff.getTime();
     });
   }, [messages, selectedFolder]);
+
+  // Reset header tambahan saat query refetch (delete/move/archive → list berubah).
+  useEffect(() => {
+    setExtraMessages([]);
+    setLoadingMore(false);
+    stopFetchingRef.current = false;
+  }, [dataUpdatedAt]);
   const ruleSummary = getRuleSummary(user?.email);
   const enabledRules = ruleSummary.enabled;
 
@@ -490,7 +528,9 @@ export default function MailPage() {
     });
   }, []);
 
-  const hasMore = visibleCount < messagesInWindow.length;
+  // Masih ada yang bisa ditampilkan/dimuat: reveal client-side ATAU fetch server-side.
+  const hasMore = visibleCount < messagesInWindow.length ||
+    (remainingUids.length > 0 && !stopFetchingRef.current);
 
   // Jalankan rules untuk pesan yang baru dimuat
   useEffect(() => {
@@ -520,9 +560,52 @@ export default function MailPage() {
     });
   }, [messages.length, selectedFolder, user?.email, user?.sogoToken]);
 
-  const loadMore = useCallback(() => {
-    setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, messagesInWindow.length));
-  }, [messagesInWindow.length]);
+  // loadMore dua tahap:
+  // 1) reveal header yang SUDAH ada (client-side, instant);
+  // 2) bila sudah ter-reveal semua tapi masih ada UID belum di-fetch → /headers.
+  const loadMore = useCallback(async () => {
+    if (loadingMore) return;
+
+    if (visibleCount < messagesInWindow.length) {
+      setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, messagesInWindow.length));
+      return;
+    }
+
+    // Kotak Masuk: berhenti setelah melewati batas 5 bulan.
+    if (stopFetchingRef.current) return;
+
+    if (remainingUids.length === 0 || !user?.sogoToken) return;
+
+    setLoadingMore(true);
+    try {
+      const batch = remainingUids.slice(0, PAGE_SIZE);
+      const rows = await fetchMessageHeaders(user.sogoToken, selectedFolder, batch);
+      if (rows.length) {
+        setExtraMessages((prev) => [...prev, ...rows]);
+        setVisibleCount((prev) => prev + rows.length);
+      }
+
+      // Kotak Masuk: hentikan fetch lanjutan bila batch sudah menyentuh pesan
+      // lebih lama dari cutoff (UID urut terbaru → lama). Cari pesan terlama
+      // via uid minimum — /headers tidak menjamin urutan balasan sama dgn request.
+      if (selectedFolder === 'folderINBOX') {
+        const cutoff = new Date();
+        cutoff.setMonth(cutoff.getMonth() - MESSAGE_WINDOW_MONTHS);
+        const oldest = rows.reduce((min, r) => ((r?.uid ?? Infinity) < (min?.uid ?? Infinity) ? r : min), rows[0]);
+        const d = oldest ? parseMessageDate(oldest.date) : null;
+        if (d && d.getTime() < cutoff.getTime()) stopFetchingRef.current = true;
+      }
+
+      // UID habis tapi header tidak (mis. pesan terhapus di server) → hentikan.
+      if (rows.length < batch.length) stopFetchingRef.current = true;
+    } catch (err) {
+      console.warn('[mail] Gagal memuat header tambahan:', err?.message || err);
+      // Jangan loop retry tanpa henti di sentinel — beri jeda via stop.
+      stopFetchingRef.current = true;
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, visibleCount, messagesInWindow.length, remainingUids, user?.sogoToken, selectedFolder]);
 
   // ── Infinite scroll: auto-load saat sentinel bawah terlihat ────────────────
   const listRef = useRef(null);

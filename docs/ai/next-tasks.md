@@ -1,28 +1,24 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-20T11:12:57Z
+Generated At: 2026-08-20T11:44:31Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] ai-close + commit + push + deploy
-- Why: Explicit next step recorded on active task.
-- Source: current-task.md
-
-## 2. [HIGH] Resolve risk: Kontrak `repeat.days` harus array `[{day:'MO'}]` (iCalByDayMask byDayMaskWithDaysAndOccurrences)
+## 1. [HIGH] Resolve risk: /headers membalas baris dalam urutan IMAP (bukan urutan request) → merge di-sort
 - Why: Risk was recorded but not marked resolved.
 - Source: current-task.md
 
-## 3. [HIGH] Run or verify validation: 20/20 test PASS · npm run build ✅
+## 2. [HIGH] Run or verify validation: 14/14 test PASS · npm run build OK
 - Why: Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 4. [MEDIUM] Follow up on discovered knowledge: SOGo recurrence: repeat.days adalah array [{day:'MO'}...] (2-huruf BYDAY MO..SU), dikonsumsi iCalByDayMask byDayMaskWithDaysAndOccurrences:o di iCalRepeatableEntityObject+SOGo.m setAttributes:. 'hari kerja saja' = weekly + days [MO..FR]. EventModal kini punya day-picker mingguan; dayCodeFromDate parse YYYY-MM-DD manual agar tak meleset di timezone belakang UTC.
+## 3. [MEDIUM] Follow up on discovered knowledge: SOGo /view membalas daftar UID lengkap (data.uids) tapi hanya mem-prefetch ~100 header (headersPrefetchMaxSize=100). Header sisanya diambil via POST /Mail/0/{folder}/headers body {uids:[...]} yang membalas ARRAY BARE [columnNames, ...rows] (bukan {headers:[...]}), dalam urutan IMAP (tidak sesuai urutan request) — jadi wajib di-sort ulang by uid desc di client sebelum reveal. Endpoint /headers menolak uids kosong dgn 404 {message:'No UID specified'}. getMessageTotal pakai data.uids.length. auto-load kotak masuk sekarang server-side (lewat 100) dgn batas 5 bulan via stopFetchingRef.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
-## 5. [LOW] Review and commit current changes
-- Why: 7 uncommitted file entries remain in the project.
+## 4. [LOW] Review and commit current changes
+- Why: 8 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use

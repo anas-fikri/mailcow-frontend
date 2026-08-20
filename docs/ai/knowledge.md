@@ -437,3 +437,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-111241-959627
 - Status: COMPLETED
 - Finding: SOGo recurrence: repeat.days adalah array [{day:'MO'}...] (2-huruf BYDAY MO..SU), dikonsumsi iCalByDayMask byDayMaskWithDaysAndOccurrences:o di iCalRepeatableEntityObject+SOGo.m setAttributes:. 'hari kerja saja' = weekly + days [MO..FR]. EventModal kini punya day-picker mingguan; dayCodeFromDate parse YYYY-MM-DD manual agar tak meleset di timezone belakang UTC.
+
+## 2026-08-20T11:44:30Z
+- Task: 20260820-114411-136241
+- Status: COMPLETED
+- Finding: SOGo /view membalas daftar UID lengkap (data.uids) tapi hanya mem-prefetch ~100 header (headersPrefetchMaxSize=100). Header sisanya diambil via POST /Mail/0/{folder}/headers body {uids:[...]} yang membalas ARRAY BARE [columnNames, ...rows] (bukan {headers:[...]}), dalam urutan IMAP (tidak sesuai urutan request) — jadi wajib di-sort ulang by uid desc di client sebelum reveal. Endpoint /headers menolak uids kosong dgn 404 {message:'No UID specified'}. getMessageTotal pakai data.uids.length. auto-load kotak masuk sekarang server-side (lewat 100) dgn batas 5 bulan via stopFetchingRef.

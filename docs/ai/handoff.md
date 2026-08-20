@@ -1462,3 +1462,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M scripts/test-calendar-api.mjs
 -  M src/components/EventModal.jsx
 - ?? docs/ai/tasks/20260820-111241-959627.previous.md
+
+## 2026-08-20T11:44:30Z
+- Status: COMPLETED
+- Objective: Webmail: auto-load kotak masuk saat scroll (server-side /headers, lewati batas 100)
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M scripts/test-message-api.mjs
+-  M src/lib/api.js
+-  M src/pages/MailPage.jsx
+- ?? docs/ai/tasks/20260820-114411-136241.previous.md

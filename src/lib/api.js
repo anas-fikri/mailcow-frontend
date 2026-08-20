@@ -427,6 +427,10 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
       messages,
       unseenCount: data.unseenCount || 0,
       total: getMessageTotal(data, messages.length),
+      // Daftar UID lengkap (urut terbaru) — dipakai utk pagination server-side.
+      // SOGo /view hanya mem-prefetch ~100 header (headersPrefetchMaxSize);
+      // sisanya diambil bertahap via /headers.
+      uids: Array.isArray(data.uids) ? data.uids : null,
     };
     } finally {
       clearTimeout(timeoutId);
@@ -435,6 +439,37 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
     console.error('[API] fetchMessages ERROR:', err?.message || err);
     throw err;
   }
+}
+
+/**
+ * Ambil header untuk UID tertentu — endpoint lazy-load SOGo (native frontend
+ * memanggilnya saat scroll untuk memuat header di luar prefetch awal 100).
+ *
+ * POST /Mail/0/{folder}/headers  body { uids: [...] }
+ * Response = array [columnNames, ...rows] — sama dengan field `headers` di /view,
+ * jadi bisa langsung di-parse parseMessageRows.
+ *
+ * @param {string} sogoToken
+ * @param {string} folder
+ * @param {Array<number|string>} uids
+ * @returns {Promise<Array>} baris pesan ter-parse
+ */
+export async function fetchMessageHeaders(sogoToken, folder, uids) {
+  if (!Array.isArray(uids) || uids.length === 0) return [];
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/headers`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ uids }),
+  });
+  if (res.status === 204) return [];
+  throwIfAuthError(res);
+  if (!res.ok) throwApiError(`Gagal memuat header pesan (${res.status}).`, res.status);
+  const data = await safeJson(res);
+  // /headers membalas array bare [columnNames, ...rows] (bukan { headers: [...] }).
+  const messages = parseMessageRows({ headers: data });
+  for (const m of messages) m.folderId = folder;
+  return messages;
 }
 
 /**
