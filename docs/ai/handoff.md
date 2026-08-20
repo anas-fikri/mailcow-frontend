@@ -1522,3 +1522,13 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - ?? docs/ai/tasks/20260820-131428-282178.previous.md
 - ?? scripts/test-session-countdown.mjs
 - ?? src/lib/sessionCountdown.js
+
+## 2026-08-20T13:18:22Z
+- Status: COMPLETED
+- Objective: Webmail: idle timeout SMTP 30→60 menit via SMTP_SESSION_IDLE_MIN (.env + service unit)
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M configs/sogo-smtp-proxy.service
+-  M docs/ai/current-task.md
+- ?? docs/ai/tasks/20260820-131813-225244.previous.md
