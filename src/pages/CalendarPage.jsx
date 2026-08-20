@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, ChevronRight, Calendar as CalIcon, Loader2, MapPin, Clock,
-  Plus, Pencil, Trash2, List, AlertCircle,
+  Plus, Pencil, Trash2, List, AlertCircle, Repeat,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, fetchCalendarEventDetail } from '../lib/api';
@@ -420,7 +420,10 @@ export default function CalendarPage() {
                 <div className={`text-xs font-semibold px-2 py-0.5 rounded-full inline-block mb-1.5 ${calColor(ev.calendar)}`}>
                   {ev.calendar || 'Kalender'}
                 </div>
-                <div className="text-sm font-medium text-foreground leading-snug">{ev.title}</div>
+                <div className="text-sm font-medium text-foreground leading-snug flex items-center gap-1">
+                  {ev.isRecurring && <Repeat size={12} className="shrink-0 text-muted-foreground" aria-label="Berulang" />}
+                  <span className="truncate">{ev.title}</span>
+                </div>
                 {!ev.isAllDay && ev.start && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                     <Clock size={11} />
@@ -592,6 +595,7 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
                     className={`text-[10px] px-1.5 py-0.5 rounded truncate w-full cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
                     onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
                   >
+                    {ev.isRecurring && <Repeat size={9} className="inline-block shrink-0 align-[-1px] mr-0.5" aria-label="Berulang" />}
                     {ev.isAllDay ? '● ' : `${ev.startHour || ''} `}{ev.title}
                   </div>
                 ))}
@@ -696,6 +700,7 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
                         style={{ minHeight: '18px' }}
                         onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
                       >
+                        {ev.isRecurring && <Repeat size={9} className="inline-block shrink-0 align-[-1px] mr-0.5" aria-label="Berulang" />}
                         {ev.startHour ? fmtTime(ev.start) : ''} {ev.title}
                       </div>
                     ))}
@@ -723,7 +728,7 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
                         className={`text-[9px] px-1 py-0.5 rounded truncate cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
                         onClick={() => onEventClick(ev)}
                       >
-                        ● {ev.title}
+                        {ev.isRecurring && <Repeat size={9} className="inline-block shrink-0 align-[-1px] mr-0.5" aria-label="Berulang" />}● {ev.title}
                       </div>
                     ))}
                   </div>
@@ -769,7 +774,7 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
               className={`text-xs px-2 py-1 rounded-lg cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
               onClick={() => onEventClick(ev)}
             >
-              {ev.title}
+              {ev.isRecurring && <Repeat size={11} className="inline-block shrink-0 align-[-1px] mr-1" aria-label="Berulang" />}{ev.title}
             </div>
           ))}
         </div>
@@ -821,7 +826,10 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
                         style={{ top: pos.top, height: pos.height, minHeight: '22px' }}
                         onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
                       >
-                        <div className="font-semibold">{ev.title}</div>
+                        <div className="font-semibold flex items-center gap-1">
+                          {ev.isRecurring && <Repeat size={11} className="shrink-0" aria-label="Berulang" />}
+                          <span className="truncate">{ev.title}</span>
+                        </div>
                         <div className="opacity-70 text-[10px]">
                           {fmtTime(ev.start)} – {fmtTime(ev.end)}
                         </div>

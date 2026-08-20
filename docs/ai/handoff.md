@@ -1439,3 +1439,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M src/components/EventModal.jsx
 -  M src/lib/api.js
 - ?? docs/ai/tasks/20260820-110117-165829.previous.md
+
+## 2026-08-20T11:05:26Z
+- Status: COMPLETED
+- Objective: Webmail: ikon pengulangan (↻) pada event berulang di grid kalender
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M scripts/test-calendar-api.mjs
+-  M src/lib/api.js
+-  M src/pages/CalendarPage.jsx
+- ?? docs/ai/tasks/20260820-110511-162155.previous.md

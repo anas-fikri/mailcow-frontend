@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createCalendarEvent, updateCalendarEvent, fetchCalendarEventDetail } from '../src/lib/api.js';
+import { createCalendarEvent, updateCalendarEvent, fetchCalendarEventDetail, fetchCalendarEvents } from '../src/lib/api.js';
 
 const calls = [];
 let newguidPayload = { id: 'evt-123' };
@@ -28,6 +28,17 @@ globalThis.fetch = async (url, options = {}) => {
   }
   if (u.endsWith('/Calendar/personal/evt-123/view')) {
     return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => viewPayload };
+  }
+  if (u.includes('/Calendar/eventsblocks')) {
+    return {
+      status: 200, ok: true, headers: { get: () => 'application/json' },
+      json: async () => [{
+        eventsFields: ['c_name', 'c_title', 'c_startdate', 'c_enddate', 'c_location', 'c_isallday', 'c_iscycle', 'c_description', 'c_partmails', 'c_classification'],
+        blocks: [[
+          'evt-1', 'Rapat', 1754200800, 1754204400, 'Ruang A', 0, 1, 'desc', 'a@example.test\nb@example.test', 0,
+        ]],
+      }],
+    };
   }
   if (u.endsWith('/saveAsAppointment')) {
     return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => ({ id: 'evt-123' }) };
@@ -148,5 +159,14 @@ calls.length = 0;
 await createCalendarEvent('user@example.test', { title: 'Tanpa ulang', startDate: '2026-08-23', endDate: '2026-08-23', isAllDay: false });
 const noRepeatBody = JSON.parse(calls.find((c) => c.url.endsWith('/saveAsAppointment')).options.body);
 assert.equal(noRepeatBody.repeat, undefined, 'tanpa repeat tidak kirim field');
+
+// ── fetchCalendarEvents: map c_iscycle → isRecurring & c_partmails → attendees ─
+calls.length = 0;
+const events = await fetchCalendarEvents('user@example.test', 'personal', 1754200000, 1754300000);
+assert.equal(events.length, 1);
+assert.equal(events[0].id, 'evt-1');
+assert.equal(events[0].isRecurring, true, 'c_iscycle=1 harus jadi isRecurring true');
+assert.equal(events[0].attendees, 'a@example.test, b@example.test');
+assert.equal(events[0].classification, 'public');
 
 console.log('calendar API assertions passed');

@@ -1129,6 +1129,7 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
           startHour: ev.startHour || '',
           location:  ev.c_location || '',
           isAllDay:  !!ev.c_isallday,
+          isRecurring: !!ev.c_iscycle,
           calendar:  ev.calendarName || '',
           folder:    ev.c_folder || '',
           owner:     ev.c_owner || '',

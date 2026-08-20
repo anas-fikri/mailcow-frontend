@@ -427,3 +427,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-110117-165829
 - Status: COMPLETED
 - Finding: Recurring event SOGo: payload `repeat` kontrak iCalRepeatableEntityObject+SOGo.m — {frequency, interval, [count], [until], [days], [monthdays], [months], [dates]}. frequency lowercase daily/weekly/monthly/yearly + spesial bi-weekly (->weekly interval 2), every weekday, custom. EventModal: UI freq+interval+end(never/count/until); prefill dari event.repeat (/view); pola kustom dipertahankan via originalRepeatRef (anti data-loss bila user cuma edit judul); repeatTouchedRef menandai apakah kontrol diubah. buildAppointmentBody sertakan repeat; fetchCalendarEventDetail return repeat: d.repeat.
+
+## 2026-08-20T11:05:26Z
+- Task: 20260820-110511-162155
+- Status: COMPLETED
+- Finding: Event berulang SOGo: kolom DB c_iscycle (0/1, dari iCalEvent+SOGo.m quickRecordFromContent) menandai event recurrent. Dipetakan ke isRecurring di fetchCalendarEvents untuk ikon ulang di grid kalender. Ikon lucide-react Repeat.

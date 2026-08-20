@@ -1,38 +1,30 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260820-110117-165829
-Started At: 2026-08-20T11:01:17Z
-Updated At: 2026-08-20T11:01:37Z
+Task ID: 20260820-110511-162155
+Started At: 2026-08-20T11:05:11Z
+Updated At: 2026-08-20T11:05:26Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: dukungan recurring event di EventModal (repeat SOGo)
+Webmail: ikon pengulangan (↻) pada event berulang di grid kalender
 
 ## Goal Link
 Goal ID: G-001 (keamanan & fungsional webmail)
 Sub-goal ID: G-001.S-009 (fitur webmail)
 
 ## Changes
-- **`src/components/EventModal.jsx`:**
-  - State pengulangan: `freq` (never/daily/weekly/monthly/yearly), `repeatInterval`,
-    `repeatEnd` (never/count/until), `repeatCount`, `repeatUntil`.
-  - `applyRepeat()` prefill dari `event.repeat` (dari /view); `bi-weekly` → weekly+interval 2;
-    pola kustom (custom/every weekday/byday) dipertahankan via `originalRepeatRef` + banner
-    info, tidak diedit di UI.
-  - `handleSave` bangun `repeat` sesuai kontrak SOGo `iCalRepeatableEntityObject+SOGo.m`
-    (`{frequency, interval, [count], [until]}`); bila user tidak sentuh kontrol, kirim pola
-    asli apa adanya (anti data-loss).
-- **`src/lib/api.js`:** `buildAppointmentBody` sertakan `repeat`; `fetchCalendarEventDetail`
-  return `repeat: d.repeat`.
-- **`scripts/test-calendar-api.mjs`:** + assert repeat dikirim/parsing & tak dikirim bila kosong.
+- **`src/lib/api.js`:** `fetchCalendarEvents` memetakan `c_iscycle` → `isRecurring`
+  (boolean, dari kolom DB SOGo yang 0/1).
+- **`src/pages/CalendarPage.jsx`:** ikon `Repeat` (lucide) ditampilkan di semua
+  render event berulang: month view chip, week view (hourly + all-day), day view
+  (hourly + all-day), dan side panel list.
 
 ## Validation
-- 30/30 test PASS, `npm run build` OK.
+- 30/30 test PASS (test:calendar-api + mapping isRecurring & attendees), `npm run build` OK.
 
 ## Next Steps
 - Commit + push + deploy frontend (backend tak berubah).
 
 ## Risks
-- Recurrence kompleks (byday/byhour) tak diedit di UI tapi dipertahankan; hanya daily/weekly/
-  monthly/yearly + interval + count/until yang bisa di-set dari UI.
+- Tidak ada.
