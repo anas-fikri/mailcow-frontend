@@ -412,3 +412,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-100501-388715
 - Status: COMPLETED
 - Finding: Webmail attachments: Paperclip disabled 'belum didukung' — fitur belum ada. Implementasi: attachmentValidation.js (pure, 10 file/4MB/file/18MB total, base64+filename anti-injection), /api/send zod+validate+nodemailer Buffer.from(base64), express.json 10mb->30mb, sendMessage bypass draft SOGo bila ada lampiran (SOGo /send 501 di produksi -> semua kirim nyata via SMTP proxy). ComposeModal: FileReader->base64, chip list, drag-drop non-gambar->attachment (gambar tetap inline), StrictMode: side effect FileReader di luar updater setState. Bug test time-dependent: parseMessageDate('yesterday') pakai new Date() nyata bukan now inject -> tambah param now (dateGroups.js).
+
+## 2026-08-20T10:49:59Z
+- Task: 20260820-104931-250388
+- Status: COMPLETED
+- Finding: Kalender tidak bisa buat event: src/lib/api.js memakai kontrak SOGo salah. (1) Action name 'saveAsappointment' harusnya 'saveAsAppointment' (capital A, case-sensitive) — dari SOGo Component.service.js 'saveAs'+type.capitalize(). (2) Payload pakai kolom DB c_title/c_location/c_description/c_isallday/c_partmails/c_partstates, padahal SOGo saveAsAppointment membaca field iCal summary/location/comment/isAllDay/attendees(array) — dari iCalEntityObject+SOGo.m & iCalEvent+SOGo.m setAttributes:inContext:. attendees: string koma -> array {email,name,role:'REQ-PARTICIPANT',partstat:'NEEDS-ACTION'}. update pakai action 'save' (benar). newguid response JSON {id} atau plain string. SOGo field date: startDate/startTime/endDate/endTime (string YYYY-MM-DD/HH:MM) + isAllDay bool.

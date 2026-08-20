@@ -981,6 +981,8 @@ export async function deleteContact(sogoToken, cardId) {
 /**
  * Create a new event GUID (SOGo returns a new unique ID).
  * GET /Calendar/{calendarId}/newguid
+ *
+ * Responsenya JSON `{"id": "<uid>"}` (beberapa versi SOGo balas plain string).
  */
 async function newEventGuid(sogoToken, calendarId = 'personal') {
   const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/newguid`, {
@@ -990,12 +992,45 @@ async function newEventGuid(sogoToken, calendarId = 'personal') {
   throwIfAuthError(res);
   if (!res.ok) throw new Error('Gagal membuat ID event baru.');
   const data = await res.json();
-  return data.id || data;
+  const id = (data && typeof data === 'object') ? (data.id || data.uid || data.name) : data;
+  if (!id || typeof id !== 'string') throw new Error('Gagal membaca ID event dari server.');
+  return id;
+}
+
+/**
+ * Bangun payload appointment SOGo (field iCal, bukan kolom DB c_*).
+ * Referensi: iCalEntityObject+SOGo.m `setAttributes:` membaca `summary`,
+ * `location`, `comment`, `classification`, `attendees` (array), serta
+ * iCalEvent+SOGo.m membaca `startDate`/`startTime`/`endDate`/`endTime`
+ * dan `isAllDay`.
+ */
+function buildAppointmentBody(event) {
+  const attendees = (event.attendees || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((email) => ({ email, name: email, role: 'REQ-PARTICIPANT', partstat: 'NEEDS-ACTION' }));
+
+  const body = {
+    summary: event.title || '',
+    location: event.location || '',
+    comment: event.description || '',
+    classification: 'public',
+    isAllDay: !!event.isAllDay,
+    startDate: event.startDate || '',
+    endDate: event.endDate || '',
+  };
+  if (!event.isAllDay) {
+    body.startTime = event.startTime || '';
+    body.endTime = event.endTime || '';
+  }
+  if (attendees.length > 0) body.attendees = attendees;
+  return body;
 }
 
 /**
  * Create a new calendar event.
- * POST /Calendar/{calendarId}/{eventId}/saveAsappointment
+ * POST /Calendar/{calendarId}/{eventId}/saveAsAppointment  (capital A — case-sensitive)
  *
  * @param {string} sogoToken
  * @param {object} event - { title, startDate, startTime, endDate, endTime, location, description, isAllDay, attendees }
@@ -1006,27 +1041,13 @@ export async function createCalendarEvent(sogoToken, event, calendarId = 'person
   const eventId = await newEventGuid(sogoToken, calendarId);
 
   // 2. Save the event
-  const body = {
-    c_title: event.title,
-    startDate: event.startDate,
-    startTime: event.startTime || '',
-    endDate: event.endDate,
-    endTime: event.endTime || '',
-    c_location: event.location || '',
-    c_description: event.description || '',
-    c_isallday: !!event.isAllDay,
-    c_partmails: event.attendees || '',
-    c_partstates: event.attendees ? event.attendees.split(',').map(() => 'NEEDS-ACTION').join(',') : '',
-    classification: 'public',
-  };
-
   const res = await fetch(
-    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}/saveAsappointment`,
+    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}/saveAsAppointment`,
     {
-    method: 'POST',
+      method: 'POST',
       credentials: 'include',
       headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(body),
+      body: JSON.stringify(buildAppointmentBody(event)),
     }
   );
   throwIfAuthError(res);
@@ -1039,27 +1060,13 @@ export async function createCalendarEvent(sogoToken, event, calendarId = 'person
  * POST /Calendar/{calendarId}/{eventId}/save
  */
 export async function updateCalendarEvent(sogoToken, eventId, event, calendarId = 'personal') {
-  const body = {
-    c_title: event.title,
-    startDate: event.startDate,
-    startTime: event.startTime || '',
-    endDate: event.endDate,
-    endTime: event.endTime || '',
-    c_location: event.location || '',
-    c_description: event.description || '',
-    c_isallday: !!event.isAllDay,
-    c_partmails: event.attendees || '',
-    c_partstates: event.attendees ? event.attendees.split(',').map(() => 'NEEDS-ACTION').join(',') : '',
-    classification: 'public',
-  };
-
   const res = await fetch(
     `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}/save`,
     {
-    method: 'POST',
+      method: 'POST',
       credentials: 'include',
       headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(body),
+      body: JSON.stringify(buildAppointmentBody(event)),
     }
   );
   throwIfAuthError(res);

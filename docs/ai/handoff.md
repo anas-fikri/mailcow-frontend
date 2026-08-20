@@ -1402,3 +1402,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - ?? docs/ai/tasks/20260820-100501-388715.previous.md
 - ?? scripts/test-attachment-validation.mjs
 - ?? src/lib/attachmentValidation.js
+
+## 2026-08-20T10:49:59Z
+- Status: COMPLETED
+- Objective: Webmail: perbaiki kalender tidak bisa buat event (action name + field iCal SOGo salah)
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M package.json
+-  M src/lib/api.js
+- ?? docs/ai/tasks/20260820-104931-250388.previous.md
+- ?? scripts/test-calendar-api.mjs

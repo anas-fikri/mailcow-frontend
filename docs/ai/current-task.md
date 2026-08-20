@@ -1,49 +1,44 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260820-100501-388715
-Started At: 2026-08-20T10:05:01Z
-Updated At: 2026-08-20T10:05:21Z
+Task ID: 20260820-104931-250388
+Started At: 2026-08-20T10:49:31Z
+Updated At: 2026-08-20T10:49:59Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: implementasi lampiran di ComposeModal (create/reply) + dukungan attachments di /api/send
+Webmail: perbaiki kalender tidak bisa buat event (action name + field iCal SOGo salah)
 
 ## Goal Link
 Goal ID: G-001 (keamanan & fungsional webmail)
 Sub-goal ID: G-001.S-009 (fitur webmail)
 
 ## Root cause
-Tombol Paperclip di footer ComposeModal **disabled** (`title="Lampirkan file (belum didukung)"`)
-— fitur lampiran belum pernah diimplementasikan. Error `[AutoArchive] ...Cannot copy messages to
-other account` di console TIDAK terkait (job SOGo background yang gagal).
+Kalender gagal buat/update event karena `src/lib/api.js` memakai kontrak SOGo yang salah:
+1. Action name `saveAsappointment` (huruf kecil 'a') → SOGo case-sensitive, action asli
+   `saveAsAppointment` (capital A). Verifikasi dari SOGo `Component.service.js`
+   (`'saveAs' + type.capitalize()`).
+2. Field payload memakai nama kolom DB `c_title`/`c_location`/`c_description`/`c_isallday`/
+   `c_partmails`/`c_partstates`, padahal SOGo `saveAsAppointment` membaca field iCal:
+   `summary`/`location`/`comment`/`isAllDay`/`attendees` (array). Verifikasi dari
+   `iCalEntityObject+SOGo.m` + `iCalEvent+SOGo.m` (`setAttributes:inContext:`).
 
 ## Changes
-- **`src/lib/attachmentValidation.js` (baru, pure):** `validateAttachments()` — batas 10 file,
-  4 MB/file, 18 MB total, validasi base64 + nama file (anti header/path injection), content-type.
-- **`server.js`:** schema `/api/send` + `attachments` (zod, max 10), validasi via
-  `validateAttachments()`, lampiran diteruskan ke Nodemailer (`content: Buffer.from(data,'base64')`),
-  `express.json` limit 10mb → 30mb (overhead base64).
-- **`src/lib/api.js` `sendMessage`:** terima `attachments`; bila ada lampiran → kirim LANGSUNG ke
-  `/api/send` (bypass draft SOGo yang 501 di produksi; cegah lampiran hilang diam-diam).
-- **`src/components/mailer/ComposeModal.jsx`:** Paperclip aktif + hidden `<input type="file" multiple>`,
-  daftar lampiran (chip nama+size+X, counter n/10 + total size), drag-drop file non-gambar → lampiran
-  (gambar tetap inline), reset saat modal dibuka, batas ukuran di client (4 MB/file, 10 file).
-- **Bonus fix:** `test:date-groups` gagal karena literal 'yesterday' memakai `new Date()` nyata,
-  bukan `now` yang di-inject (time-dependent). `parseMessageDate(value, now)` kini deterministik.
-
-## Tests
-- `test:attachment-validation` (baru) — validasi murni (base64, ukuran, nama, jumlah, total).
-- `test:draft-api` — kasus baru: attachments → langsung `/api/send`, tanpa draft SOGo.
-- Full suite: **29/29 PASS**, `npm run build` ✅, `node --check server.js` ✅, `bash -n deploy.sh` ✅.
-
-## Next Steps
-- Commit + push + deploy (SERVER=deploy-mail ./deploy.sh) — backend sync `attachmentValidation.js`.
-- Verifikasi live: kirim email dengan lampiran (manual oleh user).
-
-## Risks
-- Lampiran 4 MB/file, 18 MB total — batas desain (sesuai validasi backend).
-- SOGo path (tanpa lampiran) tidak berubah; dengan lampiran selalu lewat SMTP proxy.
+- **`src/lib/api.js`:**
+  - `newEventGuid` robust: baca `data.id || data.uid || data.name || data`, wajib string.
+  - Helper `buildAppointmentBody(event)` → field iCal yang benar; attendees (string koma)
+    → array `{email, name, role: 'REQ-PARTICIPANT', partstat: 'NEEDS-ACTION'}`;
+    all-day tanpa startTime/endTime.
+  - `createCalendarEvent` → POST `/saveAsAppointment`; `updateCalendarEvent` → POST `/save`.
+- **`scripts/test-calendar-api.mjs` (baru):** assert action name capital A, field iCal,
+  tidak ada c_*, attendees→array, all-day tanpa time, newguid plain-string, update `/save`.
+- **`package.json`:** tambah `test:calendar-api`.
 
 ## Validation
-- 29/29 test PASS, build OK, deploy live + `/api/send` attachments terverifikasi.
+- 30/30 test PASS (baru `test:calendar-api`), `npm run build` OK.
+
+## Next Steps
+- Commit + push + deploy frontend (SERVER=deploy-mail ./deploy.sh; backend tak berubah).
+
+## Risks
+- Tidak ada — frontend-only (api.js). Perilaku fetch/list event tidak diubah.
