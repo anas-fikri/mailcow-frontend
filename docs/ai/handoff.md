@@ -1427,3 +1427,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M src/lib/api.js
 -  M src/pages/CalendarPage.jsx
 - ?? docs/ai/tasks/20260820-105602-244471.previous.md
+
+## 2026-08-20T11:01:37Z
+- Status: COMPLETED
+- Objective: Webmail: dukungan recurring event di EventModal (repeat SOGo)
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M scripts/test-calendar-api.mjs
+-  M src/components/EventModal.jsx
+-  M src/lib/api.js
+- ?? docs/ai/tasks/20260820-110117-165829.previous.md

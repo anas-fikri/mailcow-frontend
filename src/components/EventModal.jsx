@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Calendar, Clock, MapPin, Users, FileText } from 'lucide-react';
 
 const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+const FREQ_UNITS = { daily: 'hari', weekly: 'minggu', monthly: 'bulan', yearly: 'tahun' };
 
 // Hati-hati: event tanpa `start`/`end` yang valid (mis. NaN) membuat
 // Date invalid dan toISOString() melempar RangeError → crash halaman.
@@ -50,6 +52,59 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Recurrence — kirim ke SOGo sebagai objek `repeat` (iCalRepeatableEntityObject+SOGo.m).
+  const [freq, setFreq] = useState('never');                 // never|daily|weekly|monthly|yearly
+  const [repeatInterval, setRepeatInterval] = useState(1);
+  const [repeatEnd, setRepeatEnd] = useState('never');        // never|count|until
+  const [repeatCount, setRepeatCount] = useState(10);
+  const [repeatUntil, setRepeatUntil] = useState('');
+  const [hasCustomRepeat, setHasCustomRepeat] = useState(false);
+  const repeatTouchedRef = useRef(false);
+  const originalRepeatRef = useRef(null);
+
+  // Terapkan pola pengulangan ke state UI. Pola asli disimpan di ref agar
+  // pola kustom/tidak-umum TIDAK hilang saat user hanya mengubah field lain.
+  function applyRepeat(repeat) {
+    repeatTouchedRef.current = false;
+    originalRepeatRef.current = repeat && typeof repeat === 'object' ? repeat : null;
+    const r = originalRepeatRef.current;
+    if (!r) {
+      setFreq('never');
+      setRepeatInterval(1);
+      setRepeatEnd('never');
+      setRepeatCount(10);
+      setRepeatUntil('');
+      setHasCustomRepeat(false);
+      return;
+    }
+    let f = String(r.frequency || '').toLowerCase();
+    let iv = Number(r.interval) || 1;
+    if (f === 'bi-weekly') { f = 'weekly'; iv = 2; }
+    const common = ['daily', 'weekly', 'monthly', 'yearly'];
+    if (!common.includes(f)) {
+      // custom / every weekday / byday — tidak diedit di UI, tapi dipertahankan.
+      setHasCustomRepeat(true);
+      f = 'never';
+    } else {
+      setHasCustomRepeat(false);
+    }
+    setFreq(f);
+    setRepeatInterval(iv);
+    if (r.count) {
+      setRepeatEnd('count');
+      setRepeatCount(Number(r.count) || 10);
+      setRepeatUntil('');
+    } else if (r.until) {
+      setRepeatEnd('until');
+      setRepeatUntil(String(r.until).slice(0, 10));
+      setRepeatCount(10);
+    } else {
+      setRepeatEnd('never');
+      setRepeatCount(10);
+      setRepeatUntil('');
+    }
+  }
+
   useEffect(() => {
     if (isOpen) {
       if (event instanceof Date) {
@@ -66,6 +121,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         setDescription('');
         setAttendees('');
         setError('');
+        applyRepeat(null);
       } else if (event && typeof event === 'object') {
         /* ── Edit / View mode ── */
         setTitle(event.title || '');
@@ -80,6 +136,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         setDescription(event.description || '');
         setAttendees(event.attendees || '');
         setError('');
+        applyRepeat(event.repeat);
       } else {
         /* ── Fresh create (no pre-fill) ── */
         setTitle('');
@@ -92,6 +149,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         setDescription('');
         setAttendees('');
         setError('');
+        applyRepeat(null);
       }
     }
   }, [isOpen, event]);
@@ -104,6 +162,19 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
     setError('');
 
     try {
+      // Bangun objek `repeat` hanya jika user mengubah kontrol pengulangan;
+      // selain itu pertahankan pola asli (termasuk pola kustom) apa adanya.
+      let repeat = null;
+      if (repeatTouchedRef.current) {
+        if (freq !== 'never') {
+          repeat = { frequency: freq, interval: Number(repeatInterval) || 1 };
+          if (repeatEnd === 'count') repeat.count = Number(repeatCount) || 1;
+          else if (repeatEnd === 'until' && repeatUntil) repeat.until = repeatUntil;
+        }
+      } else {
+        repeat = originalRepeatRef.current;
+      }
+
       const eventData = {
         title: title.trim(),
         startDate,
@@ -116,6 +187,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         attendees: attendees.trim(),
         // Pertahankan klasifikasi asli saat edit (detail dari /view).
         classification: event?.classification,
+        repeat,
       };
 
       if (isEdit && event?.id) {
@@ -261,6 +333,79 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                   />
                   Sepanjang hari
                 </label>
+
+                {/* Recurrence */}
+                <div className="space-y-2 border-t border-border pt-3">
+                  <label className="text-sm font-medium text-foreground block">Pengulangan</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <select
+                        value={freq}
+                        onChange={(e) => { setFreq(e.target.value); repeatTouchedRef.current = true; }}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      >
+                        <option value="never">Tidak berulang</option>
+                        <option value="daily">Harian</option>
+                        <option value="weekly">Mingguan</option>
+                        <option value="monthly">Bulanan</option>
+                        <option value="yearly">Tahunan</option>
+                      </select>
+                    </div>
+                    {freq !== 'never' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Setiap</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={repeatInterval}
+                          onChange={(e) => { setRepeatInterval(e.target.value); repeatTouchedRef.current = true; }}
+                          className="w-16 bg-background border border-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        />
+                        <span className="text-xs text-muted-foreground">{FREQ_UNITS[freq] || ''}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {freq !== 'never' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <select
+                        value={repeatEnd}
+                        onChange={(e) => { setRepeatEnd(e.target.value); repeatTouchedRef.current = true; }}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      >
+                        <option value="never">Tanpa akhir</option>
+                        <option value="count">Setelah beberapa kali</option>
+                        <option value="until">Sampai tanggal</option>
+                      </select>
+                      {repeatEnd === 'count' && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            value={repeatCount}
+                            onChange={(e) => { setRepeatCount(e.target.value); repeatTouchedRef.current = true; }}
+                            className="w-20 bg-background border border-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                          />
+                          <span className="text-xs text-muted-foreground">kali</span>
+                        </div>
+                      )}
+                      {repeatEnd === 'until' && (
+                        <input
+                          type="date"
+                          value={repeatUntil}
+                          onChange={(e) => { setRepeatUntil(e.target.value); repeatTouchedRef.current = true; }}
+                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {hasCustomRepeat && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                      Pola pengulangan kustom dipertahankan apa adanya (tidak diedit di sini).
+                    </p>
+                  )}
+                </div>
 
                 {/* Start date/time */}
                 <div className="grid grid-cols-2 gap-3">

@@ -1036,6 +1036,8 @@ function buildAppointmentBody(event) {
     body.endTime = event.endTime || '';
   }
   if (attendees.length > 0) body.attendees = attendees;
+  // Recurrence (repeat) sesuai kontrak iCalRepeatableEntityObject+SOGo.m.
+  if (event.repeat && typeof event.repeat === 'object') body.repeat = event.repeat;
   return body;
 }
 
@@ -1189,6 +1191,7 @@ export async function fetchCalendarEventDetail(sogoToken, eventId, calendarId = 
     attendees,
     start: toUnix(d.startDate),
     end: toUnix(d.endDate),
+    repeat: d.repeat || null,
     raw: d,
   };
 }

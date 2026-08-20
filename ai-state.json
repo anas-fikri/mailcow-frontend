@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-20T10:56:23Z",
+  "last_session": "2026-08-20T11:01:37Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -359,12 +359,12 @@
     }
   ],
   "active_task": {
-    "id": "20260820-105602-244471",
+    "id": "20260820-110117-165829",
     "status": "COMPLETED",
-    "objective": "Webmail: edit detail event kalender via /view (isi lengkap: attendees + classification)",
+    "objective": "Webmail: dukungan recurring event di EventModal (repeat SOGo)",
     "next_step": "",
     "goal_id": "G-001 (keamanan & fungsional webmail)",
     "sub_goal_id": "G-001.S-009 (fitur webmail)",
-    "updated_at": "2026-08-20T10:56:23Z"
+    "updated_at": "2026-08-20T11:01:37Z"
   }
 }

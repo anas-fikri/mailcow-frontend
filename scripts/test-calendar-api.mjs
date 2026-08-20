@@ -17,6 +17,7 @@ const viewPayload = {
     { email: 'a@example.test', name: 'A', partstat: 'ACCEPTED', role: 'REQ-PARTICIPANT' },
     { email: 'b@example.test', name: 'B', partstat: 'NEEDS-ACTION', role: 'REQ-PARTICIPANT' },
   ],
+  repeat: { frequency: 'weekly', interval: 2, count: 10 },
 };
 
 globalThis.fetch = async (url, options = {}) => {
@@ -131,5 +132,21 @@ assert.equal(detail.classification, 'private');
 assert.equal(detail.attendees, 'a@example.test, b@example.test');
 assert.ok(typeof detail.start === 'number' && detail.start > 0, 'start harus unix seconds');
 assert.ok(typeof detail.end === 'number' && detail.end > detail.start, 'end harus > start');
+assert.deepEqual(detail.repeat, { frequency: 'weekly', interval: 2, count: 10 }, 'repeat harus ikut ter-parse');
+
+// ── repeat dikirim saat create (recurring event) ────────────────────────────
+calls.length = 0;
+await createCalendarEvent('user@example.test', {
+  ...event,
+  repeat: { frequency: 'monthly', interval: 1, until: '2026-12-31' },
+});
+const repeatBody = JSON.parse(calls.find((c) => c.url.endsWith('/saveAsAppointment')).options.body);
+assert.deepEqual(repeatBody.repeat, { frequency: 'monthly', interval: 1, until: '2026-12-31' }, 'repeat harus dikirim ke body');
+
+// ── tanpa repeat → field repeat tidak dikirim ───────────────────────────────
+calls.length = 0;
+await createCalendarEvent('user@example.test', { title: 'Tanpa ulang', startDate: '2026-08-23', endDate: '2026-08-23', isAllDay: false });
+const noRepeatBody = JSON.parse(calls.find((c) => c.url.endsWith('/saveAsAppointment')).options.body);
+assert.equal(noRepeatBody.repeat, undefined, 'tanpa repeat tidak kirim field');
 
 console.log('calendar API assertions passed');

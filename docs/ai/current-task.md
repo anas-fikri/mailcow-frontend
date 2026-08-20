@@ -1,38 +1,31 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260820-105602-244471
-Started At: 2026-08-20T10:56:02Z
-Updated At: 2026-08-20T10:56:23Z
+Task ID: 20260820-110117-165829
+Started At: 2026-08-20T11:01:17Z
+Updated At: 2026-08-20T11:01:37Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: edit detail event kalender via /view (isi lengkap: attendees + classification)
+Webmail: dukungan recurring event di EventModal (repeat SOGo)
 
 ## Goal Link
 Goal ID: G-001 (keamanan & fungsional webmail)
 Sub-goal ID: G-001.S-009 (fitur webmail)
 
-## Root cause
-Edit event sebelumnya memakai data ringkas `eventsblocks` yang TIDAK memetakan
-attendees/classification → membuka editor lalu simpan akan MENGHAPUS peserta event
-(karena buildAppointmentBody tak kirim attendees) dan menurunkan klasifikasi jadi public.
-
 ## Changes
-- **`src/lib/api.js`:**
-  - `fetchCalendarEventDetail(sogoToken, eventId)` → GET `/Calendar/{id}/view`, parse
-    field iCal lengkap (`summary`/`location`/`comment`/`classification`/`attendees`
-    array/`startDate`/`endDate` ISO/`isAllDay`). attendees array → string `email, email`.
-  - `fetchCalendarEvents` sekarang juga memetakan `c_partmails` (newline) → `attendees`
-    dan `c_classification` (0/1/2) → `public/private/confidential` (fallback, anti-wipe).
-  - `buildAppointmentBody` normalisasi `classification` (angka/string) + pertahankan
-    klasifikasi event yang diedit.
-- **`src/pages/CalendarPage.jsx`:** `openEditModal` async — fetch detail via /view dulu,
-  merge `{...ev, ...detail}`, lalu buka editor; fallback ke data ringkas bila gagal;
-  spinner (`editingId`) pada tombol edit di popup detail.
-- **`src/components/EventModal.jsx`:** `handleSave` menyertakan `classification` asli
-  saat edit (jadi tak di-reset ke public).
-- **`scripts/test-calendar-api.mjs`:** + kasus `/view` parsing, classification dipertahankan.
+- **`src/components/EventModal.jsx`:**
+  - State pengulangan: `freq` (never/daily/weekly/monthly/yearly), `repeatInterval`,
+    `repeatEnd` (never/count/until), `repeatCount`, `repeatUntil`.
+  - `applyRepeat()` prefill dari `event.repeat` (dari /view); `bi-weekly` → weekly+interval 2;
+    pola kustom (custom/every weekday/byday) dipertahankan via `originalRepeatRef` + banner
+    info, tidak diedit di UI.
+  - `handleSave` bangun `repeat` sesuai kontrak SOGo `iCalRepeatableEntityObject+SOGo.m`
+    (`{frequency, interval, [count], [until]}`); bila user tidak sentuh kontrol, kirim pola
+    asli apa adanya (anti data-loss).
+- **`src/lib/api.js`:** `buildAppointmentBody` sertakan `repeat`; `fetchCalendarEventDetail`
+  return `repeat: d.repeat`.
+- **`scripts/test-calendar-api.mjs`:** + assert repeat dikirim/parsing & tak dikirim bila kosong.
 
 ## Validation
 - 30/30 test PASS, `npm run build` OK.
@@ -41,4 +34,5 @@ attendees/classification → membuka editor lalu simpan akan MENGHAPUS peserta e
 - Commit + push + deploy frontend (backend tak berubah).
 
 ## Risks
-- Parsing date `/view` pakai `Date.parse` (ISO) → unix seconds, konsisten dgn eventsblocks.
+- Recurrence kompleks (byday/byhour) tak diedit di UI tapi dipertahankan; hanya daily/weekly/
+  monthly/yearly + interval + count/until yang bisa di-set dari UI.

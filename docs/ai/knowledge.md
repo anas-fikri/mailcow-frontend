@@ -422,3 +422,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-105602-244471
 - Status: COMPLETED
 - Finding: Edit event kalender: eventsblocks tidak map attendees (c_partmails newline) & classification (c_classification 0/1/2) -> edit+simpan MENGHAPUS peserta & reset klasifikasi jadi public. Fix: fetchCalendarEventDetail GET /Calendar/{id}/view (field iCal lengkap: summary/location/comment/classification/attendees array {email,name,partstat,role}, startDate/endDate ISO string, isAllDay) -> attendees array jadi string 'email, email'; date pakai Date.parse. buildAppointmentBody normalisasi classification (angka 1/2 -> private/confidential, string divalidasi). CalendarPage openEditModal async fetch+merge {...ev,...detail} + spinner editingId. EventModal handleSave sertakan classification asli. eventsblocks juga di-map attendees+classification sbg fallback anti-wipe.
+
+## 2026-08-20T11:01:37Z
+- Task: 20260820-110117-165829
+- Status: COMPLETED
+- Finding: Recurring event SOGo: payload `repeat` kontrak iCalRepeatableEntityObject+SOGo.m — {frequency, interval, [count], [until], [days], [monthdays], [months], [dates]}. frequency lowercase daily/weekly/monthly/yearly + spesial bi-weekly (->weekly interval 2), every weekday, custom. EventModal: UI freq+interval+end(never/count/until); prefill dari event.repeat (/view); pola kustom dipertahankan via originalRepeatRef (anti data-loss bila user cuma edit judul); repeatTouchedRef menandai apakah kontrol diubah. buildAppointmentBody sertakan repeat; fetchCalendarEventDetail return repeat: d.repeat.
