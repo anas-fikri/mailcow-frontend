@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PCP Express Mail">
+  <title>PCP Express Mail</title>
+  <!-- Background: blue rounded square matching app primary color (default theme hue 221) -->
+  <rect width="64" height="64" rx="12" fill="#3b82f6"/>
+  <!-- Envelope: white outline + classic V-flap, scaled to fit -->
+  <g transform="translate(14 18)" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="0" y="0" width="36" height="28" rx="3"/>
+    <path d="M2 4 L18 17 L34 4"/>
+  </g>
+</svg>

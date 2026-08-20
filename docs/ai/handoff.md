@@ -1569,3 +1569,14 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M server.js
 - ?? docs/ai/tasks/20260820-133521-293553.previous.md
 - ?? scripts/monitor-smtp.sh
+
+## 2026-08-20T13:40:24Z
+- Status: COMPLETED
+- Objective: Webmail: favicon envelope (SVG) + apple-touch-icon meta
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M index.html
+- ?? docs/ai/tasks/20260820-134013-202650.previous.md
+- ?? public/favicon.svg

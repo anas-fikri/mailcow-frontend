@@ -1,42 +1,38 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260820-133521-293553
-Started At: 2026-08-20T13:35:21Z
-Updated At: 2026-08-20T13:35:46Z
+Task ID: 20260820-134013-202650
+Started At: 2026-08-20T13:40:13Z
+Updated At: 2026-08-20T13:40:24Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Pantau 1-2 mnt: /api/health + 401 dari /api/send; bump idle 90/120 mnt via .env bila perlu
+Webmail: favicon envelope (SVG) + apple-touch-icon meta
 
 ## Goal Link
-Goal ID: G-001
-Sub-goal ID: G-001 (webmail — operability)
+Goal ID: UI polish
 
 ## Files Involved
-- server.js — log 401 send dgn counter + ip (no PII)
-- scripts/monitor-smtp.sh — probe /api/health + count 401/registrations → exit 0/1/2
+- public/favicon.svg (baru) — envelope 64x64, blue (#3b82f6) bg + white envelope
+- index.html — tambah apple-touch-icon + theme-color meta
 
 ## Summary
-Pengamatan sekarang (runtime):
-- 55 registrations dalam 24 jam, 0 ssl 401 → idle 60 mnt cukup
-- Bisa dipantau via ./scripts/monitor-smtp.sh (cron-friendly, JSON mode)
-- Threshold WARNING>0.20, CRITICAL>0.50 (rasio 401/registrasi)
+index.html sudah mereferensikan /webmail/favicon.svg sebelum favicon ada.
+Tambah SVG envelope (sesuai konteks mail webmail) yang konsisten dengan
+ikon Mail di Sidebar (lucide-react). Background biru utama (default theme
+hue 221) + envelope putih outline + V-flap.
 
-Cara jalan monitoring:
-- Tambahkan ke crontab user yg punya SSH key deploy-mail:
-  `*/15 * * * * /home/anas.fikri/mailcow-frontend/scripts/monitor-smtp.sh --json > /var/log/smtp-monitor.json 2>&1 || /home/anas.fikri/.ai-toolkit/bin/notify || true`
-
-Prosedur naik idle jika terbukti kependekan:
-  EXPECTED_SMTP_SESSION_IDLE_MIN=90 ./deploy.sh
-  ssh deploy-mail 'systemctl --user restart sogo-smtp-proxy'
-  (deploy.sh ensure_runtime_env idempotent — script handle .env otomatis)
+Modern browser (Chrome 80+, Firefox 41+, Safari 12+, Edge 79+) dukung
+SVG favicon. iOS Safari pakai apple-touch-icon — kami pakai SVG yang
+sama (iOS 14+ support).
 
 ## Risks
-- SSH key required di host yg menjalankan cron — perlu setup satu kali
-- Log 401 send mengandung IP bukan email/timestamp — minim PII
+- Browser lama tdk dukung SVG favicon → fallback ke default ikon browser
+  (tidak ada 404 karena tak request favicon.ico).
+- RGB-mismatch dengan theme user yang bukan default (theme hue configurable).
+  Hex #3b82f6 adalah default Tailwind blue-500 — close ke default primary.
 
 ## Validation
 - 18/18 test PASS
-- bash -n deploy.sh + monitor-smtp.sh OK
-- Monitor dijalankan lokal: Health 200, 0 401 → OK
+- npm run build OK
+- dist/favicon.svg ada & well-formed (582 bytes)

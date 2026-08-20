@@ -1,15 +1,15 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-20T13:35:46Z
+Generated At: 2026-08-20T13:40:25Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [HIGH] Resolve risk: SSH key required di host yg menjalankan cron — perlu setup satu kali
+## 1. [HIGH] Resolve risk: Browser lama tdk dukung SVG favicon → fallback ke default ikon browser
 - Why: Risk was recorded but not marked resolved.
 - Source: current-task.md
 
-## 2. [HIGH] Resolve risk: Log 401 send mengandung IP bukan email/timestamp — minim PII
+## 2. [HIGH] Resolve risk: RGB-mismatch dengan theme user yang bukan default (theme hue configurable).
 - Why: Risk was recorded but not marked resolved.
 - Source: current-task.md
 
@@ -17,7 +17,7 @@ Suggestions are evidence-based from current task state, goals, validation, risks
 - Why: Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 4. [MEDIUM] Follow up on discovered knowledge: scripts/monitor-smtp.sh: probe /api/health (via SSH) + hitung rasio [smtp-session] 401 send / Registered for dlm journalctl window. Exit 0 OK, 1 unhealthy, 2 ratio > CRIT. JSON output utk alerting. Server.js tambah log '401 send: sesi tidak valid (ip=X)' di /api/send 401 — penting krn sebelumnya log tdk punya pola 401 capture. Cron: '*/15 * * * * ./scripts/monitor-smtp.sh --json > /var/log/smtp-monitor.json 2>&1'. Naikkan idle jika ratio > 0.20: EXPECTED_SMTP_SESSION_IDLE_MIN=90 ./deploy.sh + restart sogo-smtp-proxy (deploy.sh ensure_runtime_env idempotent).
+## 4. [MEDIUM] Follow up on discovered knowledge: Favicon SVG envelope: viewBox 0 0 64 64, bg #3b82f6 (Tailwind blue-500, default primary), envelope putih outline + V-flap. Path: public/favicon.svg → dist/favicon.svg via Vite. index.html: <link rel=icon type=image/svg+xml href=/webmail/favicon.svg> + <link rel=apple-touch-icon href=/webmail/favicon.svg> + <meta name=theme-color content=#3b82f6>. SVG 582 bytes; modern browser support tanpa ICO fallback.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
