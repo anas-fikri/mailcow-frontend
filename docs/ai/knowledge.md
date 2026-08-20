@@ -432,3 +432,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-110511-162155
 - Status: COMPLETED
 - Finding: Event berulang SOGo: kolom DB c_iscycle (0/1, dari iCalEvent+SOGo.m quickRecordFromContent) menandai event recurrent. Dipetakan ke isRecurring di fetchCalendarEvents untuk ikon ulang di grid kalender. Ikon lucide-react Repeat.
+
+## 2026-08-20T11:12:56Z
+- Task: 20260820-111241-959627
+- Status: COMPLETED
+- Finding: SOGo recurrence: repeat.days adalah array [{day:'MO'}...] (2-huruf BYDAY MO..SU), dikonsumsi iCalByDayMask byDayMaskWithDaysAndOccurrences:o di iCalRepeatableEntityObject+SOGo.m setAttributes:. 'hari kerja saja' = weekly + days [MO..FR]. EventModal kini punya day-picker mingguan; dayCodeFromDate parse YYYY-MM-DD manual agar tak meleset di timezone belakang UTC.

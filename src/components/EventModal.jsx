@@ -6,6 +6,33 @@ const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agu
 
 const FREQ_UNITS = { daily: 'hari', weekly: 'minggu', monthly: 'bulan', yearly: 'tahun' };
 
+// Kode hari iCal BYDAY (SOGo memakai 2-huruf: MO..SU).
+const WEEKDAYS = [
+  { code: 'MO', label: 'Sen' },
+  { code: 'TU', label: 'Sel' },
+  { code: 'WE', label: 'Rab' },
+  { code: 'TH', label: 'Kam' },
+  { code: 'FR', label: 'Jum' },
+  { code: 'SA', label: 'Sab' },
+  { code: 'SU', label: 'Min' },
+];
+// Date.getDay() (0=Minggu..6=Sabtu) → kode BYDAY.
+const ISO_DAY_FROM_JS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+function dayCodeFromDate(date) {
+  // `date` di sini berupa 'YYYY-MM-DD' dari input type=date. Parsing pakai
+  // `new Date('YYYY-MM-DD')` menghasilkan UTC-midnight sehingga getDay() bisa
+  // meleset satu hari di timezone di belakang UTC. Parse komponennya manual
+  // agar hari yang dipakai selalu hari lokal yang dipilih user.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || ''));
+  if (m) {
+    const local = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return ISO_DAY_FROM_JS[local.getDay()];
+  }
+  const d = toValidDate(date) || new Date();
+  return ISO_DAY_FROM_JS[d.getDay()];
+}
+const WEEKDAYS_ONLY = ['MO', 'TU', 'WE', 'TH', 'FR'];
+
 // Hati-hati: event tanpa `start`/`end` yang valid (mis. NaN) membuat
 // Date invalid dan toISOString() melempar RangeError → crash halaman.
 // Selalu guard dengan isNaN sebelum memformat.
@@ -58,6 +85,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
   const [repeatEnd, setRepeatEnd] = useState('never');        // never|count|until
   const [repeatCount, setRepeatCount] = useState(10);
   const [repeatUntil, setRepeatUntil] = useState('');
+  const [weekDays, setWeekDays] = useState([]);               // kode BYDAY terpilih utk weekly
   const [hasCustomRepeat, setHasCustomRepeat] = useState(false);
   const repeatTouchedRef = useRef(false);
   const originalRepeatRef = useRef(null);
@@ -74,6 +102,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
       setRepeatEnd('never');
       setRepeatCount(10);
       setRepeatUntil('');
+      setWeekDays([]);
       setHasCustomRepeat(false);
       return;
     }
@@ -90,6 +119,10 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
     }
     setFreq(f);
     setRepeatInterval(iv);
+    // Hari utk weekly (days: [{day:'MO'},...]); pola byday utk monthly/yearly
+    // tidak diedit di UI (dipertahankan via originalRepeatRef bila tak disentuh).
+    const days = Array.isArray(r.days) ? r.days.map((d) => d?.day).filter(Boolean) : [];
+    setWeekDays(f === 'weekly' ? days : []);
     if (r.count) {
       setRepeatEnd('count');
       setRepeatCount(Number(r.count) || 10);
@@ -168,6 +201,10 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
       if (repeatTouchedRef.current) {
         if (freq !== 'never') {
           repeat = { frequency: freq, interval: Number(repeatInterval) || 1 };
+          if (freq === 'weekly') {
+            const days = weekDays.length > 0 ? weekDays : [dayCodeFromDate(startDate)];
+            repeat.days = days.map((d) => ({ day: d }));
+          }
           if (repeatEnd === 'count') repeat.count = Number(repeatCount) || 1;
           else if (repeatEnd === 'until' && repeatUntil) repeat.until = repeatUntil;
         }
@@ -365,6 +402,54 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                       </div>
                     )}
                   </div>
+
+                  {freq === 'weekly' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Ulangi pada hari:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allSelected = WEEKDAYS_ONLY.every((c) => weekDays.includes(c));
+                            setWeekDays(allSelected ? [] : [...WEEKDAYS_ONLY]);
+                            repeatTouchedRef.current = true;
+                          }}
+                          className={`text-xs font-medium transition-colors ${
+                            WEEKDAYS_ONLY.every((c) => weekDays.includes(c)) && weekDays.length === WEEKDAYS_ONLY.length
+                              ? 'text-primary'
+                              : 'text-primary hover:underline'
+                          }`}
+                        >
+                          Hari kerja saja
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {WEEKDAYS.map((d) => {
+                          const active = weekDays.includes(d.code);
+                          return (
+                            <button
+                              key={d.code}
+                              type="button"
+                              onClick={() => {
+                                setWeekDays((prev) =>
+                                  prev.includes(d.code) ? prev.filter((x) => x !== d.code) : [...prev, d.code]
+                                );
+                                repeatTouchedRef.current = true;
+                              }}
+                              aria-pressed={active}
+                              className={`px-2.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                                active
+                                  ? 'bg-primary text-primary-foreground border-primary'
+                                  : 'bg-background text-foreground border-border hover:bg-muted'
+                              }`}
+                            >
+                              {d.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {freq !== 'never' && (
                     <div className="grid grid-cols-2 gap-3">

@@ -1451,3 +1451,14 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M src/lib/api.js
 -  M src/pages/CalendarPage.jsx
 - ?? docs/ai/tasks/20260820-110511-162155.previous.md
+
+## 2026-08-20T11:12:56Z
+- Status: COMPLETED
+- Objective: Webmail: weekly repeat day picker + hari kerja saja
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M scripts/test-calendar-api.mjs
+-  M src/components/EventModal.jsx
+- ?? docs/ai/tasks/20260820-111241-959627.previous.md

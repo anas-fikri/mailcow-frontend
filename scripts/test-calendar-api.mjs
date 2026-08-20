@@ -154,6 +154,19 @@ await createCalendarEvent('user@example.test', {
 const repeatBody = JSON.parse(calls.find((c) => c.url.endsWith('/saveAsAppointment')).options.body);
 assert.deepEqual(repeatBody.repeat, { frequency: 'monthly', interval: 1, until: '2026-12-31' }, 'repeat harus dikirim ke body');
 
+// ── weekly dengan pilihan hari (BYDAY) dikirim sebagai days: [{day}] ────────
+calls.length = 0;
+await createCalendarEvent('user@example.test', {
+  ...event,
+  repeat: { frequency: 'weekly', interval: 1, days: [{ day: 'MO' }, { day: 'WE' }, { day: 'FR' }] },
+});
+const weeklyBody = JSON.parse(calls.find((c) => c.url.endsWith('/saveAsAppointment')).options.body);
+assert.deepEqual(
+  weeklyBody.repeat,
+  { frequency: 'weekly', interval: 1, days: [{ day: 'MO' }, { day: 'WE' }, { day: 'FR' }] },
+  'repeat.days (Senin/Rabu/Jumat) harus dikirim ke body'
+);
+
 // ── tanpa repeat → field repeat tidak dikirim ───────────────────────────────
 calls.length = 0;
 await createCalendarEvent('user@example.test', { title: 'Tanpa ulang', startDate: '2026-08-23', endDate: '2026-08-23', isAllDay: false });
