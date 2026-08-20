@@ -1532,3 +1532,14 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M configs/sogo-smtp-proxy.service
 -  M docs/ai/current-task.md
 - ?? docs/ai/tasks/20260820-131813-225244.previous.md
+
+## 2026-08-20T13:27:52Z
+- Status: COMPLETED
+- Objective: deploy.sh: ensure_runtime_env idempotent utk SMTP_SESSION_IDLE_MIN (.env di server)
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M deploy.sh
+-  M docs/ai/current-task.md
+-  M package.json
+- ?? docs/ai/tasks/20260820-132742-138659.previous.md

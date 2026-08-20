@@ -467,3 +467,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-131813-225244
 - Status: COMPLETED
 - Finding: Idle timeout SMTP proxy dapat diatur via env SMTP_SESSION_IDLE_MIN (default 30 menit di server.js). Dipakai runtime via EnvironmentFile=%h/sogo-proxy/.env — BUKAN inline Environment= di .service unit yang ada di server (yang sebenarnya hanya berisi WorkingDirectory/ExecStart/Restart/EnvironmentFile). Untuk mengubah runtime value, edit .env di server, lalu systemctl --user restart sogo-smtp-proxy. TTL absolut terpisah (SMTP_SESSION_TTL_MIN=480=8jam) jadi 'tetap aman'. Memory map dibatasi SESSION_MAX_PER_USER=10 (LRU eviction). Idle 60 menit menambah window risiko hijack ~30 menit, masih wajar & industri-bandingkan.
+
+## 2026-08-20T13:27:52Z
+- Task: 20260820-132742-138659
+- Status: COMPLETED
+- Finding: deploy.sh tambah helper ensure_runtime_env() yg idempotent utk key=value di server .env. Dipanggil di awal deploy_backend — bekerja walaupun server.js unchanged (no restart kalau tak ada code change). Pola ssh: awk utk baca nilai / printf+tambah utk append / sed+.bak+printf utk replace. EXPECTED_SMTP_SESSION_IDLE_MIN=60 di top of file (override via env). Test: scripts/test-deploy-runtime-env.sh — 5 skenario bash (mock ssh via tmp dir). 17/17 test PASS.

@@ -48,6 +48,14 @@ TUNNEL_USED=0
 # GITLAB_PROJECT - GitLab project path (default: devops-team/mailcow-frontend)
 # GITLAB_USER    - GitLab user (URL-encoded)
 # WEBMAIL_URL    - URL for deploy verification (default: https://mail.pcpexpress.co.id/webmail/)
+
+# ── Runtime config maintenance (server .env) ─────────────────────────────────
+# Nilai-nilai tertentu harus selalu ada di /home/anas.fikri/sogo-proxy/.env di
+# server agar service sogo-smtp-proxy mengambil nilai benar saat restart.
+# Helper ensure_runtime_env() di bawah idempotent: hanya menulis jika hilang
+# atau berbeda; restart service TIDAK dilakukan otomatis (lihat deploy_backend).
+EXPECTED_SMTP_SESSION_IDLE_MIN="${EXPECTED_SMTP_SESSION_IDLE_MIN:-60}"
+# override via: EXPECTED_SMTP_SESSION_IDLE_MIN=90 ./deploy.sh
 # SOGO_API_PORT  - Host port for sogo-smtp-proxy (default: 3005)
 # VITE_API_KEY   - Optional local build key; otherwise read from mailserver .env
 
@@ -219,10 +227,37 @@ deploy() {
 REMOTE_BACKEND_DIR="${REMOTE_BACKEND_DIR:-/home/anas.fikri/sogo-proxy}"
 BACKEND_LIB_FILES="src/lib/ssrfGuard.js src/lib/emailValidation.js src/lib/smtpCookie.js src/lib/remoteImage.js src/lib/attachmentValidation.js"
 
+# Pastikan KEY=VALUE (atau KEY="value") ada di $env_path pada server.
+# Idempotent: jika sudah sama, no-op; jika hilang → append; jika beda → ganti.
+# Tidak memicu restart otomatis — restart service baru dilakukan oleh caller
+# (deploy_backend) bila server.js / src/lib berubah.
+ensure_runtime_env() {
+    local server="$1" key="$2" expected="$3" env_path="$4"
+    local remote_dir_q
+    remote_dir_q=$(printf "'%s'" "${env_path//\'/\'\\\'\'}")
+    # Baca nilai saat ini (jika ada). Quoted/unquoted sama-sama ditangani grep.
+    local current
+    current=$(ssh "$server" "awk -F= -v k=$key '\$1==k {print substr(\$0, length(k)+2)}' ${remote_dir_q} 2>/dev/null | tail -1")
+    if [ -z "$current" ]; then
+        ssh "$server" "printf '${key}=${expected}\\n' >> ${remote_dir_q}"
+        info "${key}=${expected} ditambahkan ke ${server}:${env_path} (berlaku pada restart berikutnya)."
+    elif [ "$current" = "$expected" ]; then
+        ok "${key} sudah = '$expected' di ${server}:${env_path} — no-op."
+    else
+        ssh "$server" "sed -i.bak '/^${key}=/d' ${remote_dir_q} && printf '${key}=${expected}\\n' >> ${remote_dir_q}"
+        info "${key} pada ${server}:${env_path} diubah '$current' → '$expected' (berlaku pada restart berikutnya)."
+    fi
+}
+
 deploy_backend() {
     info "Deploy backend (server.js + src/lib) ke $SERVER:$REMOTE_BACKEND_DIR..."
     local remote_dir_q
     remote_dir_q=$(printf "'%s'" "${REMOTE_BACKEND_DIR//\'/\'\\\'\'}")
+
+    # Jaga nilai runtime .env server tetap terkini (idempotent).
+    # Tidak restart service — restart hanya bila kode backend berubah (di bawah).
+    ensure_runtime_env "$SERVER" "SMTP_SESSION_IDLE_MIN" \
+        "$EXPECTED_SMTP_SESSION_IDLE_MIN" "$REMOTE_BACKEND_DIR/.env"
 
     # Deteksi perubahan: hanya sync+restart kalau file backend benar-benar beda.
     # Restart sogo-smtp-proxy menjatuhkan sesi SMTP in-memory (smtpToken), jadi

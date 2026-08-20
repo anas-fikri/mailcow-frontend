@@ -1,28 +1,28 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-20T13:18:23Z
+Generated At: 2026-08-20T13:27:53Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [HIGH] Resolve risk: Memory map smtpSessions di server: dengan idle 60m, lebih banyak sesi bisa
+## 1. [HIGH] Resolve risk: deploy mengirim beberapa ssh call tambahan ke server. Tidak restart
 - Why: Risk was recorded but not marked resolved.
 - Source: current-task.md
 
-## 2. [HIGH] Resolve risk: Restart menjatuhkan sesi in-memory → semua user harus login ulang
+## 2. [HIGH] Resolve risk: Mock ssh di test adalah abstraksi; smoke test aktual sudah
 - Why: Risk was recorded but not marked resolved.
 - Source: current-task.md
 
-## 3. [HIGH] Run or verify validation: 16/16 test PASS (frontend, tidak ada perubahan kode)
+## 3. [HIGH] Run or verify validation: 17/17 test PASS (baru test:deploy-runtime-env, 5 skenario)
 - Why: Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 4. [MEDIUM] Follow up on discovered knowledge: Idle timeout SMTP proxy dapat diatur via env SMTP_SESSION_IDLE_MIN (default 30 menit di server.js). Dipakai runtime via EnvironmentFile=%h/sogo-proxy/.env — BUKAN inline Environment= di .service unit yang ada di server (yang sebenarnya hanya berisi WorkingDirectory/ExecStart/Restart/EnvironmentFile). Untuk mengubah runtime value, edit .env di server, lalu systemctl --user restart sogo-smtp-proxy. TTL absolut terpisah (SMTP_SESSION_TTL_MIN=480=8jam) jadi 'tetap aman'. Memory map dibatasi SESSION_MAX_PER_USER=10 (LRU eviction). Idle 60 menit menambah window risiko hijack ~30 menit, masih wajar & industri-bandingkan.
+## 4. [MEDIUM] Follow up on discovered knowledge: deploy.sh tambah helper ensure_runtime_env() yg idempotent utk key=value di server .env. Dipanggil di awal deploy_backend — bekerja walaupun server.js unchanged (no restart kalau tak ada code change). Pola ssh: awk utk baca nilai / printf+tambah utk append / sed+.bak+printf utk replace. EXPECTED_SMTP_SESSION_IDLE_MIN=60 di top of file (override via env). Test: scripts/test-deploy-runtime-env.sh — 5 skenario bash (mock ssh via tmp dir). 17/17 test PASS.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
 ## 5. [LOW] Review and commit current changes
-- Why: 6 uncommitted file entries remain in the project.
+- Why: 7 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use
