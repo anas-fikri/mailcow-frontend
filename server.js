@@ -445,6 +445,9 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
   // Look up SMTP session — token diambil dari cookie httpOnly (fallback header/body).
   const session = getSmtpSession(getSmtpSessionToken(req));
   if (!session) {
+    // Log 401 with hint untuk monitoring rasio idle expiry (lihat scripts/monitor-smtp.sh).
+    // Jangan log token/email — sebelumnya tak ada telemetry, ini hanya counter + ip.
+    console.log(`[smtp-session] 401 send: sesi tidak valid (ip=${clientIp(req)})`);
     return res.status(401).json({ message: 'Sesi SMTP sudah berakhir. Silakan login ulang.' });
   }
 

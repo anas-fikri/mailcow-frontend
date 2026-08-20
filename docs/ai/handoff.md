@@ -1558,3 +1558,14 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 - ?? scripts/test-smtp-heartbeat.mjs
 - ?? src/components/SmtpHeartbeat.jsx
 - ?? src/lib/smtpHeartbeat.js
+
+## 2026-08-20T13:35:46Z
+- Status: COMPLETED
+- Objective: Pantau 1-2 mnt: /api/health + 401 dari /api/send; bump idle 90/120 mnt via .env bila perlu
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M server.js
+- ?? docs/ai/tasks/20260820-133521-293553.previous.md
+- ?? scripts/monitor-smtp.sh

@@ -1,46 +1,42 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260820-133121-262175
-Started At: 2026-08-20T13:31:21Z
-Updated At: 2026-08-20T13:31:36Z
+Task ID: 20260820-133521-293553
+Started At: 2026-08-20T13:35:21Z
+Updated At: 2026-08-20T13:35:46Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: heartbeat SMTP tiap 50 mnt hanya saat tab aktif (idle reset jadi true-tab-inactive)
+Pantau 1-2 mnt: /api/health + 401 dari /api/send; bump idle 90/120 mnt via .env bila perlu
 
 ## Goal Link
 Goal ID: G-001
-Sub-goal ID: G-001 (webmail — usability/UX)
+Sub-goal ID: G-001 (webmail — operability)
 
 ## Files Involved
-- src/lib/smtpHeartbeat.js — helper setupSmtpHeartbeat pure (testable)
-- src/components/SmtpHeartbeat.jsx — wrapper React, panggil fetchSmtpSessionStatus
-- src/components/layout/AppLayout.jsx — mount <SmtpHeartbeat /> setelah login
-- src/components/layout/Sidebar.jsx — refetchInterval visibility-aware
-- scripts/test-smtp-heartbeat.mjs — 5 skenario unit test
+- server.js — log 401 send dgn counter + ip (no PII)
+- scripts/monitor-smtp.sh — probe /api/health + count 401/registrations → exit 0/1/2
 
 ## Summary
-idle timer server (SESSION_IDLE_MS=60m, sekarang via SMTP_SESSION_IDLE_MIN=60)
-akan counting-down hanya bila tidak ada panggilan yg me-refresh lastUsed.
-Sebelumnya Sidebar polling 60 pada setiap detik (60s) TANPA visibility check
-→ lastUsed di-refresh terus walau tab inactive (idle tidak pernah trigger).
+Pengamatan sekarang (runtime):
+- 55 registrations dalam 24 jam, 0 ssl 401 → idle 60 mnt cukup
+- Bisa dipantau via ./scripts/monitor-smtp.sh (cron-friendly, JSON mode)
+- Threshold WARNING>0.20, CRITICAL>0.50 (rasio 401/registrasi)
 
-Sekarang:
-- SmtpHeartbeat: ping /api/auth/smtp/status setiap 50 menit HANYA saat
-  document.visibilityState === 'visible'. Saat hidden → clearInterval.
-  Resume→visible: immediate ping (catch-up).
-- Sidebar countdown poll juga visibility-aware (return false saat hidden)
-  sehingga tidak me-refresh lastUsed melalui polling biasa.
-- 401 dari ping → throwIfAuthError → App.jsx auto-logout (sama dgn /api/send).
+Cara jalan monitoring:
+- Tambahkan ke crontab user yg punya SSH key deploy-mail:
+  `*/15 * * * * /home/anas.fikri/mailcow-frontend/scripts/monitor-smtp.sh --json > /var/log/smtp-monitor.json 2>&1 || /home/anas.fikri/.ai-toolkit/bin/notify || true`
+
+Prosedur naik idle jika terbukti kependekan:
+  EXPECTED_SMTP_SESSION_IDLE_MIN=90 ./deploy.sh
+  ssh deploy-mail 'systemctl --user restart sogo-smtp-proxy'
+  (deploy.sh ensure_runtime_env idempotent — script handle .env otomatis)
 
 ## Risks
-- Browser throttling di background tab bisa menunda heartbeat visibility
-  callback, tapi karena kita eksplisit pause saat hidden, hal ini aman.
-- Immediate ping saat resume: bila sesi sudah expired sebelumnya
-  (user lunch >60m), user akan otomatis logout begitu kembali ke tab.
-  Ini sesuai dengan intent user (idle kick in untuk tab truly inactive).
+- SSH key required di host yg menjalankan cron — perlu setup satu kali
+- Log 401 send mengandung IP bukan email/timestamp — minim PII
 
 ## Validation
-- 18/18 test PASS (baru test:smtp-heartbeat, 5 skenario)
-- npm run build OK
+- 18/18 test PASS
+- bash -n deploy.sh + monitor-smtp.sh OK
+- Monitor dijalankan lokal: Health 200, 0 401 → OK

@@ -477,3 +477,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-133121-262175
 - Status: COMPLETED
 - Finding: SmtpHeartbeat: ping /api/auth/smtp/status setiap 50 menit (SMTP_HEARTBEAT_INTERVAL_MS = 50*60*1000) HANYA saat document.visibilityState === 'visible'. Saat hidden → clearInterval. Resume→visible: immediate ping (catch-up). Helper pure setupSmtpHeartbeat({schedule, isVisible, setInterval, clearInterval}) - testable dgn mocked timers. Sidebar refetchInterval juga visibility-aware (return false saat hidden) supaya lastUsed TIDAK di-refresh via polling countdown. lastUsed di server di-refresh via requireSmtpSession middleware setiap call ke /api/send atau /api/auth/smtp/status. 401 dari ping → throwIfAuthError → App.jsx auto-logout (sama dgn /api/send).
+
+## 2026-08-20T13:35:46Z
+- Task: 20260820-133521-293553
+- Status: COMPLETED
+- Finding: scripts/monitor-smtp.sh: probe /api/health (via SSH) + hitung rasio [smtp-session] 401 send / Registered for dlm journalctl window. Exit 0 OK, 1 unhealthy, 2 ratio > CRIT. JSON output utk alerting. Server.js tambah log '401 send: sesi tidak valid (ip=X)' di /api/send 401 — penting krn sebelumnya log tdk punya pola 401 capture. Cron: '*/15 * * * * ./scripts/monitor-smtp.sh --json > /var/log/smtp-monitor.json 2>&1'. Naikkan idle jika ratio > 0.20: EXPECTED_SMTP_SESSION_IDLE_MIN=90 ./deploy.sh + restart sogo-smtp-proxy (deploy.sh ensure_runtime_env idempotent).
