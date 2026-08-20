@@ -442,3 +442,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-114411-136241
 - Status: COMPLETED
 - Finding: SOGo /view membalas daftar UID lengkap (data.uids) tapi hanya mem-prefetch ~100 header (headersPrefetchMaxSize=100). Header sisanya diambil via POST /Mail/0/{folder}/headers body {uids:[...]} yang membalas ARRAY BARE [columnNames, ...rows] (bukan {headers:[...]}), dalam urutan IMAP (tidak sesuai urutan request) — jadi wajib di-sort ulang by uid desc di client sebelum reveal. Endpoint /headers menolak uids kosong dgn 404 {message:'No UID specified'}. getMessageTotal pakai data.uids.length. auto-load kotak masuk sekarang server-side (lewat 100) dgn batas 5 bulan via stopFetchingRef.
+
+## 2026-08-20T12:51:05Z
+- Task: 20260820-125059-377940
+- Status: COMPLETED
+- Finding: Indikator auto-load yang informatif: header pill menampilkan 'loaded / total' saat messages.length < totalMessageCount, dengan spinner mini ketika loadingMore. Sentinel bawah list menampilkan 'Memuat N email…' (N = Math.min(PAGE_SIZE, remainingUids.length)) ketika loadingMore, dan 'Scroll untuk memuat lagi…' saat hasMore tapi tidak ada fetch aktif. Math.min(PAGE_SIZE, remainingUids.length) = jumlah email dalam batch yang sedang di-fetch (maks 50, atau sisa bila kurang).

@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-20T11:44:31Z
+Generated At: 2026-08-20T12:51:06Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [HIGH] Resolve risk: /headers membalas baris dalam urutan IMAP (bukan urutan request) → merge di-sort
+## 1. [HIGH] Resolve risk: toLocaleString('id') ribuan pakai locale id-ID — browser harus mendukung ICU id.
 - Why: Risk was recorded but not marked resolved.
 - Source: current-task.md
 
@@ -13,12 +13,12 @@ Suggestions are evidence-based from current task state, goals, validation, risks
 - Why: Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 3. [MEDIUM] Follow up on discovered knowledge: SOGo /view membalas daftar UID lengkap (data.uids) tapi hanya mem-prefetch ~100 header (headersPrefetchMaxSize=100). Header sisanya diambil via POST /Mail/0/{folder}/headers body {uids:[...]} yang membalas ARRAY BARE [columnNames, ...rows] (bukan {headers:[...]}), dalam urutan IMAP (tidak sesuai urutan request) — jadi wajib di-sort ulang by uid desc di client sebelum reveal. Endpoint /headers menolak uids kosong dgn 404 {message:'No UID specified'}. getMessageTotal pakai data.uids.length. auto-load kotak masuk sekarang server-side (lewat 100) dgn batas 5 bulan via stopFetchingRef.
+## 3. [MEDIUM] Follow up on discovered knowledge: Indikator auto-load yang informatif: header pill menampilkan 'loaded / total' saat messages.length < totalMessageCount, dengan spinner mini ketika loadingMore. Sentinel bawah list menampilkan 'Memuat N email…' (N = Math.min(PAGE_SIZE, remainingUids.length)) ketika loadingMore, dan 'Scroll untuk memuat lagi…' saat hasMore tapi tidak ada fetch aktif. Math.min(PAGE_SIZE, remainingUids.length) = jumlah email dalam batch yang sedang di-fetch (maks 50, atau sisa bila kurang).
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
 ## 4. [LOW] Review and commit current changes
-- Why: 8 uncommitted file entries remain in the project.
+- Why: 6 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use

@@ -1504,8 +1504,17 @@ export default function MailPage() {
               </button>
               <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
                 {selectedFolderMeta.label}
-                <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                  {totalMessageCount}
+                <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 tabular-nums">
+                  {messages.length < totalMessageCount ? (
+                    <>
+                      <span>{messages.length.toLocaleString('id')}</span>
+                      <span className="opacity-50">/</span>
+                      <span>{totalMessageCount.toLocaleString('id')}</span>
+                    </>
+                  ) : (
+                    <span>{totalMessageCount.toLocaleString('id')}</span>
+                  )}
+                  {loadingMore && <Loader2 size={10} className="animate-spin text-muted-foreground flex-none" />}
                 </span>
 
               </h2>
@@ -1831,8 +1840,15 @@ export default function MailPage() {
                     ));
                   })()}
               {hasMore ? (
-                <div ref={loadMoreSentinelRef} className="px-4 py-4 flex justify-center">
-                  <Loader2 size={16} className="animate-spin text-muted-foreground" />
+                <div ref={loadMoreSentinelRef} className="px-4 py-3 flex justify-center min-h-[28px]">
+                  {loadingMore ? (
+                    <span className="text-[11px] text-muted-foreground inline-flex items-center gap-2">
+                      <Loader2 size={14} className="animate-spin flex-none" />
+                      Memuat {Math.min(PAGE_SIZE, remainingUids.length).toLocaleString('id')} email…
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground">Scroll untuk memuat lagi…</span>
+                  )}
                 </div>
               ) : (
                 (selectedFolder === 'folderINBOX' || totalMessageCount > messages.length) && (
