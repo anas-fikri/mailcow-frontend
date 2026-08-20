@@ -1384,3 +1384,21 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/handoff.md
 -  M docs/ai/next-tasks.md
 - ?? docs/ai/tasks/20260819-152539-885255.previous.md
+
+## 2026-08-20T10:05:21Z
+- Status: COMPLETED
+- Objective: Webmail: implementasi lampiran di ComposeModal (create/reply) + dukungan attachments di /api/send
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M deploy.sh
+-  M docs/ai/current-task.md
+-  M package.json
+-  M scripts/test-draft-api.mjs
+-  M server.js
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/lib/api.js
+-  M src/lib/dateGroups.js
+- ?? docs/ai/tasks/20260820-100501-388715.previous.md
+- ?? scripts/test-attachment-validation.mjs
+- ?? src/lib/attachmentValidation.js

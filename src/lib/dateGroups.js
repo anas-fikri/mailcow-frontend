@@ -52,8 +52,12 @@ function startOfDay(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-/** Parse a SOGo-ish date value into a Date, or null when unparseable. */
-export function parseMessageDate(value) {
+/**
+ * Parse a SOGo-ish date value into a Date, or null when unparseable.
+ * Literal 'today'/'yesterday' relatif terhadap `now` (default: waktu nyata)
+ * sehingga perilaku deterministik dan bisa diuji.
+ */
+export function parseMessageDate(value, now = new Date()) {
   if (value === null || value === undefined) return null;
   const s = String(value).trim();
   if (!s) return null;
@@ -65,9 +69,9 @@ export function parseMessageDate(value) {
   }
 
   const low = s.toLowerCase();
-  if (low === 'today' || low === 'hari ini') return new Date();
+  if (low === 'today' || low === 'hari ini') return new Date(now);
   if (low === 'yesterday' || low === 'kemarin') {
-    const d = new Date();
+    const d = new Date(now);
     d.setDate(d.getDate() - 1);
     return d;
   }
@@ -83,7 +87,7 @@ export function parseMessageDate(value) {
  *   when unparseable (bucket = older).
  */
 export function getDateGroup(value, now = new Date()) {
-  const parsed = parseMessageDate(value);
+  const parsed = parseMessageDate(value, now);
   if (!parsed) {
     return { key: 'older', label: 'Lebih Lama', days: null };
   }

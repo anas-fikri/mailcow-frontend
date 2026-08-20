@@ -85,6 +85,26 @@ assert.ok(threw, 'SOGo 500 harus throw, bukan fallback ke SMTP');
 assert.match(threw.message, /500/);
 assert.equal(calls.some((c) => c.url.endsWith('/api/send')), false, '500 tidak boleh memicu /api/send');
 
+// sendMessage — dengan lampiran → langsung ke /api/send (bypass SOGo compose)
+// agar lampiran tidak pernah hilang diam-diam dari payload JSON draft SOGo.
+const attachments = [
+  { filename: 'laporan.pdf', contentType: 'application/pdf', data: Buffer.from('pdf').toString('base64') },
+  { filename: 'foto.png', contentType: 'image/png', data: Buffer.from('png').toString('base64') },
+];
+calls.length = 0;
+const attachRes = await sendMessage('user@example.test', {
+  to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '', attachments,
+});
+assert.deepEqual(attachRes, { ok: true });
+assert.equal(calls.some((c) => c.url.endsWith('/Mail/0/compose')), false, 'ada lampiran → tidak boleh buat draft SOGo');
+const attachCall = calls.find((c) => c.url.endsWith('/api/send'));
+assert.ok(attachCall, 'ada lampiran → harus panggil /api/send');
+const attachBody = JSON.parse(attachCall.options.body);
+assert.equal(attachBody.attachments.length, 2);
+assert.equal(attachBody.attachments[0].filename, 'laporan.pdf');
+assert.equal(attachBody.attachments[0].contentType, 'application/pdf');
+assert.equal(attachBody.attachments[0].data, Buffer.from('pdf').toString('base64'));
+
 // reset untuk test deleteDraft
 sendStatus = 200;
 

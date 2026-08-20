@@ -804,7 +804,32 @@ export async function deleteDraft(sogoToken, uid) {
 }
 
 export async function sendMessage(sogoToken, payload) {
-  const { to, cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '' } = payload;
+  const { to, cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '', attachments = [] } = payload;
+
+  // Bila ada lampiran, kirim LANGSUNG via proxy SMTP (/api/send) — SOGo
+  // /send di lingkungan ini 501 (tidak diimplementasikan) sehingga semua
+  // pengiriman nyata sudah lewat SMTP; mem-bypass draft SOGo menjamin
+  // lampiran tidak pernah hilang diam-diam dari payload JSON draft.
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    const smtpRes = await fetch('/api/send', {
+      method: 'POST',
+      credentials: 'include',
+      headers: withApiKey({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        to, cc, bcc, subject, body, isHTML, from,
+        attachments: attachments.map(a => ({
+          filename: a.filename || a.name || 'attachment',
+          contentType: a.contentType || a.type || 'application/octet-stream',
+          data: a.data || a.dataBase64 || '',
+        })),
+      }),
+    });
+    if (!smtpRes.ok) {
+      const err = await smtpRes.json().catch(() => ({}));
+      throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
+    }
+    return smtpRes.json();
+  }
 
   // 1. Buat draft baru
   const composeRes = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/compose`, {
@@ -853,7 +878,7 @@ export async function sendMessage(sogoToken, payload) {
     method: 'POST',
     credentials: 'include',
     headers: withApiKey({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from }),
+    body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from, attachments }),
   });
   if (!smtpRes.ok) {
     const err = await smtpRes.json().catch(() => ({}));

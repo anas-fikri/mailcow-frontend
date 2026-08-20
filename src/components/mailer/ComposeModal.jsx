@@ -12,6 +12,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
 import { handleEditorPaste, insertImageFile, PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { loadSignatures, getSignatureFor, getSignatureById } from '../../lib/signatures';
+import { formatFileSize, totalAttachmentSize } from '../../lib/attachments';
+
+// Batas lampiran (sama dengan validasi backend — lihat attachmentValidation.js).
+const MAX_ATTACHMENTS = 10;
+const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4 MB per file
 
 export default function ComposeModal({ isOpen, onClose, initialData = null, sogoToken, userFrom = '' }) {
   const { user } = useAuthStore();
@@ -39,6 +44,11 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   const [showToSugg, setShowToSugg]  = useState(false);
   const [showCcSugg, setShowCcSugg]  = useState(false);
   const [showBccSugg, setShowBccSugg] = useState(false);
+
+  // Lampiran: [{ id, name, type, size, data }] — data = base64 tanpa prefix data URI
+  const [attachments, setAttachments] = useState([]);
+  const attachInputRef = useRef(null);
+  const attachIdRef = useRef(0);
 
   // Ambil kontak untuk autocomplete
   const { data: contacts = [] } = useQuery({
@@ -82,6 +92,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       draftIdRef.current = null;
       draftUidRef.current = null;
       autosaveDirty.current = false;
+      setAttachments([]);
       clearTimeout(saveTimerRef.current);
     }
   }, [isOpen, initialData]);
@@ -90,7 +101,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   // Simpan otomatis ke folder Draf (SOGo) saat compose berhenti diketik ±3 dtk.
   // Draft dibuat sekali per bukaan; konten di-save berulang; draft dihapus
   // setelah email terkirim (deleteDraft) supaya tidak menumpuk di Draf.
-  const hasContent = !!(to.trim() || cc.trim() || bcc.trim() || subject.trim() || body.trim());
+  const hasContent = !!(to.trim() || cc.trim() || bcc.trim() || subject.trim() || body.trim() || attachments.length > 0);
 
   const runAutosave = useCallback(async () => {
     if (!token || !user?.email || !hasContent) {
@@ -180,6 +191,69 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
 
   // ── Send ────────────────────────────────────────────────────────────────────
 
+  // Baca file → base64 (tanpa prefix data URI) lalu tambahkan ke daftar lampiran.
+  // Semua side effect (FileReader) di luar updater setState agar aman terhadap
+  // double-invoke updater di React StrictMode (dev).
+  const attachCountRef = useRef(0);
+  useEffect(() => { attachCountRef.current = attachments.length; }, [attachments]);
+
+  const addFiles = useCallback((fileList) => {
+    const files = Array.from(fileList || []);
+    if (files.length === 0) return;
+
+    // Validasi jumlah & ukuran di luar updater (deterministik, tanpa double-run).
+    const remaining = MAX_ATTACHMENTS - attachCountRef.current;
+    const accepted = [];
+    const errors = [];
+    for (const file of files) {
+      if (accepted.length >= remaining) {
+        errors.push(`Maksimal ${MAX_ATTACHMENTS} lampiran per email.`);
+        break;
+      }
+      if (file.size > MAX_FILE_BYTES) {
+        errors.push(`"${file.name}" melebihi 4 MB — lampiran maksimal 4 MB per file.`);
+        continue;
+      }
+      accepted.push(file);
+    }
+    if (errors.length > 0) setError(errors.join(' '));
+    if (accepted.length === 0) return;
+
+    const entries = accepted.map(file => ({
+      id: ++attachIdRef.current,
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size,
+      data: '',
+    }));
+    setAttachments(prev => [...prev, ...entries]);
+
+    for (let i = 0; i < accepted.length; i++) {
+      const file = accepted[i];
+      const entry = entries[i];
+      const reader = new FileReader();
+      reader.onload = () => {
+        const raw = String(reader.result || '');
+        const b64 = raw.includes(',') ? raw.slice(raw.indexOf(',') + 1) : raw;
+        setAttachments(cur => cur.map(a => (a.id === entry.id ? { ...a, data: b64 } : a)));
+      };
+      reader.onerror = () => {
+        setAttachments(cur => cur.filter(a => a.id !== entry.id));
+        setError(`Gagal membaca file "${entry.name}".`);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  const onAttachFiles = useCallback((e) => {
+    addFiles(e.target.files);
+    e.target.value = '';
+  }, [addFiles]);
+
+  const removeAttachment = useCallback((id) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  }, []);
+
   async function handleSend(e) {
     e.preventDefault();
     if (!to.trim()) { setError('Kolom "Kepada" wajib diisi.'); return; }
@@ -196,6 +270,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         body: editorMode === 'plain' ? body : DOMPurify.sanitize(body, PURIFY_CONFIG),
         isHTML: editorMode !== 'plain',
         from: userFrom,
+        attachments: attachments
+          .filter(a => a.data)
+          .map(a => ({ filename: a.name, contentType: a.type, data: a.data })),
       });
       setSuccess(true);
       // Refresh Sent folder setelah sukses kirim
@@ -346,7 +423,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
 
                 {/* Body */}
                 {editorMode === 'rich' ? (
-                  <RichEditor value={body} onChange={setBody} />
+                  <RichEditor value={body} onChange={setBody} onAttachFiles={addFiles} />
                 ) : editorMode === 'html' ? (
                   <textarea
                     value={body}
@@ -364,17 +441,52 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                 )}
               </div>
 
+              {/* Attachment list */}
+              {attachments.length > 0 && (
+                <div className="px-5 py-2 border-t border-border bg-card flex items-center gap-2 flex-wrap max-h-28 overflow-y-auto">
+                  {attachments.map((a) => (
+                    <span
+                      key={a.id}
+                      className="inline-flex items-center gap-1.5 bg-muted border border-border rounded-lg px-2.5 py-1.5 text-xs max-w-[220px]"
+                      title={a.name}
+                    >
+                      <Paperclip size={12} className="shrink-0 text-muted-foreground" />
+                      <span className="truncate font-medium">{a.name}</span>
+                      <span className="text-muted-foreground shrink-0">{formatFileSize(a.size)}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(a.id)}
+                        className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                        title={`Hapus ${a.name}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                  <span className="text-[10px] text-muted-foreground ml-auto">
+                    {attachments.length}/{MAX_ATTACHMENTS} · {totalAttachmentSize(attachments)}
+                  </span>
+                </div>
+              )}
+
               {/* Footer */}
               <div className="px-5 py-3 border-t border-border flex items-center justify-between bg-card">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => attachInputRef.current?.click()}
                     className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-                    title="Lampirkan file (belum didukung)"
-                    disabled
+                    title="Lampirkan file"
                   >
                     <Paperclip size={18} />
                   </button>
+                  <input
+                    ref={attachInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={onAttachFiles}
+                  />
                   <select
                     value={editorMode}
                     onChange={(e) => {
@@ -492,7 +604,7 @@ function SignaturePicker({ email, onInsert }) {
 
 // ── Rich Editor ────────────────────────────────────────────────────────────────
 
-function RichEditor({ value, onChange }) {
+function RichEditor({ value, onChange, onAttachFiles }) {
   const editorRef    = useRef(null);
   const fileInputRef = useRef(null);
   const [isMounted, setIsMounted]     = useState(false);
@@ -547,10 +659,15 @@ function RichEditor({ value, onChange }) {
   const onDragLeave = useCallback(() => setIsDragOver(false), []);
   const onDrop      = useCallback(async (e) => {
     e.preventDefault(); setIsDragOver(false);
-    const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'));
-    if (file) await insertImageFile(file, editorRef, onChange);
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length === 0) return;
+    // Gambar → inline (pola lama); file lain → lampiran.
+    const image = files.find(f => f.type.startsWith('image/'));
+    const rest = files.filter(f => !f.type.startsWith('image/'));
+    if (image) await insertImageFile(image, editorRef, onChange);
+    if (rest.length > 0 && onAttachFiles) onAttachFiles(rest);
     markDirty();
-  }, [onChange, markDirty]);
+  }, [onChange, markDirty, onAttachFiles]);
 
   const onFileSelected = useCallback(async (e) => {
     const file = e.target.files?.[0];

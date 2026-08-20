@@ -1,17 +1,29 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-19T15:26:27Z
+Generated At: 2026-08-20T10:05:24Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Rekonsiliasi docs (G-001.S-002): goals.md tambah G-001.S-010 (smtpToken cookie httpOnly + paste-XSS/tabnabbing + DoS slow-drip test, 482df26..3cd39af, 28/28 test); G-002.S-002 status PENDING→BLOCKED (butuh kredensial Eranya asli + tes browser, tanpa akses agen). next-tasks.md entry auto-generated basi diganti akurat (#1 G-002.S-002 blocked, #2 backlog rotasi password + history scrub). handoff.md prepend entry Security batch 2 (DEPLOYED) + BACKEND_LIB_FILES terbaru (ssrfGuard, emailValidation, smtpCookie, remoteImage).
-- Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
-- Source: knowledge.md
+## 1. [MEDIUM] Commit + push + deploy (SERVER=deploy-mail ./deploy.sh) — backend sync `attachmentValidation.js`.
+- Why: Explicit next step recorded on active task.
+- Source: current-task.md
 
-## 2. [LOW] Review and commit current changes
-- Why: 7 uncommitted file entries remain in the project.
-- Source: git status
+## 2. [MEDIUM] Verifikasi live: kirim email dengan lampiran (manual oleh user).
+- Why: Explicit next step recorded on active task.
+- Source: current-task.md
+
+## 3. [HIGH] Resolve risk: Lampiran 4 MB/file, 18 MB total — batas desain (sesuai validasi backend).
+- Why: Risk was recorded but not marked resolved.
+- Source: current-task.md
+
+## 4. [HIGH] Resolve risk: SOGo path (tanpa lampiran) tidak berubah; dengan lampiran selalu lewat SMTP proxy.
+- Why: Risk was recorded but not marked resolved.
+- Source: current-task.md
+
+## 5. [HIGH] Run or verify validation: 29/29 test PASS, build OK, deploy live + `/api/send` attachments terverifikasi.
+- Why: Current task contains validation work that still needs explicit confirmation.
+- Source: current-task.md
 
 ## Agent Use
 

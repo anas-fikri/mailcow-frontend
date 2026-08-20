@@ -407,3 +407,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task:
 - Status: COMPLETED
 - Finding: Rekonsiliasi docs (G-001.S-002): goals.md tambah G-001.S-010 (smtpToken cookie httpOnly + paste-XSS/tabnabbing + DoS slow-drip test, 482df26..3cd39af, 28/28 test); G-002.S-002 status PENDING→BLOCKED (butuh kredensial Eranya asli + tes browser, tanpa akses agen). next-tasks.md entry auto-generated basi diganti akurat (#1 G-002.S-002 blocked, #2 backlog rotasi password + history scrub). handoff.md prepend entry Security batch 2 (DEPLOYED) + BACKEND_LIB_FILES terbaru (ssrfGuard, emailValidation, smtpCookie, remoteImage).
+
+## 2026-08-20T10:05:21Z
+- Task: 20260820-100501-388715
+- Status: COMPLETED
+- Finding: Webmail attachments: Paperclip disabled 'belum didukung' — fitur belum ada. Implementasi: attachmentValidation.js (pure, 10 file/4MB/file/18MB total, base64+filename anti-injection), /api/send zod+validate+nodemailer Buffer.from(base64), express.json 10mb->30mb, sendMessage bypass draft SOGo bila ada lampiran (SOGo /send 501 di produksi -> semua kirim nyata via SMTP proxy). ComposeModal: FileReader->base64, chip list, drag-drop non-gambar->attachment (gambar tetap inline), StrictMode: side effect FileReader di luar updater setState. Bug test time-dependent: parseMessageDate('yesterday') pakai new Date() nyata bukan now inject -> tambah param now (dateGroups.js).

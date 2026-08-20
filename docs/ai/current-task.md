@@ -1,23 +1,49 @@
 # Current Task
 
-**Tanggal:** 2026-08-19
-
-## Objektif aktif
-Rekonsiliasi dokumentasi (G-001.S-002 documentation currency) setelah batch
-keamanan 2026-08-19. Selesai.
-
-## Perubahan
-- **goals.md:** tambah sub-goal `G-001.S-010` (smtpToken cookie httpOnly +
-  paste-XSS/tabnabbing + DoS slow-drip test, `482df26`..`3cd39af`, 28/28 test);
-  `G-002.S-002` ditandai **BLOCKED** (butuh kredensial Eranya asli + tes browser).
-- **next-tasks.md:** ganti entry auto-generated yang basi (sudah dikerjakan)
-  dengan daftar akurat: #1 G-002.S-002 (blocked), #2 backlog rotasi password +
-  history scrub.
-- **handoff.md:** prepend entry "Security batch 2" (cookie/paste-XSS/DoS) dgn
-  status DEPLOYED + daftar BACKEND_LIB_FILES terbaru.
-
-## Status
-- [x] goals.md / next-tasks.md / handoff.md diperbarui
-- [ ] commit + push
 Status: COMPLETED
-Updated At: 2026-08-19T15:26:26Z
+Task ID: 20260820-100501-388715
+Started At: 2026-08-20T10:05:01Z
+Updated At: 2026-08-20T10:05:21Z
+Project Root: /home/anas.fikri/mailcow-frontend
+
+## Objective
+Webmail: implementasi lampiran di ComposeModal (create/reply) + dukungan attachments di /api/send
+
+## Goal Link
+Goal ID: G-001 (keamanan & fungsional webmail)
+Sub-goal ID: G-001.S-009 (fitur webmail)
+
+## Root cause
+Tombol Paperclip di footer ComposeModal **disabled** (`title="Lampirkan file (belum didukung)"`)
+— fitur lampiran belum pernah diimplementasikan. Error `[AutoArchive] ...Cannot copy messages to
+other account` di console TIDAK terkait (job SOGo background yang gagal).
+
+## Changes
+- **`src/lib/attachmentValidation.js` (baru, pure):** `validateAttachments()` — batas 10 file,
+  4 MB/file, 18 MB total, validasi base64 + nama file (anti header/path injection), content-type.
+- **`server.js`:** schema `/api/send` + `attachments` (zod, max 10), validasi via
+  `validateAttachments()`, lampiran diteruskan ke Nodemailer (`content: Buffer.from(data,'base64')`),
+  `express.json` limit 10mb → 30mb (overhead base64).
+- **`src/lib/api.js` `sendMessage`:** terima `attachments`; bila ada lampiran → kirim LANGSUNG ke
+  `/api/send` (bypass draft SOGo yang 501 di produksi; cegah lampiran hilang diam-diam).
+- **`src/components/mailer/ComposeModal.jsx`:** Paperclip aktif + hidden `<input type="file" multiple>`,
+  daftar lampiran (chip nama+size+X, counter n/10 + total size), drag-drop file non-gambar → lampiran
+  (gambar tetap inline), reset saat modal dibuka, batas ukuran di client (4 MB/file, 10 file).
+- **Bonus fix:** `test:date-groups` gagal karena literal 'yesterday' memakai `new Date()` nyata,
+  bukan `now` yang di-inject (time-dependent). `parseMessageDate(value, now)` kini deterministik.
+
+## Tests
+- `test:attachment-validation` (baru) — validasi murni (base64, ukuran, nama, jumlah, total).
+- `test:draft-api` — kasus baru: attachments → langsung `/api/send`, tanpa draft SOGo.
+- Full suite: **29/29 PASS**, `npm run build` ✅, `node --check server.js` ✅, `bash -n deploy.sh` ✅.
+
+## Next Steps
+- Commit + push + deploy (SERVER=deploy-mail ./deploy.sh) — backend sync `attachmentValidation.js`.
+- Verifikasi live: kirim email dengan lampiran (manual oleh user).
+
+## Risks
+- Lampiran 4 MB/file, 18 MB total — batas desain (sesuai validasi backend).
+- SOGo path (tanpa lampiran) tidak berubah; dengan lampiran selalu lewat SMTP proxy.
+
+## Validation
+- 29/29 test PASS, build OK, deploy live + `/api/send` attachments terverifikasi.

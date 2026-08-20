@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { isSafeRecipient, recipientAddress, validateRecipientList, hasControlChars } from './src/lib/emailValidation.js';
 import { parseCookies, buildSmtpSessionCookie, clearSmtpSessionCookie, SMTP_SESSION_COOKIE } from './src/lib/smtpCookie.js';
 import { fetchRemoteImage } from './src/lib/remoteImage.js';
+import { validateAttachments, MAX_ATTACHMENTS } from './src/lib/attachmentValidation.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -45,7 +46,9 @@ const SMTP_TLS_CA  = process.env.SMTP_TLS_CA  || ''; // path to custom CA cert (
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8888,http://127.0.0.1:8888')
   .split(',').map(s => s.trim());
 app.use(cors({ origin: CORS_ORIGINS, credentials: true }));
-app.use(express.json({ limit: '10mb' }));
+// Body limit dinaikkan utk lampiran base64 (per-file ≤4 MB, total ≤18 MB biner).
+// Batas akhir tetap divalidasi di validateAttachments() (MAX_TOTAL_BASE64).
+app.use(express.json({ limit: '30mb' }));
 
 // ── Config DB ──────────────────────────────────────────────────────────────────
 const MYSQL_CONTAINER = process.env.MYSQL_CONTAINER || 'mailcow-mysql-mailcow-1';
@@ -381,6 +384,13 @@ const sendEmailSchema = z.object({
   // UI dapat mengirim display-name: "Nama <user@example.com>".
   // Format dan alamat akhirnya divalidasi setelah parsing, sebelum Nodemailer.
   from: z.string().max(998).optional().default(''),
+  // Lampiran dikirim sebagai base64 (tanpa prefix data URI). Validasi detail
+  // (ukuran, base64, nama file) dilakukan di validateAttachments().
+  attachments: z.array(z.object({
+    filename: z.string().max(255),
+    contentType: z.string().max(255),
+    data: z.string(),
+  })).max(MAX_ATTACHMENTS).optional().default([]),
 });
 
 app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), async (req, res) => {
@@ -404,6 +414,12 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
   }
   if (from && !isSafeRecipient(from)) {
     return res.status(400).json({ message: 'Alamat pengirim tidak valid.' });
+  }
+
+  // Validasi lampiran (ukuran per-file, total, base64, nama file).
+  const att = validateAttachments(parsed.data.attachments);
+  if (!att.ok) {
+    return res.status(400).json({ message: att.error });
   }
 
   // Look up SMTP session — token diambil dari cookie httpOnly (fallback header/body).
@@ -437,6 +453,13 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
       bcc: bcc || undefined,
       subject,
       [isHTML ? 'html' : 'text']: body,
+      attachments: att.sanitized.length > 0
+        ? att.sanitized.map(a => ({
+            filename: a.filename,
+            contentType: a.contentType,
+            content: Buffer.from(a.data, 'base64'),
+          }))
+        : undefined,
     };
 
     const info = await transporter.sendMail(mailOptions);
