@@ -1495,3 +1495,15 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M scripts/test-message-api.mjs
 -  M src/pages/MailPage.jsx
 - ?? docs/ai/tasks/20260820-125333-305684.previous.md
+
+## 2026-08-20T12:57:04Z
+- Status: COMPLETED
+- Objective: Webmail: auto-logout saat sesi SMTP proxy berakhir; TTL 8 jam dipertahankan
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M package.json
+-  M src/lib/api.js
+- ?? docs/ai/tasks/20260820-125654-156816.previous.md
+- ?? scripts/test-smtp-session-expired.mjs

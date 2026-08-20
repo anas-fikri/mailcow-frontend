@@ -859,6 +859,11 @@ export async function sendMessage(sogoToken, payload) {
         })),
       }),
     });
+    // 401 = sesi SMTP proxy berakhir di server (cookie Max-Age 8h / idle 30m).
+    // Fallback ke error toast saja bikin user "logged in tapi tidak bisa ngirim"
+    // — lebih baik logout paksa lewat session-expired callback. 403 adalah
+    // From mismatch (lihat server.js /api/send) — bukan sesi, jangan logout.
+    if (smtpRes.status === 401) throwIfAuthError(smtpRes);
     if (!smtpRes.ok) {
       const err = await smtpRes.json().catch(() => ({}));
       throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
@@ -915,6 +920,7 @@ export async function sendMessage(sogoToken, payload) {
     headers: withApiKey({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from, attachments }),
   });
+  if (smtpRes.status === 401) throwIfAuthError(smtpRes);
   if (!smtpRes.ok) {
     const err = await smtpRes.json().catch(() => ({}));
     throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);

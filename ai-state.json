@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-20T12:53:40Z",
+  "last_session": "2026-08-20T12:57:04Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -359,12 +359,12 @@
     }
   ],
   "active_task": {
-    "id": "20260820-125333-305684",
+    "id": "20260820-125654-156816",
     "status": "COMPLETED",
-    "objective": "Webmail: verifikasi auto-load universal (Sent/Drafts/Junk/Trash)",
+    "objective": "Webmail: auto-logout saat sesi SMTP proxy berakhir; TTL 8 jam dipertahankan",
     "next_step": "",
     "goal_id": "G-001",
-    "sub_goal_id": "G-001.S-008 (mailbox usability)",
-    "updated_at": "2026-08-20T12:53:40Z"
+    "sub_goal_id": "G-001 (webmail — hardening)",
+    "updated_at": "2026-08-20T12:57:04Z"
   }
 }

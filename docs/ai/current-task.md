@@ -1,36 +1,46 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260820-125333-305684
-Started At: 2026-08-20T12:53:33Z
-Updated At: 2026-08-20T12:53:40Z
+Task ID: 20260820-125654-156816
+Started At: 2026-08-20T12:56:54Z
+Updated At: 2026-08-20T12:57:04Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: verifikasi auto-load universal (Sent/Drafts/Junk/Trash)
+Webmail: auto-logout saat sesi SMTP proxy berakhir; TTL 8 jam dipertahankan
 
 ## Goal Link
 Goal ID: G-001
-Sub-goal ID: G-001.S-008 (mailbox usability)
+Sub-goal ID: G-001 (webmail — hardening)
 
 ## Files Involved
-- src/pages/MailPage.jsx — komentar eksplisit: auto-load universal per folder
-- scripts/test-message-api.mjs — fetchMessageHeaders loop 5 folder (INBOX/Sent/Junk/Drafts/Trash)
+- src/lib/api.js — sendMessage: 401 dari /api/send → throwIfAuthError → callback
+- scripts/test-smtp-session-expired.mjs — baru: verifikasi auto-logout & no-logout saat login
 
 ## Summary
-Audit `selectedFolder === 'folderINBOX'` di MailPage: hanya 4 site, semua OK untuk universal auto-load:
-  - new-mail notification (line 392) → INBOX saja
-  - 5-bulan cutoff (line 591) → INBOX saja (penghemat memory untuk ribuan email)
-  - snooze button (line 1227) → INBOX saja
-  - footer copy (line 1854-1857) → beda copy INBOX vs folder lain
-Tidak ada pengecualian di loadMore/sentinel/header-pill. Ditambah test eksplisit
-utk fetchMessageHeaders lintas folder (assert URL + body POST).
+**Akar masalah:** "Sesi SMTP sudah berakhir. Silakan login ulang." tampil tapi user
+TIDAK auto-logout. Penyebab: sendMessage melempar Error mentah (tanpa melalui
+throwApiError/throwIfAuthError), jadi _onSessionExpired tidak terpanggil. Hasilnya
+user tetap "logged in" tapi tidak bisa kirim email — UX membingungkan.
+
+**Fix:**
+- sendMessage: 401 dari /api/send (kedua branch: lampiran & fallback SOGo-501)
+  → throwIfAuthError → picu _onSessionExpired → App.jsx logout paksa + toast
+  "Sesi berakhir. Silakan login ulang." + navigate /login. 403 TIDAK logout
+  (dipakai server untuk From address mismatch, bukan sesi).
+
+**TTL dipertahankan (sudah memenuhi "8 jam tapi tetap aman"):**
+- server.js SESSION_MAX_AGE_MS = 480 min = 8 jam (env SMTP_SESSION_TTL_MIN)
+- smtpCookie.js Max-Age default = 28800 = 8 jam
+- Idle timeout = 30 min (env SMTP_SESSION_IDLE_MIN) — pengaman tambahan agar
+  sesi yang tidak dipakai tidak menggantung terlalu lama
+- HttpOnly + SameSite=Strict + Secure + Path=/api (cookie hardening)
+- 5 register/min rate-limit pada /api/auth/smtp
 
 ## Risks
-- Folder dengan ribuan email (Sent) akan auto-fetch semua header — bisa
-  membebani server. Untuk sekarang sesuai pola native SOGo PRELOAD SIZE=100.
-  Jika terbukti masalah di produksi, bisa ditambahkan pagination client-side
-  lebih agresif atau pengingat "Anda melihat 5000 terbaru, cari via pencarian".
+- Idle 30 min — user yang cuma baca email tanpa ngirim >30 min akan ke-logout
+  saat ngirim. Bisa diperpanjang via SMTP_SESSION_IDLE_MIN, default sengaja 30
+  untuk "tetap aman" sesuai alasan user.
 
 ## Validation
-- 14/14 test PASS · npm run build OK
+- 15/15 test PASS (baru: test:smtp-session-expired) · npm run build OK
