@@ -1414,3 +1414,16 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M src/lib/api.js
 - ?? docs/ai/tasks/20260820-104931-250388.previous.md
 - ?? scripts/test-calendar-api.mjs
+
+## 2026-08-20T10:56:23Z
+- Status: COMPLETED
+- Objective: Webmail: edit detail event kalender via /view (isi lengkap: attendees + classification)
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M scripts/test-calendar-api.mjs
+-  M src/components/EventModal.jsx
+-  M src/lib/api.js
+-  M src/pages/CalendarPage.jsx
+- ?? docs/ai/tasks/20260820-105602-244471.previous.md

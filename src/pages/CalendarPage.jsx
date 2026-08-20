@@ -5,7 +5,7 @@ import {
   Plus, Pencil, Trash2, List, AlertCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../lib/api';
+import { fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, fetchCalendarEventDetail } from '../lib/api';
 import { CalendarGridSkeleton } from '../components/Skeleton';
 import { MONTHS_ID, DAYS_ID, CAL_COLORS } from '../lib/constants';
 import { toast } from '../lib/toast';
@@ -121,6 +121,7 @@ export default function CalendarPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('create');
   const [modalEvent, setModalEvent] = useState(null);
+  const [editingId, setEditingId] = useState(null); // id event yang detailnya sedang di-fetch
 
   // Drag & drop state
   const dragEvRef = useRef(null);
@@ -211,10 +212,26 @@ export default function CalendarPage() {
     setModalOpen(true);
   }
 
-  function openEditModal(ev) {
-    setModalMode('edit');
-    setModalEvent(ev);
-    setModalOpen(true);
+  // Ambil detail lengkap via /view (attendees, classification, dll) sebelum
+  // membuka editor, agar edit tidak menghapus peserta/detail yang tidak ada di
+  // data ringkas `eventsblocks`.
+  async function openEditModal(ev) {
+    if (!ev?.id) return;
+    setEditingId(ev.id);
+    try {
+      const detail = await fetchCalendarEventDetail(user?.sogoToken, ev.id);
+      setModalMode('edit');
+      setModalEvent(detail ? { ...ev, ...detail } : ev);
+      setModalOpen(true);
+    } catch (err) {
+      // Fallback ke data ringkas (attendees sudah ada dari c_partmails).
+      toast.error(err.message || 'Gagal memuat detail event.');
+      setModalMode('edit');
+      setModalEvent(ev);
+      setModalOpen(true);
+    } finally {
+      setEditingId(null);
+    }
   }
 
   function openViewModal(ev) {
@@ -431,8 +448,13 @@ export default function CalendarPage() {
                 {detailEv.calendar || 'Kalender'}
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => openEditModal(detailEv)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Edit">
-                  <Pencil size={14} />
+                <button
+                  onClick={() => openEditModal(detailEv)}
+                  disabled={editingId === detailEv.id}
+                  className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  title="Edit"
+                >
+                  {editingId === detailEv.id ? <Loader2 size={14} className="animate-spin" /> : <Pencil size={14} />}
                 </button>
                 <button
                   onClick={() => {

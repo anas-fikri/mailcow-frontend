@@ -1004,6 +1004,17 @@ async function newEventGuid(sogoToken, calendarId = 'personal') {
  * iCalEvent+SOGo.m membaca `startDate`/`startTime`/`endDate`/`endTime`
  * dan `isAllDay`.
  */
+/** Normalisasi classification ke string yang dikenali SOGo (public/private/confidential). */
+function normalizeClassification(value) {
+  if (value === 1 || value === '1') return 'private';
+  if (value === 2 || value === '2') return 'confidential';
+  if (typeof value === 'string') {
+    const v = value.toLowerCase();
+    if (['public', 'private', 'confidential'].includes(v)) return v;
+  }
+  return 'public';
+}
+
 function buildAppointmentBody(event) {
   const attendees = (event.attendees || '')
     .split(',')
@@ -1015,7 +1026,7 @@ function buildAppointmentBody(event) {
     summary: event.title || '',
     location: event.location || '',
     comment: event.description || '',
-    classification: 'public',
+    classification: normalizeClassification(event.classification),
     isAllDay: !!event.isAllDay,
     startDate: event.startDate || '',
     endDate: event.endDate || '',
@@ -1121,6 +1132,10 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
           owner:     ev.c_owner || '',
           status:    ev.c_status,
           description: ev.c_description || '',
+          // c_partmails newline-separated (iCalEvent+SOGo.m quickRecordFromContent)
+          attendees: ev.c_partmails ? String(ev.c_partmails).split('\n').filter(Boolean).join(', ') : '',
+          // c_classification: 0=public, 1=private, 2=confidential
+          classification: ev.c_classification === 1 ? 'private' : ev.c_classification === 2 ? 'confidential' : 'public',
       });
       }
     }
@@ -1130,6 +1145,52 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
     // propagate agar halaman menampilkan error, bukan kalender kosong palsu.
     throw err;
   }
+}
+
+// ─── Calendar detail (full content via /view) ────────────────────────────────
+
+/**
+ * Ambil detail lengkap event via GET /Calendar/{calendarId}/{eventId}/view.
+ *
+ * /view mengembalikan field iCal lengkap (iCalEntityObject+SOGo.m
+ * `attributesInContext`): summary, location, comment, classification,
+ * attendees (array {email,name,partstat,role}), startDate/endDate (string
+ * ISO), isAllDay, dll — lebih lengkap dari `eventsblocks` (yang attendee-nya
+ * berupa kolom c_partmails terpisah).
+ */
+export async function fetchCalendarEventDetail(sogoToken, eventId, calendarId = 'personal') {
+  const res = await fetch(
+    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}/view`,
+    { credentials: 'include', headers: sogoHeaders() }
+  );
+  throwIfAuthError(res);
+  if (!res.ok) throwApiError('Gagal memuat detail event.', res.status);
+  const d = await safeJson(res);
+
+  const attendees = Array.isArray(d.attendees)
+    ? d.attendees.map((a) => a?.email).filter(Boolean).join(', ')
+    : '';
+
+  // startDate/endDate = string ISO (ex: "2015-10-25T22:34:51+00:00").
+  const toUnix = (v) => {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') return Math.floor(v / 1000);
+    const t = Date.parse(String(v));
+    return Number.isNaN(t) ? null : Math.floor(t / 1000);
+  };
+
+  return {
+    id: eventId,
+    title: d.summary || '(Tanpa Judul)',
+    location: d.location || '',
+    description: d.comment || '',
+    isAllDay: !!d.isAllDay,
+    classification: normalizeClassification(d.classification),
+    attendees,
+    start: toUnix(d.startDate),
+    end: toUnix(d.endDate),
+    raw: d,
+  };
 }
 
 // ─── Preferences ──────────────────────────────────────────────────────────────

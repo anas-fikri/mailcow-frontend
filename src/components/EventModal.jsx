@@ -114,6 +114,8 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         description: description.trim(),
         isAllDay,
         attendees: attendees.trim(),
+        // Pertahankan klasifikasi asli saat edit (detail dari /view).
+        classification: event?.classification,
       };
 
       if (isEdit && event?.id) {

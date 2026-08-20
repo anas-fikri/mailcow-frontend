@@ -1,14 +1,32 @@
 import assert from 'node:assert/strict';
-import { createCalendarEvent, updateCalendarEvent } from '../src/lib/api.js';
+import { createCalendarEvent, updateCalendarEvent, fetchCalendarEventDetail } from '../src/lib/api.js';
 
 const calls = [];
 let newguidPayload = { id: 'evt-123' };
+
+const viewPayload = {
+  component: 'vevent',
+  summary: 'Rapat Tim',
+  location: 'Ruang A',
+  comment: 'Bahasan sprint',
+  classification: 'private',
+  isAllDay: false,
+  startDate: '2026-08-21T09:00:00+07:00',
+  endDate: '2026-08-21T10:00:00+07:00',
+  attendees: [
+    { email: 'a@example.test', name: 'A', partstat: 'ACCEPTED', role: 'REQ-PARTICIPANT' },
+    { email: 'b@example.test', name: 'B', partstat: 'NEEDS-ACTION', role: 'REQ-PARTICIPANT' },
+  ],
+};
 
 globalThis.fetch = async (url, options = {}) => {
   const u = String(url);
   calls.push({ url: u, options });
   if (u.endsWith('/Calendar/personal/newguid')) {
     return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => newguidPayload };
+  }
+  if (u.endsWith('/Calendar/personal/evt-123/view')) {
+    return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => viewPayload };
   }
   if (u.endsWith('/saveAsAppointment')) {
     return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => ({ id: 'evt-123' }) };
@@ -94,5 +112,24 @@ const updateBody = JSON.parse(updateCall.options.body);
 assert.equal(updateBody.summary, 'Rapat Tim');
 assert.equal(updateBody.location, 'Ruang A');
 assert.equal(updateBody.c_title, undefined, 'update juga tidak boleh kirim c_title');
+
+// ── classification dipertahankan saat create/edit ────────────────────────────
+calls.length = 0;
+await createCalendarEvent('user@example.test', { ...event, classification: 'confidential' });
+const classBody = JSON.parse(calls.find((c) => c.url.endsWith('/saveAsAppointment')).options.body);
+assert.equal(classBody.classification, 'confidential');
+
+// ── fetchCalendarEventDetail (/view) ──────────────────────────────────────────
+calls.length = 0;
+const detail = await fetchCalendarEventDetail('user@example.test', 'evt-123');
+assert.ok(calls.some((c) => c.url.endsWith('/Calendar/personal/evt-123/view')), 'detail harus GET /view');
+assert.equal(detail.id, 'evt-123');
+assert.equal(detail.title, 'Rapat Tim');
+assert.equal(detail.location, 'Ruang A');
+assert.equal(detail.description, 'Bahasan sprint');
+assert.equal(detail.classification, 'private');
+assert.equal(detail.attendees, 'a@example.test, b@example.test');
+assert.ok(typeof detail.start === 'number' && detail.start > 0, 'start harus unix seconds');
+assert.ok(typeof detail.end === 'number' && detail.end > detail.start, 'end harus > start');
 
 console.log('calendar API assertions passed');

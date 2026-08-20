@@ -1,44 +1,44 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260820-104931-250388
-Started At: 2026-08-20T10:49:31Z
-Updated At: 2026-08-20T10:49:59Z
+Task ID: 20260820-105602-244471
+Started At: 2026-08-20T10:56:02Z
+Updated At: 2026-08-20T10:56:23Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: perbaiki kalender tidak bisa buat event (action name + field iCal SOGo salah)
+Webmail: edit detail event kalender via /view (isi lengkap: attendees + classification)
 
 ## Goal Link
 Goal ID: G-001 (keamanan & fungsional webmail)
 Sub-goal ID: G-001.S-009 (fitur webmail)
 
 ## Root cause
-Kalender gagal buat/update event karena `src/lib/api.js` memakai kontrak SOGo yang salah:
-1. Action name `saveAsappointment` (huruf kecil 'a') → SOGo case-sensitive, action asli
-   `saveAsAppointment` (capital A). Verifikasi dari SOGo `Component.service.js`
-   (`'saveAs' + type.capitalize()`).
-2. Field payload memakai nama kolom DB `c_title`/`c_location`/`c_description`/`c_isallday`/
-   `c_partmails`/`c_partstates`, padahal SOGo `saveAsAppointment` membaca field iCal:
-   `summary`/`location`/`comment`/`isAllDay`/`attendees` (array). Verifikasi dari
-   `iCalEntityObject+SOGo.m` + `iCalEvent+SOGo.m` (`setAttributes:inContext:`).
+Edit event sebelumnya memakai data ringkas `eventsblocks` yang TIDAK memetakan
+attendees/classification → membuka editor lalu simpan akan MENGHAPUS peserta event
+(karena buildAppointmentBody tak kirim attendees) dan menurunkan klasifikasi jadi public.
 
 ## Changes
 - **`src/lib/api.js`:**
-  - `newEventGuid` robust: baca `data.id || data.uid || data.name || data`, wajib string.
-  - Helper `buildAppointmentBody(event)` → field iCal yang benar; attendees (string koma)
-    → array `{email, name, role: 'REQ-PARTICIPANT', partstat: 'NEEDS-ACTION'}`;
-    all-day tanpa startTime/endTime.
-  - `createCalendarEvent` → POST `/saveAsAppointment`; `updateCalendarEvent` → POST `/save`.
-- **`scripts/test-calendar-api.mjs` (baru):** assert action name capital A, field iCal,
-  tidak ada c_*, attendees→array, all-day tanpa time, newguid plain-string, update `/save`.
-- **`package.json`:** tambah `test:calendar-api`.
+  - `fetchCalendarEventDetail(sogoToken, eventId)` → GET `/Calendar/{id}/view`, parse
+    field iCal lengkap (`summary`/`location`/`comment`/`classification`/`attendees`
+    array/`startDate`/`endDate` ISO/`isAllDay`). attendees array → string `email, email`.
+  - `fetchCalendarEvents` sekarang juga memetakan `c_partmails` (newline) → `attendees`
+    dan `c_classification` (0/1/2) → `public/private/confidential` (fallback, anti-wipe).
+  - `buildAppointmentBody` normalisasi `classification` (angka/string) + pertahankan
+    klasifikasi event yang diedit.
+- **`src/pages/CalendarPage.jsx`:** `openEditModal` async — fetch detail via /view dulu,
+  merge `{...ev, ...detail}`, lalu buka editor; fallback ke data ringkas bila gagal;
+  spinner (`editingId`) pada tombol edit di popup detail.
+- **`src/components/EventModal.jsx`:** `handleSave` menyertakan `classification` asli
+  saat edit (jadi tak di-reset ke public).
+- **`scripts/test-calendar-api.mjs`:** + kasus `/view` parsing, classification dipertahankan.
 
 ## Validation
-- 30/30 test PASS (baru `test:calendar-api`), `npm run build` OK.
+- 30/30 test PASS, `npm run build` OK.
 
 ## Next Steps
-- Commit + push + deploy frontend (SERVER=deploy-mail ./deploy.sh; backend tak berubah).
+- Commit + push + deploy frontend (backend tak berubah).
 
 ## Risks
-- Tidak ada — frontend-only (api.js). Perilaku fetch/list event tidak diubah.
+- Parsing date `/view` pakai `Date.parse` (ISO) → unix seconds, konsisten dgn eventsblocks.
