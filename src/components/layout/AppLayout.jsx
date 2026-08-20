@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Outlet, Navigate } from 'react-router';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
+import SmtpHeartbeat from '../SmtpHeartbeat';
 import { useAuthStore } from '../../store/authStore';
 
 /** Hue override for each themeColor preset (light-mode hue) */
@@ -42,6 +43,7 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground transition-colors duration-200">
+      <SmtpHeartbeat />
       
       {/* Mobile Sidebar Overlay */}
       <div 

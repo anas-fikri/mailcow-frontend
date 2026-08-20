@@ -472,3 +472,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-132742-138659
 - Status: COMPLETED
 - Finding: deploy.sh tambah helper ensure_runtime_env() yg idempotent utk key=value di server .env. Dipanggil di awal deploy_backend — bekerja walaupun server.js unchanged (no restart kalau tak ada code change). Pola ssh: awk utk baca nilai / printf+tambah utk append / sed+.bak+printf utk replace. EXPECTED_SMTP_SESSION_IDLE_MIN=60 di top of file (override via env). Test: scripts/test-deploy-runtime-env.sh — 5 skenario bash (mock ssh via tmp dir). 17/17 test PASS.
+
+## 2026-08-20T13:31:36Z
+- Task: 20260820-133121-262175
+- Status: COMPLETED
+- Finding: SmtpHeartbeat: ping /api/auth/smtp/status setiap 50 menit (SMTP_HEARTBEAT_INTERVAL_MS = 50*60*1000) HANYA saat document.visibilityState === 'visible'. Saat hidden → clearInterval. Resume→visible: immediate ping (catch-up). Helper pure setupSmtpHeartbeat({schedule, isVisible, setInterval, clearInterval}) - testable dgn mocked timers. Sidebar refetchInterval juga visibility-aware (return false saat hidden) supaya lastUsed TIDAK di-refresh via polling countdown. lastUsed di server di-refresh via requireSmtpSession middleware setiap call ke /api/send atau /api/auth/smtp/status. 401 dari ping → throwIfAuthError → App.jsx auto-logout (sama dgn /api/send).

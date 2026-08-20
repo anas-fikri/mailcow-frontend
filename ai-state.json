@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-20T13:27:52Z",
+  "last_session": "2026-08-20T13:31:36Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -359,12 +359,12 @@
     }
   ],
   "active_task": {
-    "id": "20260820-132742-138659",
+    "id": "20260820-133121-262175",
     "status": "COMPLETED",
-    "objective": "deploy.sh: ensure_runtime_env idempotent utk SMTP_SESSION_IDLE_MIN (.env di server)",
+    "objective": "Webmail: heartbeat SMTP tiap 50 mnt hanya saat tab aktif (idle reset jadi true-tab-inactive)",
     "next_step": "",
     "goal_id": "G-001",
-    "sub_goal_id": "G-001 (webmail — operations)",
-    "updated_at": "2026-08-20T13:27:52Z"
+    "sub_goal_id": "G-001 (webmail — usability/UX)",
+    "updated_at": "2026-08-20T13:31:36Z"
   }
 }

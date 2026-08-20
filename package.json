@@ -38,6 +38,7 @@
     "test:smtp-session-expired": "node scripts/test-smtp-session-expired.mjs",
     "test:session-countdown": "node scripts/test-session-countdown.mjs",
     "test:deploy-runtime-env": "bash scripts/test-deploy-runtime-env.sh",
+    "test:smtp-heartbeat": "node scripts/test-smtp-heartbeat.mjs",
     "test:purify-hardening": "node scripts/test-purify-hardening.mjs",
     "test:remote-image": "node scripts/test-remote-image.mjs",
     "test:attachment-validation": "node scripts/test-attachment-validation.mjs",

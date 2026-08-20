@@ -1,53 +1,46 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260820-132742-138659
-Started At: 2026-08-20T13:27:42Z
-Updated At: 2026-08-20T13:27:52Z
+Task ID: 20260820-133121-262175
+Started At: 2026-08-20T13:31:21Z
+Updated At: 2026-08-20T13:31:36Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-deploy.sh: ensure_runtime_env idempotent utk SMTP_SESSION_IDLE_MIN (.env di server)
+Webmail: heartbeat SMTP tiap 50 mnt hanya saat tab aktif (idle reset jadi true-tab-inactive)
 
 ## Goal Link
 Goal ID: G-001
-Sub-goal ID: G-001 (webmail — operations)
+Sub-goal ID: G-001 (webmail — usability/UX)
 
 ## Files Involved
-- deploy.sh — tambah helper ensure_runtime_env() + panggil di deploy_backend()
-- package.json — npm run test:deploy-runtime-env
-- scripts/test-deploy-runtime-env.sh — 5 skenario bash test (mocks ssh via tmp dir)
+- src/lib/smtpHeartbeat.js — helper setupSmtpHeartbeat pure (testable)
+- src/components/SmtpHeartbeat.jsx — wrapper React, panggil fetchSmtpSessionStatus
+- src/components/layout/AppLayout.jsx — mount <SmtpHeartbeat /> setelah login
+- src/components/layout/Sidebar.jsx — refetchInterval visibility-aware
+- scripts/test-smtp-heartbeat.mjs — 5 skenario unit test
 
 ## Summary
-Tanpa helper ini, deploy-selanjutnya bisa lupa menyetel SMTP_SESSION_IDLE_MIN di
-.env server (atau lupa saat menambah config kritikal lainnya). Helper baru:
-- Baca nilai sekarang via `ssh ... awk -F= -v k=K '$1==k {...}' PATH`
-- Jika hilang → `printf 'K=V\n' >> PATH`
-- Jika beda  → `sed -i.bak '/^K=/d' PATH && printf 'K=V\n' >> PATH`
-- Jika sama  → no-op
+idle timer server (SESSION_IDLE_MS=60m, sekarang via SMTP_SESSION_IDLE_MIN=60)
+akan counting-down hanya bila tidak ada panggilan yg me-refresh lastUsed.
+Sebelumnya Sidebar polling 60 pada setiap detik (60s) TANPA visibility check
+→ lastUsed di-refresh terus walau tab inactive (idle tidak pernah trigger).
 
-EXPECTED_SMTP_SESSION_IDLE_MIN=60 di top-of-file (override via env).
-Dipanggil di awal deploy_backend() — berjalan walaupun kode backend tidak
-berubah (TETAPI restart service TIDAK terjadi otomatis; hanya ketika
-server.js / src/lib berubah, sesuai logika md5-hash existing).
-
-## Verifikasi live (no deploy needed)
-Smoke test via ssh ke server (dgn backup/rollback):
-- `awk -F= -v k=SMTP_SESSION_IDLE_MIN '$1==k {...}' .env` → "60"
-- ensure_runtime_env flow: no-op idempotent ✓
-- `sed -i.bak '/^K=/d' PATH && printf 'K=V\n' >> PATH` menghasilkan
-  baris yang benar (rollback sukses dari .bak)
+Sekarang:
+- SmtpHeartbeat: ping /api/auth/smtp/status setiap 50 menit HANYA saat
+  document.visibilityState === 'visible'. Saat hidden → clearInterval.
+  Resume→visible: immediate ping (catch-up).
+- Sidebar countdown poll juga visibility-aware (return false saat hidden)
+  sehingga tidak me-refresh lastUsed melalui polling biasa.
+- 401 dari ping → throwIfAuthError → App.jsx auto-logout (sama dgn /api/send).
 
 ## Risks
-- deploy mengirim beberapa ssh call tambahan ke server. Tidak restart
-  service untuk perubahan .env saja — restart tetap hanya pada kode
-  berubah. Tidak menambah downtime.
-- Mock ssh di test adalah abstraksi; smoke test aktual sudah
-  memverifikasi pola remote bekerja. Kombinasi test+c-smoke memberi
-  keyakinan penuh.
+- Browser throttling di background tab bisa menunda heartbeat visibility
+  callback, tapi karena kita eksplisit pause saat hidden, hal ini aman.
+- Immediate ping saat resume: bila sesi sudah expired sebelumnya
+  (user lunch >60m), user akan otomatis logout begitu kembali ke tab.
+  Ini sesuai dengan intent user (idle kick in untuk tab truly inactive).
 
 ## Validation
-- 17/17 test PASS (baru test:deploy-runtime-env, 5 skenario)
-- deploy.sh `bash -n` syntax OK
+- 18/18 test PASS (baru test:smtp-heartbeat, 5 skenario)
 - npm run build OK
-- ssh smoke test live PASS

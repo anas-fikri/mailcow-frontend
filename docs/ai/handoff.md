@@ -1543,3 +1543,18 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/current-task.md
 -  M package.json
 - ?? docs/ai/tasks/20260820-132742-138659.previous.md
+
+## 2026-08-20T13:31:36Z
+- Status: COMPLETED
+- Objective: Webmail: heartbeat SMTP tiap 50 mnt hanya saat tab aktif (idle reset jadi true-tab-inactive)
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M package.json
+-  M src/components/layout/AppLayout.jsx
+-  M src/components/layout/Sidebar.jsx
+- ?? docs/ai/tasks/20260820-133121-262175.previous.md
+- ?? scripts/test-smtp-heartbeat.mjs
+- ?? src/components/SmtpHeartbeat.jsx
+- ?? src/lib/smtpHeartbeat.js

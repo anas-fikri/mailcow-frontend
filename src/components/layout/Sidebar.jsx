@@ -13,13 +13,18 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
   const navigate = useNavigate()
 
   // ── Countdown sesi SMTP proxy ───────────────────────────────────────────────
-  // Poll /api/auth/smtp/status setiap 60 dtk (rate-limit server 30/menit cukup);
-  // tick local setiap detik agar countdown bergerak tanpa round-trip tiap detik.
-  // Hanya render saat sisa sesi < SHOW_BELOW_MINUTES menit.
+  // Poll /api/auth/smtp/status setiap 60 dtk (rate-limit server 30/menit cukup)
+  // SELAMA tab aktif; pause saat tab hidden supaya tidak refresh lastUsed secara
+  // diam-diam (SmtpHeartbeat terpisah menyegarkan lastUsed saat tab aktif).
+  // Hanya render badge saat sisa sesi < SHOW_BELOW_MINUTES menit.
   const { data: sessionStatus } = useQuery({
     queryKey: ['smtp-session-status'],
     queryFn: () => fetchSmtpSessionStatus(),
-    refetchInterval: 60 * 1000,
+    refetchInterval: () => (
+      typeof document !== 'undefined' && document.visibilityState === 'visible'
+        ? 60 * 1000
+        : false
+    ),
     enabled: Boolean(user?.sogoToken),
     staleTime: 30 * 1000,
   });
