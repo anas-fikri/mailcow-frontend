@@ -1484,3 +1484,14 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M docs/ai/current-task.md
 -  M src/pages/MailPage.jsx
 - ?? docs/ai/tasks/20260820-125059-377940.previous.md
+
+## 2026-08-20T12:53:40Z
+- Status: COMPLETED
+- Objective: Webmail: verifikasi auto-load universal (Sent/Drafts/Junk/Trash)
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M scripts/test-message-api.mjs
+-  M src/pages/MailPage.jsx
+- ?? docs/ai/tasks/20260820-125333-305684.previous.md

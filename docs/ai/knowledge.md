@@ -447,3 +447,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-125059-377940
 - Status: COMPLETED
 - Finding: Indikator auto-load yang informatif: header pill menampilkan 'loaded / total' saat messages.length < totalMessageCount, dengan spinner mini ketika loadingMore. Sentinel bawah list menampilkan 'Memuat N email…' (N = Math.min(PAGE_SIZE, remainingUids.length)) ketika loadingMore, dan 'Scroll untuk memuat lagi…' saat hasMore tapi tidak ada fetch aktif. Math.min(PAGE_SIZE, remainingUids.length) = jumlah email dalam batch yang sedang di-fetch (maks 50, atau sisa bila kurang).
+
+## 2026-08-20T12:53:40Z
+- Task: 20260820-125333-305684
+- Status: COMPLETED
+- Finding: Auto-load server-side (MailPage.jsx via IntersectionObserver + /headers) memang universal untuk SEMUA folder (folderINBOX/folderSent/folderJunk/folderDrafts/folderTrash). Pengecekan 'selectedFolder === folderINBOX' hanya 4 lokasi: notifikasi email baru (INBOX saja), batas 5 bulan stopFetchingRef (INBOX saja — penghematan memori), tombol snooze per-baris (INBOX saja), dan beda copy footer (bukan gate). loadMore + sentinel + header pill + count indicator tidak punya pengecualian folder. fetchMessageHeaders sudah diuji utk 5 folder (test:message-api) — semuanya testify POST /Mail/0/{folder}/headers body {uids:[...]}.

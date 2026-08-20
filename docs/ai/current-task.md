@@ -1,32 +1,36 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260820-125059-377940
-Started At: 2026-08-20T12:50:59Z
-Updated At: 2026-08-20T12:51:05Z
+Task ID: 20260820-125333-305684
+Started At: 2026-08-20T12:53:33Z
+Updated At: 2026-08-20T12:53:40Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Webmail: indikator jumlah email yang sedang dimuat saat auto-load
+Webmail: verifikasi auto-load universal (Sent/Drafts/Junk/Trash)
 
 ## Goal Link
 Goal ID: G-001
 Sub-goal ID: G-001.S-008 (mailbox usability)
 
 ## Files Involved
-- src/pages/MailPage.jsx — sentinel area + header pill: tampilkan loading progress
+- src/pages/MailPage.jsx — komentar eksplisit: auto-load universal per folder
+- scripts/test-message-api.mjs — fetchMessageHeaders loop 5 folder (INBOX/Sent/Junk/Drafts/Trash)
 
 ## Summary
-Saat auto-load server-side (setelah lewat 100 email), user butuh indikator yang
-jelas bukan hanya spinner polos:
-- **Header pill** sekarang "100 / 5.000" selama auto-load aktif, kembali ke "5.000"
-  saat folder termuat penuh; plus spinner mini ketika loadingMore=true.
-- **Sentinel bawah list** menampilkan "Memuat 50 email…" (sesuai batch yang sedang
-  diambil via Math.min(PAGE_SIZE, remainingUids.length)) saat loadingMore=true;
-  "Scroll untuk memuat lagi…" saat hasMore tapi tidak ada fetch aktif.
+Audit `selectedFolder === 'folderINBOX'` di MailPage: hanya 4 site, semua OK untuk universal auto-load:
+  - new-mail notification (line 392) → INBOX saja
+  - 5-bulan cutoff (line 591) → INBOX saja (penghemat memory untuk ribuan email)
+  - snooze button (line 1227) → INBOX saja
+  - footer copy (line 1854-1857) → beda copy INBOX vs folder lain
+Tidak ada pengecualian di loadMore/sentinel/header-pill. Ditambah test eksplisit
+utk fetchMessageHeaders lintas folder (assert URL + body POST).
 
 ## Risks
-- toLocaleString('id') ribuan pakai locale id-ID — browser harus mendukung ICU id.
+- Folder dengan ribuan email (Sent) akan auto-fetch semua header — bisa
+  membebani server. Untuk sekarang sesuai pola native SOGo PRELOAD SIZE=100.
+  Jika terbukti masalah di produksi, bisa ditambahkan pagination client-side
+  lebih agresif atau pengingat "Anda melihat 5000 terbaru, cari via pencarian".
 
 ## Validation
 - 14/14 test PASS · npm run build OK

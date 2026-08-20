@@ -337,6 +337,9 @@ export default function MailPage() {
   // ── Server-side pagination (auto-load) ─────────────────────────────────────
   // SOGo /view mem-prefetch hanya ~100 header (headersPrefetchMaxSize). UID
   // sisanya dimuat bertahap lewat /headers saat user scroll (pola native SOGo).
+  // Bekerja untuk SEMUA folder (INBOX / Sent / Junk / Drafts / Trash) — hanya
+  // INBOX yang punya batas waktu 5 bulan tambahan (lihat stopFetchingRef di
+  // bawah); folder lain auto-load sampai habis untuk mengangkat paginasi ~100.
   const [extraMessages, setExtraMessages] = useState([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const stopFetchingRef = useRef(false);

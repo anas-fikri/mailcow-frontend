@@ -27,6 +27,7 @@ globalThis.fetch = async (url, options = {}) => {
   };
 };
 
+// ── fetchMessages untuk semua folder populer (auto-load butuh uids utk pagination) ──
 const folders = ['folderINBOX', 'folderSent', 'folderJunk', 'folderTrash'];
 for (const folder of folders) {
   const result = await fetchMessages('user@example.test', folder, { limit: 1, offset: 0 });
@@ -41,19 +42,33 @@ for (const folder of folders) {
   assert.equal(body.offset, undefined);
 }
 
-// ── fetchMessageHeaders (lazy-load /headers utk auto-load scroll) ───────────
+// ── fetchMessageHeaders (lazy-load /headers utk auto-load scroll) ───────────────
+// Auto-load server-side yang dipasang untuk INBOX otomatis JUGA bekerja untuk
+// semua folder lain (Sent / Junk / Drafts / Trash) — loadMore dipanggil dengan
+// selectedFolder apa pun, hanya INBOX yang punya batas 5 bulan tambahan.
 calls.length = 0;
-const extra = await fetchMessageHeaders('user@example.test', 'folderINBOX', [40, 39]);
-assert.equal(extra.length, 1);
-assert.equal(extra[0].uid, 42);
-const headersCall = calls.at(-1);
-assert.ok(headersCall.url.endsWith('/Mail/0/folderINBOX/headers'), 'harus POST ke /headers');
-assert.equal(headersCall.options.method, 'POST');
-assert.deepEqual(JSON.parse(headersCall.options.body), { uids: [40, 39] }, 'body harus { uids }');
+const autoLoadFolders = ['folderINBOX', 'folderSent', 'folderJunk', 'folderDrafts', 'folderTrash'];
+for (const folder of autoLoadFolders) {
+  const rows = await fetchMessageHeaders('user@example.test', folder, [40, 39]);
+  assert.equal(rows.length, 1, `${folder}: harus kembalikan 1 row`);
+  assert.equal(rows[0].uid, 42, `${folder}: parse uid=42`);
+  const headersCall = calls.at(-1);
+  assert.equal(headersCall.options.method, 'POST', `${folder}: harus POST`);
+  assert.ok(
+    headersCall.url.endsWith(`/Mail/0/${folder}/headers`),
+    `${folder}: harus hit /Mail/0/${folder}/headers (auto-load path)`
+  );
+  assert.deepEqual(
+    JSON.parse(headersCall.options.body),
+    { uids: [40, 39] },
+    `${folder}: body harus { uids }`
+  );
+}
+assert.equal(calls.length, autoLoadFolders.length, `tepat ${autoLoadFolders.length} request /headers`);
 
 // uids kosong → langsung [] tanpa fetch
 calls.length = 0;
-assert.deepEqual(await fetchMessageHeaders('user@example.test', 'folderINBOX', []), []);
+assert.deepEqual(await fetchMessageHeaders('user@example.test', 'folderSent', []), []);
 assert.equal(calls.length, 0);
 
 const searchResult = await searchMessages('user@example.test', 'folderSent', 'dummy', 'subject');
@@ -67,4 +82,5 @@ assert.deepEqual(JSON.parse(searchCall.options.body), {
 });
 
 assert.equal(calls.length, 1, 'searchMessages harus tepat 1 request view (tanpa request ekstra)');
+
 console.log('message API assertions passed');
