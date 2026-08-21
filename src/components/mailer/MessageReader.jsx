@@ -2,29 +2,17 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, Paperclip,
-  Flag, Printer, FolderOpen, Star, Send, ChevronDown, UserPlus, X,
-  AlertCircle, RefreshCw, AlertTriangle,
-  File, FileArchive, FileSpreadsheet, FileImage, FileAudio, FileVideo, FileCode,
-  Eye, ExternalLink,
+  Flag, Printer, FolderOpen, Star, AlertTriangle,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, sendMessage, fetchPreferences, createContact } from '../../lib/api';
+import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
-import Avatar from '../Avatar';
-import { isSentOrDraftFolder } from '../../lib/constants';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
-import { looksLikeHtmlInPlainText } from '../../lib/messageHtml';
-import { getSignatureFor } from '../../lib/signatures';
-import { getFileKind, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
-import { proxyExternalImages } from '../../lib/imageProxy';
 
-// Same-origin (relatif) — lihat catatan di src/lib/api.js. SPA & SOGo di origin
-// yang sama (nginx mailcow mem-proxy /SOGo utk semua vhost), jadi base absolut
-// hanya diperlukan bila SPA di-deploy di origin terpisah.
-const SOGO_BASE = import.meta.env.VITE_SOGO_BASE_URL || '';
+const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
 // ─── Extended DOMPurify config for email HTML ─────────────────────────────────
 const EMAIL_PURIFY_CONFIG = {
@@ -52,32 +40,16 @@ const EMAIL_PURIFY_CONFIG = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function escapeHtml(str) {
-  return String(str).replace(/[<>&"']/g, c => {
-    const m = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' };
-    return m[c];
-  });
-}
-
 function extractHtml(parts) {
   if (!parts) return '';
-  // SOGo bisa mengembalikan parts sebagai ARRAY langsung (bukan object
-  // {type, content: [...]}) — rekursi tiap elemen.
-  if (Array.isArray(parts)) {
-    for (const child of parts) {
-      const html = extractHtml(child);
-      if (html) return html;
-    }
-    return '';
-  }
   if (parts.contentType === 'text/html' && parts.content) return parts.content;
   if (parts.contentType === 'text/plain' && parts.content) {
-    // text/plain tetap harus diperlakukan sebagai teks, bukan HTML. Escape
-    // markup yang dikirim pengirim agar tag palsu tidak menjadi DOM aktif.
-    // Kecuali kontennya jelas berisi markup HTML (bounce/delivery report) —
-    // render sebagai HTML; DOMPurify tetap memfilter tag/atribut berbahaya.
-    if (looksLikeHtmlInPlainText(parts.content)) return parts.content;
-    return `<div style="white-space:pre-wrap">${escapeHtml(parts.content)}</div>`;
+    // Jangan escape HTML entities — biarkan DOMPurify yang handle.
+    // SOGo sering kirim bounce email sebagai text/plain dengan tag HTML
+    // semu (seperti <br/>, <div>, <a>) sebagai teks biasa.
+    // Dengan tidak escape, tag tersebut jadi HTML asli setelah DOMPurify.
+    // Bungkus di div agar whitespace terjaga.
+    return `<div style="white-space:pre-wrap">${parts.content}</div>`;
   }
   if (Array.isArray(parts.content)) {
     const htmlPart = parts.content.find((c) => c.contentType === 'text/html');
@@ -92,22 +64,14 @@ function extractHtml(parts) {
 
 function extractAttachments(parts, result = []) {
   if (!parts) return result;
-  if (Array.isArray(parts)) {
-    parts.forEach((child) => extractAttachments(child, result));
-    return result;
-  }
   const ct = parts.contentType || '';
   const isInline = ct === 'text/html' || ct === 'text/plain';
-  // Hanya part leaf dengan URL unduhan — container (multipart/mixed,
-  // alternative) tidak punya downloadURL, dilewati dan direkursi.
-  // `shouldDisplayAttachment === false` = gambar inline (CID) di body, bukan lampiran.
-  if ((parts.downloadURL || parts.viewURL) && !isInline && parts.shouldDisplayAttachment !== false) {
+  if (parts.downloadURL && !isInline) {
     result.push({
       name: parts.filename || parts.name || 'attachment',
       size: parts.size || 0,
       contentType: ct,
-      downloadURL: parts.downloadURL || parts.viewURL,
-      viewURL: parts.viewURL || parts.downloadURL,
+      downloadURL: parts.downloadURL,
     });
   }
   if (Array.isArray(parts.content)) {
@@ -118,15 +82,11 @@ function extractAttachments(parts, result = []) {
 
 function extractInlineImages(parts, result = []) {
   if (!parts) return result;
-  if (Array.isArray(parts)) {
-    parts.forEach((child) => extractInlineImages(child, result));
-    return result;
-  }
-  if (parts.contentType?.startsWith('image/') && (parts.downloadURL || parts.viewURL)) {
+  if (parts.contentType?.startsWith('image/') && parts.downloadURL) {
     result.push({
       name: parts.filename || parts.name || 'image',
       contentType: parts.contentType,
-      downloadURL: parts.downloadURL || parts.viewURL,
+      downloadURL: parts.downloadURL,
     });
   }
   if (Array.isArray(parts.content)) {
@@ -195,106 +155,39 @@ function prepareHtmlContent(rawHtml, inlineImages) {
 function formatAddresses(arr) {
   if (!arr) return '';
   if (typeof arr === 'string') return arr;
-  return arr.map((a) => {
-    if (typeof a === 'string') return a;
-    if (!a || typeof a !== 'object') return '';
-    return a.name ? `${a.name} <${a.email}>` : (a.email || '');
-  }).filter(Boolean).join(', ');
+  return arr.map((a) => (a.name ? `${a.name} <${a.email}>` : a.email)).join(', ');
 }
 
-// Ikon + warna per tipe lampiran (cepat dikenali tanpa buka file).
-const FILE_KIND_META = {
-  image:        { Icon: FileImage,        className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
-  pdf:          { Icon: FileText,         className: 'bg-rose-500/10 text-rose-600 dark:text-rose-400' },
-  archive:      { Icon: FileArchive,      className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
-  spreadsheet:  { Icon: FileSpreadsheet,  className: 'bg-green-500/10 text-green-600 dark:text-green-400' },
-  document:     { Icon: FileText,         className: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
-  presentation: { Icon: File,             className: 'bg-orange-500/10 text-orange-600 dark:text-orange-400' },
-  audio:        { Icon: FileAudio,        className: 'bg-purple-500/10 text-purple-600 dark:text-purple-400' },
-  video:        { Icon: FileVideo,        className: 'bg-pink-500/10 text-pink-600 dark:text-pink-400' },
-  code:         { Icon: FileCode,         className: 'bg-teal-500/10 text-teal-600 dark:text-teal-400' },
-  other:        { Icon: File,             className: 'bg-primary/10 text-primary' },
-};
+function formatFileSize(bytes) {
+  if (!bytes || bytes === 0) return '';
+  return bytes > 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.round(bytes / 1024)} KB`;
+}
 
-// Unduh satu file sebagai blob (same-origin → session cookie ikut), tanpa tab baru.
-async function downloadFileBlob(url, filename) {
-  const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) throw new Error(`${filename || 'file'} (${res.status})`);
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = objectUrl;
-  a.download = filename || 'attachment';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+function isImageType(ct) {
+  return ct?.startsWith('image/');
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, siblingUids = [], onNavigateTo }) {
+export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete }) {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [moveOpen, setMoveOpen] = React.useState(false);
-  const [quickOpen, setQuickOpen] = React.useState(false);
-  const [quickText, setQuickText] = React.useState('');
-  const [contactOpen, setContactOpen] = React.useState(false);
-  const [contactSaving, setContactSaving] = React.useState(false);
-  const [contactError, setContactError] = React.useState('');
-  const [downloadingAll, setDownloadingAll] = React.useState(false);
-  const [downloadProgress, setDownloadProgress] = React.useState('');
-  const [lightbox, setLightbox] = React.useState(null); // { name, url, kind } | null
 
-  const { data: msg, isLoading, error: msgError } = useQuery({
+  const { data: msg, isLoading } = useQuery({
     queryKey: ['message', user?.sogoToken, folder, msgId],
     queryFn: async () => {
-      // Bug fix: JANGAN panggil invalidateQueries di dalam queryFn —
-      // bisa cause cascading re-renders → React #310 infinite loop.
-      // markRead dipindah ke useEffect di bawah.
-      return fetchMessage(user?.sogoToken, folder, msgId);
+      const data = await fetchMessage(user?.sogoToken, folder, msgId);
+      markRead(user?.sogoToken, folder, msgId, true).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, folder] });
+        queryClient.invalidateQueries({ queryKey: ['unseen', user?.sogoToken] });
+      }).catch(() => {});
+      return data;
     },
     enabled: !!msgId && !!user?.sogoToken,
-    retry: 2,
-    retryDelay: 500,
   });
-
-  // Semua useRef DI SINI (sebelum conditional returns) — Rules of Hooks.
-  const markReadFired = React.useRef(false);
-  const contactNameRef = React.useRef(null);
-  const contactEmailRef = React.useRef(null);
-  const contactPhoneRef = React.useRef(null);
-  React.useEffect(() => {
-    if (!msg || !user?.sogoToken || !folder || !msgId) return;
-    if (markReadFired.current) return;
-    markReadFired.current = true;
-    markRead(user.sogoToken, folder, msgId, true).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, folder] });
-      queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-    }).catch((e) => console.error('[markRead]', e?.message || e));
-  }, [msg, user?.sogoToken, folder, msgId]);
-
-  // Preferences utk fallback signature SOGo lama (sama pola ComposeModal)
-  const { data: prefs } = useQuery({
-    queryKey: ['preferences', user?.sogoToken],
-    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
-    enabled: !!user?.sogoToken,
-    staleTime: 5 * 60_000,
-  });
-
-  // Auto-advance: setelah hapus/arsip/pindah, buka pesan berikutnya (pola Gmail).
-  // Kalau tidak ada, kembali ke daftar.
-  function navigateAfter() {
-    const idx = siblingUids.indexOf(msgId);
-    if (idx >= 0) {
-      const next = siblingUids[idx + 1] ?? siblingUids[idx - 1];
-      if (next) {
-        onNavigateTo?.(next);
-        return;
-      }
-    }
-    onClose();
-  }
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -308,7 +201,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      navigateAfter();
+      onClose();
       toast.success(folder === 'folderTrash' ? 'Pesan dihapus permanen' : 'Pesan dipindah ke Sampah');
     },
   });
@@ -326,42 +219,33 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      navigateAfter();
+      onClose();
       onMoveComplete?.();
       toast.success('Pesan dipindahkan');
     },
-  });
-
-  // Laporkan Spam — endpoint native SOGo markMessagesAsJunk (set flag Junk +
-  // pindahkan ke folder Junk sekaligus, lebih benar daripada move manual).
-  const spamMutation = useMutation({
-    mutationFn: () => markMessagesAsJunk(user.sogoToken, folder, [msgId]),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
-      queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      navigateAfter();
-      onMoveComplete?.();
-      toast.success('Pesan dilaporkan sebagai spam');
-    },
-    onError: (err) => toast.error(err?.message || 'Gagal melaporkan spam.'),
   });
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!msg) return;
     const handler = (e) => {
-      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName) || e.target.contentEditable === 'true') return;
-      // Jangan curi kombinasi browser/OS (copy, refresh, find, dll)
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
       if (e.key.toLowerCase() === 'r') { e.preventDefault(); handleReply(); }
       else if (e.key.toLowerCase() === 'f') { e.preventDefault(); handleForward(); }
       else if (e.key === 'Delete') { e.preventDefault(); if (!deleteMutation.isPending) deleteMutation.mutate(); }
       else if (e.key.toLowerCase() === 's') { e.preventDefault(); flagMutation.mutate(!(msg.isFlagged)); }
-      else if (e.key === 'Escape') { e.preventDefault(); if (lightbox) setLightbox(null); else onClose(); }
+      else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [msg, deleteMutation.isPending, lightbox]);
+  }, [msg, deleteMutation.isPending]);
+
+  function escapeHtml(str) {
+    return String(str).replace(/[<>&"']/g, c => {
+      const m = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' };
+      return m[c];
+    });
+  }
 
   function handlePrint() {
     if (!msg) return;
@@ -370,7 +254,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     // Semua nilai yang diinterpolasi ke document.write harus di-escape:
     // jendela print (about:blank) berbagi origin dengan opener, jadi HTML
     // berbahaya di sini bisa mengakses halaman induk (cookie/opener).
-    const safeSubject = escapeHtml(subject);
+    const safeSubject = escapeHtml(msg.subject);
     const safeFrom    = escapeHtml(formatAddresses(msg.from));
     const safeTo      = escapeHtml(formatAddresses(msg.to));
     const safeCc      = escapeHtml(formatAddresses(msg.cc));
@@ -389,7 +273,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         <p><strong>Tanggal:</strong> ${safeDate}</p>
       </div>
       <hr>
-      ${displayHtml}
+      ${cleanHtml}
     </body></html>`);
     win.document.close();
     win.print();
@@ -398,38 +282,6 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   if (!msgId) return null;
 
   if (isLoading) return <MessageReaderSkeleton />;
-
-  // Bug fix: tampilkan error UI yang user-friendly (bukan ErrorBoundary crash)
-  if (msgError) {
-    const isNetwork = msgError?.message?.includes('NetworkError') || msgError?.message?.includes('fetch');
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4 px-6">
-        <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
-          <AlertCircle size={20} className="text-destructive" />
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-medium text-foreground mb-1">Gagal memuat pesan</p>
-          <p className="text-xs text-muted-foreground">
-            {isNetwork ? 'Periksa koneksi internet Anda.' : 'Server sedang sibuk. Silakan coba lagi.'}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['message', user?.sogoToken, folder, msgId] })}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors"
-          >
-            <RefreshCw size={12} /> Coba Lagi
-          </button>
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs font-medium hover:bg-muted/80 transition-colors"
-          >
-            Kembali
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   if (!msg) {
     return (
@@ -445,32 +297,15 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const to = formatAddresses(msg.to);
   const cc = formatAddresses(msg.cc);
   const replyTo = formatAddresses(msg['reply-to']);
-  // Subject dari SOGo bisa berupa object (bukan string) — normalisasi sebelum
-  // dipakai di render, startsWith(), dan escapeHtml() agar tidak TypeError.
-  const subject = typeof msg.subject === 'string' && msg.subject.trim()
-    ? msg.subject
-    : '(Tanpa Subjek)';
-  const date = typeof msg.date === 'string' ? msg.date : String(msg.date || '');
+  const subject = msg.subject || '(Tanpa Subjek)';
+  const date = msg.date || '';
 
   const rawHtml = extractHtml(msg.parts);
   const attachments = extractAttachments(msg.parts);
   const inlineImages = extractInlineImages(msg.parts);
-  const totalSize = totalAttachmentSize(attachments);
-  // Inisial avatar konsisten dengan daftar email: penerima utk Terkirim/Draf, pengirim utk lainnya
-  const isSentOrDraft = isSentOrDraftFolder(folder, folders);
-  const avatarName = isSentOrDraft ? (to || from) : from;
-  // Orang yang relevan utk "Tambah ke Kontak" — pengirim (inbox) / penerima pertama (Terkirim)
-  const contactSource = isSentOrDraft
-    ? (Array.isArray(msg.to) ? msg.to : [])
-    : (Array.isArray(msg.from) ? msg.from : []);
-  const contactPerson = contactSource[0] || {};
   const cleanHtml = rawHtml
     ? prepareHtmlContent(rawHtml, inlineImages)
     : '<p style="color:var(--muted-foreground);font-size:.875rem;margin:0">Tidak ada konten.</p>';
-  // Gambar eksternal di-proxy (anti tracking-pixel) HANYA utk tampilan di layar;
-  // quote balasan/forward & compose tetap pakai cleanHtml (URL asli) karena
-  // konten itu dikirim sebagai email dan harus valid untuk penerima.
-  const displayHtml = proxyExternalImages(cleanHtml);
 
   function handleReply() {
     // Semua header email (from/to/date/subject) adalah input dari pengirim dan
@@ -487,7 +322,6 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         <b>Tanggal:</b> ${safeDate}<br>
         <b>Kepada:</b> ${safeTo}<br>
         <b>Subjek:</b> ${safeSubject}<br><br>${cleanHtml}</blockquote>`,
-      composeMode: 'reply',
     });
   }
 
@@ -504,109 +338,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         <b>Tanggal:</b> ${safeDate}<br>
         <b>Kepada:</b> ${safeTo}<br>
         <b>Subjek:</b> ${safeSubject}<br><br>${cleanHtml}</blockquote>`,
-      composeMode: 'reply',
     });
   }
-
-  // ── Quick reply ────────────────────────────────────────────────────────────
-  // Balas singkat tanpa buka compose penuh — kirim via SOGo compose flow
-  // (sama seperti ComposeModal), penerima = replyTo || from.
-  // Signature ikut disisipkan: lokal mode reply (pola Outlook) + fallback
-  // signature SOGo lama (sama logika ComposeModal).
-  async function handleQuickSend() {
-    const body = quickText.trim();
-    if (!body) return;
-    const recipient = replyTo || from;
-    // Bug fix: validasi recipient sebelum kirim
-    if (!recipient || !recipient.trim()) {
-      toast.error('Tidak ada alamat penerima — gunakan Balas Lengkap.');
-      return;
-    }
-    // Signature: lokal utk balasan; fallback SOGoMailSignature lama bila belum ada
-    const localSig = user?.email ? getSignatureFor(user.email, 'reply') : null;
-    const sigHtml = localSig?.html || prefs?.defaults?.SOGoMailSignature;
-    const sigEnabled = localSig
-      ? true
-      : prefs?.defaults?.SOGoMailSignatureEnabled === '1';
-    const sigBlock = sigHtml && sigEnabled ? `<br>--<br>${sigHtml}` : '';
-    try {
-      await sendMessage(user.sogoToken, {
-        to: recipient,
-        cc: '',
-        bcc: '',
-        subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
-        body: escapeHtml(body).replace(/\n/g, '<br>') + sigBlock,
-        isHTML: true,
-        from: user?.cn ? `${user.cn} <${user.email}>` : user?.email || '',
-      });
-      setQuickText('');
-      setQuickOpen(false);
-      toast.success('Balasan terkirim.');
-    } catch (err) {
-      toast.error(err?.message || 'Gagal mengirim balasan.');
-    }
-  }
-
-  // ── Unduh semua lampiran ───────────────────────────────────────────────────
-  // SOGo downloadURL diarahkan ke tab baru per lampiran (session cookie ikut).
-  async function handleDownloadAll() {
-    if (downloadingAll) return;
-    const files = attachments
-      .map((att) => ({ url: toSafeUrl(att.downloadURL, { base: SOGO_BASE, allowExternal: false }), name: att.name }))
-      .filter((f) => f.url);
-    if (files.length === 0) return;
-    setDownloadingAll(true);
-    try {
-      let done = 0;
-      for (const f of files) {
-        await downloadFileBlob(f.url, f.name);
-        done += 1;
-        setDownloadProgress(`${done}/${files.length}`);
-      }
-      toast.success(`${done} lampiran diunduh.`);
-    } catch (err) {
-      toast.error(err?.message || 'Gagal mengunduh lampiran.');
-    } finally {
-      setDownloadingAll(false);
-      setDownloadProgress('');
-    }
-  }
-
-  // Buka preview lightbox utk gambar/PDF; file lain → unduh di tab baru.
-  function openPreview(att) {
-    const url = toSafeUrl(att.viewURL || att.downloadURL, { base: SOGO_BASE, allowExternal: false });
-    if (!url) return;
-    const kind = getFileKind(att.name, att.contentType);
-    if (kind === 'image' || kind === 'pdf') {
-      setLightbox({ name: att.name, url, kind });
-    } else {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-  }
-
-  // ── Tambah ke kontak ───────────────────────────────────────────────────────
-  // Simpan pengirim/penerima email ini ke kontak personal (1 klik, form terisi).
-  async function handleSaveContact(e) {
-    e.preventDefault();
-    if (contactSaving) return;
-    setContactError('');
-    setContactSaving(true);
-    try {
-      await createContact(user.sogoToken, {
-        c_cn: (contactNameRef.current || '').trim(),
-        c_mail: (contactEmailRef.current || '').trim(),
-        c_telephonenumber: (contactPhoneRef.current || '').trim(),
-      });
-      setContactOpen(false);
-      toast.success('Kontak disimpan');
-    } catch (err) {
-      setContactError(err?.message || 'Gagal menyimpan kontak.');
-    } finally {
-      setContactSaving(false);
-    }
-  }
-  // contactNameRef, contactEmailRef, contactPhoneRef sudah dideklarasikan di atas
-  // (sebelum conditional returns) utk mematuhi Rules of Hooks.
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -621,7 +354,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             onClick={() => markRead(user.sogoToken, folder, msgId, false).then(() => {
               queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, folder] });
               queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-            }).catch((e) => console.error('[markRead]', e?.message || e))}
+            }).catch(() => {})}
             className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
             title="Tandai belum dibaca (U)"
           >
@@ -646,12 +379,12 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           </button>
           {folder !== 'folderJunk' && (
             <button
-              onClick={() => spamMutation.mutate()}
-              disabled={spamMutation.isPending}
-              className="p-2 rounded-xl text-orange-500 hover:bg-orange-500/10"
+              onClick={() => moveMutation.mutate('folderJunk')}
+              disabled={moveMutation.isPending}
+              className="p-2 rounded-xl text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10"
               title="Laporkan Spam"
             >
-              {spamMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <AlertTriangle size={18} />}
+              <AlertTriangle size={18} />
             </button>
           )}
           {/* Move to folder — click toggle (mobile-friendly) */}
@@ -672,7 +405,6 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                     {folders.filter((f) => f.id !== folder).map((f) => (
                       <button
                         key={f.id}
-                        style={{ paddingLeft: `${12 + (f.depth || 0) * 16}px` }}
                         onClick={() => { moveMutation.mutate(f.id); setMoveOpen(false); }}
                         disabled={moveMutation.isPending}
                         className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors disabled:opacity-50"
@@ -688,29 +420,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           <button onClick={handlePrint} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted" title="Cetak">
             <Printer size={18} />
           </button>
-          {(contactPerson?.email || contactPerson?.name) && (
-            <button
-              onClick={() => { setContactError(''); setContactOpen(true); }}
-              className="p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-muted"
-              title="Tambah ke kontak"
-            >
-              <UserPlus size={18} />
-            </button>
-          )}
         </div>
 
         <div className="flex items-center gap-1">
-          <button
-            data-shortcut="quickreply"
-            onClick={() => setQuickOpen(v => !v)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-              quickOpen ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'
-            }`}
-            title="Balas cepat — kirim langsung tanpa compose"
-          >
-            <ChevronDown size={14} className={`transition-transform ${quickOpen ? 'rotate-180' : ''}`} />
-            Balas Cepat
-          </button>
           <button data-shortcut="reply" onClick={handleReply} className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-muted-foreground hover:bg-muted text-sm font-medium" title="Balas (R)">
             <Reply size={16} /> Balas
           </button>
@@ -723,72 +435,56 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       {/* Message header */}
       <div className="px-6 py-5 border-b border-border">
         <h1 className="text-xl font-semibold text-foreground mb-4 leading-tight">{subject}</h1>
-        <div className="flex items-start gap-3">
-          {/* Avatar inisial — konsisten dengan daftar email */}
-          <Avatar name={avatarName} size="md" className="mt-1" />
-          <div className="text-sm flex-1 min-w-0">
-            <div className="flex justify-between items-start gap-4">
-              <div className="space-y-1 flex-1 min-w-0">
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground shrink-0 w-16 text-right">Dari:</span>
-                  <span className="font-medium text-foreground truncate">{from}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground shrink-0 w-16 text-right">Kepada:</span>
-                  <span className="text-foreground truncate">{to}</span>
-                </div>
-                {cc && (
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground shrink-0 w-16 text-right">Cc:</span>
-                    <span className="text-foreground truncate">{cc}</span>
-                  </div>
-                )}
+        <div className="space-y-1.5 text-sm">
+          <div className="flex justify-between items-start gap-4">
+            <div className="space-y-1 flex-1 min-w-0">
+              <div className="flex gap-2">
+                <span className="text-muted-foreground shrink-0 w-16 text-right">Dari:</span>
+                <span className="font-medium text-foreground truncate">{from}</span>
               </div>
-              <div className="text-muted-foreground text-xs shrink-0 text-right">{date}</div>
+              <div className="flex gap-2">
+                <span className="text-muted-foreground shrink-0 w-16 text-right">Kepada:</span>
+                <span className="text-foreground truncate">{to}</span>
+              </div>
+              {cc && (
+                <div className="flex gap-2">
+                  <span className="text-muted-foreground shrink-0 w-16 text-right">Cc:</span>
+                  <span className="text-foreground truncate">{cc}</span>
+                </div>
+              )}
             </div>
+            <div className="text-muted-foreground text-xs shrink-0 text-right">{date}</div>
           </div>
         </div>
       </div>
 
       {/* Message body */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="email-body" dangerouslySetInnerHTML={{ __html: displayHtml }} />
+        <div className="email-body" dangerouslySetInnerHTML={{ __html: cleanHtml }} />
 
-        {/* Quick reply — balas singkat tanpa compose */}
-        {quickOpen && (
-          <div className="mt-6 pt-4 border-t border-border">
-            <div className="text-sm font-medium text-foreground mb-2">
-              Balas ke: {replyTo || from}
-            </div>
-            <textarea
-              autoFocus
-              rows={3}
-              value={quickText}
-              onChange={(e) => setQuickText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  handleQuickSend();
-                }
-              }}
-              placeholder="Tulis balasan singkat... (Cmd/Ctrl+Enter utk kirim)"
-              className="w-full bg-muted border-none rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none resize-y"
-            />
-            <div className="flex items-center justify-end gap-2 mt-2">
-              <button
-                onClick={() => { setQuickOpen(false); setQuickText(''); }}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleQuickSend}
-                disabled={!quickText.trim()}
-                className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 transition-colors"
-              >
-                <Send size={13} />
-                Kirim
-              </button>
+        {/* Inline images preview */}
+        {inlineImages.length > 0 && (
+          <div className="mt-6 space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">Gambar</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {inlineImages.map((img, idx) => (
+                <a
+                  key={idx}
+                  href={toSafeUrl(img.downloadURL, { base: SOGO_BASE, allowExternal: false }) || undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group relative rounded-xl overflow-hidden border border-border bg-card hover:ring-2 hover:ring-primary/30 transition-all"
+                >
+                  <img
+                    src={toSafeUrl(img.downloadURL, { base: SOGO_BASE, allowExternal: false }) || undefined}
+                    alt={img.name}
+                    className="w-full h-32 object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                  <div className="px-2 py-1 text-xs text-muted-foreground truncate">{img.name}</div>
+                </a>
+              ))}
             </div>
           </div>
         )}
@@ -796,31 +492,14 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         {/* Attachments */}
         {attachments.length > 0 && (
           <div className="mt-8 pt-6 border-t border-border">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Paperclip size={16} />
-                Lampiran ({attachments.length})
-                {totalSize && <span className="text-xs font-normal text-muted-foreground">· {totalSize}</span>}
-              </h3>
-              {attachments.length > 1 && (
-                <button
-                  onClick={handleDownloadAll}
-                  disabled={downloadingAll}
-                  className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-60"
-                  title="Unduh semua lampiran"
-                >
-                  {downloadingAll ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                  {downloadingAll ? (downloadProgress ? `Mengunduh ${downloadProgress}` : 'Mengunduh…') : 'Unduh Semua'}
-                </button>
-              )}
-            </div>
+            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Paperclip size={16} />
+              Lampiran ({attachments.length})
+            </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {attachments.map((att, idx) => {
                 const attUrl = toSafeUrl(att.downloadURL, { base: SOGO_BASE, allowExternal: false });
-                const kind = getFileKind(att.name, att.contentType);
-                const isImage = kind === 'image';
-                const FileIcon = (FILE_KIND_META[kind] || FILE_KIND_META.other).Icon;
-                const iconClass = (FILE_KIND_META[kind] || FILE_KIND_META.other).className;
+                const isImage = isImageType(att.contentType);
 
                 // Image attachments: show thumbnail preview
                 if (isImage) {
@@ -830,9 +509,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                       href={attUrl || undefined}
                       target="_blank"
                       rel="noreferrer"
-                      onClick={(e) => { e.preventDefault(); openPreview(att); }}
                       className="group relative rounded-xl overflow-hidden border border-border bg-card hover:ring-2 hover:ring-primary/30 transition-all"
-                      title="Pratinjau gambar"
                     >
                       <img src={attUrl} alt={att.name} className="w-full h-36 object-cover" loading="lazy" />
                       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-3">
@@ -840,34 +517,29 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                         <div className="text-white/80 text-xs">{formatFileSize(att.size)}</div>
                       </div>
                       <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Eye size={14} className="text-white" />
+                        <Download size={14} className="text-white" />
                       </div>
                     </a>
                   );
                 }
 
-                // Non-image attachments: file card (PDF → preview lightbox)
-                const isPdf = kind === 'pdf';
+                // Non-image attachments: file card
                 return (
                   <a
                     key={idx}
                     href={attUrl || undefined}
-                    target={isPdf ? undefined : '_blank'}
-                    rel={isPdf ? undefined : 'noreferrer'}
-                    onClick={isPdf ? (e) => { e.preventDefault(); openPreview(att); } : undefined}
+                    target="_blank"
+                    rel="noreferrer"
                     className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-muted transition-colors group"
-                    title={isPdf ? 'Pratinjau PDF' : undefined}
                   >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${iconClass}`}>
-                      <FileIcon size={20} />
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                      <FileText size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-foreground truncate">{att.name}</div>
                       <div className="text-xs text-muted-foreground">{formatFileSize(att.size) || att.contentType || ''}</div>
                     </div>
-                    {isPdf
-                      ? <Eye size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />
-                      : <Download size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />}
+                    <Download size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />
                   </a>
                 );
               })}
@@ -875,119 +547,6 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           </div>
         )}
       </div>
-
-      {/* ── Preview lampiran (lightbox) ────────────────────────────────────── */}
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/85 flex flex-col items-center justify-center p-4"
-          onClick={() => setLightbox(null)}
-        >
-          <div
-            className="flex flex-col w-full max-w-5xl max-h-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <span className="text-white text-sm font-medium truncate flex-1">{lightbox.name}</span>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => downloadFileBlob(lightbox.url, lightbox.name)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
-                >
-                  <Download size={14} /> Unduh
-                </button>
-                <a
-                  href={lightbox.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
-                >
-                  <ExternalLink size={14} /> Tab baru
-                </a>
-                <button
-                  onClick={() => setLightbox(null)}
-                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-                  aria-label="Tutup pratinjau"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 min-h-0 rounded-xl overflow-hidden bg-black/40 border border-white/10">
-              {lightbox.kind === 'image' ? (
-                <img src={lightbox.url} alt={lightbox.name} className="w-full h-[80vh] object-contain" />
-              ) : (
-                <iframe src={lightbox.url} title={lightbox.name} className="w-full h-[80vh] bg-white" />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Tambah ke kontak modal ─────────────────────────────────────────── */}
-      {contactOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setContactOpen(false)}>
-          <div
-            className="bg-card w-full max-w-md rounded-2xl shadow-xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-base font-semibold">Tambah ke Kontak</h2>
-              <button onClick={() => setContactOpen(false)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground">
-                <X size={16} />
-              </button>
-            </div>
-            <form onSubmit={handleSaveContact} className="p-5 space-y-4">
-              {contactError && (
-                <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg">{contactError}</div>
-              )}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-foreground">Nama Lengkap</label>
-                <input
-                  ref={contactNameRef}
-                  defaultValue={contactPerson?.name || contactPerson?.email || ''}
-                  placeholder="John Doe"
-                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-foreground">Email</label>
-                <input
-                  ref={contactEmailRef}
-                  defaultValue={contactPerson?.email || ''}
-                  type="email"
-                  required
-                  placeholder="email@domain.com"
-                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-foreground">No. Telepon</label>
-                <input
-                  ref={contactPhoneRef}
-                  placeholder="+62..."
-                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
-                />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setContactOpen(false)}
-                  className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-medium"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={contactSaving}
-                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
-                >
-                  {contactSaving ? <Loader2 size={14} className="animate-spin" /> : 'Simpan'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
