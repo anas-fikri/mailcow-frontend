@@ -40,6 +40,7 @@
     "test:deploy-runtime-env": "bash scripts/test-deploy-runtime-env.sh",
     "test:smtp-heartbeat": "node scripts/test-smtp-heartbeat.mjs",
     "test:purify-hardening": "node scripts/test-purify-hardening.mjs",
+    "test:send-sanitize": "node scripts/test-send-sanitize.mjs",
     "test:remote-image": "node scripts/test-remote-image.mjs",
     "test:attachment-validation": "node scripts/test-attachment-validation.mjs",
     "test:calendar-api": "node scripts/test-calendar-api.mjs",

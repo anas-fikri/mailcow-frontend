@@ -1814,3 +1814,42 @@ terdeteksi lebih mudah. **SELESAI & LIVE** (39/39 test PASS, build OK).
 -  M src/lib/snooze.js
 -  M src/lib/storageMigrate.js
 -  M src/lib/userPrefs.js
+
+## Handoff — sanitasi jalur kirim email (defense-in-depth)
+
+**Task:** Pastikan body compose selalu melalui DOMPurify sebelum dikirim.
+**SELESAI & LIVE** (40/40 test PASS, build OK).
+
+### Temuan audit
+- Jalur: `ComposeModal.handleSend` (sudah `DOMPurify.sanitize` utk mode rich)
+  → `sendMessage()` → `/api/send` (SMTP proxy) / SOGo `/send` / fallback SMTP.
+- Gap: `sendMessage` (chokepoint) tidak menyanitasi ulang — satu-satunya
+  pemanggil saat ini adalah ComposeModal, tapi jalur masa depan rentan.
+
+### Perubahan
+- `src/lib/api.js` `sendMessage`: `safeBody = isHTML && DOMPurify?.isSupported
+  ? DOMPurify.sanitize(body, PURIFY_CONFIG) : body` — dipakai di ketiga jalur
+  kirim. Guard isSupported utk Node/test tanpa DOM.
+- Import DOMPurify + PURIFY_CONFIG di api.js (tidak ada circular dependency).
+- `scripts/test-send-sanitize.mjs` (baru, `test:send-sanitize`): jsdom +
+  mock fetch — assert script/onerror/javascript:/data: href hilang,
+  rel=noopener dipaksa, konten sah dipertahankan, plain text tidak diubah,
+  fallback 501 ter-sanitize, body kosong tidak crash.
+
+### Deploy
+- Commit → push origin/main → `SERVER=deploy-mail ./deploy.sh`.
+
+### Next task suggestion
+- Pantau log `/api/send` seminggu: cek 4xx tak biasa (Zod/rate-limit) — kalau
+  ada, periksa apakah payload body memuat HTML mentah dari jalur non-editor.
+
+## 2026-08-21T10:24:14Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M package.json
+-  M src/lib/api.js
+- ?? scripts/test-send-sanitize.mjs

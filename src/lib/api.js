@@ -1,5 +1,7 @@
 import { pathSegment } from './pathSegment.js';
 import { readStorage, persistNormalized } from './storageMigrate.js';
+import DOMPurify from 'dompurify';
+import { PURIFY_CONFIG } from './pasteUtils.js';
 import { getMessageTotal } from './messageTotals.js';
 import { parseMessageRows } from './messageRows.js';
 import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
@@ -876,6 +878,16 @@ export async function deleteDraft(sogoToken, uid) {
 export async function sendMessage(sogoToken, payload) {
   const { to, cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '', attachments = [] } = payload;
 
+  // Defense-in-depth sanitasi: body HTML SELALU melewati DOMPurify sebelum
+  // dikirim — terlepas dari apa pun yang dipanggil (ComposeModal memang sudah
+  // sanitize saat handleSend, tapi chokepoint ini menjamin pemanggil lain /
+  // jalur masa depan tidak bisa mengirim HTML mentah). Konfigurasi sama dengan
+  // editor (PURIFY_CONFIG) agar output tidak berubah untuk konten sah.
+  // Guard isSupported: DOMPurify tanpa window (Node/test tanpa jsdom) tidak
+  // punya sanitize — lewatkan apa adanya; di browser (satu-satunya tempat
+  // sendMessage dipakai) sanitize selalu aktif.
+  const safeBody = isHTML && DOMPurify?.isSupported ? DOMPurify.sanitize(body, PURIFY_CONFIG) : body;
+
   // Bila ada lampiran, kirim LANGSUNG via proxy SMTP (/api/send) — SOGo
   // /send di lingkungan ini 501 (tidak diimplementasikan) sehingga semua
   // pengiriman nyata sudah lewat SMTP; mem-bypass draft SOGo menjamin
@@ -886,7 +898,7 @@ export async function sendMessage(sogoToken, payload) {
       credentials: 'include',
       headers: withApiKey({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
-        to, cc, bcc, subject, body, isHTML, from,
+        to, cc, bcc, subject, body: safeBody, isHTML, from,
         attachments: attachments.map(a => ({
           filename: a.filename || a.name || 'attachment',
           contentType: a.contentType || a.type || 'application/octet-stream',
@@ -925,7 +937,7 @@ export async function sendMessage(sogoToken, payload) {
     replyTo: '',
     inReplyTo: '',
     references: '',
-    text: body,
+    text: safeBody,
     isHTML,
     from
   };
@@ -953,7 +965,7 @@ export async function sendMessage(sogoToken, payload) {
     method: 'POST',
     credentials: 'include',
     headers: withApiKey({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ to, cc, bcc, subject, body, isHTML, from, attachments }),
+    body: JSON.stringify({ to, cc, bcc, subject, body: safeBody, isHTML, from, attachments }),
   });
   if (smtpRes.status === 401) throwIfAuthError(smtpRes);
   if (!smtpRes.ok) {
