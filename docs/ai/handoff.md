@@ -1604,3 +1604,37 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M src/lib/signatures.js
 -  M src/pages/PreferencesPage.jsx
 - ?? scripts/test-settings-signature.mjs
+
+## 2026-08-21 — Audit normalisasi data localStorage/API (pola loadSignatures) — DONE + siap deploy
+
+- **Permintaan:** lanjutan fix crash Settings — audit semua akses data tanpa guard, tambah normalisasi serupa.
+- **getRules (autoArchive) [HIGH]:** JSON.parse mentah → non-array crash RulesPage (`rules.map`), value non-string crash matchRules (`c.value.trim()`). Kini filter + normalisasi penuh di source.
+- **loadPrefsFromLocal (api.js):** cache `sogo_prefs_<email>` non-object → `{defaults:{},settings:{}}`.
+- **fetchContacts (api.js):** baris non-array dibuang (pola parseMessageRow).
+- **loadSnoozes (snooze.js):** nilai → number; null/true/NaN dibuang (Number(null)=0 menjebak).
+- **flattenMailboxes (mailboxTree.js):** entri null dilewati, path/name String()-coerced.
+- **flagColors getStore:** JSON null/array/string → {}.
+- **Sudah aman:** parseMessageRows, fetchCalendarEvents, userPrefs, MessageReader/ComposeModal (?.html), StatsPage.
+- **Test:** 36/36 PASS (baru test:autoarchive; diperluas test:snooze, test:mailbox-tree, test:preferences-fallback).
+- **Pelajaran:** polanya sama di semua modul storage — baca JSON mentah lalu konsumen render akses field → TypeError. Normalisasi di source reader + unit test legacy data = pola wajib.
+
+## 2026-08-21T09:38:37Z
+- Status: COMPLETED
+- Objective: Audit semua akses data localStorage/API yang tanpa guard di seluruh halaman dan
+tambahkan normalisasi serupa (pola loadSignatures) — lanjutan dari fix crash
+Settings (signature legacy tanpa html).
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M package.json
+-  M scripts/test-mailbox-tree.mjs
+-  M scripts/test-preferences-fallback.mjs
+-  M scripts/test-snooze.mjs
+-  M src/lib/api.js
+-  M src/lib/autoArchive.js
+-  M src/lib/flagColors.js
+-  M src/lib/mailboxTree.js
+-  M src/lib/snooze.js
+- ?? scripts/test-autoarchive.mjs

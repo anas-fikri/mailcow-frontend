@@ -37,4 +37,27 @@ assert.equal(isSnoozed('u@example.com', 2, now), true);
 assert.equal(SNOOZE_PRESETS.length, 4);
 assert.ok(SNOOZE_PRESETS.every((p) => p.hours > 0));
 
+// ── Normalisasi data legacy/rusak (pola loadSignatures) ─────────────────────
+// Nilai non-numerik / tidak finite dibuang; string epoch di-coerce ke number.
+storage.set('pcp_snooze_u@example.com', JSON.stringify({
+  '1': '123456',   // string → number
+  '2': null,       // dibuang
+  '3': 'abc',      // NaN → dibuang
+  '4': 555,        // number dipertahankan
+  '5': true,       // dibuang
+}));
+const norm = loadSnoozes('u@example.com');
+assert.deepEqual(norm, { '1': 123456, '4': 555 });
+assert.equal(isSnoozed('u@example.com', '1', 123450), true, 'string epoch dinormalisasi ke number');
+assert.equal(isSnoozed('u@example.com', '2', 0), false);
+assert.equal(isSnoozed('u@example.com', '5', 0), false);
+
+// JSON "null" / array / non-object → {} (bukan crash)
+storage.set('pcp_snooze_u@example.com', 'null');
+assert.deepEqual(loadSnoozes('u@example.com'), {});
+storage.set('pcp_snooze_u@example.com', JSON.stringify([1, 2]));
+assert.deepEqual(loadSnoozes('u@example.com'), {});
+storage.set('pcp_snooze_u@example.com', '"string"');
+assert.deepEqual(loadSnoozes('u@example.com'), {});
+
 console.log('snooze assertions passed');

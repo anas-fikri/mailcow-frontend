@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-21T09:29:56Z",
+  "last_session": "2026-08-21T09:38:37Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -359,12 +359,12 @@
     }
   ],
   "active_task": {
-    "id": "20260821-settings-crash-fix",
+    "id": "20260821-data-normalization-audit",
     "status": "COMPLETED",
-    "objective": "Fix halaman /webmail/settings yang menampilkan \"Terjadi Kesalahan\" (ErrorBoundary root)",
+    "objective": "Audit semua akses data localStorage/API yang tanpa guard di seluruh halaman dan\ntambahkan normalisasi serupa (pola loadSignatures) — lanjutan dari fix crash\nSettings (signature legacy tanpa html).",
     "next_step": "",
     "goal_id": "",
     "sub_goal_id": "",
-    "updated_at": "2026-08-21T09:29:56Z"
+    "updated_at": "2026-08-21T09:38:37Z"
   }
 }

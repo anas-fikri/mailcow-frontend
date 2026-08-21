@@ -22,7 +22,11 @@ function getStore(email) {
   if (!email) return {};
   try {
     const raw = localStorage.getItem(LS_KEY(email));
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    // Guard bentuk: JSON "null"/array/string → operasi store[...] crash.
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed;
   } catch {
     return {};
   }

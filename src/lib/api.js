@@ -995,6 +995,9 @@ export async function fetchContacts(sogoToken) {
     const rows = data.headers?.slice(1) || [];
 
     return rows.map(row => {
+      // Guard baris malformed (sama dgn parseMessageRow): baris non-array
+      // (null/string) tidak boleh crash — buang dan lanjutkan.
+      if (!Array.isArray(row)) return null;
       const c = Object.fromEntries(cols.map((k, i) => [k, row[i]]));
       return {
         uid:       c.id    || c.c_uid || '',
@@ -1007,7 +1010,7 @@ export async function fetchContacts(sogoToken) {
         isGAL:     String(c.containerName || '').includes('GAL'),
         source:    c.sourceID || '',
       };
-  });
+    }).filter(Boolean);
   } catch (e) {
     // Auth failure harus propagate (biar session-expired UI jalan);
     // error lain juga propagate agar halaman menampilkan error, bukan state kosong palsu.
@@ -1306,7 +1309,19 @@ function savePrefsToLocal(email, prefs) {
 function loadPrefsFromLocal(email) {
   try {
     const raw = localStorage.getItem(LS_KEY(email));
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Normalisasi bentuk: konsumen (DisplaySection/VacationSection/...)
+    // membaca prefs.defaults.* dan prefs.settings — pastikan keduanya object
+    // (data cache lama bisa berbentuk apa pun → jangan dioper mentah; bentuk
+    // rusak dianggap "belum ada preferensi" = bentuk kosong valid).
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { defaults: {}, settings: {} };
+    }
+    return {
+      defaults: parsed.defaults && typeof parsed.defaults === 'object' ? parsed.defaults : {},
+      settings: parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : {},
+    };
   } catch { return null; }
 }
 

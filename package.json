@@ -43,7 +43,8 @@
     "test:remote-image": "node scripts/test-remote-image.mjs",
     "test:attachment-validation": "node scripts/test-attachment-validation.mjs",
     "test:calendar-api": "node scripts/test-calendar-api.mjs",
-    "test:settings-signature": "npm run build && node scripts/test-settings-signature.mjs"
+    "test:settings-signature": "npm run build && node scripts/test-settings-signature.mjs",
+    "test:autoarchive": "node scripts/test-autoarchive.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

@@ -1,20 +1,20 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-21T09:29:56Z
+Generated At: 2026-08-21T09:38:38Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [HIGH] Run or verify validation: 35/35 test PASS (termasuk test:settings-signature + test:signatures baru)
+## 1. [HIGH] Run or verify validation: 36/36 test PASS · npm run build OK
 - Why: Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 2. [MEDIUM] Follow up on discovered knowledge: Settings crash root cause terkonfirmasi: sig.html.length pada entri signature legacy (tanpa field html) di localStorage -> TypeError -> ErrorBoundary root. Fix: guard optional chaining + normalisasi entri di loadSignatures + SectionErrorBoundary per-tab. Repro jsdom end-to-end (test-settings-signature.mjs) + unit test legacy. Teknik verifikasi: deployed chunk == HEAD via normalisasi nama chunk; VITE_API_KEY di-bake saat build membuat semua hash chunk berubah.
+## 2. [MEDIUM] Follow up on discovered knowledge: Audit normalisasi data storage selesai: getRules (autoArchive), loadPrefsFromLocal + fetchContacts (api.js), loadSnoozes (snooze.js), flattenMailboxes (mailboxTree.js), getStore (flagColors) kini menormalkan data legacy di source reader (pola loadSignatures). Jebakan: Number(null)=0, Number(true)=1. Test baru test:autoarchive + perluasan test:snooze/mailbox-tree/preferences-fallback. 36/36 PASS.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
 ## 3. [LOW] Review and commit current changes
-- Why: 10 uncommitted file entries remain in the project.
+- Why: 14 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use

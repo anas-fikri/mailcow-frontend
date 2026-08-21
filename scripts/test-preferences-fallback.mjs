@@ -59,6 +59,39 @@ try {
   assert.equal(prefs4, null, 'guard harus skip saat email kosong');
   assert.equal(fetchCalled, 0, 'guard harus mencegah pemanggilan fetch');
 
+  // ── 5. Normalisasi fallback localStorage (pola loadSignatures) ─────────────
+  // Cache lokal sogo_prefs_<email> dari versi lama bisa berbentuk apa pun.
+  // 401 → fallback ke localStorage → hasil harus { defaults, settings } object.
+  const ls = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => ls.get(k) ?? null,
+    setItem: (k, v) => ls.set(k, String(v)),
+    removeItem: (k) => ls.delete(k),
+  };
+  globalThis.fetch = async () => response(401, { message: 'Sesi SMTP sudah berakhir.' });
+
+  ls.set('sogo_prefs_user@x.test', JSON.stringify({ defaults: { SOGoTimeZone: 'Asia/Jakarta' }, settings: {} }));
+  const prefs5 = await api.fetchPreferences('token@x.test', 'user@x.test');
+  assert.ok(prefs5 && typeof prefs5 === 'object', 'fallback harus mengembalikan object');
+  assert.equal(prefs5.defaults.SOGoTimeZone, 'Asia/Jakarta');
+  assert.ok(prefs5.settings && typeof prefs5.settings === 'object');
+
+  // Cache berbentuk string/array/null → dinormalisasi jadi { defaults:{}, settings:{} }
+  ls.set('sogo_prefs_user@x.test', '"bukan-prefs"');
+  const prefs6 = await api.fetchPreferences('token@x.test', 'user@x.test');
+  assert.deepEqual(prefs6, { defaults: {}, settings: {} }, 'cache non-object harus dinormalisasi');
+  ls.set('sogo_prefs_user@x.test', 'null');
+  const prefs7 = await api.fetchPreferences('token@x.test', 'user@x.test');
+  assert.deepEqual(prefs7, { defaults: {}, settings: {} }, 'JSON null harus dinormalisasi');
+  ls.set('sogo_prefs_user@x.test', JSON.stringify([1, 2]));
+  const prefs8 = await api.fetchPreferences('token@x.test', 'user@x.test');
+  assert.deepEqual(prefs8, { defaults: {}, settings: {} }, 'array harus dinormalisasi');
+
+  // defaults/settings non-object (string) → dipaksa {} agar akses .SOGo* aman
+  ls.set('sogo_prefs_user@x.test', JSON.stringify({ defaults: 'rusak', settings: 42 }));
+  const prefs9 = await api.fetchPreferences('token@x.test', 'user@x.test');
+  assert.deepEqual(prefs9, { defaults: {}, settings: {} }, 'defaults/settings non-object harus dinormalisasi');
+
   console.log('preferences fallback assertions passed');
 } finally {
   globalThis.fetch = originalFetch;

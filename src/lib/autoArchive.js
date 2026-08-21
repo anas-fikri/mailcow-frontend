@@ -48,12 +48,43 @@ function lsKey(email) {
 
 // ─── Read / Write ─────────────────────────────────────────────────────────────
 
-/** Ambil semua rules untuk user */
+/**
+ * Ambil semua rules untuk user, TER-NORMALISASI.
+ *
+ * Data lama/rusak di localStorage (non-array, rule tanpa id, conditions bukan
+ * array, value bukan string, dll) dinormalkan di sini — pola yang sama dengan
+ * loadSignatures — sehingga RulesPage (render) dan matchRules/executeRules
+ * (engine) selalu menerima bentuk rule yang valid. Sebelumnya JSON.parse
+ * mentah: rules.map pada non-array atau `c.value.trim()` pada value non-string
+ * bisa melempar TypeError dan mematikan halaman/engine.
+ */
 export function getRules(email) {
   if (!email) return [];
   try {
     const raw = localStorage.getItem(lsKey(email));
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((r) => r && typeof r === 'object' && typeof r.id === 'string')
+      .map((r) => ({
+        id: r.id,
+        name: typeof r.name === 'string' && r.name ? r.name : 'Aturan Baru',
+        // Default enabled=true (nilai lama tanpa field dianggap aktif).
+        enabled: r.enabled !== false,
+        conditions: (Array.isArray(r.conditions) ? r.conditions : [])
+          .filter((c) => c && typeof c === 'object' && typeof c.field === 'string')
+          .map((c) => ({
+            field: c.field,
+            operator: typeof c.operator === 'string' ? c.operator : 'contains',
+            value: typeof c.value === 'string' ? c.value : String(c.value ?? ''),
+          })),
+        matchType: r.matchType === 'any' ? 'any' : 'all',
+        actionFolder: typeof r.actionFolder === 'string' ? r.actionFolder : '',
+        createdAt: Number(r.createdAt) || 0,
+        runCount: Number(r.runCount) || 0,
+        lastRunAt: Number(r.lastRunAt) || null,
+      }));
   } catch {
     return [];
   }

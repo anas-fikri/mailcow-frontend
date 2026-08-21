@@ -24,15 +24,20 @@ export const FOLDER_TYPE_LABELS = {
 export function flattenMailboxes(mailboxes, depth = 0) {
   const result = [];
   for (const mb of mailboxes || []) {
-    const path     = mb.path || mb.name;
+    // Guard entri malformed (null / non-object) — jangan crash di mb.path.
+    if (!mb || typeof mb !== 'object') continue;
+    // Path harus string: SOGo bisa mengembalikan path/name non-string; String()
+    // mencegah crash di .replace/.split (pola yang sama dgn normalisasi lain).
+    const path     = String(mb.path || mb.name || '');
+    if (!path) continue;
     // SOGo folder URL path: "folder" + path (path tidak boleh mengandung "/")
     // Untuk subfolder pakai encode
     const folderId = 'folder' + path.replace(/\//g, '%2F');
-    const type     = mb.type || 'folder';
-    const label    = FOLDER_TYPE_LABELS[type] ?? mb.name;
+    const type     = String(mb.type || 'folder');
+    const label    = FOLDER_TYPE_LABELS[type] ?? String(mb.name ?? path);
     const pathDepth = path.split('/').filter(Boolean).length - 1;
-    result.push({ id: folderId, label, type, path, name: mb.name, depth: Math.max(depth, pathDepth) });
-    if (mb.children?.length) {
+    result.push({ id: folderId, label, type, path, name: String(mb.name ?? path), depth: Math.max(depth, pathDepth) });
+    if (Array.isArray(mb.children) && mb.children.length) {
       result.push(...flattenMailboxes(mb.children, depth + 1));
     }
   }

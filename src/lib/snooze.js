@@ -25,8 +25,18 @@ export function loadSnoozes(email) {
     const raw = localStorage.getItem(LS_KEY(email));
     if (!raw) return {};
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return {};
-    return parsed;
+    // Normalisasi: map { uid: wakeEpoch } dengan nilai numerik saja.
+    // Data lama/rusak (nilai string, null, array) dibuang agar isSnoozed /
+    // pruneExpired tidak bergantung pada Number() yang bisa NaN.
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out = {};
+    for (const [uid, wake] of Object.entries(parsed)) {
+      // Hanya number / string numerik (Number(null)=0 dan Number(true)=1 yang
+      // merupakan koersi tidak diinginkan dari data rusak → tolak keduanya).
+      const n = typeof wake === 'number' ? wake : Number(wake);
+      if (Number.isFinite(n) && (typeof wake === 'number' || typeof wake === 'string')) out[uid] = n;
+    }
+    return out;
   } catch {
     return {};
   }

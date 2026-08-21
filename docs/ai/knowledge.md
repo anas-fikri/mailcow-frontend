@@ -500,3 +500,16 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260821-settings-crash-fix
 - Status: COMPLETED
 - Finding: Settings crash root cause terkonfirmasi: sig.html.length pada entri signature legacy (tanpa field html) di localStorage -> TypeError -> ErrorBoundary root. Fix: guard optional chaining + normalisasi entri di loadSignatures + SectionErrorBoundary per-tab. Repro jsdom end-to-end (test-settings-signature.mjs) + unit test legacy. Teknik verifikasi: deployed chunk == HEAD via normalisasi nama chunk; VITE_API_KEY di-bake saat build membuat semua hash chunk berubah.
+
+## 2026-08-21 — Pola normalisasi data storage (loadSignatures pattern)
+
+- **Pola bug yang berulang:** setiap modul storage (signatures, autoArchive, snooze, prefs cache, flagColors) membaca `JSON.parse(localStorage.getItem(...))` lalu mengoper MENTAH ke konsumen render → field akses pada bentuk data lama/rusak → TypeError.
+- **Pola fix wajib:** normalisasi di SOURCE READER (bukan guard di tiap konsumen): filter entri valid, coerce field ke tipe yang dijanjikan (string/number/boolean/array), bentuk rusak → bentuk kosong valid. Contoh lengkap: `getRules` di autoArchive.js.
+- **Jebakan koersi JS:** `Number(null)=0`, `Number(true)=1`, `Number('')=0` — koersi dari data rusak menghasilkan nilai "valid" yang salah. Kalau mau menolak, cek tipe asli: `typeof wake === 'number' || typeof wake === 'string'`.
+- **Daftar modul yang SUDAH dinormalisasi (2026-08-21):** signatures (loadSignatures), autoArchive (getRules), api.js (loadPrefsFromLocal, fetchContacts), snooze (loadSnoozes), mailboxTree (flattenMailboxes), flagColors (getStore). Parser API lain sudah aman: parseMessageRows, fetchCalendarEvents.
+- **Tiap modul storage baru WAJIB** menyertakan unit test data legacy (contoh: test-autoarchive.mjs, test-snooze.mjs).
+
+## 2026-08-21T09:38:37Z
+- Task: 20260821-data-normalization-audit
+- Status: COMPLETED
+- Finding: Audit normalisasi data storage selesai: getRules (autoArchive), loadPrefsFromLocal + fetchContacts (api.js), loadSnoozes (snooze.js), flattenMailboxes (mailboxTree.js), getStore (flagColors) kini menormalkan data legacy di source reader (pola loadSignatures). Jebakan: Number(null)=0, Number(true)=1. Test baru test:autoarchive + perluasan test:snooze/mailbox-tree/preferences-fallback. 36/36 PASS.

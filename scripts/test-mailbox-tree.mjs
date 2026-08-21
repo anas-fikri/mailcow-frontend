@@ -68,4 +68,27 @@ const spaced = flattenMailboxes([{ name: 'HR Training', path: 'INBOX/HR Training
 assert.equal(spaced[0].depth, 1);
 assert.equal(spaced[0].id, 'folderINBOX%2FHR Training');
 
+// ── Normalisasi entri malformed (pola loadSignatures) ───────────────────────
+// Entri null / non-object dibuang; path/name non-string di-coerce (String())
+// agar .replace/.split tidak crash; entri tanpa path & name dibuang.
+const messy = flattenMailboxes([
+  null,
+  'bukan-object',
+  42,
+  { path: 'INBOX', name: 'INBOX', type: 'inbox' },
+  { path: 12345, name: 'Angka' },              // path number → String(12345)
+  { name: null, path: null },                  // tanpa path & name → dibuang
+  { name: 'Solo' },                            // tanpa path → pakai name
+]);
+assert.equal(messy.length, 3, 'hanya 3 entri valid yg tersisa (INBOX, Angka, Solo)');
+assert.equal(messy[0].name, 'INBOX');
+assert.equal(messy[1].id, 'folder12345');
+assert.equal(messy[1].name, 'Angka');
+assert.equal(messy[2].id, 'folderSolo');
+assert.equal(typeof messy[2].path, 'string');
+assert.equal(messy[2].name, 'Solo');
+// children bukan array (mis. object) tidak crash
+const badChildren = flattenMailboxes([{ path: 'INBOX', name: 'INBOX', children: { INBOX: 'x' } }]);
+assert.equal(badChildren.length, 1);
+
 console.log('mailboxTree assertions passed');
