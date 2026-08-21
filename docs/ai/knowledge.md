@@ -513,3 +513,14 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260821-data-normalization-audit
 - Status: COMPLETED
 - Finding: Audit normalisasi data storage selesai: getRules (autoArchive), loadPrefsFromLocal + fetchContacts (api.js), loadSnoozes (snooze.js), flattenMailboxes (mailboxTree.js), getStore (flagColors) kini menormalkan data legacy di source reader (pola loadSignatures). Jebakan: Number(null)=0, Number(true)=1. Test baru test:autoarchive + perluasan test:snooze/mailbox-tree/preferences-fallback. 36/36 PASS.
+
+## 2026-08-21 — Unit test komponen JSX tanpa test runner (esbuild + jsdom)
+
+- Node tidak bisa import .jsx langsung. Teknik: esbuild.build({ stdin: harness yang import komponen + definisikan child yang throw, bundle: true, write: false, format:'esm', jsx:'automatic' }) → import hasil via `data:text/javascript;base64,...` → jalankan di jsdom (createRoot). Contoh: scripts/test-error-boundary-debug.mjs.
+- **Penting:** redam console.error selama render (React + ErrorBoundary mencetak stack yang bisa berisi base64 source harness → banjir output & pipe putus).
+- ErrorBoundary root menyimpan error ke localStorage 'pcp_last_error' (console + storage) — detail TIDAK ditampilkan default; sejak 2026-08-21 ada tombol opt-in "Lihat Detail Error" utk pemilik akun (keputusan keamanan tetap: hidden by default, reset saat error baru).
+
+## 2026-08-21T09:43:41Z
+- Task: 20260821-error-boundary-debug-button
+- Status: COMPLETED
+- Finding: Tombol debug di ErrorBoundary root: detail error (pesan+stack+componentStack) tampil opt-in via toggle, default hidden (keputusan keamanan dipertahankan), reset saat error baru. Teknik unit test komponen JSX tanpa test runner: esbuild stdin bundle + data URL import + jsdom; redam console.error saat render. esbuild devDep. 37/37 PASS.

@@ -963,7 +963,7 @@ export default function PreferencesPage() {
 class SectionErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, showDetails: false };
   }
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
@@ -976,22 +976,35 @@ class SectionErrorBoundary extends React.Component {
   }
   render() {
     if (this.state.hasError) {
-      // Detail error TIDAK ditampilkan (keputusan keamanan yang sama dengan
-      // ErrorBoundary root — pesan bisa memuat email/path/isi respons SOGo).
-      // Detail lengkap tercatat di console dengan prefix section agar mudah
-      // di-debug dari devtools.
+      // Detail error disembunyikan secara default (keputusan keamanan yang
+      // sama dgn ErrorBoundary root). Opt-in via tombol "Lihat Detail" utk
+      // pemilik akun tanpa devtools; detail juga tercatat di console dgn
+      // prefix section.
       return (
         <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-sm text-destructive space-y-2">
           <div className="font-semibold">Bagian "{this.props.section}" tidak dapat ditampilkan.</div>
           <div className="text-xs text-muted-foreground">
-            Terjadi kesalahan saat memuat bagian ini. Detail tersedia di console (devtools).
+            Terjadi kesalahan saat memuat bagian ini. Detail bisa dibuka lewat tombol di bawah.
           </div>
-          <button
-            onClick={() => this.setState({ hasError: false, error: null })}
-            className="text-xs underline hover:no-underline text-primary"
-          >
-            Coba lagi
-          </button>
+          {this.state.showDetails && (
+            <pre className="bg-background/60 border border-destructive/20 rounded-lg p-2.5 text-[11px] leading-relaxed overflow-auto max-h-40 break-all whitespace-pre-wrap font-mono">
+              {String(this.state.error?.message || this.state.error || 'Kesalahan tidak diketahui.')}
+            </pre>
+          )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => this.setState((s) => ({ showDetails: !s.showDetails }))}
+              className="text-xs underline hover:no-underline text-primary"
+            >
+              {this.state.showDetails ? 'Sembunyikan Detail' : 'Lihat Detail'}
+            </button>
+            <button
+              onClick={() => this.setState({ hasError: false, error: null, showDetails: false })}
+              className="text-xs underline hover:no-underline text-primary"
+            >
+              Coba lagi
+            </button>
+          </div>
         </div>
       );
     }

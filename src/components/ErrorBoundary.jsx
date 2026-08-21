@@ -1,10 +1,10 @@
 import React from 'react';
-import { AlertTriangle, RefreshCw, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, RefreshCw, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { hasError: false, error: null, errorInfo: null, showDetails: false };
   }
 
   static getDerivedStateFromError(error) {
@@ -34,6 +34,21 @@ export default class ErrorBoundary extends React.Component {
     window.history.back();
   };
 
+  // Tombol debug: detail error disembunyikan secara default (keputusan
+  // keamanan — pesan bisa memuat email/folder/path internal). Pemilik akun
+  // bisa membukanya secara opt-in tanpa devtools; info yang sama juga sudah
+  // tersedia di console + localStorage('pcp_last_error').
+  toggleDetails = () => {
+    this.setState((s) => ({ showDetails: !s.showDetails }));
+  };
+
+  componentDidUpdate(prevProps, prevState) {
+    // Kembalikan ke tersembunyi saat error baru tertangkap.
+    if (!prevState.hasError && this.state.hasError && this.state.showDetails) {
+      this.setState({ showDetails: false });
+    }
+  }
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
@@ -50,11 +65,42 @@ export default class ErrorBoundary extends React.Component {
             Maaf, terjadi kesalahan yang tidak terduga. Silakan coba refresh halaman atau kembali.
           </p>
           {/*
-            Detail error TIDAK ditampilkan ke pengguna (keputusan keamanan —
-            mencegah info disclosure: pesan error bisa memuat email, folder,
-            path internal, atau isi respons SOGo). Detail tetap tersimpan di
-            console + localStorage utk debugging, bukan di layar.
+            Detail error disembunyikan secara default (keputusan keamanan —
+            pesan bisa memuat email/folder/path internal). Tersedia opt-in via
+            tombol "Lihat Detail Error" utk pemilik akun tanpa devtools;
+            informasi yang sama juga ada di console + localStorage('pcp_last_error').
           */}
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
+            <button
+              onClick={this.toggleDetails}
+              className="flex items-center gap-2 px-4 py-2 border border-border hover:bg-muted text-foreground rounded-lg text-sm font-medium transition-colors"
+            >
+              {this.state.showDetails ? <EyeOff size={16} /> : <Eye size={16} />}
+              {this.state.showDetails ? 'Sembunyikan Detail' : 'Lihat Detail Error'}
+            </button>
+          </div>
+
+          {this.state.showDetails && (
+            <div className="w-full max-w-xl mb-6 space-y-2 text-left">
+              <p className="text-[11px] text-muted-foreground">
+                Informasi ini hanya untuk debugging dan dapat memuat data pribadi.
+              </p>
+              <pre className="bg-muted/60 border border-border rounded-lg p-3 text-[11px] leading-relaxed overflow-auto max-h-48 break-all whitespace-pre-wrap font-mono text-foreground">
+                {String(this.state.error?.message || this.state.error || 'Kesalahan tidak diketahui.')}
+              </pre>
+              {this.state.error?.stack && (
+                <pre className="bg-muted/60 border border-border rounded-lg p-3 text-[10px] leading-relaxed overflow-auto max-h-56 break-all whitespace-pre-wrap font-mono text-muted-foreground">
+                  {String(this.state.error.stack)}
+                </pre>
+              )}
+              {this.state.errorInfo?.componentStack && (
+                <pre className="bg-muted/60 border border-border rounded-lg p-3 text-[10px] leading-relaxed overflow-auto max-h-56 break-all whitespace-pre-wrap font-mono text-muted-foreground">
+                  {String(this.state.errorInfo.componentStack)}
+                </pre>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-3">
             <button
               onClick={this.handleGoBack}

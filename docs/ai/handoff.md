@@ -1638,3 +1638,26 @@ Settings (signature legacy tanpa html).
 -  M src/lib/mailboxTree.js
 -  M src/lib/snooze.js
 - ?? scripts/test-autoarchive.mjs
+
+## 2026-08-21 — Tombol debug ErrorBoundary (detail error opt-in tanpa devtools) — DONE + siap deploy
+
+- **ErrorBoundary root:** tombol toggle "Lihat Detail Error"/"Sembunyikan Detail" — pesan error + stack + componentStack dalam <pre> scrollable. Default tetap tersembunyi (keputusan keamanan dipertahankan); componentDidUpdate reset saat error baru.
+- **SectionErrorBoundary (PreferencesPage):** toggle yang sama untuk konsistensi.
+- **Test:** `test:error-boundary-debug` — bundle komponen nyata via esbuild + jsdom, assert perilaku toggle (default hidden → klik tampil → klik lagi hidden). esbuild jadi devDependency.
+- **Catatan:** teknik bundle komponen utk unit test (esbuild stdin + data: URL import + jsdom) berguna utk komponen JSX apa pun yang belum punya test runner.
+- **Validasi:** 37/37 test PASS, build OK.
+
+## 2026-08-21T09:43:41Z
+- Status: COMPLETED
+- Objective: Tambah tombol debug di ErrorBoundary root agar pemilik akun bisa melihat detail
+error tanpa buka devtools.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M package-lock.json
+-  M package.json
+-  M src/components/ErrorBoundary.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? scripts/test-error-boundary-debug.mjs
