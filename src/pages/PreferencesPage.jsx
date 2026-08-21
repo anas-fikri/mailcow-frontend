@@ -383,7 +383,10 @@ function SignatureSection() {
                       {isDefaultReply && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Utk balasan</span>}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                      {(sig.html.length / 1024).toFixed(1)} KB — {sig.html.includes('<img') ? 'ada gambar' : 'teks saja'}
+                      {/* Guard optional chaining: entri legacy (sebelum fitur multi-signature)
+                          bisa tanpa field html — jangan crash. loadSignatures juga sudah
+                          menormalkan html ke string, tapi jaga-jaga di sini. */}
+                      {((sig.html?.length || 0) / 1024).toFixed(1)} KB — {sig.html?.includes('<img') ? 'ada gambar' : 'teks saja'}
                     </div>
                   </button>
                   <div className="flex items-center gap-1 shrink-0">
@@ -935,15 +938,63 @@ export default function PreferencesPage() {
         })}
       </div>
 
-      {/* Content */}
+      {/* Content — masing-masing tab disubung SectionErrorBoundary agar satu
+          tab rusak (render error / library eksternal) tidak menjatuhkan seluruh
+          halaman Settings dan memicu ErrorBoundary root ("Terjadi Kesalahan"). */}
       <div className="flex-1 overflow-y-auto p-5 sm:p-6">
         <div className="max-w-2xl mx-auto space-y-6">
-          {activeTab === 'display'   && <DisplaySection />}
-          {activeTab === 'password'  && <ChangePasswordSection />}
-          {activeTab === 'signature' && <SignatureSection />}
-          {activeTab === 'vacation'  && <VacationSection />}
+          {activeTab === 'display'   && <SectionErrorBoundary section="Tampilan"><DisplaySection /></SectionErrorBoundary>}
+          {activeTab === 'password'  && <SectionErrorBoundary section="Ganti Password"><ChangePasswordSection /></SectionErrorBoundary>}
+          {activeTab === 'signature' && <SectionErrorBoundary section="Signature"><SignatureSection /></SectionErrorBoundary>}
+          {activeTab === 'vacation'  && <SectionErrorBoundary section="Auto-Reply Cuti"><VacationSection /></SectionErrorBoundary>}
         </div>
       </div>
     </div>
   );
+}
+
+// ─── Section-local ErrorBoundary ─────────────────────────────────────────────
+//
+// Tujuan: error render pada satu section tidak boleh menjatuhkan halaman
+// Settings keseluruhan. Sebelumnya, satu anak yang throw akan ditangkap
+// ErrorBoundary root, menampilkan "Terjadi Kesalahan" generik yang membuat
+// semua 4 tab tidak dapat dipakai.
+//
+class SectionErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    // Cetak diagnostik ke console (info berguna untuk developer); tidak
+    // menulis ke localStorage karena ErrorBoundary root sudah mencatat
+    // error tertinggi.
+    try { console.error(`[PreferencesPage/${this.props.section}] render error:`, error, info); } catch {}
+  }
+  render() {
+    if (this.state.hasError) {
+      // Detail error TIDAK ditampilkan (keputusan keamanan yang sama dengan
+      // ErrorBoundary root — pesan bisa memuat email/path/isi respons SOGo).
+      // Detail lengkap tercatat di console dengan prefix section agar mudah
+      // di-debug dari devtools.
+      return (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-sm text-destructive space-y-2">
+          <div className="font-semibold">Bagian "{this.props.section}" tidak dapat ditampilkan.</div>
+          <div className="text-xs text-muted-foreground">
+            Terjadi kesalahan saat memuat bagian ini. Detail tersedia di console (devtools).
+          </div>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="text-xs underline hover:no-underline text-primary"
+          >
+            Coba lagi
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }

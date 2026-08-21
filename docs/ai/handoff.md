@@ -1580,3 +1580,27 @@ Implemented per-account persistence for UI preferences so they no longer reset o
 -  M index.html
 - ?? docs/ai/tasks/20260820-134013-202650.previous.md
 - ?? public/favicon.svg
+
+## 2026-08-21 — Settings crash fix (legacy signature tanpa html) — DONE + siap deploy
+
+- **Gejala:** /webmail/settings menampilkan "Terjadi Kesalahan" (ErrorBoundary root). Seluruh tab Settings mati.
+- **Root cause (terkonfirmasi):** SignatureSection memanggil `sig.html.length` tanpa guard. Entri signature LEGACY di localStorage (`pcp_signatures_<email>`) dari versi pra-multi-signature bisa `{ id, name }` tanpa `html` → `TypeError: Cannot read properties of undefined (reading 'length')` → crash seluruh halaman saat tab Signature dirender.
+- **Cara konfirmasi:** (1) deployed chunk PreferencesPage-D2kJ66t5.js == build HEAD persis setelah normalisasi nama chunk (beda hanya VITE_SOGO_BASE_URL karena deploy override). (2) Semua chunk live serve 200. (3) Repro jsdom `scripts/test-settings-signature.mjs`: seed signature legacy + klik tab → reproduksi crash persis.
+- **Fix:** guard optional chaining di render + normalisasi entri di `loadSignatures` (coerce name/html ke string, filter id non-string/non-object) → melindungi semua consumer (ComposeModal/MessageReader). + `SectionErrorBoundary` per-tab (defense-in-depth, pesan generik — konsisten dgn keputusan keamanan no-error-disclosure).
+- **Test:** 35/35 PASS (baru `test:settings-signature` jsdom end-to-end + unit test legacy di `test:signatures`). `jsdom@30` jadi devDependency.
+- **Catatan deploy:** frontend-only (PreferencesPage, signatures, package.json, test). `VITE_SOGO_BASE_URL=""` override deploy = same-origin (benar utk domain .com).
+
+## 2026-08-21T09:29:56Z
+- Status: COMPLETED
+- Objective: Fix halaman /webmail/settings yang menampilkan "Terjadi Kesalahan" (ErrorBoundary root)
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M package-lock.json
+-  M package.json
+-  M scripts/test-signatures.mjs
+-  M src/lib/signatures.js
+-  M src/pages/PreferencesPage.jsx
+- ?? scripts/test-settings-signature.mjs

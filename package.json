@@ -42,7 +42,8 @@
     "test:purify-hardening": "node scripts/test-purify-hardening.mjs",
     "test:remote-image": "node scripts/test-remote-image.mjs",
     "test:attachment-validation": "node scripts/test-attachment-validation.mjs",
-    "test:calendar-api": "node scripts/test-calendar-api.mjs"
+    "test:calendar-api": "node scripts/test-calendar-api.mjs",
+    "test:settings-signature": "npm run build && node scripts/test-settings-signature.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
@@ -64,6 +65,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.0.5",
     "concurrently": "^10.0.3",
+    "jsdom": "^30.0.1",
     "linkedom": "^0.18.13",
     "puppeteer": "^25.3.0",
     "tailwindcss": "^4.0.0",

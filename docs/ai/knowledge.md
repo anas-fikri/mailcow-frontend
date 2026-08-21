@@ -487,3 +487,16 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260820-134013-202650
 - Status: COMPLETED
 - Finding: Favicon SVG envelope: viewBox 0 0 64 64, bg #3b82f6 (Tailwind blue-500, default primary), envelope putih outline + V-flap. Path: public/favicon.svg → dist/favicon.svg via Vite. index.html: <link rel=icon type=image/svg+xml href=/webmail/favicon.svg> + <link rel=apple-touch-icon href=/webmail/favicon.svg> + <meta name=theme-color content=#3b82f6>. SVG 582 bytes; modern browser support tanpa ICO fallback.
+
+## 2026-08-21 — Crash Settings: data legacy localStorage tanpa guard
+
+- **Gejala:** /webmail/settings → "Terjadi Kesalahan" (ErrorBoundary root). Penyebab: `sig.html.length` di SignatureSection saat entri signature legacy (`pcp_signatures_<email>`) tidak punya field `html` → TypeError. Data lama dari versi pra-multi-signature berbentuk `{ id, name }`.
+- **Pola bug yang berulang:** akses field objek dari localStorage tanpa validasi bentuk → crash render. Pelajaran: (1) render path yang membaca data user (localStorage/API) HARUS pakai optional chaining; (2) normalisasi data di SOURCE (loadSignatures) lebih kuat daripada guard di tiap consumer; (3) ErrorBoundary root menyembunyikan detail error → debugging butuh repro yang meniru data user.
+- **Cara reproduce crash produksi tanpa browser:** jsdom + bundle produksi nyata (dist/). Kunci setup: seed zustand persist `pcp-auth` (state+version 0), stub fetch balas 200 JSON agar sesi tidak di-logout (401 → auto-logout via throwIfAuthError), install global SVGElement/SVGSVGElement/SVG* (jsdom tidak mendefinisikannya sebagai global Node), lalu baca `localStorage.pcp_last_error` yang ditulis ErrorBoundary. Lihat `scripts/test-settings-signature.mjs`.
+- **Deploy bundle == HEAD?** Cara verifikasi cepat: normalize nama chunk (api-X.js, index-X.js, dst) lalu bandingkan byte. Deployed PreferencesPage == HEAD persis; api chunk hanya beda `VITE_SOGO_BASE_URL` (deploy override `VITE_SOGO_BASE_URL=""` → same-origin, benar utk domain .com; build lokal membaca .env → .co.id).
+- **VITE_API_KEY di-bake ke bundle saat build** (deploy.sh baca dari .env server) → semua chunk hash berubah antar build meski source sama (cascade nama chunk di import statement). Jangan simpulkan "deployed berbeda" dari perbedaan hash saja.
+
+## 2026-08-21T09:29:56Z
+- Task: 20260821-settings-crash-fix
+- Status: COMPLETED
+- Finding: Settings crash root cause terkonfirmasi: sig.html.length pada entri signature legacy (tanpa field html) di localStorage -> TypeError -> ErrorBoundary root. Fix: guard optional chaining + normalisasi entri di loadSignatures + SectionErrorBoundary per-tab. Repro jsdom end-to-end (test-settings-signature.mjs) + unit test legacy. Teknik verifikasi: deployed chunk == HEAD via normalisasi nama chunk; VITE_API_KEY di-bake saat build membuat semua hash chunk berubah.

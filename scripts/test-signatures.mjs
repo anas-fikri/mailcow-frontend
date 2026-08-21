@@ -45,4 +45,28 @@ assert.equal(loadSignatures('u@example.com').defaults.reply, a.id);
 assert.equal(getSignatureById('u@example.com', 'nope'), null);
 assert.equal(getSignatureById('u@example.com', null), null);
 
+// ── Legacy data sanitization (bug: entri tanpa html crash sig.html.length) ──
+// Simulasikan data lama di localStorage: entri tanpa html, entri dgn html bukan
+// string, entri id non-string, dan non-object — semua harus dinormalisasi.
+storage.clear();
+storage.set('pcp_signatures_u@example.com', JSON.stringify({
+  list: [
+    { id: 'legacy-1', name: 'Lama' },                                  // tanpa html
+    { id: 'legacy-2', name: 'Angka', html: 12345 },                    // html bukan string
+    { id: 42, name: 'IdAngka' },                                       // id non-string → dibuang
+    'bukan-object',                                                    // non-object → dibuang
+    { id: 'legacy-3', html: '<b>B</b>' },                              // tanpa name → 'Tanpa Nama'
+  ],
+  defaults: { new: 'legacy-1', reply: 'legacy-3' },
+}));
+const clean = loadSignatures('u@example.com');
+assert.equal(clean.list.length, 3, 'hanya entri valid yg tersisa');
+assert.deepEqual(clean.list.find((s) => s.id === 'legacy-1'), { id: 'legacy-1', name: 'Lama', html: '' });
+assert.deepEqual(clean.list.find((s) => s.id === 'legacy-2'), { id: 'legacy-2', name: 'Angka', html: '' });
+assert.deepEqual(clean.list.find((s) => s.id === 'legacy-3'), { id: 'legacy-3', name: 'Tanpa Nama', html: '<b>B</b>' });
+assert.equal(clean.defaults.new, 'legacy-1');
+assert.equal(clean.defaults.reply, 'legacy-3');
+// Semua consumer aman: html selalu string
+for (const s of clean.list) assert.equal(typeof s.html, 'string');
+
 console.log('signatures assertions passed');

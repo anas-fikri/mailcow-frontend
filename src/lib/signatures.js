@@ -26,7 +26,17 @@ export function loadSignatures(email) {
     const raw = localStorage.getItem(LS_KEY(email));
     if (!raw) return { list: [], defaults: { new: null, reply: null } };
     const parsed = JSON.parse(raw);
-    const list = Array.isArray(parsed?.list) ? parsed.list : [];
+    // Normalisasi tiap entri: entri legacy (sebelum fitur multi-signature) bisa
+    // berbentuk { id, name } tanpa html, atau id non-string. Pastikan semua
+    // consumer (PreferencesPage, ComposeModal, MessageReader) selalu menerima
+    // { id, name, html } ber-string — mencegah crash sig.html.length.
+    const list = (Array.isArray(parsed?.list) ? parsed.list : [])
+      .filter((e) => e && typeof e === 'object' && typeof e.id === 'string')
+      .map((e) => ({
+        id: e.id,
+        name: typeof e.name === 'string' ? e.name : 'Tanpa Nama',
+        html: typeof e.html === 'string' ? e.html : '',
+      }));
     const defaults = parsed?.defaults && typeof parsed.defaults === 'object' ? parsed.defaults : {};
     return {
       list,
