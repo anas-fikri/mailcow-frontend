@@ -46,7 +46,8 @@
     "test:settings-signature": "npm run build && node scripts/test-settings-signature.mjs",
     "test:autoarchive": "node scripts/test-autoarchive.mjs",
     "test:error-boundary-debug": "node scripts/test-error-boundary-debug.mjs",
-    "test:flag-colors": "node scripts/test-flag-colors.mjs"
+    "test:flag-colors": "node scripts/test-flag-colors.mjs",
+    "test:storage-migrate": "node scripts/test-storage-migrate.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

@@ -84,7 +84,7 @@ try {
     'write-back: cache bentuk rusak harus dibersihkan di localStorage');
   ls.set('sogo_prefs_user@x.test', 'null');
   const prefs7 = await api.fetchPreferences('token@x.test', 'user@x.test');
-  assert.deepEqual(prefs7, { defaults: {}, settings: {} }, 'JSON null harus dinormalisasi');
+  assert.equal(prefs7, null, 'JSON null = tidak ada cache (sama seperti key hilang)');
   ls.set('sogo_prefs_user@x.test', JSON.stringify([1, 2]));
   const prefs8 = await api.fetchPreferences('token@x.test', 'user@x.test');
   assert.deepEqual(prefs8, { defaults: {}, settings: {} }, 'array harus dinormalisasi');

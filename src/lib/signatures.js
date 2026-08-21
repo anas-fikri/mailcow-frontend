@@ -11,6 +11,8 @@
  * saat compose (inject HTML ke editor).
  */
 
+import { readJSON, writeJSON } from './storageMigrate.js';
+
 const normalizeEmail = (email) => typeof email === 'string' ? email.trim().toLowerCase() : '';
 const LS_KEY = (email) => `pcp_signatures_${normalizeEmail(email)}`;
 
@@ -30,50 +32,42 @@ export function createSigId() {
 
 export function loadSignatures(email) {
   if (!normalizeEmail(email)) return { list: [], defaults: { new: null, reply: null } };
-  try {
-    const raw = localStorage.getItem(LS_KEY(email));
-    if (!raw) return { list: [], defaults: { new: null, reply: null } };
-    const parsed = JSON.parse(raw);
-    // Normalisasi tiap entri: entri legacy (sebelum fitur multi-signature) bisa
-    // berbentuk { id, name } tanpa html, atau id non-string. Pastikan semua
-    // consumer (PreferencesPage, ComposeModal, MessageReader) selalu menerima
-    // { id, name, html } ber-string — mencegah crash sig.html.length.
-    //
-    // Migrasi SEKALI-JALAN: entri legacy tanpa field html diberi placeholder
-    // + flag `placeholder: true`, lalu ditulis balik ke localStorage agar tidak
-    // diulang pada baca berikutnya (idempotent) dan tidak disuntik ke email.
-    let migrated = false;
-    const list = (Array.isArray(parsed?.list) ? parsed.list : [])
-      .filter((e) => e && typeof e === 'object' && typeof e.id === 'string')
-      .map((e) => {
-        const name = typeof e.name === 'string' ? e.name : 'Tanpa Nama';
-        if (typeof e.html !== 'string') {
-          migrated = true;
-          return { id: e.id, name, html: LEGACY_PLACEHOLDER, placeholder: true };
-        }
-        const out = { id: e.id, name, html: e.html };
-        if (e.placeholder) out.placeholder = true;
-        return out;
-      });
-    const defaults = parsed?.defaults && typeof parsed.defaults === 'object' ? parsed.defaults : {};
-    const normalizedDefaults = {
-      new: defaults.new || null,
-      reply: defaults.reply || null,
-    };
-    if (migrated) {
-      // Persist hasil migrasi (sekali jalan) — pakai try/catch agar baca tdk
-      // gagal saat storage penuh/privasi (mis. Safari private mode).
-      try {
-        localStorage.setItem(LS_KEY(email), JSON.stringify({ list, defaults: normalizedDefaults }));
-      } catch { /* storage tidak tersedia — migrasi tetap berlaku utk sesi ini */ }
-    }
-    return {
-      list,
-      defaults: normalizedDefaults,
-    };
-  } catch {
-    return { list: [], defaults: { new: null, reply: null } };
+  const parsed = readJSON(LS_KEY(email));
+  if (parsed == null) return { list: [], defaults: { new: null, reply: null } };
+  // Normalisasi tiap entri: entri legacy (sebelum fitur multi-signature) bisa
+  // berbentuk { id, name } tanpa html, atau id non-string. Pastikan semua
+  // consumer (PreferencesPage, ComposeModal) selalu menerima
+  // { id, name, html } ber-string — mencegah crash sig.html.length.
+  //
+  // Migrasi SEKALI-JALAN: entri legacy tanpa field html diberi placeholder
+  // + flag `placeholder: true`, lalu ditulis balik ke localStorage agar tidak
+  // diulang pada baca berikutnya (idempotent) dan tidak disuntik ke email.
+  let migrated = false;
+  const list = (Array.isArray(parsed?.list) ? parsed.list : [])
+    .filter((e) => e && typeof e === 'object' && typeof e.id === 'string')
+    .map((e) => {
+      const name = typeof e.name === 'string' ? e.name : 'Tanpa Nama';
+      if (typeof e.html !== 'string') {
+        migrated = true;
+        return { id: e.id, name, html: LEGACY_PLACEHOLDER, placeholder: true };
+      }
+      const out = { id: e.id, name, html: e.html };
+      if (e.placeholder) out.placeholder = true;
+      return out;
+    });
+  const defaults = parsed?.defaults && typeof parsed.defaults === 'object' ? parsed.defaults : {};
+  const normalizedDefaults = {
+    new: defaults.new || null,
+    reply: defaults.reply || null,
+  };
+  if (migrated) {
+    // Persist hasil migrasi (sekali jalan) — writeJSON dibungkus try/catch.
+    writeJSON(LS_KEY(email), { list, defaults: normalizedDefaults });
   }
+  return {
+    list,
+    defaults: normalizedDefaults,
+  };
 }
 
 function save(email, data) {

@@ -9,6 +9,8 @@
  * Storage: localStorage per-akun `pcp_snooze_<email>` → { [uid]: wakeEpoch }
  */
 
+import { readJSON, writeJSON } from './storageMigrate.js';
+
 const normalizeEmail = (email) => typeof email === 'string' ? email.trim().toLowerCase() : '';
 const LS_KEY = (email) => `pcp_snooze_${normalizeEmail(email)}`;
 
@@ -21,40 +23,33 @@ export const SNOOZE_PRESETS = [
 
 export function loadSnoozes(email) {
   if (!normalizeEmail(email)) return {};
-  try {
-    const raw = localStorage.getItem(LS_KEY(email));
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    // Normalisasi: map { uid: wakeEpoch } dengan nilai numerik saja.
-    // Data lama/rusak (nilai string, null, array) dibuang agar isSnoozed /
-    // pruneExpired tidak bergantung pada Number() yang bisa NaN.
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      // Bentuk rusak → bersihkan sekali: tulis {} (pola write-back idempotent).
-      try { localStorage.setItem(LS_KEY(email), '{}'); } catch { /* abaikan */ }
-      return {};
-    }
-    const out = {};
-    let changed = false;
-    for (const [uid, wake] of Object.entries(parsed)) {
-      // Hanya number / string numerik (Number(null)=0 dan Number(true)=1 yang
-      // merupakan koersi tidak diinginkan dari data rusak → tolak keduanya).
-      const n = typeof wake === 'number' ? wake : Number(wake);
-      if (Number.isFinite(n) && (typeof wake === 'number' || typeof wake === 'string')) {
-        out[uid] = n;
-        if (typeof wake !== 'number') changed = true;   // string epoch → number
-      } else {
-        changed = true;                                  // nilai invalid dibuang
-      }
-    }
-    // Write-back SEKALI-JALAN: persist hasil bersih agar baca berikutnya
-    // tidak mengulang normalisasi (idempotent).
-    if (changed) {
-      try { localStorage.setItem(LS_KEY(email), JSON.stringify(out)); } catch { /* abaikan */ }
-    }
-    return out;
-  } catch {
+  const parsed = readJSON(LS_KEY(email));
+  if (parsed == null) return {};
+  // Normalisasi: map { uid: wakeEpoch } dengan nilai numerik saja.
+  // Data lama/rusak (nilai string, null, array) dibuang agar isSnoozed /
+  // pruneExpired tidak bergantung pada Number() yang bisa NaN.
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    // Bentuk rusak → bersihkan sekali: tulis {} (pola write-back idempotent).
+    writeJSON(LS_KEY(email), {});
     return {};
   }
+  const out = {};
+  let changed = false;
+  for (const [uid, wake] of Object.entries(parsed)) {
+    // Hanya number / string numerik (Number(null)=0 dan Number(true)=1 yang
+    // merupakan koersi tidak diinginkan dari data rusak → tolak keduanya).
+    const n = typeof wake === 'number' ? wake : Number(wake);
+    if (Number.isFinite(n) && (typeof wake === 'number' || typeof wake === 'string')) {
+      out[uid] = n;
+      if (typeof wake !== 'number') changed = true;   // string epoch → number
+    } else {
+      changed = true;                                  // nilai invalid dibuang
+    }
+  }
+  // Write-back SEKALI-JALAN: persist hasil bersih agar baca berikutnya
+  // tidak mengulang normalisasi (idempotent).
+  if (changed) writeJSON(LS_KEY(email), out);
+  return out;
 }
 
 function save(email, map) {

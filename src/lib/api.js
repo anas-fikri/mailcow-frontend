@@ -1,4 +1,5 @@
 import { pathSegment } from './pathSegment.js';
+import { readJSON, writeIfChanged } from './storageMigrate.js';
 import { getMessageTotal } from './messageTotals.js';
 import { parseMessageRows } from './messageRows.js';
 import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
@@ -1307,28 +1308,23 @@ function savePrefsToLocal(email, prefs) {
 }
 
 function loadPrefsFromLocal(email) {
-  try {
-    const raw = localStorage.getItem(LS_KEY(email));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    // Normalisasi bentuk: konsumen (DisplaySection/VacationSection/...)
-    // membaca prefs.defaults.* dan prefs.settings — pastikan keduanya object
-    // (data cache lama bisa berbentuk apa pun → jangan dioper mentah; bentuk
-    // rusak dianggap "belum ada preferensi" = bentuk kosong valid).
-    const normalized = (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
-      ? { defaults: {}, settings: {} }
-      : {
-          defaults: parsed.defaults && typeof parsed.defaults === 'object' ? parsed.defaults : {},
-          settings: parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : {},
-        };
-    // Migrasi SEKALI-JALAN: bila bentuk tersimpan beda dari bentuk
-    // ternormalisasi (non-object / key ekstra / defaults-settings rusak),
-    // tulis balik agar baca berikutnya tidak mengulang normalisasi.
-    if (JSON.stringify(normalized) !== JSON.stringify(parsed)) {
-      try { localStorage.setItem(LS_KEY(email), JSON.stringify(normalized)); } catch { /* abaikan */ }
-    }
-    return normalized;
-  } catch { return null; }
+  const parsed = readJSON(LS_KEY(email));
+  if (parsed == null) return null;
+  // Normalisasi bentuk: konsumen (DisplaySection/VacationSection/...)
+  // membaca prefs.defaults.* dan prefs.settings — pastikan keduanya object
+  // (data cache lama bisa berbentuk apa pun → jangan dioper mentah; bentuk
+  // rusak dianggap "belum ada preferensi" = bentuk kosong valid).
+  const normalized = (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    ? { defaults: {}, settings: {} }
+    : {
+        defaults: parsed.defaults && typeof parsed.defaults === 'object' ? parsed.defaults : {},
+        settings: parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : {},
+      };
+  // Migrasi SEKALI-JALAN: bila bentuk tersimpan beda dari bentuk
+  // ternormalisasi (non-object / key ekstra / defaults-settings rusak),
+  // tulis balik agar baca berikutnya tidak mengulang normalisasi.
+  writeIfChanged(LS_KEY(email), parsed, normalized);
+  return normalized;
 }
 
 /**

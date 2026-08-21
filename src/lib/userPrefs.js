@@ -1,3 +1,5 @@
+import { readJSON, writeIfChanged } from './storageMigrate.js';
+
 /**
  * Preferensi UI per-akun (tema terang/gelap, warna aksen, urutan sortir,
  * tampilan percakapan).
@@ -22,27 +24,20 @@ const LS_KEY = (email) => `pcp_prefs_${normalizeEmail(email)}`;
 /** Ambil preferensi tersimpan untuk satu akun; null jika belum pernah disimpan. */
 export function loadPrefs(email) {
   if (!normalizeEmail(email)) return null;
-  try {
-    const raw = localStorage.getItem(LS_KEY(email));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-    const normalized = {
-      theme: parsed.theme === 'light' || parsed.theme === 'dark' ? parsed.theme : DEFAULT_PREFS.theme,
-      themeColor: typeof parsed.themeColor === 'string' && parsed.themeColor ? parsed.themeColor : DEFAULT_PREFS.themeColor,
-      sortAsc: !!parsed.sortAsc,
-      conversationView: !!parsed.conversationView,
-    };
-    // Migrasi SEKALI-JALAN: bila bentuk tersimpan beda dari bentuk
-    // ternormalisasi (field hilang / key ekstra / nilai tidak valid),
-    // tulis balik agar baca berikutnya tidak mengulang normalisasi.
-    if (JSON.stringify(normalized) !== JSON.stringify(parsed)) {
-      try { localStorage.setItem(LS_KEY(email), JSON.stringify(normalized)); } catch { /* abaikan */ }
-    }
-    return normalized;
-  } catch {
-    return null;
-  }
+  const parsed = readJSON(LS_KEY(email));
+  if (parsed == null) return null;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const normalized = {
+    theme: parsed.theme === 'light' || parsed.theme === 'dark' ? parsed.theme : DEFAULT_PREFS.theme,
+    themeColor: typeof parsed.themeColor === 'string' && parsed.themeColor ? parsed.themeColor : DEFAULT_PREFS.themeColor,
+    sortAsc: !!parsed.sortAsc,
+    conversationView: !!parsed.conversationView,
+  };
+  // Migrasi SEKALI-JALAN: bila bentuk tersimpan beda dari bentuk
+  // ternormalisasi (field hilang / key ekstra / nilai tidak valid),
+  // tulis balik agar baca berikutnya tidak mengulang normalisasi.
+  writeIfChanged(LS_KEY(email), parsed, normalized);
+  return normalized;
 }
 
 /** Simpan preferensi untuk satu akun. */

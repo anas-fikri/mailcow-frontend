@@ -51,13 +51,15 @@ assert.deepEqual(getAllFlags(EMAIL), { '1': 'red', '5': 'purple' });
 assert.equal(storage.get(KEY), rawAfter, 'tidak boleh ada penulisan ulang saat sudah bersih');
 
 // ── Bentuk rusak → {} + storage dibersihkan sekali ───────────────────────────
+// JSON "null" = tidak ada data (tanpa tulis); array/string bisa di-parse → {} + write.
 storage.set(KEY, 'null');
 assert.deepEqual(getAllFlags(EMAIL), {});
-assert.equal(storage.get(KEY), '{}', 'storage bentuk rusak ditulis ulang jadi {}');
 storage.set(KEY, JSON.stringify([1, 2]));
 assert.deepEqual(getAllFlags(EMAIL), {});
+assert.equal(storage.get(KEY), '{}', 'storage bentuk array ditulis ulang jadi {}');
 storage.set(KEY, '"string"');
 assert.deepEqual(getAllFlags(EMAIL), {});
+assert.equal(storage.get(KEY), '{}', 'storage bentuk string ditulis ulang jadi {}');
 
 // Data VALID tidak boleh ditulis ulang
 const validRaw = JSON.stringify({ '9': 'yellow' });

@@ -1732,3 +1732,32 @@ dibutuhkan.
 -  M docs/ai/knowledge.md
 -  M scripts/test-signatures.mjs
 -  M src/components/mailer/ComposeModal.jsx
+
+## 2026-08-21 — Helper bersama storageMigrate.js (DRY pola write-back) — DONE + siap deploy
+
+- **Helper baru `src/lib/storageMigrate.js`:** `readJSON` (baca+parse, null utk missing/rusak), `writeJSON` (tulis guarded, true bila tertulis), `writeIfChanged` (tulis HANYA saat bentuk beda — idempotent).
+- **Refactor 6 modul** ke helper: signatures (writeJSON via flag migrated), snooze (writeJSON via flag changed + bentuk rusak), flagColors (writeJSON prune + bentuk rusak), autoArchive (writeIfChanged + writeJSON []), api.js loadPrefsFromLocal (writeIfChanged), userPrefs loadPrefs (writeIfChanged).
+- **Perubahan perilaku disengaja:** JSON literal `'null'` tersimpan = "tidak ada data" (readJSON → null) — tidak lagi ditulis ulang jadi {} / []. Nilai yg dikembalikan konsumen identik; hanya pembersihan literal-null yang tidak dilakukan. Test disesuaikan (pembersihan tetap diuji utk bentuk rusak yg bisa di-parse).
+- **Test:** baru test:storage-migrate (termasuk simulasi setItem gagal → false tanpa throw). 39/39 PASS.
+
+## 2026-08-21T10:10:41Z
+- Status: COMPLETED
+- Objective: Buat helper bersama `src/lib/storageMigrate.js` agar pola baca + write-back
+migrasi idempotent tidak diulang manual di tiap modul storage.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M package.json
+-  M scripts/test-flag-colors.mjs
+-  M scripts/test-preferences-fallback.mjs
+-  M scripts/test-snooze.mjs
+-  M src/lib/api.js
+-  M src/lib/autoArchive.js
+-  M src/lib/flagColors.js
+-  M src/lib/signatures.js
+-  M src/lib/snooze.js
+-  M src/lib/userPrefs.js
+- ?? scripts/test-storage-migrate.mjs
+- ?? src/lib/storageMigrate.js

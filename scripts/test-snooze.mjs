@@ -60,13 +60,15 @@ const rawAfter = storage.get('pcp_snooze_u@example.com');
 assert.deepEqual(loadSnoozes('u@example.com'), { '1': 123456, '4': 555 });
 assert.equal(storage.get('pcp_snooze_u@example.com'), rawAfter, 'tidak boleh ada penulisan ulang saat sudah bersih');
 
-// JSON "null" / array / non-object → {} (bukan crash) + storage dibersihkan
+// JSON "null" = tidak ada data (tanpa tulis); array / string (bentuk rusak
+// yang bisa di-parse) → {} (bukan crash) + storage dibersihkan sekali.
 storage.set('pcp_snooze_u@example.com', 'null');
 assert.deepEqual(loadSnoozes('u@example.com'), {});
-assert.equal(storage.get('pcp_snooze_u@example.com'), '{}', 'storage bentuk rusak ditulis ulang jadi {}');
 storage.set('pcp_snooze_u@example.com', JSON.stringify([1, 2]));
 assert.deepEqual(loadSnoozes('u@example.com'), {});
+assert.equal(storage.get('pcp_snooze_u@example.com'), '{}', 'storage bentuk array ditulis ulang jadi {}');
 storage.set('pcp_snooze_u@example.com', '"string"');
 assert.deepEqual(loadSnoozes('u@example.com'), {});
+assert.equal(storage.get('pcp_snooze_u@example.com'), '{}', 'storage bentuk string ditulis ulang jadi {}');
 
 console.log('snooze assertions passed');

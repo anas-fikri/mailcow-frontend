@@ -16,37 +16,32 @@ export const FLAG_COLOR_KEYS = Object.keys(FLAG_COLORS);
 export const FLAG_COLOR_DEFAULT = 'yellow';
 
 // ─── localStorage helpers ────────────────────────────────────────────────────
+import { readJSON, writeJSON } from './storageMigrate.js';
+
 const LS_KEY = (email) => `flag_colors_${email}`;
 
 function getStore(email) {
   if (!email) return {};
-  try {
-    const raw = localStorage.getItem(LS_KEY(email));
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    // Guard bentuk: JSON "null"/array/string → operasi store[...] crash.
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      // Bentuk rusak → bersihkan sekali: tulis {} (pola write-back idempotent).
-      try { localStorage.setItem(LS_KEY(email), '{}'); } catch { /* abaikan */ }
-      return {};
-    }
-    // Migrasi sekali-jalan: buang key dengan warna yang tidak lagi dikenal
-    // (mis. warna lama/rusak) agar countFlagColors/getAllFlags tidak menyimpan
-    // sampah; ditulis balik bila ada yang dibuang.
-    let changed = false;
-    for (const [uid, colorKey] of Object.entries(parsed)) {
-      if (typeof colorKey !== 'string' || !FLAG_COLORS[colorKey]) {
-        delete parsed[uid];
-        changed = true;
-      }
-    }
-    if (changed) {
-      try { saveStore(email, parsed); } catch { /* abaikan */ }
-    }
-    return parsed;
-  } catch {
+  const parsed = readJSON(LS_KEY(email));
+  if (parsed == null) return {};
+  // Guard bentuk: JSON "null"/array/string → operasi store[...] crash.
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    // Bentuk rusak → bersihkan sekali: tulis {} (pola write-back idempotent).
+    writeJSON(LS_KEY(email), {});
     return {};
   }
+  // Migrasi sekali-jalan: buang key dengan warna yang tidak lagi dikenal
+  // (mis. warna lama/rusak) agar countFlagColors/getAllFlags tidak menyimpan
+  // sampah; ditulis balik bila ada yang dibuang.
+  let changed = false;
+  for (const [uid, colorKey] of Object.entries(parsed)) {
+    if (typeof colorKey !== 'string' || !FLAG_COLORS[colorKey]) {
+      delete parsed[uid];
+      changed = true;
+    }
+  }
+  if (changed) writeJSON(LS_KEY(email), parsed);
+  return parsed;
 }
 
 function saveStore(email, store) {

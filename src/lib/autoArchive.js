@@ -42,6 +42,8 @@ export const RULE_MATCH_TYPES = [
 ];
 
 // ─── localStorage key ─────────────────────────────────────────────────────────
+import { readJSON, writeJSON, writeIfChanged } from './storageMigrate.js';
+
 function lsKey(email) {
   return `auto_archive_rules_${email}`;
 }
@@ -60,46 +62,39 @@ function lsKey(email) {
  */
 export function getRules(email) {
   if (!email) return [];
-  try {
-    const raw = localStorage.getItem(lsKey(email));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      // Bentuk rusak (object/string/null) → bersihkan sekali: tulis []
-      // (pola write-back idempotent).
-      try { localStorage.setItem(lsKey(email), '[]'); } catch { /* abaikan */ }
-      return [];
-    }
-    const list = parsed
-      .filter((r) => r && typeof r === 'object' && typeof r.id === 'string')
-      .map((r) => ({
-        id: r.id,
-        name: typeof r.name === 'string' && r.name ? r.name : 'Aturan Baru',
-        // Default enabled=true (nilai lama tanpa field dianggap aktif).
-        enabled: r.enabled !== false,
-        conditions: (Array.isArray(r.conditions) ? r.conditions : [])
-          .filter((c) => c && typeof c === 'object' && typeof c.field === 'string')
-          .map((c) => ({
-            field: c.field,
-            operator: typeof c.operator === 'string' ? c.operator : 'contains',
-            value: typeof c.value === 'string' ? c.value : String(c.value ?? ''),
-          })),
-        matchType: r.matchType === 'any' ? 'any' : 'all',
-        actionFolder: typeof r.actionFolder === 'string' ? r.actionFolder : '',
-        createdAt: Number(r.createdAt) || 0,
-        runCount: Number(r.runCount) || 0,
-        lastRunAt: Number(r.lastRunAt) || null,
-      }));
-    // Migrasi SEKALI-JALAN: bila bentuk tersimpan berbeda dari bentuk
-    // ternormalisasi (entri dibuang / field di-coerce / key order beda),
-    // tulis balik agar baca berikutnya tidak mengulang normalisasi.
-    if (JSON.stringify(list) !== JSON.stringify(parsed)) {
-      try { localStorage.setItem(lsKey(email), JSON.stringify(list)); } catch { /* abaikan */ }
-    }
-    return list;
-  } catch {
+  const parsed = readJSON(lsKey(email));
+  if (parsed == null) return [];
+  if (!Array.isArray(parsed)) {
+    // Bentuk rusak (object/string/null) → bersihkan sekali: tulis []
+    // (pola write-back idempotent).
+    writeJSON(lsKey(email), []);
     return [];
   }
+  const list = parsed
+    .filter((r) => r && typeof r === 'object' && typeof r.id === 'string')
+    .map((r) => ({
+      id: r.id,
+      name: typeof r.name === 'string' && r.name ? r.name : 'Aturan Baru',
+      // Default enabled=true (nilai lama tanpa field dianggap aktif).
+      enabled: r.enabled !== false,
+      conditions: (Array.isArray(r.conditions) ? r.conditions : [])
+        .filter((c) => c && typeof c === 'object' && typeof c.field === 'string')
+        .map((c) => ({
+          field: c.field,
+          operator: typeof c.operator === 'string' ? c.operator : 'contains',
+          value: typeof c.value === 'string' ? c.value : String(c.value ?? ''),
+        })),
+      matchType: r.matchType === 'any' ? 'any' : 'all',
+      actionFolder: typeof r.actionFolder === 'string' ? r.actionFolder : '',
+      createdAt: Number(r.createdAt) || 0,
+      runCount: Number(r.runCount) || 0,
+      lastRunAt: Number(r.lastRunAt) || null,
+    }));
+  // Migrasi SEKALI-JALAN: bila bentuk tersimpan berbeda dari bentuk
+  // ternormalisasi (entri dibuang / field di-coerce / key order beda),
+  // tulis balik agar baca berikutnya tidak mengulang normalisasi.
+  writeIfChanged(lsKey(email), parsed, list);
+  return list;
 }
 
 /** Simpan rules */

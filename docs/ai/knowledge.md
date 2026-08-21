@@ -559,3 +559,14 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260821-signature-consumer-audit
 - Status: COMPLETED
 - Finding: Audit konsumen signature selesai: hanya PreferencesPage + ComposeModal. SignaturePicker di-skip placeholder agar tidak ter-insert; dead import dihapus. Kontrak getSignatureFor placeholder di-test. 38/38 PASS.
+
+## 2026-08-21 — Helper storageMigrate.js (pola resmi migrasi storage)
+
+- **Pola resmi sejak sekarang:** semua baca/tulis storage pakai `src/lib/storageMigrate.js`: `readJSON(key)` → null utk missing/parse-error; `writeJSON(key, v)` utk tulis yang sudah diputuskan; `writeIfChanged(key, original, normalized)` utk tulis hanya-saat-berubah (idempotent).
+- **PENTING — semantik readJSON:** JSON literal `'null'` tersimpan = "tidak ada data" (null), BUKAN bentuk rusak — tidak ditulis ulang. Bentuk rusak yang dimigrasi hanya yang bisa di-parse tapi salah bentuk (array/string/object dengan field salah).
+- Modul baru yang menyimpan data user di localStorage WAJIB memakai helper ini + menyertakan unit test data legacy.
+
+## 2026-08-21T10:10:41Z
+- Task: 20260821-storage-migrate-helper
+- Status: COMPLETED
+- Finding: Helper bersama src/lib/storageMigrate.js (readJSON/writeJSON/writeIfChanged) merangkum pola write-back idempotent; 6 modul storage direfactor. Semantik: JSON 'null' = tidak ada data (tidak ditulis ulang). 39/39 PASS.

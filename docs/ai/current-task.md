@@ -1,44 +1,52 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260821-signature-consumer-audit
-Started At: 2026-08-21T13:30:00Z
-Updated At: 2026-08-21T10:05:53Z
+Task ID: 20260821-storage-migrate-helper
+Started At: 2026-08-21T14:00:00Z
+Updated At: 2026-08-21T10:10:41Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Cek ulang SEMUA konsumen getSignatureFor/getSignatureById/loadSignatures untuk
-memastikan flag `placeholder` (migrasi signature legacy) ditangani di mana pun
-dibutuhkan.
+Buat helper bersama `src/lib/storageMigrate.js` agar pola baca + write-back
+migrasi idempotent tidak diulang manual di tiap modul storage.
 
-## Hasil audit (verifikasi grep menyeluruh)
+## Helper baru (`src/lib/storageMigrate.js`)
+- `readJSON(key)` — baca + parse JSON; null bila key tidak ada / JSON rusak
+  (menggantikan `try { JSON.parse(localStorage.getItem(...)) } catch` per modul).
+- `writeJSON(key, value)` — tulis (stringify) dibungkus try/catch; true bila
+  tertulis. Dipakai saat pemanggil sudah tahu bentuk berubah (flag `migrated`/
+  `changed`/bentuk rusak).
+- `writeIfChanged(key, original, normalized)` — tulis HANYA bila JSON.stringify
+  berbeda (struktur kecil: rules/prefs); idempotent.
 
-Konsumen saat ini HANYA di 2 file:
-1. **src/pages/PreferencesPage.jsx** — loadSignatures (4x), getSignatureById (syncToSogo)
-2. **src/components/mailer/ComposeModal.jsx** — getSignatureFor (auto-inject), loadSignatures (SignaturePicker)
+## Refactor (pola yang sama di semua modul)
+- `signatures.js` — readJSON + writeJSON (flag migrated)
+- `snooze.js` — readJSON + writeJSON (flag changed / bentuk rusak)
+- `flagColors.js` — readJSON + writeJSON (prune / bentuk rusak)
+- `autoArchive.js` — readJSON + writeJSON([]) + writeIfChanged
+- `api.js loadPrefsFromLocal` — readJSON + writeIfChanged
+- `userPrefs.js loadPrefs` — readJSON + writeIfChanged
 
-Tidak ada konsumen lain (MessageReader/quick-reply sudah tidak memakai signature
-— diverifikasi; import `getSignatureById` di ComposeModal adalah dead import).
+## Perubahan perilaku yang disengaja (didokumentasikan)
+- JSON `'null'` tersimpan kini dianggap "tidak ada data" (readJSON → null) —
+  TIDAK lagi ditulis ulang menjadi `{}`/`[]`. Konsumen mendapat nilai yang sama
+  ({}/[]/null); hanya pembersihan storage untuk literal-null yang tidak
+  dilakukan (benign). Test disesuaikan: pembersihan tetap diuji untuk bentuk
+  rusak yang bisa di-parse (array/string/object salah bentuk).
 
-## Perbaikan
-
-1. **`ComposeModal.jsx` SignaturePicker** — filter `!s.placeholder`: entri legacy
-   ber-placeholder tidak muncul di dropdown sisipkan signature (sebelumnya
-   `onInsert(s.html)` akan menyisipkan teks panduan yang bisa ikut terkirim).
-2. **`ComposeModal.jsx`** — hapus dead import `getSignatureById`.
-3. **`test-signatures.mjs`** — tambah assertion kontrak: `getSignatureFor`
-   mengembalikan entri placeholder dengan flag (konsumen WAJIB skip) + signature
-   nyata tanpa flag.
-
-## Status penanganan placeholder per titik (setelah ini)
-- Auto-inject compose/reply (ComposeModal:146) — skip ✓ (sebelumnya)
-- syncToSogo (PreferencesPage:329) — skip ✓ (sebelumnya)
-- Daftar di Settings (PreferencesPage) — badge "Perlu diisi" ✓ (sebelumnya)
-- SignaturePicker (ComposeModal:571) — skip ✓ (baru)
+## Test
+- Baru `test:storage-migrate` (readJSON/writeJSON/writeIfChanged + simulasi
+  setItem gagal).
+- Semua test modul storage (signatures, snooze, flagColors, autoarchive,
+  user-prefs, preferences-fallback) tetap PASS setelah refactor.
 
 ## Validation
-- 38/38 test PASS · npm run build OK · test-settings-signature (end-to-end) PASS
+- 39/39 test PASS · npm run build OK
 
 ## Files Changed
-- src/components/mailer/ComposeModal.jsx
-- scripts/test-signatures.mjs
+- src/lib/storageMigrate.js (baru)
+- src/lib/signatures.js, snooze.js, flagColors.js, autoArchive.js, api.js,
+  userPrefs.js
+- scripts/test-storage-migrate.mjs (baru), test-snooze.mjs, test-flag-colors.mjs,
+  test-preferences-fallback.mjs
+- package.json (+test:storage-migrate)
