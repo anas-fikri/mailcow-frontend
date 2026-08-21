@@ -11,7 +11,8 @@ globalThis.localStorage = {
 const { getRules, addRule, matchRules } = await import('../src/lib/autoArchive.js');
 
 const EMAIL = 'u@example.com';
-const KEY = `auto_archive_rules_${EMAIL}`;
+const KEY = `auto_archive_rules_v2_${EMAIL}`;  // key v2 (sekarang)
+const KEY_V1 = `auto_archive_rules_${EMAIL}`; // key v1 (legacy)
 
 // ── Empty / tidak ada data ────────────────────────────────────────────────────
 assert.deepEqual(getRules(EMAIL), []);
@@ -19,7 +20,8 @@ assert.deepEqual(getRules(''), []);
 assert.deepEqual(getRules(null), []);
 
 // ── Normalisasi data legacy/rusak (pola loadSignatures) ─────────────────────
-storage.set(KEY, JSON.stringify([
+// Data legacy ditaruh di KEY v1 — harus terbaca, dinormalisasi, dipindah ke v2.
+storage.set(KEY_V1, JSON.stringify([
   null,                                    // dibuang
   'bukan-rule',                            // dibuang
   { id: 42, name: 'IdAngka' },             // id non-string → dibuang
@@ -66,11 +68,12 @@ assert.equal(rules[1].runCount, 3);
 assert.equal(rules[1].lastRunAt, 1700000000000);
 assert.equal(rules[2].enabled, false);
 
-// ── Write-back SEKALI-JALAN: hasil normalisasi dipersist ke localStorage ────
+// ── Write-back SEKALI-JALAN: hasil normalisasi dipersist ke key v2 ──────────
 const storedRules = JSON.parse(storage.get(KEY));
 assert.equal(storedRules.length, 3, 'storage harus berisi aturan ternormalisasi');
 assert.equal(storedRules[0].conditions[0].value, '12345', 'value number di-coerce ke string di storage');
 assert.equal(storedRules[0].conditions[1].value, '');
+assert.ok(storage.get(KEY_V1) == null, 'key v1 legacy harus dihapus setelah migrasi');
 // Idempotent: baca kedua tidak menulis ulang (storage sudah bentuk valid)
 const rawAfter = storage.get(KEY);
 assert.equal(getRules(EMAIL).length, 3);

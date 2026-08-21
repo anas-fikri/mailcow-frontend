@@ -60,8 +60,9 @@ try {
   assert.equal(fetchCalled, 0, 'guard harus mencegah pemanggilan fetch');
 
   // ── 5. Normalisasi fallback localStorage (pola loadSignatures) ─────────────
-  // Cache lokal sogo_prefs_<email> dari versi lama bisa berbentuk apa pun.
-  // 401 → fallback ke localStorage → hasil harus { defaults, settings } object.
+  // Cache lokal sogo_prefs_<email> (v1 legacy) / sogo_prefs_v2_<email> bisa
+  // berbentuk apa pun. 401 → fallback ke localStorage → hasil harus
+  // { defaults, settings } object + migrasi v1 → v2.
   const ls = new Map();
   globalThis.localStorage = {
     getItem: (k) => ls.get(k) ?? null,
@@ -70,35 +71,38 @@ try {
   };
   globalThis.fetch = async () => response(401, { message: 'Sesi SMTP sudah berakhir.' });
 
+  // Migrasi key v1 → v2 (data valid di key lama tetap terbaca)
   ls.set('sogo_prefs_user@x.test', JSON.stringify({ defaults: { SOGoTimeZone: 'Asia/Jakarta' }, settings: {} }));
   const prefs5 = await api.fetchPreferences('token@x.test', 'user@x.test');
   assert.ok(prefs5 && typeof prefs5 === 'object', 'fallback harus mengembalikan object');
   assert.equal(prefs5.defaults.SOGoTimeZone, 'Asia/Jakarta');
   assert.ok(prefs5.settings && typeof prefs5.settings === 'object');
+  assert.ok(ls.get('sogo_prefs_v2_user@x.test'), 'data v1 dipindahkan ke key v2');
+  assert.ok(ls.get('sogo_prefs_user@x.test') == null, 'key v1 legacy harus dihapus setelah migrasi');
 
   // Cache berbentuk string/array/null → dinormalisasi jadi { defaults:{}, settings:{} }
-  ls.set('sogo_prefs_user@x.test', '"bukan-prefs"');
+  ls.set('sogo_prefs_v2_user@x.test', '"bukan-prefs"');
   const prefs6 = await api.fetchPreferences('token@x.test', 'user@x.test');
   assert.deepEqual(prefs6, { defaults: {}, settings: {} }, 'cache non-object harus dinormalisasi');
-  assert.equal(ls.get('sogo_prefs_user@x.test'), JSON.stringify({ defaults: {}, settings: {} }),
+  assert.equal(ls.get('sogo_prefs_v2_user@x.test'), JSON.stringify({ defaults: {}, settings: {} }),
     'write-back: cache bentuk rusak harus dibersihkan di localStorage');
-  ls.set('sogo_prefs_user@x.test', 'null');
+  ls.set('sogo_prefs_v2_user@x.test', 'null');
   const prefs7 = await api.fetchPreferences('token@x.test', 'user@x.test');
   assert.equal(prefs7, null, 'JSON null = tidak ada cache (sama seperti key hilang)');
-  ls.set('sogo_prefs_user@x.test', JSON.stringify([1, 2]));
+  ls.set('sogo_prefs_v2_user@x.test', JSON.stringify([1, 2]));
   const prefs8 = await api.fetchPreferences('token@x.test', 'user@x.test');
   assert.deepEqual(prefs8, { defaults: {}, settings: {} }, 'array harus dinormalisasi');
 
   // defaults/settings non-object (string) → dipaksa {} agar akses .SOGo* aman
-  ls.set('sogo_prefs_user@x.test', JSON.stringify({ defaults: 'rusak', settings: 42 }));
+  ls.set('sogo_prefs_v2_user@x.test', JSON.stringify({ defaults: 'rusak', settings: 42 }));
   const prefs9 = await api.fetchPreferences('token@x.test', 'user@x.test');
   assert.deepEqual(prefs9, { defaults: {}, settings: {} }, 'defaults/settings non-object harus dinormalisasi');
 
   // Cache VALID tidak boleh ditulis ulang (idempotent)
   const validRaw = JSON.stringify({ defaults: { SOGoTimeZone: 'Asia/Jakarta' }, settings: {} });
-  ls.set('sogo_prefs_user@x.test', validRaw);
+  ls.set('sogo_prefs_v2_user@x.test', validRaw);
   await api.fetchPreferences('token@x.test', 'user@x.test');
-  assert.equal(ls.get('sogo_prefs_user@x.test'), validRaw, 'cache valid tidak boleh ditulis ulang');
+  assert.equal(ls.get('sogo_prefs_v2_user@x.test'), validRaw, 'cache valid tidak boleh ditulis ulang');
 
   console.log('preferences fallback assertions passed');
 } finally {

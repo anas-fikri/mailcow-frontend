@@ -1,4 +1,4 @@
-import { readJSON, writeIfChanged } from './storageMigrate.js';
+import { readStorage, persistNormalized } from './storageMigrate.js';
 
 /**
  * Preferensi UI per-akun (tema terang/gelap, warna aksen, urutan sortir,
@@ -19,12 +19,14 @@ export const DEFAULT_PREFS = {
 };
 
 const normalizeEmail = (email) => typeof email === 'string' ? email.trim().toLowerCase() : '';
-const LS_KEY = (email) => `pcp_prefs_${normalizeEmail(email)}`;
+const BASE_KEY = 'pcp_prefs';
+const LS_KEY = (email) => `pcp_prefs_v2_${normalizeEmail(email)}`;
 
 /** Ambil preferensi tersimpan untuk satu akun; null jika belum pernah disimpan. */
 export function loadPrefs(email) {
-  if (!normalizeEmail(email)) return null;
-  const parsed = readJSON(LS_KEY(email));
+  const normEmail = normalizeEmail(email);
+  if (!normEmail) return null;
+  const { value: parsed, key: targetKey, version, fromLegacy } = readStorage(BASE_KEY, normEmail);
   if (parsed == null) return null;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
   const normalized = {
@@ -36,7 +38,7 @@ export function loadPrefs(email) {
   // Migrasi SEKALI-JALAN: bila bentuk tersimpan beda dari bentuk
   // ternormalisasi (field hilang / key ekstra / nilai tidak valid),
   // tulis balik agar baca berikutnya tidak mengulang normalisasi.
-  writeIfChanged(LS_KEY(email), parsed, normalized);
+  persistNormalized(BASE_KEY, normEmail, parsed, normalized, { fromLegacy, key: targetKey, version });
   return normalized;
 }
 

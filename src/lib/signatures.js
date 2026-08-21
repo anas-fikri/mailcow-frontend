@@ -4,17 +4,21 @@
  * Setiap akun punya daftar signature bernama. Satu dipilih sebagai default
  * utk email baru, satu lagi (opsional) utk balasan/forward.
  *
- * Storage key: `pcp_signatures_<email>` → { list: [{id,name,html}], defaults: { new: id, reply: id } }
+ * Storage key: `pcp_signatures_v2_<email>` → { list: [{id,name,html}], defaults: { new: id, reply: id } }
+ * (v1 legacy: `pcp_signatures_<email>` — dimigrasi sekali-jalan ke v2).
  *
  * Kompatibel dgn userPrefs.js — localStorage per email, tidak ter-reset saat
  * logout. Signature tidak pernah disinkronkan ke server; hanya dipakai app ini
  * saat compose (inject HTML ke editor).
  */
 
-import { readJSON, writeJSON } from './storageMigrate.js';
+import {
+  readStorage,
+  persistNormalized,
+} from './storageMigrate.js';
 
 const normalizeEmail = (email) => typeof email === 'string' ? email.trim().toLowerCase() : '';
-const LS_KEY = (email) => `pcp_signatures_${normalizeEmail(email)}`;
+const BASE_KEY = 'pcp_signatures';
 
 // Placeholder utk entri signature legacy (versi sebelum fitur multi-signature
 // menyimpan { id, name } tanpa field html). Migrasi sekali-jalan di
@@ -32,8 +36,12 @@ export function createSigId() {
 
 export function loadSignatures(email) {
   if (!normalizeEmail(email)) return { list: [], defaults: { new: null, reply: null } };
-  const parsed = readJSON(LS_KEY(email));
-  if (parsed == null) return { list: [], defaults: { new: null, reply: null } };
+  const { value: parsed, key: targetKey, version, fromLegacy } = readStorage(BASE_KEY, normalizeEmail(email));
+  if (parsed == null) {
+    // Data lama di key v1 tetap dibaca via readStorage; bila tidak ada sama
+    // sekali, key v2 tidak perlu dibuat.
+    return { list: [], defaults: { new: null, reply: null } };
+  }
   // Normalisasi tiap entri: entri legacy (sebelum fitur multi-signature) bisa
   // berbentuk { id, name } tanpa html, atau id non-string. Pastikan semua
   // consumer (PreferencesPage, ComposeModal) selalu menerima
@@ -60,10 +68,12 @@ export function loadSignatures(email) {
     new: defaults.new || null,
     reply: defaults.reply || null,
   };
-  if (migrated) {
-    // Persist hasil migrasi (sekali jalan) — writeJSON dibungkus try/catch.
-    writeJSON(LS_KEY(email), { list, defaults: normalizedDefaults });
-  }
+  const normalized = { list, defaults: normalizedDefaults };
+  // Persist hasil migrasi (sekali jalan): tulis ke key terbaru (v2), lalu
+  // hapus key sumber bila data berasal dari versi lama (v1) — hanya bila
+  // tulis sukses (quota → key v1 dipertahankan utk migrasi ulang). Idempotent:
+  // data valid di v2 tidak ditulis ulang.
+  persistNormalized(BASE_KEY, normalizeEmail(email), parsed, normalized, { fromLegacy, key: targetKey, version });
   return {
     list,
     defaults: normalizedDefaults,
@@ -73,7 +83,7 @@ export function loadSignatures(email) {
 function save(email, data) {
   if (!normalizeEmail(email)) return;
   try {
-    localStorage.setItem(LS_KEY(email), JSON.stringify(data));
+    localStorage.setItem(`pcp_signatures_v2_${normalizeEmail(email)}`, JSON.stringify(data));
   } catch { /* quota — silent */ }
 }
 

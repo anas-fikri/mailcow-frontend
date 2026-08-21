@@ -1761,3 +1761,56 @@ migrasi idempotent tidak diulang manual di tiap modul storage.
 -  M src/lib/userPrefs.js
 - ?? scripts/test-storage-migrate.mjs
 - ?? src/lib/storageMigrate.js
+
+## Handoff — versi skema localStorage (pcp_*_v2)
+
+**Task:** Tambah versi skema pada tiap key localStorage agar migrasi berikutnya
+terdeteksi lebih mudah. **SELESAI & LIVE** (39/39 test PASS, build OK).
+
+### Yang berubah
+- `src/lib/storageMigrate.js`: helper `STORAGE_VERSION` (2), `storageKey()`,
+  `readStorage()` (fallback chain baca v2 → v1, `fromLegacy`), `removeJSON()`,
+  `persistNormalized()` (migrasi key + write-back idempotent).
+- 6 modul dimigrasi ke key `*_v2_*` dengan fallback baca v1 + pemindahan
+  sekali-jalan: `signatures`, `snooze`, `flagColors`, `autoArchive` (rules),
+  `api.js` (cache prefs `sogo_prefs_v2_`), `userPrefs`.
+- Key v1 dihapus HANYA setelah tulis v2 sukses (quota → v1 dipertahankan utk
+  migrasi ulang). Idempotent: data valid tidak pernah ditulis ulang.
+
+### Test
+- `test:storage-migrate` diperluas: storageKey, readStorage fallback v2→v1,
+  persistNormalized (migrasi, idempotent, quota-gagal).
+- Semua test storage di-update ke pola seed-v1/assert-v2. e2e
+  `test-settings-signature` tetap seed v1 (uji migrasi nyata di bundle).
+- 39/39 PASS.
+
+### Deploy
+- Commit → push origin/main → `SERVER=deploy-mail ./deploy.sh`.
+
+### Next task suggestion
+- Pantau seminggu: cek console error browser (key lama tidak ter-baca /
+  migrasi ganda) & 401/500 di log server. Bila ada domain storage baru,
+  wajib pakai `readStorage`/`persistNormalized` + unit test legacy.
+
+## 2026-08-21T10:18:53Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M scripts/test-autoarchive.mjs
+-  M scripts/test-flag-colors.mjs
+-  M scripts/test-preferences-fallback.mjs
+-  M scripts/test-signatures.mjs
+-  M scripts/test-snooze.mjs
+-  M scripts/test-storage-migrate.mjs
+-  M scripts/test-user-prefs.mjs
+-  M src/lib/api.js
+-  M src/lib/autoArchive.js
+-  M src/lib/flagColors.js
+-  M src/lib/signatures.js
+-  M src/lib/snooze.js
+-  M src/lib/storageMigrate.js
+-  M src/lib/userPrefs.js

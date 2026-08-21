@@ -16,18 +16,19 @@ export const FLAG_COLOR_KEYS = Object.keys(FLAG_COLORS);
 export const FLAG_COLOR_DEFAULT = 'yellow';
 
 // ─── localStorage helpers ────────────────────────────────────────────────────
-import { readJSON, writeJSON } from './storageMigrate.js';
+import { writeJSON, readStorage, persistNormalized } from './storageMigrate.js';
 
-const LS_KEY = (email) => `flag_colors_${email}`;
+const BASE_KEY = 'flag_colors';
+const LS_KEY = (email) => `flag_colors_v2_${email}`;
 
 function getStore(email) {
   if (!email) return {};
-  const parsed = readJSON(LS_KEY(email));
+  const { value: parsed, key: targetKey, version, fromLegacy } = readStorage(BASE_KEY, email);
   if (parsed == null) return {};
   // Guard bentuk: JSON "null"/array/string → operasi store[...] crash.
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    // Bentuk rusak → bersihkan sekali: tulis {} (pola write-back idempotent).
-    writeJSON(LS_KEY(email), {});
+    // Bentuk rusak → bersihkan sekali: tulis {} di key terbaru (v2).
+    writeJSON(targetKey, {});
     return {};
   }
   // Migrasi sekali-jalan: buang key dengan warna yang tidak lagi dikenal
@@ -40,7 +41,9 @@ function getStore(email) {
       changed = true;
     }
   }
-  if (changed) writeJSON(LS_KEY(email), parsed);
+  // Write-back SEKALI-JALAN: hasil prune dipersist + data v1 dipindah ke v2
+  // (key v1 dihapus hanya bila tulis sukses). Idempotent utk data valid.
+  persistNormalized(BASE_KEY, email, parsed, parsed, { fromLegacy, key: targetKey, version });
   return parsed;
 }
 

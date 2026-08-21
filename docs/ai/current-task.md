@@ -1,52 +1,46 @@
 # Current Task
 
-Status: COMPLETED
-Task ID: 20260821-storage-migrate-helper
-Started At: 2026-08-21T14:00:00Z
-Updated At: 2026-08-21T10:10:41Z
-Project Root: /home/anas.fikri/mailcow-frontend
+## Task: Versi skema pada tiap key localStorage (pcp_*_v2)
 
-## Objective
-Buat helper bersama `src/lib/storageMigrate.js` agar pola baca + write-back
-migrasi idempotent tidak diulang manual di tiap modul storage.
+**Status: SELESAI (39/39 test PASS, live)** — commit `HEAD` → push + deploy.
 
-## Helper baru (`src/lib/storageMigrate.js`)
-- `readJSON(key)` — baca + parse JSON; null bila key tidak ada / JSON rusak
-  (menggantikan `try { JSON.parse(localStorage.getItem(...)) } catch` per modul).
-- `writeJSON(key, value)` — tulis (stringify) dibungkus try/catch; true bila
-  tertulis. Dipakai saat pemanggil sudah tahu bentuk berubah (flag `migrated`/
-  `changed`/bentuk rusak).
-- `writeIfChanged(key, original, normalized)` — tulis HANYA bila JSON.stringify
-  berbeda (struktur kecil: rules/prefs); idempotent.
+## Ringkasan
+Setiap domain storage localStorage kini memakai key ber-version (`*_v2_*`)
+dengan fallback chain baca v2 → v1 di `storageMigrate.js`. Data legacy v1
+dibaca, dinormalisasi, dipindah ke v2 sekali-jalan, lalu key v1 dihapus
+(hanya bila tulis v2 sukses — quota tidak menghapus sumber).
 
-## Refactor (pola yang sama di semua modul)
-- `signatures.js` — readJSON + writeJSON (flag migrated)
-- `snooze.js` — readJSON + writeJSON (flag changed / bentuk rusak)
-- `flagColors.js` — readJSON + writeJSON (prune / bentuk rusak)
-- `autoArchive.js` — readJSON + writeJSON([]) + writeIfChanged
-- `api.js loadPrefsFromLocal` — readJSON + writeIfChanged
-- `userPrefs.js loadPrefs` — readJSON + writeIfChanged
+## Modul yang dimigrasi
+| Modul | v1 (legacy) | v2 (sekarang) |
+|---|---|---|
+| signatures.js | `pcp_signatures_<email>` | `pcp_signatures_v2_<email>` |
+| snooze.js | `pcp_snooze_<email>` | `pcp_snooze_v2_<email>` |
+| flagColors.js | `flag_colors_<email>` | `flag_colors_v2_<email>` |
+| autoArchive.js | `auto_archive_rules_<email>` | `auto_archive_rules_v2_<email>` |
+| api.js (prefs cache) | `sogo_prefs_<email>` | `sogo_prefs_v2_<email>` |
+| userPrefs.js | `pcp_prefs_<email>` | `pcp_prefs_v2_<email>` |
 
-## Perubahan perilaku yang disengaja (didokumentasikan)
-- JSON `'null'` tersimpan kini dianggap "tidak ada data" (readJSON → null) —
-  TIDAK lagi ditulis ulang menjadi `{}`/`[]`. Konsumen mendapat nilai yang sama
-  ({}/[]/null); hanya pembersihan storage untuk literal-null yang tidak
-  dilakukan (benign). Test disesuaikan: pembersihan tetap diuji untuk bentuk
-  rusak yang bisa di-parse (array/string/object salah bentuk).
+## Helper baru di storageMigrate.js
+- `STORAGE_VERSION` (2), `storageKey(base, scope, version)`,
+  `readStorage(base, scope)` (baca versi tertinggi → turun; `fromLegacy`),
+  `removeJSON(key)`, `persistNormalized(base, scope, parsed, normalized, info)`
+  (migrasi key + write-back idempotent).
 
 ## Test
-- Baru `test:storage-migrate` (readJSON/writeJSON/writeIfChanged + simulasi
-  setItem gagal).
-- Semua test modul storage (signatures, snooze, flagColors, autoarchive,
-  user-prefs, preferences-fallback) tetap PASS setelah refactor.
+- `test:storage-migrate` diperluas: storageKey/readStorage fallback v2→v1,
+  persistNormalized (migrasi + idempotent + quota gagal mempertahankan v1).
+- Semua test storage di-update: seed legacy di key v1, assert hasil di key v2
+  + v1 dihapus. `test-settings-signature` (e2e bundle) tetap seed v1 utk
+  menguji migrasi nyata di bundle produksi.
+- 39/39 PASS · build OK.
 
-## Validation
-- 39/39 test PASS · npm run build OK
+## Catatan
+- JSON literal `'null'` tersimpan dianggap "tidak ada data" (readJSON → null);
+  readStorage menganggap v2 `'null'` = tidak ada → fallback ke v1.
+- `clearAllRules` membersihkan key v2 + v1.
 
-## Files Changed
-- src/lib/storageMigrate.js (baru)
-- src/lib/signatures.js, snooze.js, flagColors.js, autoArchive.js, api.js,
-  userPrefs.js
-- scripts/test-storage-migrate.mjs (baru), test-snooze.mjs, test-flag-colors.mjs,
-  test-preferences-fallback.mjs
-- package.json (+test:storage-migrate)
+## Next
+- Pantau error 401/500 di produksi; kalau ada bentuk data legacy lain yang
+  ditemukan, naikkan STORAGE_VERSION + tambah normalisasi di pemakai.
+Status: COMPLETED
+Updated At: 2026-08-21T10:18:53Z

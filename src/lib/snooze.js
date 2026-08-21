@@ -6,13 +6,14 @@
  * ada perubahan folder di server, tidak butuh endpoint SOGo baru, dan kalau
  * user membuka email dari klien lain email tetap ada di Inbox.
  *
- * Storage: localStorage per-akun `pcp_snooze_<email>` → { [uid]: wakeEpoch }
+ * Storage: localStorage per-akun `pcp_snooze_v2_<email>` → { [uid]: wakeEpoch }
+ * (v1 legacy: `pcp_snooze_<email>` — dimigrasi sekali-jalan ke v2).
  */
 
-import { readJSON, writeJSON } from './storageMigrate.js';
+import { writeJSON, readStorage, persistNormalized } from './storageMigrate.js';
 
 const normalizeEmail = (email) => typeof email === 'string' ? email.trim().toLowerCase() : '';
-const LS_KEY = (email) => `pcp_snooze_${normalizeEmail(email)}`;
+const BASE_KEY = 'pcp_snooze';
 
 export const SNOOZE_PRESETS = [
   { id: 'tonight', label: 'Nanti malam', hours: 3 },
@@ -23,39 +24,36 @@ export const SNOOZE_PRESETS = [
 
 export function loadSnoozes(email) {
   if (!normalizeEmail(email)) return {};
-  const parsed = readJSON(LS_KEY(email));
+  const { value: parsed, key: targetKey, version, fromLegacy } = readStorage(BASE_KEY, normalizeEmail(email));
   if (parsed == null) return {};
   // Normalisasi: map { uid: wakeEpoch } dengan nilai numerik saja.
   // Data lama/rusak (nilai string, null, array) dibuang agar isSnoozed /
   // pruneExpired tidak bergantung pada Number() yang bisa NaN.
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    // Bentuk rusak → bersihkan sekali: tulis {} (pola write-back idempotent).
-    writeJSON(LS_KEY(email), {});
+    // Bentuk rusak → bersihkan sekali: tulis {} di key terbaru (v2).
+    writeJSON(targetKey, {});
     return {};
   }
   const out = {};
-  let changed = false;
   for (const [uid, wake] of Object.entries(parsed)) {
     // Hanya number / string numerik (Number(null)=0 dan Number(true)=1 yang
     // merupakan koersi tidak diinginkan dari data rusak → tolak keduanya).
     const n = typeof wake === 'number' ? wake : Number(wake);
     if (Number.isFinite(n) && (typeof wake === 'number' || typeof wake === 'string')) {
       out[uid] = n;
-      if (typeof wake !== 'number') changed = true;   // string epoch → number
-    } else {
-      changed = true;                                  // nilai invalid dibuang
     }
   }
   // Write-back SEKALI-JALAN: persist hasil bersih agar baca berikutnya
-  // tidak mengulang normalisasi (idempotent).
-  if (changed) writeJSON(LS_KEY(email), out);
+  // tidak mengulang normalisasi (idempotent) + pindahkan data v1 ke v2
+  // (key v1 dihapus hanya bila tulis sukses).
+  persistNormalized(BASE_KEY, normalizeEmail(email), parsed, out, { fromLegacy, key: targetKey, version });
   return out;
 }
 
 function save(email, map) {
   if (!normalizeEmail(email)) return;
   try {
-    localStorage.setItem(LS_KEY(email), JSON.stringify(map));
+    localStorage.setItem(`pcp_snooze_v2_${normalizeEmail(email)}`, JSON.stringify(map));
   } catch { /* quota — silent */ }
 }
 

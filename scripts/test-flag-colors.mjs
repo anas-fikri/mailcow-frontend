@@ -13,9 +13,11 @@ const {
 } = await import('../src/lib/flagColors.js');
 
 const EMAIL = 'u@example.com';
-const KEY = `flag_colors_${EMAIL}`;
+const KEY = `flag_colors_v2_${EMAIL}`;  // key v2 (sekarang)
+const KEY_V1 = `flag_colors_${EMAIL}`; // key v1 (legacy)
 
 // ── Operasi normal ────────────────────────────────────────────────────────────
+storage.clear();
 assert.equal(getFlagColor(EMAIL, '1'), null);
 setFlagColor(EMAIL, '1', 'red');
 assert.equal(getFlagColor(EMAIL, '1'), 'red');
@@ -26,10 +28,18 @@ clearAllFlags(EMAIL);
 assert.deepEqual(getAllFlags(EMAIL), {});
 assert.deepEqual(Object.keys(FLAG_COLORS), FLAG_COLOR_KEYS);
 
+// ── Migrasi KEY v1 → v2 (data valid di key lama) ─────────────────────────────
+storage.clear();
+storage.set(KEY_V1, JSON.stringify({ '7': 'red' }));
+assert.deepEqual(getAllFlags(EMAIL), { '7': 'red' }, 'data v1 tetap terbaca');
+assert.equal(storage.get(KEY), '{"7":"red"}', 'data v1 dipindahkan ke key v2');
+assert.ok(storage.get(KEY_V1) == null, 'key v1 legacy dihapus setelah migrasi');
+
 // ── Migrasi SEKALI-JALAN: prune warna yang tidak dikenal ─────────────────────
-// Simulasikan storage lama dgn warna yang sudah tidak ada (mis. "orange") +
-// nilai rusak (null, angka) — harus dibuang dan ditulis balik.
-storage.set(KEY, JSON.stringify({
+// Simulasikan storage lama (key v1) dgn warna yang sudah tidak ada (mis.
+// "orange") + nilai rusak (null, angka) — harus dibuang, ditulis balik ke v2.
+storage.clear();
+storage.set(KEY_V1, JSON.stringify({
   '1': 'red',
   '2': 'orange',      // warna legacy yang sudah tidak dikenal → dibuang
   '3': null,          // rusak → dibuang
@@ -41,9 +51,10 @@ assert.deepEqual(flags, { '1': 'red', '5': 'purple' }, 'hanya warna valid yg ter
 assert.equal(getFlagColor(EMAIL, '2'), null);
 assert.equal(getFlagColor(EMAIL, '4'), null);
 
-// Write-back: storage sudah bersih
+// Write-back: storage v2 sudah bersih + key v1 dihapus
 const stored = JSON.parse(storage.get(KEY));
 assert.deepEqual(stored, { '1': 'red', '5': 'purple' }, 'storage harus ditulis ulang tanpa warna invalid');
+assert.ok(storage.get(KEY_V1) == null, 'key v1 legacy dihapus setelah migrasi');
 
 // Idempotent: baca kedua tidak menulis ulang
 const rawAfter = storage.get(KEY);

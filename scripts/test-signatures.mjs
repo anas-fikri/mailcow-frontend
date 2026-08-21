@@ -47,8 +47,9 @@ assert.equal(getSignatureById('u@example.com', 'nope'), null);
 assert.equal(getSignatureById('u@example.com', null), null);
 
 // ── Legacy data sanitization (bug: entri tanpa html crash sig.html.length) ──
-// Simulasikan data lama di localStorage: entri tanpa html, entri dgn html bukan
-// string, entri id non-string, dan non-object — semua harus dinormalisasi.
+// Simulasikan data lama di localStorage KEY v1 (legacy): entri tanpa html,
+// entri dgn html bukan string, entri id non-string, dan non-object — semua
+// harus dinormalisasi + dimigrasi ke key v2 (pcp_signatures_v2_<email>).
 storage.clear();
 storage.set('pcp_signatures_u@example.com', JSON.stringify({
   list: [
@@ -74,16 +75,17 @@ assert.equal(clean.defaults.reply, 'legacy-3');
 // Semua consumer aman: html selalu string
 for (const s of clean.list) assert.equal(typeof s.html, 'string');
 
-// ── Migrasi SEKALI-JALAN: hasil ditulis balik ke localStorage ───────────────
-const stored = JSON.parse(storage.get('pcp_signatures_u@example.com'));
+// ── Migrasi SEKALI-JALAN: hasil ditulis balik ke KEY v2 + key v1 dihapus ────
+const stored = JSON.parse(storage.get('pcp_signatures_v2_u@example.com'));
 assert.equal(stored.list.find((s) => s.id === 'legacy-1').html, LEGACY_PLACEHOLDER);
 assert.equal(stored.list.find((s) => s.id === 'legacy-1').placeholder, true);
+assert.ok(storage.get('pcp_signatures_u@example.com') == null, 'key v1 legacy harus dihapus setelah migrasi');
 // Baca kedua: idempotent — placeholder tidak diubah/digandakan, flag bertahan
-const rawAfter = storage.get('pcp_signatures_u@example.com');
+const rawAfter = storage.get('pcp_signatures_v2_u@example.com');
 const clean2 = loadSignatures('u@example.com');
 assert.equal(clean2.list.find((s) => s.id === 'legacy-1').html, LEGACY_PLACEHOLDER);
 assert.equal(clean2.list.find((s) => s.id === 'legacy-1').placeholder, true);
-assert.equal(storage.get('pcp_signatures_u@example.com'), rawAfter, 'tidak ada penulisan ulang saat sudah termigrasi');
+assert.equal(storage.get('pcp_signatures_v2_u@example.com'), rawAfter, 'tidak ada penulisan ulang saat sudah termigrasi');
 
 // updateSignature: user mengisi html eksplisit → flag placeholder dihapus
 const edited = updateSignature('u@example.com', 'legacy-1', { name: 'Lama', html: '<b>Dijisi</b>' });
@@ -93,9 +95,10 @@ assert.equal(loadSignatures('u@example.com').list.find((s) => s.id === 'legacy-1
 
 // ── Kontrak konsumen: getSignatureFor mengembalikan entri placeholder dgn flag ──
 // Konsumen (ComposeModal auto-inject / SignaturePicker) WAJIB skip entri
-// ber-flag placeholder agar placeholder tidak ikut terkirim.
+// ber-flag placeholder agar placeholder tidak ikut terkirim. Data ditaruh di
+// key v2 langsung (sudah termigrasi).
 storage.clear();
-storage.set('pcp_signatures_u@example.com', JSON.stringify({
+storage.set('pcp_signatures_v2_u@example.com', JSON.stringify({
   list: [{ id: 'legacy-1', name: 'Lama' }, { id: 'real-1', name: 'Nyata', html: '<b>B</b>' }],
   defaults: { new: 'legacy-1', reply: 'real-1' },
 }));

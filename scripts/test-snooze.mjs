@@ -38,7 +38,9 @@ assert.equal(SNOOZE_PRESETS.length, 4);
 assert.ok(SNOOZE_PRESETS.every((p) => p.hours > 0));
 
 // ── Normalisasi data legacy/rusak (pola loadSignatures) ─────────────────────
-// Nilai non-numerik / tidak finite dibuang; string epoch di-coerce ke number.
+// Data legacy di KEY v1: nilai non-numerik / tidak finite dibuang; string
+// epoch di-coerce ke number; semua dipindah ke key v2 (pcp_snooze_v2_<email>).
+storage.clear();
 storage.set('pcp_snooze_u@example.com', JSON.stringify({
   '1': '123456',   // string → number
   '2': null,       // dibuang
@@ -52,23 +54,24 @@ assert.equal(isSnoozed('u@example.com', '1', 123450), true, 'string epoch dinorm
 assert.equal(isSnoozed('u@example.com', '2', 0), false);
 assert.equal(isSnoozed('u@example.com', '5', 0), false);
 
-// ── Write-back SEKALI-JALAN: hasil bersih dipersist ke localStorage ─────────
-const storedNorm = JSON.parse(storage.get('pcp_snooze_u@example.com'));
+// ── Write-back SEKALI-JALAN: hasil bersih dipersist ke KEY v2 + v1 dihapus ──
+const storedNorm = JSON.parse(storage.get('pcp_snooze_v2_u@example.com'));
 assert.deepEqual(storedNorm, { '1': 123456, '4': 555 }, 'storage harus ditulis ulang dgn nilai numerik saja');
+assert.ok(storage.get('pcp_snooze_u@example.com') == null, 'key v1 legacy harus dihapus setelah migrasi');
 // Idempotent: baca kedua tidak mengubah apa pun (semua nilai sudah number)
-const rawAfter = storage.get('pcp_snooze_u@example.com');
+const rawAfter = storage.get('pcp_snooze_v2_u@example.com');
 assert.deepEqual(loadSnoozes('u@example.com'), { '1': 123456, '4': 555 });
-assert.equal(storage.get('pcp_snooze_u@example.com'), rawAfter, 'tidak boleh ada penulisan ulang saat sudah bersih');
+assert.equal(storage.get('pcp_snooze_v2_u@example.com'), rawAfter, 'tidak boleh ada penulisan ulang saat sudah bersih');
 
 // JSON "null" = tidak ada data (tanpa tulis); array / string (bentuk rusak
-// yang bisa di-parse) → {} (bukan crash) + storage dibersihkan sekali.
-storage.set('pcp_snooze_u@example.com', 'null');
+// yang bisa di-parse) → {} (bukan crash) + storage v2 dibersihkan sekali.
+storage.set('pcp_snooze_v2_u@example.com', 'null');
 assert.deepEqual(loadSnoozes('u@example.com'), {});
-storage.set('pcp_snooze_u@example.com', JSON.stringify([1, 2]));
+storage.set('pcp_snooze_v2_u@example.com', JSON.stringify([1, 2]));
 assert.deepEqual(loadSnoozes('u@example.com'), {});
-assert.equal(storage.get('pcp_snooze_u@example.com'), '{}', 'storage bentuk array ditulis ulang jadi {}');
-storage.set('pcp_snooze_u@example.com', '"string"');
+assert.equal(storage.get('pcp_snooze_v2_u@example.com'), '{}', 'storage bentuk array ditulis ulang jadi {}');
+storage.set('pcp_snooze_v2_u@example.com', '"string"');
 assert.deepEqual(loadSnoozes('u@example.com'), {});
-assert.equal(storage.get('pcp_snooze_u@example.com'), '{}', 'storage bentuk string ditulis ulang jadi {}');
+assert.equal(storage.get('pcp_snooze_v2_u@example.com'), '{}', 'storage bentuk string ditulis ulang jadi {}');
 
 console.log('snooze assertions passed');

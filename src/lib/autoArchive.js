@@ -42,10 +42,13 @@ export const RULE_MATCH_TYPES = [
 ];
 
 // ─── localStorage key ─────────────────────────────────────────────────────────
-import { readJSON, writeJSON, writeIfChanged } from './storageMigrate.js';
+// v1 legacy: `auto_archive_rules_<email>` — dimigrasi sekali-jalan ke v2.
+import { readStorage, persistNormalized } from './storageMigrate.js';
+
+const BASE_KEY = 'auto_archive_rules';
 
 function lsKey(email) {
-  return `auto_archive_rules_${email}`;
+  return `auto_archive_rules_v2_${email}`;
 }
 
 // ─── Read / Write ─────────────────────────────────────────────────────────────
@@ -62,12 +65,12 @@ function lsKey(email) {
  */
 export function getRules(email) {
   if (!email) return [];
-  const parsed = readJSON(lsKey(email));
+  const { value: parsed, key: targetKey, version, fromLegacy } = readStorage(BASE_KEY, email);
   if (parsed == null) return [];
   if (!Array.isArray(parsed)) {
     // Bentuk rusak (object/string/null) → bersihkan sekali: tulis []
-    // (pola write-back idempotent).
-    writeJSON(lsKey(email), []);
+    // di key terbaru (v2), hapus key lama bila sumbernya legacy.
+    persistNormalized(BASE_KEY, email, parsed, [], { fromLegacy, key: targetKey, version });
     return [];
   }
   const list = parsed
@@ -93,7 +96,7 @@ export function getRules(email) {
   // Migrasi SEKALI-JALAN: bila bentuk tersimpan berbeda dari bentuk
   // ternormalisasi (entri dibuang / field di-coerce / key order beda),
   // tulis balik agar baca berikutnya tidak mengulang normalisasi.
-  writeIfChanged(lsKey(email), parsed, list);
+  persistNormalized(BASE_KEY, email, parsed, list, { fromLegacy, key: targetKey, version });
   return list;
 }
 
@@ -320,5 +323,7 @@ export function testRuleAgainstMessage(rule, sampleMsg) {
 
 export function clearAllRules(email) {
   if (!email) return;
-  localStorage.removeItem(lsKey(email));
+  // Hapus key v2 + key legacy v1 agar benar-benar bersih.
+  try { localStorage.removeItem(lsKey(email)); } catch {}
+  try { localStorage.removeItem(`auto_archive_rules_${email}`); } catch {}
 }

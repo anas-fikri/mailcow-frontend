@@ -570,3 +570,24 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260821-storage-migrate-helper
 - Status: COMPLETED
 - Finding: Helper bersama src/lib/storageMigrate.js (readJSON/writeJSON/writeIfChanged) merangkum pola write-back idempotent; 6 modul storage direfactor. Semantik: JSON 'null' = tidak ada data (tidak ditulis ulang). 39/39 PASS.
+
+## Storage schema versioning (localStorage pcp_*_v2)
+
+- Pola: setiap domain storage memakai base key ber-version
+  `pcp_<domain>_v2_<scope>` (v1 legacy tanpa `_v2`). Migrasi skema berikutnya
+  cukup menaikkan `STORAGE_VERSION` di `src/lib/storageMigrate.js` + tambah
+  normalisasi di pemakai — data lama otomatis dibaca dari key lama via
+  fallback chain `readStorage()` dan dipindah ke key terbaru sekali-jalan
+  (`persistNormalized`), lalu key lama dihapus (hanya bila tulis sukses).
+- Key v1 TIDAK dihapus bila tulis ke v2 gagal (quota) — migrasi bisa dicoba
+  lagi di baca berikutnya.
+- JSON literal `'null'` tersimpan dianggap "tidak ada data" (readJSON → null);
+  readStorage menganggap v2 ber-`'null'` = tidak ada → fallback ke v1.
+- 6 domain sudah v2: pcp_signatures, pcp_snooze, flag_colors,
+  auto_archive_rules, sogo_prefs (cache prefs), pcp_prefs.
+- `clearAllRules` harus membersihkan key v2 + v1 agar benar-benar reset.
+
+## 2026-08-21T10:18:53Z
+- Task: 
+- Status: COMPLETED
+- Finding: Storage schema versioning: semua domain localStorage (pcp_signatures, pcp_snooze, flag_colors, auto_archive_rules, sogo_prefs, pcp_prefs) dimigrasi ke key *_v2_* dengan fallback chain readStorage() + persistNormalized() di storageMigrate.js; key v1 dihapus hanya bila tulis v2 sukses; JSON literal 'null' dianggap tidak ada data. 39/39 test PASS, build OK.

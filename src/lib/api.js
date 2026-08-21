@@ -1,5 +1,5 @@
 import { pathSegment } from './pathSegment.js';
-import { readJSON, writeIfChanged } from './storageMigrate.js';
+import { readStorage, persistNormalized } from './storageMigrate.js';
 import { getMessageTotal } from './messageTotals.js';
 import { parseMessageRows } from './messageRows.js';
 import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
@@ -1299,7 +1299,10 @@ export async function changePassword(sogoToken, oldPassword, newPassword) {
 }
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
-const LS_KEY = (email) => `sogo_prefs_${email}`;
+// v1 legacy: `sogo_prefs_<email>` — dimigrasi sekali-jalan ke v2.
+// readStorage/persistNormalized sudah di-import di bagian atas file.
+const PREFS_BASE_KEY = 'sogo_prefs';
+const LS_KEY = (email) => `sogo_prefs_v2_${email}`;
 
 function savePrefsToLocal(email, prefs) {
   try {
@@ -1308,7 +1311,8 @@ function savePrefsToLocal(email, prefs) {
 }
 
 function loadPrefsFromLocal(email) {
-  const parsed = readJSON(LS_KEY(email));
+  if (!email) return null;
+  const { value: parsed, key: targetKey, version, fromLegacy } = readStorage(PREFS_BASE_KEY, email);
   if (parsed == null) return null;
   // Normalisasi bentuk: konsumen (DisplaySection/VacationSection/...)
   // membaca prefs.defaults.* dan prefs.settings — pastikan keduanya object
@@ -1323,7 +1327,7 @@ function loadPrefsFromLocal(email) {
   // Migrasi SEKALI-JALAN: bila bentuk tersimpan beda dari bentuk
   // ternormalisasi (non-object / key ekstra / defaults-settings rusak),
   // tulis balik agar baca berikutnya tidak mengulang normalisasi.
-  writeIfChanged(LS_KEY(email), parsed, normalized);
+  persistNormalized(PREFS_BASE_KEY, email, parsed, normalized, { fromLegacy, key: targetKey, version });
   return normalized;
 }
 
