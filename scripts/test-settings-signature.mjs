@@ -162,5 +162,15 @@ if (errors.length) {
 }
 
 const crashed = !!pcpError || /Terjadi Kesalahan/.test(bodyText);
-console.log('\nRESULT:', crashed ? 'CRASH ✗ — Settings tetap error dgn data signature legacy' : 'PASS — Settings render OK dgn data signature legacy');
-process.exit(crashed ? 1 : 0);
+
+// Migrasi sekali-jalan: entri legacy tanpa html diberi placeholder — daftar
+// menampilkan badge "Perlu diisi" (bukan "0.0 KB — teks saja" yang menyesatkan).
+const hasPlaceholderBadge = bodyText.includes('Perlu diisi — klik untuk mengedit');
+if (!crashed) {
+  console.log('placeholder badge di daftar:', hasPlaceholderBadge ? 'ADA ✓' : 'TIDAK ADA ✗');
+}
+const fail = crashed || !hasPlaceholderBadge;
+console.log('\nRESULT:', fail
+  ? 'FAIL ✗ — Settings error ATAU badge placeholder tidak tampil utk signature legacy'
+  : 'PASS — Settings render OK + signature legacy ditandai "Perlu diisi"');
+process.exit(fail ? 1 : 0);

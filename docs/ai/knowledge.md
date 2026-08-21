@@ -524,3 +524,14 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260821-error-boundary-debug-button
 - Status: COMPLETED
 - Finding: Tombol debug di ErrorBoundary root: detail error (pesan+stack+componentStack) tampil opt-in via toggle, default hidden (keputusan keamanan dipertahankan), reset saat error baru. Teknik unit test komponen JSX tanpa test runner: esbuild stdin bundle + data URL import + jsdom; redam console.error saat render. esbuild devDep. 37/37 PASS.
+
+## 2026-08-21 — Migrasi sekali-jalan data legacy: pola write-back idempotent
+
+- Pola migrasi aman di reader: deteksi bentuk lama (mis. `typeof e.html !== 'string'`) → hasil baru + flag penanda → **tulis balik ke localStorage** → baca berikutnya tidak mengubah apa pun (idempotent). Flag penanda (mis. `placeholder:true`) dipakai consumer utk menunda efek samping (injeksi) sampai user mengisi.
+- **Aman untuk email:** placeholder signature TIDAK boleh ikut terkirim — konsumen injeksi harus skip entri ber-flag (`localSig?.html && !localSig?.placeholder`), dan flag dihapus saat user menyimpan konten nyata (updateSignature).
+- Sebelum menyimpulkan "banyak konsumen", verifikasi sumber saat ini: grep getSignatureFor → hanya ComposeModal (MessageReader sudah tidak memakainya meski sejarah kode menunjukkan pernah).
+
+## 2026-08-21T09:48:19Z
+- Task: 20260821-signature-legacy-placeholder
+- Status: COMPLETED
+- Finding: Migrasi sekali-jalan signature legacy: placeholder + flag + write-back idempotent di loadSignatures; konsumen injeksi (ComposeModal, syncToSogo) skip placeholder agar tidak terkirim; updateSignature hapus flag saat user isi. Badge 'Perlu diisi' di daftar. 37/37 PASS.

@@ -1661,3 +1661,25 @@ error tanpa buka devtools.
 -  M src/components/ErrorBoundary.jsx
 -  M src/pages/PreferencesPage.jsx
 - ?? scripts/test-error-boundary-debug.mjs
+
+## 2026-08-21 — Migrasi sekali-jalan signature legacy (placeholder) — DONE + siap deploy
+
+- **loadSignatures:** entri legacy (html hilang / bukan string) → placeholder `<p>Ketik signature Anda di sini…</p>` + flag `placeholder:true`, ditulis balik ke localStorage (idempotent). updateSignature hapus flag saat user isi html eksplisit.
+- **Anti-terkirim:** ComposeModal + syncToSogo (PreferencesPage) skip placeholder — placeholder tidak ikut disuntik ke email baru/balasan maupun ke SOGo. Diverifikasi: MessageReader sudah tidak konsumsi getSignatureFor (refactor sebelumnya) — satu-satunya konsumen injeksi adalah ComposeModal.
+- **UI:** daftar menampilkan badge "Perlu diisi — klik untuk mengedit" utk entri placeholder (bukan "0.0 KB — teks saja").
+- **Test:** test:signatures (migrasi+write-back+idempotent+flag clear) & test:settings-signature (badge end-to-end). 37/37 PASS.
+
+## 2026-08-21T09:48:19Z
+- Status: COMPLETED
+- Objective: Migrasi sekali-jalan di loadSignatures: signature legacy yang kosong html diberi
+placeholder agar tidak tampil aneh di daftar.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M scripts/test-settings-signature.mjs
+-  M scripts/test-signatures.mjs
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/lib/signatures.js
+-  M src/pages/PreferencesPage.jsx

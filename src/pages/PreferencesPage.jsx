@@ -327,7 +327,9 @@ function SignatureSection() {
   async function syncToSogo() {
     const data = loadSignatures(email);
     const main = getSignatureById(email, data.defaults.new);
-    const html = main?.html || '';
+    // Entri legacy ber-placeholder tidak ikut disinkronkan ke SOGo — hanya
+    // dipakai setelah user mengisinya (flag placeholder dihapus saat edit).
+    const html = (main?.html && !main?.placeholder) ? main.html : '';
     setSavingSogo(true);
     setStatus(null);
     try {
@@ -383,10 +385,12 @@ function SignatureSection() {
                       {isDefaultReply && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Utk balasan</span>}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                      {/* Guard optional chaining: entri legacy (sebelum fitur multi-signature)
-                          bisa tanpa field html — jangan crash. loadSignatures juga sudah
-                          menormalkan html ke string, tapi jaga-jaga di sini. */}
-                      {((sig.html?.length || 0) / 1024).toFixed(1)} KB — {sig.html?.includes('<img') ? 'ada gambar' : 'teks saja'}
+                      {/* Entri legacy ber-placeholder (migrasi sekali-jalan di
+                          loadSignatures) ditandai agar user tahu harus diisi.
+                          Guard optional chaining tetap ada utk jaga-jaga. */}
+                      {sig.placeholder
+                        ? 'Perlu diisi — klik untuk mengedit'
+                        : `${((sig.html?.length || 0) / 1024).toFixed(1)} KB — ${sig.html?.includes('<img') ? 'ada gambar' : 'teks saja'}`}
                     </div>
                   </button>
                   <div className="flex items-center gap-1 shrink-0">

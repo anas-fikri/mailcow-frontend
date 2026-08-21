@@ -1,15 +1,15 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-21T09:43:42Z
+Generated At: 2026-08-21T09:48:19Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [HIGH] Run or verify validation: 37/37 test PASS (baru test:error-boundary-debug) · npm run build OK
+## 1. [HIGH] Run or verify validation: 37/37 test PASS · npm run build OK
 - Why: Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 2. [MEDIUM] Follow up on discovered knowledge: Tombol debug di ErrorBoundary root: detail error (pesan+stack+componentStack) tampil opt-in via toggle, default hidden (keputusan keamanan dipertahankan), reset saat error baru. Teknik unit test komponen JSX tanpa test runner: esbuild stdin bundle + data URL import + jsdom; redam console.error saat render. esbuild devDep. 37/37 PASS.
+## 2. [MEDIUM] Follow up on discovered knowledge: Migrasi sekali-jalan signature legacy: placeholder + flag + write-back idempotent di loadSignatures; konsumen injeksi (ComposeModal, syncToSogo) skip placeholder agar tidak terkirim; updateSignature hapus flag saat user isi. Badge 'Perlu diisi' di daftar. 37/37 PASS.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

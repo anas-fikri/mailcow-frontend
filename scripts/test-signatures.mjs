@@ -10,6 +10,7 @@ globalThis.localStorage = {
 const {
   loadSignatures, addSignature, updateSignature, removeSignature,
   setDefaultSignature, getSignatureFor, getSignatureById,
+  LEGACY_PLACEHOLDER,
 } = await import('../src/lib/signatures.js');
 
 // Empty state
@@ -61,12 +62,33 @@ storage.set('pcp_signatures_u@example.com', JSON.stringify({
 }));
 const clean = loadSignatures('u@example.com');
 assert.equal(clean.list.length, 3, 'hanya entri valid yg tersisa');
-assert.deepEqual(clean.list.find((s) => s.id === 'legacy-1'), { id: 'legacy-1', name: 'Lama', html: '' });
-assert.deepEqual(clean.list.find((s) => s.id === 'legacy-2'), { id: 'legacy-2', name: 'Angka', html: '' });
+// Entri legacy (tanpa html / html bukan string) → placeholder + flag
+assert.deepEqual(clean.list.find((s) => s.id === 'legacy-1'),
+  { id: 'legacy-1', name: 'Lama', html: LEGACY_PLACEHOLDER, placeholder: true });
+assert.deepEqual(clean.list.find((s) => s.id === 'legacy-2'),
+  { id: 'legacy-2', name: 'Angka', html: LEGACY_PLACEHOLDER, placeholder: true });
+// Entri dengan html string → tidak berubah, tanpa flag
 assert.deepEqual(clean.list.find((s) => s.id === 'legacy-3'), { id: 'legacy-3', name: 'Tanpa Nama', html: '<b>B</b>' });
 assert.equal(clean.defaults.new, 'legacy-1');
 assert.equal(clean.defaults.reply, 'legacy-3');
 // Semua consumer aman: html selalu string
 for (const s of clean.list) assert.equal(typeof s.html, 'string');
+
+// ── Migrasi SEKALI-JALAN: hasil ditulis balik ke localStorage ───────────────
+const stored = JSON.parse(storage.get('pcp_signatures_u@example.com'));
+assert.equal(stored.list.find((s) => s.id === 'legacy-1').html, LEGACY_PLACEHOLDER);
+assert.equal(stored.list.find((s) => s.id === 'legacy-1').placeholder, true);
+// Baca kedua: idempotent — placeholder tidak diubah/digandakan, flag bertahan
+const rawAfter = storage.get('pcp_signatures_u@example.com');
+const clean2 = loadSignatures('u@example.com');
+assert.equal(clean2.list.find((s) => s.id === 'legacy-1').html, LEGACY_PLACEHOLDER);
+assert.equal(clean2.list.find((s) => s.id === 'legacy-1').placeholder, true);
+assert.equal(storage.get('pcp_signatures_u@example.com'), rawAfter, 'tidak ada penulisan ulang saat sudah termigrasi');
+
+// updateSignature: user mengisi html eksplisit → flag placeholder dihapus
+const edited = updateSignature('u@example.com', 'legacy-1', { name: 'Lama', html: '<b>Dijisi</b>' });
+assert.equal(edited.html, '<b>Dijisi</b>');
+assert.equal(edited.placeholder, undefined, 'flag placeholder harus hilang setelah user mengisi');
+assert.equal(loadSignatures('u@example.com').list.find((s) => s.id === 'legacy-1').placeholder, undefined);
 
 console.log('signatures assertions passed');

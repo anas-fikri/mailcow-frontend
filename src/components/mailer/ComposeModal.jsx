@@ -144,7 +144,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   useEffect(() => {
     if (!isOpen || sigInjected.current || !user?.email) return;
     const localSig = getSignatureFor(user.email, composeMode);
-    const sigHtml = localSig?.html || prefs?.defaults?.SOGoMailSignature;
+    // Entri legacy ber-placeholder tidak ikut disuntik ke email baru — hanya
+    // diisi saat user mengeditnya (flag placeholder dihapus oleh updateSignature).
+    const sigHtml = (localSig?.html && !localSig?.placeholder) || prefs?.defaults?.SOGoMailSignature;
     const enabled = localSig
       ? true
       : prefs?.defaults?.SOGoMailSignatureEnabled === '1';

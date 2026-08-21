@@ -14,6 +14,14 @@
 const normalizeEmail = (email) => typeof email === 'string' ? email.trim().toLowerCase() : '';
 const LS_KEY = (email) => `pcp_signatures_${normalizeEmail(email)}`;
 
+// Placeholder utk entri signature legacy (versi sebelum fitur multi-signature
+// menyimpan { id, name } tanpa field html). Migrasi sekali-jalan di
+// loadSignatures mengisinya agar tidak tampil kosong/aneh di daftar, lalu
+// menulis balik ke localStorage + menandai `placeholder: true` agar:
+//   - tidak diulang (idempotent),
+//   - tidak ikut disuntik ke email baru/balasan (lihat ComposeModal/MessageReader).
+export const LEGACY_PLACEHOLDER = '<p>Ketik signature Anda di sini…</p>';
+
 let _idCounter = 0;
 export function createSigId() {
   _idCounter += 1;
@@ -30,20 +38,38 @@ export function loadSignatures(email) {
     // berbentuk { id, name } tanpa html, atau id non-string. Pastikan semua
     // consumer (PreferencesPage, ComposeModal, MessageReader) selalu menerima
     // { id, name, html } ber-string — mencegah crash sig.html.length.
+    //
+    // Migrasi SEKALI-JALAN: entri legacy tanpa field html diberi placeholder
+    // + flag `placeholder: true`, lalu ditulis balik ke localStorage agar tidak
+    // diulang pada baca berikutnya (idempotent) dan tidak disuntik ke email.
+    let migrated = false;
     const list = (Array.isArray(parsed?.list) ? parsed.list : [])
       .filter((e) => e && typeof e === 'object' && typeof e.id === 'string')
-      .map((e) => ({
-        id: e.id,
-        name: typeof e.name === 'string' ? e.name : 'Tanpa Nama',
-        html: typeof e.html === 'string' ? e.html : '',
-      }));
+      .map((e) => {
+        const name = typeof e.name === 'string' ? e.name : 'Tanpa Nama';
+        if (typeof e.html !== 'string') {
+          migrated = true;
+          return { id: e.id, name, html: LEGACY_PLACEHOLDER, placeholder: true };
+        }
+        const out = { id: e.id, name, html: e.html };
+        if (e.placeholder) out.placeholder = true;
+        return out;
+      });
     const defaults = parsed?.defaults && typeof parsed.defaults === 'object' ? parsed.defaults : {};
+    const normalizedDefaults = {
+      new: defaults.new || null,
+      reply: defaults.reply || null,
+    };
+    if (migrated) {
+      // Persist hasil migrasi (sekali jalan) — pakai try/catch agar baca tdk
+      // gagal saat storage penuh/privasi (mis. Safari private mode).
+      try {
+        localStorage.setItem(LS_KEY(email), JSON.stringify({ list, defaults: normalizedDefaults }));
+      } catch { /* storage tidak tersedia — migrasi tetap berlaku utk sesi ini */ }
+    }
     return {
       list,
-      defaults: {
-        new: defaults.new || null,
-        reply: defaults.reply || null,
-      },
+      defaults: normalizedDefaults,
     };
   } catch {
     return { list: [], defaults: { new: null, reply: null } };
@@ -73,6 +99,8 @@ export function updateSignature(email, id, patch) {
   const idx = data.list.findIndex((s) => s.id === id);
   if (idx === -1) return null;
   data.list[idx] = { ...data.list[idx], ...patch };
+  // User menyetel html secara eksplisit → bukan lagi placeholder legacy.
+  if ('html' in patch) delete data.list[idx].placeholder;
   save(email, data);
   return data.list[idx];
 }
