@@ -11,7 +11,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
 import { handleEditorPaste, insertImageFile, PURIFY_CONFIG } from '../../lib/pasteUtils';
-import { loadSignatures, getSignatureFor, getSignatureById } from '../../lib/signatures';
+import { loadSignatures, getSignatureFor } from '../../lib/signatures';
 import { formatFileSize, totalAttachmentSize } from '../../lib/attachments';
 
 // Batas lampiran (sama dengan validasi backend — lihat attachmentValidation.js).
@@ -568,7 +568,12 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
 // Dropdown kecil utk menyisipkan salah satu signature yang tersimpan.
 function SignaturePicker({ email, onInsert }) {
   const [open, setOpen] = useState(false);
-  const sigs = email ? loadSignatures(email).list : [];
+  // Entri legacy ber-placeholder di-skip: tidak ada konten nyata utk disisipkan
+  // (placeholder hanya panduan "ketik di sini" — disisipkan bisa ikut terkirim).
+  // User mengisi/mengeditnya lewat halaman Settings → Signature.
+  const sigs = email
+    ? loadSignatures(email).list.filter((s) => !s.placeholder)
+    : [];
   if (sigs.length === 0) return null;
 
   return (

@@ -1,45 +1,44 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260821-storage-writeback-rollout
-Started At: 2026-08-21T12:50:00Z
-Updated At: 2026-08-21T10:02:31Z
+Task ID: 20260821-signature-consumer-audit
+Started At: 2026-08-21T13:30:00Z
+Updated At: 2026-08-21T10:05:53Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Terapkan pola migrasi write-back (pola loadSignatures/LEGACY_PLACEHOLDER) ke
-modul storage lain yang menyimpan bentuk lama: snooze, flagColors, rules,
-prefs cache (api.js), userPrefs.
+Cek ulang SEMUA konsumen getSignatureFor/getSignatureById/loadSignatures untuk
+memastikan flag `placeholder` (migrasi signature legacy) ditangani di mana pun
+dibutuhkan.
 
-## Perubahan (semua idempotent — tulis balik HANYA saat bentuk berubah)
+## Hasil audit (verifikasi grep menyeluruh)
 
-1. **`src/lib/snooze.js` `loadSnoozes`** — hasil normalisasi (nilai numeric)
-   dipersist; bentuk rusak (null/array/string) → tulis `{}` sekali.
-2. **`src/lib/flagColors.js` `getStore`** — prune key dengan warna tidak dikenal
-   (legacy/rusak) lalu tulis balik; bentuk rusak → `{}` sekali.
-3. **`src/lib/autoArchive.js` `getRules`** — setelah normalisasi, bandingkan
-   `JSON.stringify(list) !== JSON.stringify(parsed)` → tulis balik bila beda
-   (entri dibuang / field di-coerce); bentuk non-array → `[]` sekali.
-4. **`src/lib/api.js` `loadPrefsFromLocal`** — cache `sogo_prefs_<email>`
-   bentuk rusak / key ekstra → tulis balik `{defaults:{},settings:{}}` sekali.
-5. **`src/lib/userPrefs.js` `loadPrefs`** — field hilang/nilai invalid diisi
-   default lalu dipersist; array/non-object → null (tanpa tulis; kontrak
-   "belum ada preferensi" dipertahankan).
+Konsumen saat ini HANYA di 2 file:
+1. **src/pages/PreferencesPage.jsx** — loadSignatures (4x), getSignatureById (syncToSogo)
+2. **src/components/mailer/ComposeModal.jsx** — getSignatureFor (auto-inject), loadSignatures (SignaturePicker)
 
-Deteksi perubahan memakai `JSON.stringify` compare (list kecil) atau flag
-`changed` saat loop — tidak ada write saat data sudah valid (idempotent).
+Tidak ada konsumen lain (MessageReader/quick-reply sudah tidak memakai signature
+— diverifikasi; import `getSignatureById` di ComposeModal adalah dead import).
 
-## Test
-- Baru `test:flag-colors` (prune + write-back + idempotent + bentuk rusak).
-- Diperluas: `test:snooze`, `test:autoarchive`, `test:preferences-fallback`,
-  `test:user-prefs` — assert write-back terjadi sekali + baca kedua tidak
-  menulis ulang + data valid dibiarkan apa adanya.
+## Perbaikan
+
+1. **`ComposeModal.jsx` SignaturePicker** — filter `!s.placeholder`: entri legacy
+   ber-placeholder tidak muncul di dropdown sisipkan signature (sebelumnya
+   `onInsert(s.html)` akan menyisipkan teks panduan yang bisa ikut terkirim).
+2. **`ComposeModal.jsx`** — hapus dead import `getSignatureById`.
+3. **`test-signatures.mjs`** — tambah assertion kontrak: `getSignatureFor`
+   mengembalikan entri placeholder dengan flag (konsumen WAJIB skip) + signature
+   nyata tanpa flag.
+
+## Status penanganan placeholder per titik (setelah ini)
+- Auto-inject compose/reply (ComposeModal:146) — skip ✓ (sebelumnya)
+- syncToSogo (PreferencesPage:329) — skip ✓ (sebelumnya)
+- Daftar di Settings (PreferencesPage) — badge "Perlu diisi" ✓ (sebelumnya)
+- SignaturePicker (ComposeModal:571) — skip ✓ (baru)
 
 ## Validation
-- 38/38 test PASS · npm run build OK
+- 38/38 test PASS · npm run build OK · test-settings-signature (end-to-end) PASS
 
 ## Files Changed
-- src/lib/snooze.js, flagColors.js, autoArchive.js, api.js, userPrefs.js
-- scripts/test-flag-colors.mjs (baru), test-snooze.mjs, test-autoarchive.mjs,
-  test-preferences-fallback.mjs, test-user-prefs.mjs
-- package.json (+test:flag-colors)
+- src/components/mailer/ComposeModal.jsx
+- scripts/test-signatures.mjs

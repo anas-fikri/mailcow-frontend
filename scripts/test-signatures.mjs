@@ -91,4 +91,17 @@ assert.equal(edited.html, '<b>Dijisi</b>');
 assert.equal(edited.placeholder, undefined, 'flag placeholder harus hilang setelah user mengisi');
 assert.equal(loadSignatures('u@example.com').list.find((s) => s.id === 'legacy-1').placeholder, undefined);
 
+// ── Kontrak konsumen: getSignatureFor mengembalikan entri placeholder dgn flag ──
+// Konsumen (ComposeModal auto-inject / SignaturePicker) WAJIB skip entri
+// ber-flag placeholder agar placeholder tidak ikut terkirim.
+storage.clear();
+storage.set('pcp_signatures_u@example.com', JSON.stringify({
+  list: [{ id: 'legacy-1', name: 'Lama' }, { id: 'real-1', name: 'Nyata', html: '<b>B</b>' }],
+  defaults: { new: 'legacy-1', reply: 'real-1' },
+}));
+const viaFor = getSignatureFor('u@example.com', 'new');
+assert.equal(viaFor.id, 'legacy-1');
+assert.equal(viaFor.placeholder, true, 'konsumen harus bisa mendeteksi placeholder via flag');
+assert.equal(getSignatureFor('u@example.com', 'reply').placeholder, undefined, 'signature nyata tanpa flag');
+
 console.log('signatures assertions passed');

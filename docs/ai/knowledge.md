@@ -546,3 +546,16 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260821-storage-writeback-rollout
 - Status: COMPLETED
 - Finding: Rollout pola write-back idempotent ke semua modul storage: snooze, flagColors (prune warna), autoArchive getRules, loadPrefsFromLocal (api.js), userPrefs. Tulis balik hanya saat bentuk berubah (JSON.stringify compare / flag changed). Pengecualian: userPrefs null tanpa tulis utk non-object. 38/38 PASS.
+
+## 2026-08-21 — Titik injeksi signature yang harus skip placeholder (daftar final)
+
+- Auto-inject compose/reply: `ComposeModal` `getSignatureFor(...)` → `(html && !placeholder) || SOGoFallback`.
+- Manual insert: `ComposeModal` `SignaturePicker` → filter `!s.placeholder` (jangan tampilkan).
+- Sinkronisasi SOGo: `PreferencesPage.syncToSogo` → `(html && !placeholder) ? html : ''`.
+- Daftar Settings: badge "Perlu diisi — klik untuk mengedit".
+- **Pelajaran:** setiap fitur yang menulis/menyisipkan konten user ke email harus mengecek flag data legacy — grep getSignatureFor/loadSignatures sebelum deploy fitur baru.
+
+## 2026-08-21T10:05:53Z
+- Task: 20260821-signature-consumer-audit
+- Status: COMPLETED
+- Finding: Audit konsumen signature selesai: hanya PreferencesPage + ComposeModal. SignaturePicker di-skip placeholder agar tidak ter-insert; dead import dihapus. Kontrak getSignatureFor placeholder di-test. 38/38 PASS.

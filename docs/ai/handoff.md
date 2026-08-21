@@ -1712,3 +1712,23 @@ prefs cache (api.js), userPrefs.
 -  M src/lib/snooze.js
 -  M src/lib/userPrefs.js
 - ?? scripts/test-flag-colors.mjs
+
+## 2026-08-21 — Audit konsumen signature: placeholder ditangani di semua titik — DONE + siap deploy
+
+- **Verifikasi menyeluruh:** konsumen getSignatureFor/getSignatureById/loadSignatures hanya di PreferencesPage + ComposeModal. MessageReader/quick-reply sudah tidak pakai signature.
+- **Titik baru yang diperbaiki:** SignaturePicker di ComposeModal menyisipkan `s.html` saat diklik — entri placeholder kini di-filter (`!s.placeholder`) agar teks panduan tidak ikut terkirim. Dead import `getSignatureById` dihapus.
+- **Kontrak terdokumentasi di test:** `getSignatureFor` mengembalikan entri placeholder dengan flag → konsumen wajib skip (auto-inject ✓, syncToSogo ✓, picker ✓, daftar Settings badge ✓).
+- **Validasi:** 38/38 PASS, build OK, test end-to-end Settings PASS.
+
+## 2026-08-21T10:05:53Z
+- Status: COMPLETED
+- Objective: Cek ulang SEMUA konsumen getSignatureFor/getSignatureById/loadSignatures untuk
+memastikan flag `placeholder` (migrasi signature legacy) ditangani di mana pun
+dibutuhkan.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M scripts/test-signatures.mjs
+-  M src/components/mailer/ComposeModal.jsx
