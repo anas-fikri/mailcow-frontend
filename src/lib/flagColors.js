@@ -25,7 +25,24 @@ function getStore(email) {
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     // Guard bentuk: JSON "null"/array/string → operasi store[...] crash.
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      // Bentuk rusak → bersihkan sekali: tulis {} (pola write-back idempotent).
+      try { localStorage.setItem(LS_KEY(email), '{}'); } catch { /* abaikan */ }
+      return {};
+    }
+    // Migrasi sekali-jalan: buang key dengan warna yang tidak lagi dikenal
+    // (mis. warna lama/rusak) agar countFlagColors/getAllFlags tidak menyimpan
+    // sampah; ditulis balik bila ada yang dibuang.
+    let changed = false;
+    for (const [uid, colorKey] of Object.entries(parsed)) {
+      if (typeof colorKey !== 'string' || !FLAG_COLORS[colorKey]) {
+        delete parsed[uid];
+        changed = true;
+      }
+    }
+    if (changed) {
+      try { saveStore(email, parsed); } catch { /* abaikan */ }
+    }
     return parsed;
   } catch {
     return {};

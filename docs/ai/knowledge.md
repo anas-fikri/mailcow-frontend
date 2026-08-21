@@ -535,3 +535,14 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 20260821-signature-legacy-placeholder
 - Status: COMPLETED
 - Finding: Migrasi sekali-jalan signature legacy: placeholder + flag + write-back idempotent di loadSignatures; konsumen injeksi (ComposeModal, syncToSogo) skip placeholder agar tidak terkirim; updateSignature hapus flag saat user isi. Badge 'Perlu diisi' di daftar. 37/37 PASS.
+
+## 2026-08-21 — Rollout pola write-back idempotent (lengkap)
+
+- Semua modul storage kini memakai pola yang sama: baca → normalisasi bentuk → **tulis balik HANYA bila berubah** (bandingkan JSON.stringify utk list kecil, atau flag `changed` di loop) → baca berikutnya no-op. Daftar lengkap: signatures (placeholder), autoArchive getRules, snooze loadSnoozes, flagColors getStore, api.js loadPrefsFromLocal, userPrefs loadPrefs.
+- **Pengecualian yang disengaja:** userPrefs.loadPrefs mengembalikan null utk bentuk array/non-object TANPA menulis (kontrak null = "belum ada preferensi" — sama seperti fetchPreferences fallback layer 2). Modul lain (snooze/flagColors/getRules) membersihkan bentuk rusak jadi bentuk kosong valid. Pilih sesuai semantik konsumen.
+- **Biaya:** JSON.stringify compare per baca hanya utk struktur kecil (rules, prefs). Hindari pola ini di hot-path per-bar (mis. isSnoozed per baris — pakai flag `changed`, bukan stringify).
+
+## 2026-08-21T10:02:31Z
+- Task: 20260821-storage-writeback-rollout
+- Status: COMPLETED
+- Finding: Rollout pola write-back idempotent ke semua modul storage: snooze, flagColors (prune warna), autoArchive getRules, loadPrefsFromLocal (api.js), userPrefs. Tulis balik hanya saat bentuk berubah (JSON.stringify compare / flag changed). Pengecualian: userPrefs null tanpa tulis utk non-object. 38/38 PASS.

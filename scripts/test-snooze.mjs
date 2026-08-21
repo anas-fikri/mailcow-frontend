@@ -52,9 +52,18 @@ assert.equal(isSnoozed('u@example.com', '1', 123450), true, 'string epoch dinorm
 assert.equal(isSnoozed('u@example.com', '2', 0), false);
 assert.equal(isSnoozed('u@example.com', '5', 0), false);
 
-// JSON "null" / array / non-object → {} (bukan crash)
+// ── Write-back SEKALI-JALAN: hasil bersih dipersist ke localStorage ─────────
+const storedNorm = JSON.parse(storage.get('pcp_snooze_u@example.com'));
+assert.deepEqual(storedNorm, { '1': 123456, '4': 555 }, 'storage harus ditulis ulang dgn nilai numerik saja');
+// Idempotent: baca kedua tidak mengubah apa pun (semua nilai sudah number)
+const rawAfter = storage.get('pcp_snooze_u@example.com');
+assert.deepEqual(loadSnoozes('u@example.com'), { '1': 123456, '4': 555 });
+assert.equal(storage.get('pcp_snooze_u@example.com'), rawAfter, 'tidak boleh ada penulisan ulang saat sudah bersih');
+
+// JSON "null" / array / non-object → {} (bukan crash) + storage dibersihkan
 storage.set('pcp_snooze_u@example.com', 'null');
 assert.deepEqual(loadSnoozes('u@example.com'), {});
+assert.equal(storage.get('pcp_snooze_u@example.com'), '{}', 'storage bentuk rusak ditulis ulang jadi {}');
 storage.set('pcp_snooze_u@example.com', JSON.stringify([1, 2]));
 assert.deepEqual(loadSnoozes('u@example.com'), {});
 storage.set('pcp_snooze_u@example.com', '"string"');

@@ -28,13 +28,28 @@ export function loadSnoozes(email) {
     // Normalisasi: map { uid: wakeEpoch } dengan nilai numerik saja.
     // Data lama/rusak (nilai string, null, array) dibuang agar isSnoozed /
     // pruneExpired tidak bergantung pada Number() yang bisa NaN.
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      // Bentuk rusak → bersihkan sekali: tulis {} (pola write-back idempotent).
+      try { localStorage.setItem(LS_KEY(email), '{}'); } catch { /* abaikan */ }
+      return {};
+    }
     const out = {};
+    let changed = false;
     for (const [uid, wake] of Object.entries(parsed)) {
       // Hanya number / string numerik (Number(null)=0 dan Number(true)=1 yang
       // merupakan koersi tidak diinginkan dari data rusak → tolak keduanya).
       const n = typeof wake === 'number' ? wake : Number(wake);
-      if (Number.isFinite(n) && (typeof wake === 'number' || typeof wake === 'string')) out[uid] = n;
+      if (Number.isFinite(n) && (typeof wake === 'number' || typeof wake === 'string')) {
+        out[uid] = n;
+        if (typeof wake !== 'number') changed = true;   // string epoch → number
+      } else {
+        changed = true;                                  // nilai invalid dibuang
+      }
+    }
+    // Write-back SEKALI-JALAN: persist hasil bersih agar baca berikutnya
+    // tidak mengulang normalisasi (idempotent).
+    if (changed) {
+      try { localStorage.setItem(LS_KEY(email), JSON.stringify(out)); } catch { /* abaikan */ }
     }
     return out;
   } catch {

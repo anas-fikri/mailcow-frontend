@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-21T09:48:19Z",
+  "last_session": "2026-08-21T10:02:31Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -359,12 +359,12 @@
     }
   ],
   "active_task": {
-    "id": "20260821-signature-legacy-placeholder",
+    "id": "20260821-storage-writeback-rollout",
     "status": "COMPLETED",
-    "objective": "Migrasi sekali-jalan di loadSignatures: signature legacy yang kosong html diberi\nplaceholder agar tidak tampil aneh di daftar.",
+    "objective": "Terapkan pola migrasi write-back (pola loadSignatures/LEGACY_PLACEHOLDER) ke\nmodul storage lain yang menyimpan bentuk lama: snooze, flagColors, rules,\nprefs cache (api.js), userPrefs.",
     "next_step": "",
     "goal_id": "",
     "sub_goal_id": "",
-    "updated_at": "2026-08-21T09:48:19Z"
+    "updated_at": "2026-08-21T10:02:31Z"
   }
 }

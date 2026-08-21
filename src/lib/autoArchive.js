@@ -64,8 +64,13 @@ export function getRules(email) {
     const raw = localStorage.getItem(lsKey(email));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
+    if (!Array.isArray(parsed)) {
+      // Bentuk rusak (object/string/null) → bersihkan sekali: tulis []
+      // (pola write-back idempotent).
+      try { localStorage.setItem(lsKey(email), '[]'); } catch { /* abaikan */ }
+      return [];
+    }
+    const list = parsed
       .filter((r) => r && typeof r === 'object' && typeof r.id === 'string')
       .map((r) => ({
         id: r.id,
@@ -85,6 +90,13 @@ export function getRules(email) {
         runCount: Number(r.runCount) || 0,
         lastRunAt: Number(r.lastRunAt) || null,
       }));
+    // Migrasi SEKALI-JALAN: bila bentuk tersimpan berbeda dari bentuk
+    // ternormalisasi (entri dibuang / field di-coerce / key order beda),
+    // tulis balik agar baca berikutnya tidak mengulang normalisasi.
+    if (JSON.stringify(list) !== JSON.stringify(parsed)) {
+      try { localStorage.setItem(lsKey(email), JSON.stringify(list)); } catch { /* abaikan */ }
+    }
+    return list;
   } catch {
     return [];
   }

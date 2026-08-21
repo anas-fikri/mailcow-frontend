@@ -1683,3 +1683,32 @@ placeholder agar tidak tampil aneh di daftar.
 -  M src/components/mailer/ComposeModal.jsx
 -  M src/lib/signatures.js
 -  M src/pages/PreferencesPage.jsx
+
+## 2026-08-21 — Rollout pola write-back migrasi ke semua modul storage — DONE + siap deploy
+
+- **Pola:** tiap reader storage kini menulis balik hasil normalisasi ke localStorage HANYA saat bentuk berubah (deteksi: JSON.stringify compare utk list kecil / flag `changed` saat loop) → idempotent, satu kali pembersihan.
+- **Cakupan:** loadSnoozes (nilai numeric dipersist; bentuk rusak → {}), getStore flagColors (prune warna tidak dikenal → write-back), getRules autoArchive (persist hasil normalisasi; non-array → []), loadPrefsFromLocal api.js (cache rusak → {defaults:{},settings:{}}), loadPrefs userPrefs (field hilang → default; array/non-object → null tanpa tulis).
+- **Catatan:** userPrefs sengaja TIDAK menulis untuk bentuk array/non-object (kontrak null = "belum ada preferensi" dipertahankan) — berbeda dari snooze/flagColors yang menulis {} — konsisten dgn semantik masing-masing consumer.
+- **Test:** baru test:flag-colors; diperluas test:snooze/autoarchive/preferences-fallback/user-prefs. 38/38 PASS.
+
+## 2026-08-21T10:02:31Z
+- Status: COMPLETED
+- Objective: Terapkan pola migrasi write-back (pola loadSignatures/LEGACY_PLACEHOLDER) ke
+modul storage lain yang menyimpan bentuk lama: snooze, flagColors, rules,
+prefs cache (api.js), userPrefs.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M package.json
+-  M scripts/test-autoarchive.mjs
+-  M scripts/test-preferences-fallback.mjs
+-  M scripts/test-snooze.mjs
+-  M scripts/test-user-prefs.mjs
+-  M src/lib/api.js
+-  M src/lib/autoArchive.js
+-  M src/lib/flagColors.js
+-  M src/lib/snooze.js
+-  M src/lib/userPrefs.js
+- ?? scripts/test-flag-colors.mjs

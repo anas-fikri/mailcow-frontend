@@ -1,20 +1,20 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-21T09:48:19Z
+Generated At: 2026-08-21T10:02:32Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [HIGH] Run or verify validation: 37/37 test PASS · npm run build OK
+## 1. [HIGH] Run or verify validation: 38/38 test PASS · npm run build OK
 - Why: Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 2. [MEDIUM] Follow up on discovered knowledge: Migrasi sekali-jalan signature legacy: placeholder + flag + write-back idempotent di loadSignatures; konsumen injeksi (ComposeModal, syncToSogo) skip placeholder agar tidak terkirim; updateSignature hapus flag saat user isi. Badge 'Perlu diisi' di daftar. 37/37 PASS.
+## 2. [MEDIUM] Follow up on discovered knowledge: Rollout pola write-back idempotent ke semua modul storage: snooze, flagColors (prune warna), autoArchive getRules, loadPrefsFromLocal (api.js), userPrefs. Tulis balik hanya saat bentuk berubah (JSON.stringify compare / flag changed). Pengecualian: userPrefs null tanpa tulis utk non-object. 38/38 PASS.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
 ## 3. [LOW] Review and commit current changes
-- Why: 9 uncommitted file entries remain in the project.
+- Why: 15 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use

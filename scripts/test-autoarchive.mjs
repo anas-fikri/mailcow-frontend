@@ -66,6 +66,16 @@ assert.equal(rules[1].runCount, 3);
 assert.equal(rules[1].lastRunAt, 1700000000000);
 assert.equal(rules[2].enabled, false);
 
+// ── Write-back SEKALI-JALAN: hasil normalisasi dipersist ke localStorage ────
+const storedRules = JSON.parse(storage.get(KEY));
+assert.equal(storedRules.length, 3, 'storage harus berisi aturan ternormalisasi');
+assert.equal(storedRules[0].conditions[0].value, '12345', 'value number di-coerce ke string di storage');
+assert.equal(storedRules[0].conditions[1].value, '');
+// Idempotent: baca kedua tidak menulis ulang (storage sudah bentuk valid)
+const rawAfter = storage.get(KEY);
+assert.equal(getRules(EMAIL).length, 3);
+assert.equal(storage.get(KEY), rawAfter, 'tidak boleh ada penulisan ulang saat sudah ternormalisasi');
+
 // ── matchRules aman dgn rule legacy (value sudah string) ─────────────────────
 const msg = { from: 'boss@corp.test', to: 'u@example.com', subject: 'promo besar', date: 'x', isRead: true, hasAtt: false, isFlagged: false, uid: '99' };
 const matched = matchRules(EMAIL, msg);
@@ -73,9 +83,10 @@ assert.ok(matched.includes('r2'), 'rule r2 harus match subject promo');
 assert.ok(!matched.includes('r1'), 'rule r1 (from=12345, to=equals \'\') tidak match');
 assert.ok(!matched.includes('r3'), 'rule r3 disabled tidak match');
 
-// ── JSON non-array → [] (bukan crash) ────────────────────────────────────────
+// ── JSON non-array → [] (bukan crash) + storage dibersihkan sekali ───────────
 storage.set(KEY, '{}');
 assert.deepEqual(getRules(EMAIL), []);
+assert.equal(storage.get(KEY), '[]', 'storage bentuk rusak ditulis ulang jadi []');
 storage.set(KEY, 'null');
 assert.deepEqual(getRules(EMAIL), []);
 storage.set(KEY, '"string"');
