@@ -1853,3 +1853,45 @@ terdeteksi lebih mudah. **SELESAI & LIVE** (39/39 test PASS, build OK).
 -  M package.json
 -  M src/lib/api.js
 - ?? scripts/test-send-sanitize.mjs
+
+## 2026-08-25 — Bug hunt menyeluruh (flow/UI-UX/PC+mobile/fitur/security) — 6 bug fixed
+
+Implement: Buffy · Review: self-review + bug-hunt passes (flow → edge → UI/UX → security)
+
+### Temuan & fix (semua diuji)
+1. **Crash formatAddresses** (MessageReader): item array null/string dari SOGo → TypeError crash seluruh reader. Dipindah ke `src/lib/format.js`, normalisasi lengkap (null dilewati, string apa adanya, objek dirangkai). `test:format` (14 kasus).
+2. **Keyboard double-fire**: MailPage + MessageReader sama-sama listen keydown global. Tekan `s` saat reader terbuka → flag toggle 2x = net nol + 2 request; `r`/`f` buka compose 2x. Fix: `isReaderOwnedShortcut(selectedMsgId, key)` di constants.js — MailPage skip s/r/f saat reader terbuka. Bonus: MessageReader skip saat fokus di `contentEditable` (RichEditor compose) agar `r`/`s`/Delete tidak memicu aksi saat mengetik. `test:keyboard-ownership`.
+3. **ContactsPage mobile**: panel detail `hidden md:block` → tap kontak di HP tidak menampilkan apa-apa. Fix: detail sheet mobile (overlay + backdrop, max-w-sm).
+4. **Info-disclosure (minor)**: `warmUpSogoSession` log `sogoToken` (session token) ke console produksi via `console.warn`. Fix: `debugLog`/`debugWarn` DEV-only.
+5. **Drag kalender menghilangkan data**: `handleDrop` set `attendees:''` + tidak kirim `repeat` → peserta & recurrence hilang diam-diam saat event dipindah. Fix: `src/lib/calendarDrop.js` `buildDroppedEventData` pertahankan attendees/repeat/classification. `test:calendar-drop`.
+6. **Toast tertutup BottomNav mobile**: `fixed bottom-4` di HP tertutup nav. Fix: `bottom-20 left-3 right-3 md:bottom-4 md:right-4`.
+
+### Validasi
+- Baseline 40/40 → **43/43 test PASS** (3 test baru) · `npm run build` OK
+- Tidak ada perubahan kontrak API/server; semua fix client-side + 1 log-level.
+
+### Commit
+- (lihat git log — batch ini satu commit)
+
+## 2026-08-25T15:49:02Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Summary: Bug hunt menyeluruh flow/UI-UX/PC+mobile/fitur/security: 6 bug fixed (formatAddresses crash, keyboard double-fire s/r/f, detail kontak mobile, token leak di log warm-up, drag kalender hilangkan attendees/repeat, toast tertutup bottom nav). 43/43 test PASS, build OK.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M package.json
+-  M src/components/Toast.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/api.js
+-  M src/lib/constants.js
+-  M src/lib/format.js
+-  M src/pages/CalendarPage.jsx
+-  M src/pages/ContactsPage.jsx
+-  M src/pages/MailPage.jsx
+- ?? scripts/test-calendar-drop.mjs
+- ?? scripts/test-format.mjs
+- ?? scripts/test-keyboard-ownership.mjs
+- ?? src/lib/calendarDrop.js

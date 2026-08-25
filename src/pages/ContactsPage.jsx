@@ -275,7 +275,7 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      {/* ── Detail panel ───────────────────────────────────────────────────── */}
+      {/* ── Detail panel (desktop) ───────────────────────────────────────── */}
       {selected && (
         <div className="w-80 shrink-0 hidden md:block">
           <ContactDetail
@@ -284,6 +284,22 @@ export default function ContactsPage() {
             onDelete={handleDelete}
             isDeleting={deleteMutation.isPending}
           />
+        </div>
+      )}
+
+      {/* ── Detail sheet (mobile) — tanpa ini, tap kontak di HP tidak
+            menampilkan apa-apa (panel hidden md:block) ────────────────── */}
+      {selected && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSelected(null)} />
+          <div className="absolute inset-y-0 right-0 w-full max-w-sm bg-card shadow-2xl">
+            <ContactDetail
+              contact={selected}
+              onClose={() => setSelected(null)}
+              onDelete={handleDelete}
+              isDeleting={deleteMutation.isPending}
+            />
+          </div>
         </div>
       )}
 

@@ -1,36 +1,31 @@
 # Current Task
 
-## Task: Pastikan body compose selalu melalui DOMPurify sebelum dikirim
+## Task: Bug hunt menyeluruh — flow, UI/UX (PC + mobile), fitur, vulnerability
 
-**Status: SELESAI (40/40 test PASS, live)** — commit → push + deploy.
+**Status: SELESAI (43/43 test PASS, live)** → commit + push + deploy.
 
 ## Ringkasan
-Audit jalur kirim email: `ComposeModal.handleSend` → `sendMessage()` →
-`/api/send` (SMTP proxy) / SOGo `/send`. Temuan: sanitasi sudah ada di
-ComposeModal (handleSend + autosave), tetapi **chokepoint `sendMessage` di
-api.js TIDAK menyanitasi ulang** — pemanggil lain / jalur masa depan bisa
-mengirim HTML mentah. Ditambahkan sanitasi defense-in-depth di `sendMessage`.
+Audit sistematis (rotasi fokus: flow logic → edge case → UI/UX mobile+desktop →
+security) menemukan **6 bug nyata**, semuanya diperbaiki + diuji.
 
-## Perubahan
-- `src/lib/api.js` `sendMessage`: body HTML SELALU melewati
-  `DOMPurify.sanitize(body, PURIFY_CONFIG)` sebelum dikirim — berlaku utk
-  ketiga jalur: SMTP langsung (ada lampiran), payload SOGo `/send`, dan
-  fallback SMTP (501). Konfigurasi sama dgn editor agar konten sah tidak
-  berubah. Guard `DOMPurify?.isSupported` utk lingkungan tanpa DOM (test).
-- `scripts/test-send-sanitize.mjs` (baru): jsdom + mock fetch — script tag,
-  onerror, javascript:/data: href dihapus; rel=noopener noreferrer dipaksa;
-  link http dipertahankan; plain text tidak diubah; fallback 501 ter-sanitize.
-- Terverifikasi: sanitasi ganda (ComposeModal + sendMessage) tidak merusak
-  konten sah (idempotent — DOMPurify output stabil).
+## Temuan & Perbaikan
 
-## Test
-- **Baru `test:send-sanitize`** — 4 jalur: SMTP+attachment, SOGo+fallback 501,
-  plain (isHTML=false), body kosong.
-- **40/40 PASS** · `npm run build` OK.
+| # | Jenis | Bug | Fix |
+|---|---|---|---|
+| 1 | Crash | `formatAddresses` (MessageReader) crash TypeError saat item array `null`/string (data SOGo) | Pindah ke `src/lib/format.js` + normalisasi: null dilewati, string apa adanya, objek `Nama <email>` |
+| 2 | Flow | Keyboard `s` (star) double-fire: MailPage + MessageReader dua-duanya listen keydown global saat reader terbuka → flag toggle 2x (net nol) + 2 request; `r`/`f` buka compose 2x | Guard `isReaderOwnedShortcut(selectedMsgId, key)` di constants.js; MailPage skip `s/r/f` saat reader terbuka. Bonus: MessageReader skip saat target `contentEditable` (RichEditor compose) |
+| 3 | Mobile UX | ContactsPage: panel detail `hidden md:block` → di HP tap kontak tidak menampilkan apa-apa | Detail sheet mobile (fixed overlay + backdrop) |
+| 4 | Security (minor) | `warmUpSogoSession` log `sogoToken` (session token) ke console via `console.warn` di produksi | Ganti ke `debugLog`/`debugWarn` (DEV-only) — token tidak pernah di-log produksi |
+| 5 | Flow | CalendarPage `handleDrop`: drag event menghilangkan `attendees` + pola `repeat` (recurring hilang diam-diam) | Ekstrak `buildDroppedEventData` ke `src/lib/calendarDrop.js` — pertahankan attendees/repeat/classification |
+| 6 | Mobile UX | Toast `bottom-4` tertutup BottomNav mobile | Posisi responsif: `bottom-20 left-3 right-3` (mobile) / `md:bottom-4 md:right-4` |
 
-## Next
-- Server /api/send tetap percaya pada sanitasi client (Zod + validasi header +
-  attachment sudah ada); tidak ada sanitize HTML di server karena DOMPurify
-  butuh DOM. Pantau payload body di log bila ada keluhan.
+## Test (3 baru)
+- `test:format` — formatAddresses 14 kasus (null item, string item, objek, non-array)
+- `test:calendar-drop` — drag pertahankan attendees/repeat/classification + durasi + default 09:00
+- `test:keyboard-ownership` — isReaderOwnedShortcut 14 kasus (kontrak s/r/f)
+
+## Validasi
+- **43/43 test PASS** · `npm run build` OK · baseline sebelum audit 40/40 → 43 setelah fix.
+
 Status: COMPLETED
-Updated At: 2026-08-21T10:24:14Z
+Updated At: 2026-08-25T15:49:02Z

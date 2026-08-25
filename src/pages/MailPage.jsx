@@ -13,7 +13,7 @@ import ComposeModal from '../components/mailer/ComposeModal';
 import QuickRuleModal from '../components/mailer/QuickRuleModal';
 import { MessageListSkeleton, FoldersListSkeleton } from '../components/Skeleton';
 import { toast } from '../lib/toast';
-import { DEFAULT_FOLDERS, STALE_TIMES, isSentOrDraftFolder } from '../lib/constants';
+import { DEFAULT_FOLDERS, STALE_TIMES, isSentOrDraftFolder, isReaderOwnedShortcut } from '../lib/constants';
 import KeyboardShortcutsModal from '../components/KeyboardShortcuts';
 import SwipeableRow from '../components/SwipeableRow';
 import Avatar from '../components/Avatar';
@@ -916,6 +916,12 @@ export default function MailPage() {
 
       // Filter berdasarkan key
       const key = e.key.toLowerCase();
+
+      // Reader terbuka → aksi per-pesan (s/r/f) dimiliki MessageReader (yang
+      // juga listen keydown global). Tanpa guard ini 's' toggle flag DUA kali
+      // (MailPage bulkFlagMutation + MessageReader flagMutation) = net nol +
+      // dua request; 'r'/'f' juga membuka compose dua kali.
+      if (isReaderOwnedShortcut(selectedMsgId, key)) return;
 
       if (key === '?') {
         e.preventDefault();

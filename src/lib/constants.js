@@ -90,3 +90,14 @@ export const EDITOR_MODES = [
   { id: 'html',  label: 'HTML Source' },
   { id: 'plain', label: 'Teks Biasa' },
 ];
+
+// ─── Keyboard ownership ───────────────────────────────────────────────────────
+// Saat MessageReader terbuka (selectedMsgId set), aksi per-pesan (s=rstar,
+// r=balas, f=teruskan) dimiliki MessageReader — MailPage harus SKIP supaya
+// tidak double-fire (bug: 's' toggle flag 2x = net nol + 2 request).
+export const READER_OWNED_KEYS = ['s', 'r', 'f'];
+
+/** True bila shortcut per-pesan harus diserahkan ke MessageReader. */
+export function isReaderOwnedShortcut(selectedMsgId, key) {
+  return !!selectedMsgId && READER_OWNED_KEYS.includes(String(key || '').toLowerCase());
+}

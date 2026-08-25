@@ -596,3 +596,16 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Sanitasi kirim email: sendMessage() di api.js kini selalu DOMPurify.sanitize(body, PURIFY_CONFIG) utk isHTML sebelum dikirim (SMTP langsung, payload SOGo /send, fallback SMTP 501) — defense-in-depth di atas sanitasi ComposeModal.handleSend; guard DOMPurify.isSupported utk lingkungan tanpa DOM; test jsdom test-send-sanitize memverifikasi script/onerror/javascript:/data: href hilang + rel=noopener dipaksa + plain text tidak diubah. 40/40 test PASS.
+
+## 2026-08-25 — Bug hunt menyeluruh: 6 temuan durable (flow/UX/security)
+
+- **formatAddresses HARUS normalisasi item array SOGo:** SOGo kadang kirim `from`/`to` sebagai array berisi string mentah ATAU null (bukan selalu `{name,email}`). `arr.map(a => a.name ? ... : a.email)` crash TypeError saat item null dan menghasilkan string kosong/`undefined` untuk item string. Fix pola: `!a → skip`, `typeof a === 'string' → a`, objek → `Nama <email>`, fallback `String(a)`. Lokasi: `src/lib/format.js` (dipakai MessageReader).
+- **Dua keydown listener global = double-fire:** MailPage (daftar) dan MessageReader (reader) dua-duanya menambah `window.addEventListener('keydown')` dan keduanya aktif saat reader terbuka. Shortcut per-pesan (`s` star, `r` balas, `f` teruskan) harus di-ownership SATU pihak: `isReaderOwnedShortcut(selectedMsgId, key)` di `src/lib/constants.js`. Bonus: guard listener juga harus cek `e.target.contentEditable === 'true'` — RichEditor compose adalah DIV contentEditable, bukan INPUT/TEXTAREA, jadi shortcut global tetap jalan saat user mengetik email (bisa hapus pesan yang sedang dibaca!).
+- **Drag & drop kalender = update parsial:** `handleDrop` lama membangun payload baru tanpa `attendees`/`repeat` → drag event menghilangkan peserta & recurrence diam-diam. Pola: pemindahan (move) HARUS mempertahankan seluruh field event; jangan rebuild payload dari nol. Ekstrak ke pure function `buildDroppedEventData` (`src/lib/calendarDrop.js`) agar ter-test.
+- **Log produksi tidak boleh memuat session token:** `console.warn('[Login] warm-up shell →', ..., url.split('/').pop())` menulis sogoToken (session token) ke console browser di produksi. Semua log di `api.js` yang memuat data sensitif harus `debugLog`/`debugWarn` (DEV-only) — konsisten dgn keputusan log DEV-only.
+- **Panel detail `hidden md:block` = fitur mati di mobile:** ContactsPage panel detail kontak `hidden md:block` → di layar < md, tap kontak tidak menampilkan apa-apa (state berubah tapi tidak dirender). Pola: setiap panel detail desktop butuh pasangan sheet mobile (overlay fixed + backdrop).
+
+## 2026-08-25T15:49:02Z
+- Task: 
+- Status: COMPLETED
+- Finding: formatAddresses harus normalisasi item SOGo (null/string); dua keydown global = double-fire → ownership satu pihak via isReaderOwnedShortcut; drag kalender harus pertahankan seluruh field event; log produksi tidak boleh memuat session token; panel detail hidden md:block = fitur mati di mobile.

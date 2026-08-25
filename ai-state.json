@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-21T10:24:14Z",
+  "last_session": "2026-08-25T15:49:03Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -356,6 +356,11 @@
       "what": "ai-loop bug hunt: (1) image proxy rentan slow-loris/slow-read — socket idle timeout saja tidak cukup (byte dikirim <10s sekali menahan koneksi tak terbatas); fix hard deadline absolut untuk seluruh fetch + destroy stream. (2) sendMessage fallback SMTP pada SEMUA non-ok SOGo berisiko kirim ganda (SOGo memproses lalu error); kini fallback hanya pada 501. Validasi 16/16 test + build OK.",
       "status": "done",
       "updated_at": "2026-08-19T14:56:49Z"
+    },
+    {
+      "what": "Bug hunt menyeluruh flow/UI-UX/PC+mobile/fitur/security: 6 bug fixed (formatAddresses crash, keyboard double-fire s/r/f, detail kontak mobile, token leak di log warm-up, drag kalender hilangkan attendees/repeat, toast tertutup bottom nav). 43/43 test PASS, build OK.",
+      "status": "done",
+      "updated_at": "2026-08-25T15:49:03Z"
     }
   ],
   "active_task": {
@@ -365,6 +370,6 @@
     "next_step": "",
     "goal_id": "",
     "sub_goal_id": "",
-    "updated_at": "2026-08-21T10:24:14Z"
+    "updated_at": "2026-08-25T15:49:03Z"
   }
 }

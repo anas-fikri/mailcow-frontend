@@ -11,6 +11,7 @@ import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
+import { formatAddresses } from '../../lib/format';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
@@ -152,12 +153,6 @@ function prepareHtmlContent(rawHtml, inlineImages) {
   return DOMPurify.sanitize(html, EMAIL_PURIFY_CONFIG);
 }
 
-function formatAddresses(arr) {
-  if (!arr) return '';
-  if (typeof arr === 'string') return arr;
-  return arr.map((a) => (a.name ? `${a.name} <${a.email}>` : a.email)).join(', ');
-}
-
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return '';
   return bytes > 1024 * 1024
@@ -229,7 +224,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   React.useEffect(() => {
     if (!msg) return;
     const handler = (e) => {
-      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      // Skip saat user mengetik di input/textarea ATAU contentEditable
+      // (RichEditor compose — tagName DIV tidak tertangkap guard INPUT/TEXTAREA).
+      // Tanpa ini, menekan 'r'/'f'/'s'/Delete saat mengetik di editor compose
+      // akan membuka ulang compose / menghapus pesan yang sedang dibaca.
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName) || e.target.contentEditable === 'true') return;
       if (e.key.toLowerCase() === 'r') { e.preventDefault(); handleReply(); }
       else if (e.key.toLowerCase() === 'f') { e.preventDefault(); handleForward(); }
       else if (e.key === 'Delete') { e.preventDefault(); if (!deleteMutation.isPending) deleteMutation.mutate(); }

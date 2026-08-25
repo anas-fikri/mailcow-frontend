@@ -48,7 +48,10 @@
     "test:autoarchive": "node scripts/test-autoarchive.mjs",
     "test:error-boundary-debug": "node scripts/test-error-boundary-debug.mjs",
     "test:flag-colors": "node scripts/test-flag-colors.mjs",
-    "test:storage-migrate": "node scripts/test-storage-migrate.mjs"
+    "test:storage-migrate": "node scripts/test-storage-migrate.mjs",
+    "test:format": "node scripts/test-format.mjs",
+    "test:calendar-drop": "node scripts/test-calendar-drop.mjs",
+    "test:keyboard-ownership": "node scripts/test-keyboard-ownership.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

@@ -23,7 +23,7 @@ export default function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+    <div className="fixed bottom-20 right-3 left-3 sm:left-auto md:bottom-4 md:right-4 z-[9999] flex flex-col gap-2 max-w-sm w-auto pointer-events-none">
       <AnimatePresence mode="popLayout">
         {toasts.map((t) => {
           const Icon = ICON_MAP[t.type] || Info;

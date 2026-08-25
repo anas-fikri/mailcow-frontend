@@ -10,6 +10,7 @@ import { CalendarGridSkeleton } from '../components/Skeleton';
 import { MONTHS_ID, DAYS_ID, CAL_COLORS } from '../lib/constants';
 import { toast } from '../lib/toast';
 import EventModal from '../components/EventModal';
+import { buildDroppedEventData } from '../lib/calendarDrop';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtTime(unix) {
@@ -246,35 +247,8 @@ export default function CalendarPage() {
   function handleDrop(date, hour = null) {
     if (!dragEvRef.current) return;
     const ev = dragEvRef.current;
-    const targetDate = new Date(date);
-
-    if (hour !== null) {
-      targetDate.setHours(hour, 0, 0, 0);
-    } else {
-      targetDate.setHours(9, 0, 0, 0);
-    }
-
-    const oldStart = Number(ev.start) || 0;
-    const oldEnd = Number(ev.end) || oldStart + 3600;
-    const duration = oldEnd - oldStart;
-
-    const newStart = Math.floor(targetDate.getTime() / 1000);
-    const newEnd = newStart + (duration > 0 ? duration : 3600);
-
-    const newStartDate = new Date(newStart * 1000);
-    const newEndDate = new Date(newEnd * 1000);
-
-    const eventData = {
-      title: ev.title,
-      startDate: newStartDate.toISOString().slice(0, 10),
-      startTime: newStartDate.toTimeString().slice(0, 5),
-      endDate: newEndDate.toISOString().slice(0, 10),
-      endTime: newEndDate.toTimeString().slice(0, 5),
-      location: ev.location || '',
-      description: ev.description || '',
-      isAllDay: ev.isAllDay || false,
-      attendees: '',
-    };
+    const eventData = buildDroppedEventData(ev, new Date(date), hour);
+    if (!eventData) return;
 
     handleUpdateEvent(eventData, ev.id).catch((err) => {
       toast.error(err.message || 'Gagal memindahkan event');

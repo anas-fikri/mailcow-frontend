@@ -173,15 +173,16 @@ async function warmUpSogoSession(sogoToken) {
         credentials: 'include',
         headers: sogoHeaders({ Accept: 'text/html,application/json,*/*' }),
         redirect: 'follow',
-      });
-      const contentType = res.headers.get('content-type') || '';
-      console.warn('[Login] warm-up shell →', res.status, contentType || 'unknown', url.split('/').pop());
+      });      const contentType = res.headers.get('content-type') || '';
+      // Debug-only: URL path berisi sogoToken (session token) — jangan pernah
+      // di-log di produksi. Logging token ke console = info disclosure ringan.
+      debugLog('[Login] warm-up shell →', res.status, contentType || 'unknown');
       if (res.status === 401 || res.status === 403) {
-        console.warn('[Login] warm-up shell auth rejected — session invalid');
+        debugWarn('[Login] warm-up shell auth rejected — session invalid');
         return false;
       }
     } catch (err) {
-      console.warn('[Login] warm-up shell fetch error:', err?.message || err);
+      debugWarn('[Login] warm-up shell fetch error:', err?.message || err);
       // Network errors are not auth failures — continue.
     }
   }
@@ -196,16 +197,17 @@ async function warmUpSogoSession(sogoToken) {
       redirect: 'follow',
     });
     const contentType = res.headers.get('content-type') || '';
-    console.warn('[Login] warm-up mailbox →', res.status, contentType || 'unknown');
+    debugLog('[Login] warm-up mailbox →', res.status, contentType || 'unknown');
+
 
     if (res.status === 401 || res.status === 403) {
-      console.warn('[Login] warm-up mailbox auth rejected — session invalid');
+      debugWarn('[Login] warm-up mailbox auth rejected — session invalid');
       return false;
     }
     // Any other response (200, 500, HTML, empty, whatever) — session is valid,
     // SOGo /connect already proved it. Let the mailbox page surface errors.
   } catch (err) {
-    console.warn('[Login] warm-up mailbox fetch error:', err?.message || err);
+    debugWarn('[Login] warm-up mailbox fetch error:', err?.message || err);
     // Network errors are not auth failures.
   }
 
