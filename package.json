@@ -60,6 +60,7 @@
     "test:contact-signature-edge": "node scripts/test-contact-signature-edge.mjs",
     "test:multitab": "node scripts/test-multitab.mjs",
     "test:draft-compose": "node scripts/test-draft-compose.mjs",
+    "test:search-flow": "node scripts/test-search-flow.mjs",
     "test:cross-tab": "node scripts/test-cross-tab.mjs",
     "bench:flag-cache": "node scripts/benchmark-flag-cache.mjs"
   },

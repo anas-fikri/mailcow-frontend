@@ -2354,3 +2354,17 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## [2026-08-26] ai-loop search flow — 4 bug interaksi pencarian
+- **Bug 1:** window 5 bulan Kotak Masuk juga memotong hasil SEARCH → email lama tetap
+  tak bisa dicari. Fix: skip window saat searchQuery (helper murni applyMessageWindow di
+  dateGroups.js, unparseable tetap tampil).
+- **Bug 2:** auto-archive rules berjalan saat mode search (messages = hasil cari) → pesan
+  bisa dipindah diam-diam saat user mencari. Fix: early-return saat searchQuery + deps.
+- **Bug 3:** pesan di-snooze tersembunyi JUGAdi hasil search → tak bisa ditemukan sampai
+  wake. Fix: snooze filter di-skip saat searchQuery (pola Gmail).
+- **Bug 4:** categoryFilter tidak di-reset saat search tapi tab kategori disembunyikan →
+  hasil disaring tak terlihat. Fix: setCategoryFilter(null) di handleSearchSubmit +
+  searchBySender.
+- Test: test:search-flow baru (9 assertion statis) + test-date-groups (+7).
+  53/53 PASS + build OK.

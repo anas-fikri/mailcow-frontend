@@ -843,3 +843,17 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Restorasi lampiran draft SOGo: downloadURL dari /view memuat token sesi — fetch + credentials include + sogoHeaders (XSRF); base64 chunked 32KB. extractAttachments di messageHtml.js (dedup reader+mail). Unduh paralel Promise.allSettled, gagal satu → skip + warning. Restore ≠ user edit (tidak memicu autosave). Keterbatasan: saveDraft SOGo hanya teks — lampiran restore hanya hidup di sesi compose.
+
+## [2026-08-26] Pola interaksi search (MailPage)
+- **Search menembus batasan daftar biasa:** window bulan (Kotak Masuk) dan filter
+  snooze harus di-skip saat `searchQuery` aktif — search adalah jalan menemukan yang
+  tersembunyi/lama (pola Gmail). Tapi filter yang TAMPAK di UI (flag, unread) tetap
+  berlaku.
+- **Rules engine harus off saat search:** effect yang memindahkan pesan (auto-archive)
+  tidak boleh berjalan di atas hasil pencarian — deps + early-return `searchQuery`.
+- **Filter tersembunyi = bug tersembunyi:** bila UI filter disembunyikan saat mode lain
+  (tab kategori saat search), filter state-nya harus di-reset — kalau tidak hasil
+  disaring secara tak terlihat tanpa cara membersihkannya.
+- **Ekstraksi helper murni:** logika window yang tadinya inline di komponen
+  (messagesInWindow) dipindah ke `applyMessageWindow` (dateGroups.js) — testable,
+  unparseable date dianggap dalam window.

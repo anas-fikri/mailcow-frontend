@@ -24,7 +24,7 @@ import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor } from '../lib
 import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveClaims } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
-import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate } from '../lib/dateGroups';
+import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate, applyMessageWindow } from '../lib/dateGroups';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 const MESSAGE_WINDOW_MONTHS = 5;
@@ -373,15 +373,14 @@ export default function MailPage() {
 
   // Kotak Masuk dibatasi ke N bulan terakhir (sisanya hanya via pencarian).
   // `date` dari SOGo adalah string display; unparseable → dianggap dalam window.
+  // SAAT MENCARI window TIDAK berlaku — search adalah satu-satunya jalan
+  // menemukan email lama (teks UI: "Email lebih lama bisa dicari"). Sebelumnya
+  // hasil pencarian di INBOX ikut dipotong 5 bulan → email lama tetap tak
+  // ditemukan (bug).
   const messagesInWindow = useMemo(() => {
-    if (selectedFolder !== 'folderINBOX') return messages;
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - MESSAGE_WINDOW_MONTHS);
-    return messages.filter((m) => {
-      const d = parseMessageDate(m.date);
-      return d === null || d.getTime() >= cutoff.getTime();
-    });
-  }, [messages, selectedFolder]);
+    if (searchQuery || selectedFolder !== 'folderINBOX') return messages;
+    return applyMessageWindow(messages, { months: MESSAGE_WINDOW_MONTHS });
+  }, [messages, selectedFolder, searchQuery]);
 
   // Reset header tambahan saat query refetch (delete/move/archive → list berubah).
   useEffect(() => {
@@ -464,7 +463,11 @@ export default function MailPage() {
 
   // Filter messages by flag color / kategori / belum dibaca / snooze (client-side)
   const displayMessages = visibleMessages.filter((m) => {
-    if (snoozedUids.has(String(m.uid))) return false; // di-snooze → sembunyi
+    // Di-snooze → sembunyi dari daftar biasa. SAAT MENCARI pesan yang
+    // di-snooze TETAP muncul — search adalah satu-satunya jalan menemukannya
+    // (pola Gmail). Sebelumnya tersembunyi juga di hasil search → tidak bisa
+    // ditemukan sampai waktu wake (bug).
+    if (!searchQuery && snoozedUids.has(String(m.uid))) return false;
     if (flagFilter && getFlagColor(user?.email, m.uid) !== flagFilter) return false;
     if (categoryFilter && classifyEmail(m) !== categoryFilter) return false;
     if (unreadOnly && m.isRead) return false;
@@ -573,6 +576,10 @@ export default function MailPage() {
 
   // Jalankan rules untuk pesan yang baru dimuat
   useEffect(() => {
+    // Jangan jalankan rules saat mode SEARCH — rules memindahkan pesan dari
+    // daftar folder biasa; memindahkan hasil pencarian mengejutkan user
+    // (pesan hilang dari hasil cari karena dipindah rule).
+    if (searchQuery) return;
     if (!user?.email || !user?.sogoToken || !messages.length || !enabledRules) return;
 
     const unprocessed = messages.filter((m) => !rulesProcessed.current[m.uid]);
@@ -625,7 +632,7 @@ export default function MailPage() {
       // Bug fix: tampilkan toast error ke user (bukan hanya console.warn)
       toast.warning('Sebagian aturan gagal dijalankan — coba lagi nanti.');
     });
-  }, [messages.length, selectedFolder, user?.email, user?.sogoToken, enabledRules, snoozedUids]);
+  }, [messages.length, selectedFolder, user?.email, user?.sogoToken, enabledRules, snoozedUids, searchQuery]);
 
   // loadMore dua tahap:
   // 1) reveal header yang SUDAH ada (client-side, instant);
@@ -1001,6 +1008,10 @@ export default function MailPage() {
   // Search submit handler — pake server-side search
   function handleSearchSubmit(e) {
     e.preventDefault();
+    // Reset filter kategori — tab kategori disembunyikan saat search (lihat
+    // render), jadi filter yang tersisa akan menyaring hasil secara tak terlihat
+    // tanpa cara membersihkannya. Search = pencarian global di folder.
+    setCategoryFilter(null);
     setSearchQuery(searchInput.trim());
   }
 
@@ -1009,6 +1020,7 @@ export default function MailPage() {
     if (e) e.stopPropagation();
     const match = String(senderText || '').match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
     const email = match ? match[0] : senderText;
+    setCategoryFilter(null); // sama seperti handleSearchSubmit (filter tak terlihat saat search)
     setSearchInput(email);
     setSearchQuery(email);
     setSearchCriteria('from');

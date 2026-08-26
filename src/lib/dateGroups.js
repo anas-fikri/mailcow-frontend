@@ -86,6 +86,22 @@ export function parseMessageDate(value, now = new Date()) {
  * @returns {{ key: string, label: string, days: number|null }} days = null
  *   when unparseable (bucket = older).
  */
+/**
+ * Terapkan window waktu (N bulan terakhir) ke daftar pesan.
+ * Pesan dengan tanggal tak terbaca dianggap DALAM window (tetap tampil).
+ * Kotak Masuk membatasi tampilan ke N bulan; SEARCH menembus window ini
+ * (pola Gmail — pencarian adalah jalan menemukan email lama).
+ */
+export function applyMessageWindow(messages, { months = 5, now = new Date() } = {}) {
+  if (!Array.isArray(messages)) return [];
+  const cutoff = new Date(now);
+  cutoff.setMonth(cutoff.getMonth() - months);
+  return messages.filter((m) => {
+    const d = parseMessageDate(m.date, now);
+    return d === null || d.getTime() >= cutoff.getTime();
+  });
+}
+
 export function getDateGroup(value, now = new Date()) {
   const parsed = parseMessageDate(value, now);
   if (!parsed) {

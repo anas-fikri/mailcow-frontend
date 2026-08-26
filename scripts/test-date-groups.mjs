@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { parseMessageDate, getDateGroup, groupMessagesByDate, sortMessagesByDate, reorderDateGroups, DATE_GROUPS } from '../src/lib/dateGroups.js';
+import { parseMessageDate, getDateGroup, groupMessagesByDate, sortMessagesByDate, reorderDateGroups, applyMessageWindow, DATE_GROUPS } from '../src/lib/dateGroups.js';
 
 const now = new Date('2026-08-19T12:00:00');
 
@@ -82,5 +82,24 @@ assert.deepEqual(reorderDateGroups(flatGroups, false), flatGroups, 'tanpa asc ti
 // Isi tiap grup tetap date-descending walau grup dibalik.
 assert.equal(flatGroupsAsc[2].messages.length, 2, 'grup Hari Ini tetap berisi pesan tsb');
 assert.deepEqual(flatGroupsAsc[2].messages.map((m) => m.uid), [4, 2], 'isi grup tidak dibalik');
+
+// ── applyMessageWindow (batas N bulan Kotak Masuk; search menembusnya) ───────
+const now2 = new Date('2026-08-19T12:00:00Z');
+const within  = { uid: 1, date: '2026-07-01T00:00:00Z' };  // 1.5 bulan lalu → dalam
+const older   = { uid: 2, date: '2025-01-01T00:00:00Z' };  // >1 tahun → luar
+const unparse = { uid: 3, date: 'aneh' };                  // tak terbaca → dianggap dalam
+const all = [within, older, unparse];
+assert.deepEqual(
+  applyMessageWindow(all, { months: 5, now: now2 }).map((m) => m.uid),
+  [1, 3],
+  'pesan lama dibuang, tak terbaca tetap tampil'
+);
+assert.deepEqual(applyMessageWindow([older], { months: 5, now: now2 }), [], 'semua di luar window → kosong');
+assert.deepEqual(applyMessageWindow([], { months: 5 }), []);
+assert.deepEqual(applyMessageWindow(null, { months: 5 }), []);
+assert.deepEqual(applyMessageWindow(undefined, { months: 5 }), []);
+// months=0 → hanya pesan hari ini atau tak terbaca
+const todayMsg = { uid: 4, date: now2.toISOString() };
+assert.deepEqual(applyMessageWindow([todayMsg, older, unparse], { months: 0, now: now2 }).map((m) => m.uid), [4, 3]);
 
 console.log('dateGroups assertions passed');
