@@ -2509,3 +2509,13 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Auto-advance reader dipulihkan (lanjutan ai-loop, 2026-08-26)
+
+**Temuan:** audit rotasi conversation menemukan regresi dari merge `08bef9c`: MessageReader tidak lagi mengonsumsi `siblingUids`/`onNavigateTo` (prop masih di-pass MailPage tapi yatim) → setelah hapus/pindah/spam, reader selalu `onClose()` (kembali ke daftar) padahal versi lama (`558d3e7`) membuka pesan berikutnya (pola Gmail/Outlook).
+
+**Fix (`navigateAfter`):** dibaca ulang dari versi lama — setelah delete/move/spam, cari `siblingUids[idx+1] ?? siblingUids[idx-1]`; ada → `onNavigateTo(next)`, tidak ada → `onClose()`. Dipakai 3 mutation (delete, move, spam) agar konsisten.
+
+**Test:** `test-a11y` +5 assertion (prop siblingUids/onNavigateTo ada, navigateAfter ada, fallback ada, dipakai setelah aksi, MailPage pass prop) → **101 assertions** · **55/55 PASS** · build OK.
+
+**Belum:** commit + push + deploy.

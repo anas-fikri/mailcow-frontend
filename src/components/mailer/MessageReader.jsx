@@ -144,7 +144,7 @@ async function downloadFileBlob(url, filename) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, onSnoozeCleared, shortcutsEnabled = true }) {
+export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, onSnoozeCleared, shortcutsEnabled = true, siblingUids = [], onNavigateTo }) {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [moveOpen, setMoveOpen] = React.useState(false);
@@ -174,6 +174,21 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     enabled: !!msgId && !!user?.sogoToken,
   });
 
+  // Auto-advance (pola Gmail/Outlook): setelah hapus/pindah/spam, buka pesan
+  // berikutnya di daftar (siblingUids = urutan tampil, flat atau conversation).
+  // Fallback ke pesan sebelumnya bila di ujung, baru tutup reader.
+  function navigateAfter() {
+    const idx = siblingUids.indexOf(msgId);
+    if (idx >= 0) {
+      const next = siblingUids[idx + 1] ?? siblingUids[idx - 1];
+      if (next) {
+        onNavigateTo?.(next);
+        return;
+      }
+    }
+    onClose();
+  }
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       // Move to trash instead of permanent delete
@@ -192,7 +207,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       }
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      onClose();
+      navigateAfter();
       toast.success(folder === 'folderTrash' ? 'Pesan dihapus permanen' : 'Pesan dipindah ke Sampah');
     },
   });
@@ -213,7 +228,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       }
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      onClose();
+      navigateAfter();
       onMoveComplete?.();
       toast.success('Pesan dipindahkan');
     },
@@ -229,7 +244,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       }
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      onClose();
+      navigateAfter();
       onMoveComplete?.();
       toast.success('Pesan dilaporkan sebagai spam');
     },

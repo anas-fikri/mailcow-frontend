@@ -162,6 +162,19 @@ for (const label of ['Buat aturan otomatis untuk pengirim ini', 'Tunda pesan', '
 assert.ok(mail.includes('aria-label="Hapus flag"'), 'Flag remove aria hilang');
 passCount++;
 
+// Auto-advance reader: setelah hapus/pindah/spam buka pesan berikutnya
+// (siblingUids/onNavigateTo harus tetap dikonsumsi — regresi commit 6c1485f).
+assert.ok(reader.includes('siblingUids = []') && reader.includes('onNavigateTo }'), 'Reader: siblingUids/onNavigateTo props hilang');
+passCount++;
+assert.ok(reader.includes('function navigateAfter()'), 'Reader: navigateAfter hilang');
+passCount++;
+assert.ok(reader.includes('siblingUids[idx + 1] ?? siblingUids[idx - 1]'), 'Reader: auto-advance fallback hilang');
+passCount++;
+assert.ok(reader.includes('navigateAfter();'), 'Reader: navigateAfter tidak dipakai setelah aksi');
+passCount++;
+assert.ok(mail.includes('siblingUids={visibleOrderUids}') && mail.includes('onNavigateTo={(uid) => setSelectedMsgId(uid)}'), 'MailPage: prop auto-advance ke reader hilang');
+passCount++;
+
 // Conversation group header: aria-expanded + tidak ada border ganda bertumpuk
 assert.ok(mail.includes('aria-expanded={isExpanded}'), 'Conversation group header: aria-expanded hilang');
 passCount++;
