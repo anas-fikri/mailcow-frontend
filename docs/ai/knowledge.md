@@ -938,3 +938,15 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   `git -c http.proxy=socks5h://127.0.0.1:1080 push origin main`
 - socks5h: DNS di-resolve di sisi server → host asli tetap → credential store
   (`~/.git-credentials`, helper `store`) cocok tanpa SSL override.
+
+## Kalender create default jam (durable)
+- Sel bulan kalender mengirim Date MIDNIGHT. Jangan langsung pakai ke modal —
+  default 09:00 di `openCreateModal(date, hour=null)`; week/day view harus
+  meneruskan hour asli (jam 0 pun sah untuk klik sel jam 00:00).
+- Komponen date-only vs time-bearing: bedakan di CALLER, bukan di modal.
+
+## Compose edit-draft & duplikat (durable)
+- Autosave saat edit draft menyimpan ke draft BARU (createDraft+saveDraft), bukan
+  menimpa draft asli. Tutup tanpa kirim harus menghapus copy (draftUidRef) —
+  kalau tidak, folder Draf menumpuk duplikat. Compose baru jangan dihapus saat
+  tutup (draft autosave = fitur lanjutkan dari Draf).

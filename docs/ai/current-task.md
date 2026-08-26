@@ -2,27 +2,31 @@
 
 ## Status: SELESAI ✅
 
-**Ai-loop rotasi kontak (GAL/personal) — 2 bug diperbaiki**
+**Ai-loop audit menyeluruh (security + robustness + flow) — 2 bug diperbaiki**
 
-### Bug 1 — Field kontak SOGo bisa berupa object → crash halaman kontak
-`fetchContacts` melempar `c.c_cn`/`c_mail`/`emails` mentah ke React + filter
-search (`.toLowerCase()`). Beberapa versi SOGo mengembalikan field tsb sebagai
-object → TypeError di filter pencarian ATAU "Objects are not valid as a React
-child" saat render (satu kelas bug dgn subject/date di messageRows yang sudah
-diatasi sebelumnya).
-**Fix:** `parseContactRow` murni di `contactUtils.js` — semua field dinormalisasi
-string (`str()`), `emails` array-of-string/array-of-object ditangani, baris rusak
-→ null. Dipakai `fetchContacts`.
+### Round A — Security (bersih, tidak ada fix)
+- Semua `target="_blank"` sudah `rel="noreferrer"` (tabnabbing aman)
+- Email body via DOMPurify + `PURIFY_CONFIG` (ALLOWED_URI_REGEXP blokir javascript:/vbscript:, hook hardenAnchorNode blokir data: link + tambah noopener)
+- `toSafeUrl` solid (blokir javascript:, data:, protocol-relative, control chars)
+- Server /api/send: Zod schema + validateRecipientList + control-chars + from-check + rate-limit per akun
+- JSON.parse semua try/catch; formatAddresses guard null; parseMessageRow/parseContactRow normalisasi
 
-### Bug 2 — Double-submit create kontak
-`AddContactModal` tidak punya guard re-entry (disabled={isLoading} hanya efektif
-setelah re-render) → Enter auto-repeat/klik ganda = kontak duplikat.
-**Fix:** `savingRef` di ContactsPage — `if (savingRef.current) return` +
-reset via `onSettled` mutation (pola sama dgn EventModal/ComposeModal).
+### Round B — Robustness (bersih)
+- Tidak ada unhandled rejection (deleteDraft internal try/catch, markRead .catch, rules .catch)
+- deleteDraft/ComposeModal send sudah ter-guard
+
+### Round C — Flow (2 bug diperbaiki)
+1. **Kalender: klik "+" sel bulan / tombol Event → modal terisi 00:00** (bukan 09:00)
+   karena sel bulan mengirim tanggal MIDNIGHT. Event baru tercipta tengah malam.
+   Fix: `openCreateModal(date, hour=null)` — default 09:00 saat hour null;
+   Week/Day view tetap mengirim hour asli (jam 0 dihormati).
+2. **Tutup compose mode EDIT DRAFT tanpa kirim → duplikat di folder Draf**
+   Autosave edit-draft menyimpan ke draft BARU (copy); tutup tanpa kirim
+   meninggalkan 2 draft (asli + copy). Fix: `handleClose` menghapus copy
+   autosave (hanya saat editingDraftUidRef aktif), draft asli dipertahankan.
+   Compose baru TIDAK dihapus (draft autosave berguna dilanjutkan).
 
 ### Validasi
-- test-contact-signature-edge +13 (parseContactRow: object→string, emails
-  array-of-object, baris rusak, guard double-submit) → 34 assertions
+- test-calendar-events +4 (openCreateModal hour default), test-draft-compose +4
+  (handleClose cleanup) → 39 + 36 assertions
 - **54/54 PASS** · build OK · deploy live terverifikasi hash
-Status: COMPLETED
-Updated At: 2026-08-26T08:27:10Z

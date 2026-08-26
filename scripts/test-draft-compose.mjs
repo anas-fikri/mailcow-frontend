@@ -73,4 +73,13 @@ ok(!reader.includes('function extractHtml(parts)'), 'MessageReader tidak boleh p
 // text/plain ada di urutan part lebih awal dari html yang bersarang).
 ok(lib.includes('const html = findHtml(parts);'), 'extractHtml harus prefer html di kedalaman mana pun');
 
+// ── Tutup compose mode EDIT DRAFT tanpa kirim → hapus copy autosave ─────────
+// Autosave saat edit draft menyimpan ke draft BARU (copy) — tutup tanpa kirim
+// membuat 2 draft (asli + copy) di folder Draf = duplikat. handleClose harus
+// menghapus copy, menyisakan draft asli.
+ok(compose.includes('function handleClose()'), 'ComposeModal punya handleClose (cleanup tutup)');
+ok(compose.includes("if (copyUid && copyUid !== editingDraftUidRef.current)"), 'handleClose hapus copy autosave bila beda dari draft asli');
+ok(compose.includes('deleteDraft(token, copyUid)'), 'copy dihapus via deleteDraft');
+ok(compose.includes('onClick={handleClose}'), 'tombol X memakai handleClose');
+
 console.log('\nDraft/compose audit: ' + passCount + ' assertions PASS ✅');

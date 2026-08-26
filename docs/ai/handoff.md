@@ -2445,3 +2445,11 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Ai-loop menyeluruh (security+robustness+flow) — 2 bug, 54/54 PASS, live
+- Security & robustness audit: BERSIH (XSS/tabnabbing/input validation sudah solid dari round sebelumnya).
+- Fix 1: klik "+" sel bulan kalender / tombol Event mengirim tanggal midnight →
+  EventModal terisi 00:00-01:00. openCreateModal sekarang default jam 09:00
+  (hour=null); week/day view kirim hour asli.
+- Fix 2: tutup ComposeModal mode edit-draft tanpa kirim → copy autosave tertinggal
+  = duplikat di Draf. handleClose hapus copy (hanya saat editing draft).

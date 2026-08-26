@@ -374,6 +374,23 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
     }
   }
 
+  // Tutup tanpa kirim. Mode EDIT DRAFT: autosave menyimpan ke draft BARU
+  // (copy), draft asli tetap di folder Draf — tutup harus menghapus copy itu
+  // agar tidak menumpuk duplikat. Compose baru dibiarkan (draft autosave-nya
+  // berguna utk dilanjutkan dari folder Draf).
+  function handleClose() {
+    if (editingDraftUidRef.current && token) {
+      const copyUid = draftUidRef.current;
+      if (copyUid && copyUid !== editingDraftUidRef.current) {
+        deleteDraft(token, copyUid);
+      }
+      draftUidRef.current = null;
+      draftIdRef.current = null;
+    }
+    editingDraftUidRef.current = null;
+    onClose();
+  }
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -404,7 +421,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                 <button type="button" onClick={() => setIsFullscreen(!isFullscreen)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors hidden sm:block" title="Layar Penuh">
                   {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
                 </button>
-                <button type="button" onClick={onClose} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors" title="Tutup">
+                <button type="button" onClick={handleClose} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors" title="Tutup">
                   <X size={18} />
                 </button>
               </div>

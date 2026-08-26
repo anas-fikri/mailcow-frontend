@@ -145,4 +145,12 @@ ok(page.includes('if (ev.isRecurring && !ev.repeat)'), 'drag recurring cek repea
 ok(page.includes('await fetchCalendarEventDetail(user?.sogoToken, ev.id)'), 'drag recurring ambil detail via /view utk pola repeat');
 ok(page.includes('eventData = { ...eventData, repeat: detail.repeat }'), 'repeat digabung sebelum simpan drag');
 
+// ── 7. openCreateModal: default jam 09:00 utk klik sel bulan / tombol Event ──
+// Klik "+" sel bulan mengirim tanggal MIDNIGHT → tanpa default, event baru
+// tercipta 00:00-01:00 (bukan 09:00-10:00). Week/Day view mengirim hour asli.
+ok(page.includes('function openCreateModal(date, hour = null)'), 'openCreateModal terima param hour');
+ok(page.includes('d.setHours(hour !== null ? hour : 9, 0, 0, 0)'), 'default jam 09:00 bila hour null (klik sel bulan)');
+ok(page.includes('openCreateModal(d, hour)'), 'Week/Day view mengirim hour asli (jam 0 pun dihormati)');
+ok(page.includes('openCreateModal(selected)'), 'tombol Event header tetap pakai selected (default 09:00)');
+
 console.log(`\nCalendar-events: ${pass} assertions PASS ✅`);

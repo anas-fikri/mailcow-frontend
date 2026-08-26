@@ -206,9 +206,16 @@ export default function CalendarPage() {
     toast.success('Event dihapus');
   }
 
-  function openCreateModal(date) {
+  // hour = null → klik sel bulan / tombol "Event" (tanggal midnight) — default
+  // jam 09:00 supaya event baru tidak tercipta tengah malam. Week/Day view
+  // mengirim hour asli (jam 0 pun dihormati).
+  function openCreateModal(date, hour = null) {
+    let d = date instanceof Date ? new Date(date) : (date || null);
+    if (d instanceof Date && !Number.isNaN(d.getTime())) {
+      d.setHours(hour !== null ? hour : 9, 0, 0, 0);
+    }
     setModalMode('create');
-    setModalEvent(date || null);
+    setModalEvent(d);
     setModalOpen(true);
   }
 
@@ -358,7 +365,7 @@ export default function CalendarPage() {
             onCellClick={(date, hour) => {
               const d = new Date(date);
               d.setHours(hour, 0, 0, 0);
-              openCreateModal(d);
+              openCreateModal(d, hour);
             }}
             onDragStart={handleDragStart}
             onDrop={handleDrop}
@@ -375,7 +382,7 @@ export default function CalendarPage() {
             onCellClick={(hour) => {
               const d = new Date(selected);
               d.setHours(hour, 0, 0, 0);
-              openCreateModal(d);
+              openCreateModal(d, hour);
             }}
             onDragStart={handleDragStart}
             onDrop={handleDrop}
