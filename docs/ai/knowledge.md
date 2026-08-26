@@ -962,3 +962,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   timer fire bisa menghapus pesan yang salah di folder lain.
 - Seleksi bulk harus dibersihkan saat aksi DIJADWALKAN (bukan saat promise
   selesai) untuk mencegah double-schedule / aksi kedua menyentuh uid pending.
+
+## 2026-08-26T09:02:25Z
+- Task: 
+- Status: COMPLETED
+- Finding: Race undo-delete: operasi tertunda (timer 6s) wajib kunci sourceFolder saat penjadwalan — UID SOGo per-folder; moveMutation pakai vars.sourceFolder; seleksi bulk dibersihkan saat DIJADWALKAN (bukan saat sukses). 55/55 PASS, live (index-JAzdFEU-, MailPage-BPYRzevc).

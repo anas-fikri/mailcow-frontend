@@ -24,3 +24,5 @@ BERBEDA (UID per-folder SOGo) ikut terpindah ke Sampah.
 - Baru `test:undo-delete` — 8 assertion statis (sourceFolder, fallback,
   snooze/invalidate folder asal, clear seleksi)
 - **55/55 PASS** · build OK · deploy live terverifikasi hash
+Status: COMPLETED
+Updated At: 2026-08-26T09:02:25Z
