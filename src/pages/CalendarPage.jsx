@@ -5,7 +5,7 @@ import {
   Plus, Pencil, Trash2, List, AlertCircle, Repeat,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, fetchCalendarEventDetail } from '../lib/api';
+import { fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, fetchCalendarEventDetail, fetchPreferences } from '../lib/api';
 import { bumpDomainVersion, watchDomainVersion } from '../lib/crossTab';
 import { CalendarGridSkeleton } from '../components/Skeleton';
 import { MONTHS_ID, DAYS_ID, CAL_COLORS } from '../lib/constants';
@@ -45,9 +45,10 @@ function isSameDay(a, b) {
   return a.toDateString() === b.toDateString();
 }
 
-function getWeekDays(date) {
+// weekStartsOn: 0 = Minggu, 1 = Senin (SOGoFirstDayOfWeek).
+function getWeekDays(date, weekStartsOn = 0) {
   const start = new Date(date);
-  start.setDate(start.getDate() - start.getDay());
+  start.setDate(start.getDate() - ((start.getDay() - weekStartsOn + 7) % 7));
   const days = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(start);
@@ -55,6 +56,11 @@ function getWeekDays(date) {
     days.push(d);
   }
   return days;
+}
+
+// Label hari sesuai awal minggu (rotasi DAYS_ID yang dimulai Minggu).
+function dayLabelsFor(weekStartsOn) {
+  return weekStartsOn === 1 ? [...DAYS_ID.slice(1), DAYS_ID[0]] : DAYS_ID;
 }
 
 function getEventPosition(ev) {
@@ -119,7 +125,7 @@ export default function CalendarPage() {
       start = new Date(current.getFullYear(), current.getMonth() - 1, 20);
       end = new Date(current.getFullYear(), current.getMonth() + 1, 10);
     } else if (view === 'week') {
-      const weekStart = getWeekDays(current)[0];
+      const weekStart = getWeekDays(current, weekStartsOn)[0];
       start = new Date(weekStart);
       start.setDate(start.getDate() - 1);
       end = new Date(weekStart);
@@ -134,7 +140,7 @@ export default function CalendarPage() {
       dateRangeStart: Math.floor(start.getTime() / 1000),
       dateRangeEnd: Math.floor(end.getTime() / 1000),
     };
-  }, [view, current]);
+  }, [view, current, weekStartsOn]);
 
   // ── Fetch events ───────────────────────────────────────────────────────────
   const { data: events = [], isLoading, isFetching, error: calError } = useQuery({
@@ -143,6 +149,16 @@ export default function CalendarPage() {
     enabled: !!user?.sogoToken,
     staleTime: 5 * 60_000,
   });
+
+  // Preferensi SOGoFirstDayOfWeek (0 = Minggu, 1 = Senin) — dipakai grid
+  // bulan/minggu + label hari. Fallback Minggu bila prefs belum tiba.
+  const { data: prefs } = useQuery({
+    queryKey: ['preferences', user?.sogoToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
+    enabled: !!(user?.sogoToken && user?.email),
+    staleTime: 5 * 60_000,
+  });
+  const weekStartsOn = String(prefs?.defaults?.SOGoFirstDayOfWeek ?? '0') === '1' ? 1 : 0;
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   function goBack() {
@@ -166,7 +182,7 @@ export default function CalendarPage() {
   function getTitle() {
     if (view === 'month') return `${MONTHS_ID[current.getMonth()]} ${current.getFullYear()}`;
     if (view === 'week') {
-      const weekDays = getWeekDays(current);
+      const weekDays = getWeekDays(current, weekStartsOn);
       return `${weekDays[0].getDate()} ${MONTHS_ID[weekDays[0].getMonth()]} — ${weekDays[6].getDate()} ${MONTHS_ID[weekDays[6].getMonth()]} ${weekDays[6].getFullYear()}`;
     }
     return `${selected.getDate()} ${MONTHS_ID[selected.getMonth()]} ${selected.getFullYear()}`;
@@ -421,6 +437,7 @@ export default function CalendarPage() {
             onCellClick={(date) => openCreateModal(date)}
             onDragStart={handleDragStart}
             onDrop={handleDrop}
+            weekStartsOn={weekStartsOn}
           />
         )}
 
@@ -429,6 +446,7 @@ export default function CalendarPage() {
           <WeekView
             current={current}
             selected={selected}
+            weekStartsOn={weekStartsOn}
             events={events}
             isLoading={isLoading}
             onSelectDate={setSelected}
@@ -674,10 +692,11 @@ export default function CalendarPage() {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MONTH VIEW
 // ═══════════════════════════════════════════════════════════════════════════════
-function MonthView({ current, selected, events, isLoading, onSelectDate, onEventClick, onCellClick, onDragStart, onDrop }) {
+function MonthView({ current, selected, events, isLoading, onSelectDate, onEventClick, onCellClick, onDragStart, onDrop, weekStartsOn = 0 }) {
   const firstDay = new Date(current.getFullYear(), current.getMonth(), 1);
   const daysInMonth = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
-  const startPad = firstDay.getDay();
+  const startPad = (firstDay.getDay() - weekStartsOn + 7) % 7;
+  const dayLabels = dayLabelsFor(weekStartsOn);
 
   const gridDays = [];
   for (let i = 0; i < startPad; i++) gridDays.push(null);
@@ -691,7 +710,7 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
     <>
       {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-border bg-muted/30">
-        {DAYS_ID.map((d) => (
+        {dayLabels.map((d) => (
           <div key={d} className="py-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             {d}
           </div>
@@ -764,8 +783,9 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
 // ═══════════════════════════════════════════════════════════════════════════════
 //  WEEK VIEW
 // ═══════════════════════════════════════════════════════════════════════════════
-function WeekView({ current, selected, events, isLoading, onSelectDate, onEventClick, onCellClick, onDragStart, onDrop }) {
-  const weekDays = getWeekDays(current);
+function WeekView({ current, selected, events, isLoading, onSelectDate, onEventClick, onCellClick, onDragStart, onDrop, weekStartsOn = 0 }) {
+  const weekDays = getWeekDays(current, weekStartsOn);
+  const dayLabels = dayLabelsFor(weekStartsOn);
   const todayRef = useRef(null);
 
   // Scroll to current hour on mount
@@ -801,7 +821,7 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
               isSameDay(d, selected) ? 'bg-primary/10' : ''
             }`}
           >
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase">{DAYS_ID[i]}</div>
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase">{dayLabels[i]}</div>
             <div className={`text-sm font-bold mt-0.5 w-7 h-7 mx-auto flex items-center justify-center rounded-full ${
               isToday(d) ? 'bg-primary text-primary-foreground' : 'text-foreground'
             }`}>

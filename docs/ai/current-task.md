@@ -1,18 +1,20 @@
-# Current Task — Riwayat alamat terkirim (autocomplete) + fix "Gagal menandai semua pesan"
+# Current Task — Preferensi tampilan kini benar-benar dipakai webmail
 
 ## Status
-Selesai ✅ — riwayat alamat yang pernah dikirim direkam per-akun (localStorage) dan dipakai autocomplete di Kepada/Cc/Bcc (gabung dengan kontak, pola Gmail "people you've emailed"). Mark-all-read diperbaiki: skip sudah-dibaca, concurrency dibatasi, toleran gagal parsial. 56/56 test PASS, build OK, live di produksi, ter-push.
+Selesai ✅ — audit PreferencesPage menemukan bug UX serius: **4 dari 5 preferensi tampilan disimpan tapi tidak pernah dikonsumsi webmail** (setting diam-diam tanpa efek). Semua kini di-wire ke perilaku nyata. 56/56 test PASS, build OK, live di produksi, ter-push.
 
-## Fitur: Riwayat alamat terkirim (`src/lib/emailHistory.js`)
-- `recordSentRecipients(accountEmail, to, cc, bcc)` dipanggil SETELAH kirim sukses di ComposeModal (semua kirim lewat sini — reply/forward/quick-reply juga, karena tidak ada jalur send lain di src/).
-- Storage per-akun `pcp_emailHistory_v1_<email>` → `[{email, name, lastUsed}]` (≤200, urut lastUsed terbaru, sort di baca). Parse pakai `isSafeRecipient`+`recipientAddress` (tolak kontrol chars/koma/ganda @).
-- `getEmailSuggestions(accountEmail, contacts, query)` = kontak (diutamakan) + riwayat, dedup per email, skor prefix email > prefix nama > substring, min 2 karakter.
+## Temuan (audit 2026-08-26)
+DisplaySection menyimpan ke SOGo: SOGoMailComposeMessageType, SOGoMailReplyPlacement, SOGoFirstDayOfWeek, SOGoConfirmDelete, SOGoDateFormat. `grep` membuktikan TIDAK SATU PUN dikonsumsi app — ComposeModal hardcode 'rich', quote balasan selalu di bawah, kalender selalu Minggu-awal, hapus selalu pakai undo toast.
 
-## Fix: "Gagal menandai semua pesan."
-- Root cause: `Promise.all(messages.map(markRead))` = puluhan request paralel → 429/500/timeout → Promise.all reject walau mayoritas sukses.
-- Fix: `batchWithLimit` (concurrency 5, allSettled) + skip `!m.isRead` + pesan jujur: sukses sebagian → "N dari M ditandai (X gagal)".
+## Perbaikan (wiring ke perilaku nyata)
+1. **composeMode** (ComposeModal): pref 'text' → compose dibuka Plain Text SEKALI per bukaan; perubahan mode manual dihormati (modeTouchedRef). Signature di-strip tag saat mode plain.
+2. **replyPlacement** (ComposeModal/RichEditor): balasan 'below' → caret ditaruh DI BAWAH quote (quote selalu di akhir body), 'above' → di atas + focus editor (pola Gmail).
+3. **weekStart** (CalendarPage): getWeekDays(date, weekStartsOn) + rotasi label hari + startPad bulan; pref SOGoFirstDayOfWeek dibaca via query preferences (cache shared).
+4. **confirmDelete** (MailPage): pref '0' → hapus LANGSUNG tanpa toast undo; '1' (default) → konfirmasi undo 6 dtk (tidak berubah).
+
+Ditinggalkan (sengaja): SOGoDateFormat & bahasa — webmail punya format id-ID sendiri (renderDate); keduanya tetap disinkronkan untuk klien SOGo native.
 
 ## Next
-- Verifikasi browser: kirim email ke alamat baru → buka compose lagi → ketik 2 huruf → alamat muncul di saran; klik "Tandai semua dibaca" di folder berisi banyak email → tidak ada lagi "Gagal menandai semua pesan" (sukses atau pesan parsial jujur).
+- Verifikasi browser: ubah Mode Tulis → Teks Biasa + simpan → buka compose baru (harus Plain); Posisi Balasan → bawah → balas email (caret di bawah quote); Awal Minggu → Senin → kalender bulan/minggu mulai Senin; Konfirmasi Hapus → langsung → hapus pesan (langsung pindah, tanpa undo).
 Status: COMPLETED
-Updated At: 2026-08-26T16:15:59Z
+Updated At: 2026-08-26T18:15:00Z

@@ -76,6 +76,25 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   // Ref untuk mencegah double-inject signature
   const sigInjected = useRef(false);
 
+  // Mode tulis awal dari preferensi SOGo (SOGoMailComposeMessageType):
+  // 'text' → buka compose langsung Plain Text. Diterapkan SEKALI per bukaan,
+  // hanya bila prefs sudah tiba dan user belum mengubah mode manual.
+  const modeAppliedRef = useRef(false);
+  const modeTouchedRef = useRef(false);
+  useEffect(() => {
+    if (isOpen) { modeAppliedRef.current = false; modeTouchedRef.current = false; }
+  }, [isOpen]);
+  useEffect(() => {
+    if (!isOpen || modeAppliedRef.current || modeTouchedRef.current) return;
+    if (!prefs?.defaults) return;
+    modeAppliedRef.current = true;
+    if (prefs.defaults.SOGoMailComposeMessageType === 'text') {
+      setEditorMode('plain');
+      // Konversi body sama seperti toolbar (hapus tag → teks polos).
+      setBody((prev) => prev.replace(/<br\s*[\/]?>/gi, '\n').replace(/<[^>]*>?/gm, ''));
+    }
+  }, [isOpen, prefs]);
+
   // Mode compose: 'new' (tombol Tulis Pesan) atau 'reply' (balasan/forward)
   const composeMode = initialData?.composeMode === 'reply' ? 'reply' : 'new';
 
@@ -226,14 +245,19 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       setBody(cur => {
         if (cur.includes(sigHtml.substring(0, 80))) return cur;
         const bqIdx = cur.indexOf('<blockquote');
-        const sigBlock = `<br>--<br>${sigHtml}`;
+        // Mode teks polos (preferensi SOGoMailComposeMessageType='text'):
+        // signature HTML harus di-strip jadi teks, bukan dikirim mentah.
+        const sigText = editorMode === 'plain'
+          ? sigHtml.replace(/<br\s*[\/]?>/gi, '\n').replace(/<[^>]*>?/gm, '')
+          : sigHtml;
+        const sigBlock = editorMode === 'plain' ? `\n--\n${sigText}` : `<br>--<br>${sigText}`;
         return bqIdx > 0
           ? cur.slice(0, bqIdx) + sigBlock + cur.slice(bqIdx)
           : cur + sigBlock;
       });
     }
     sigInjected.current = true;
-  }, [isOpen, prefs, user?.email, composeMode]);
+  }, [isOpen, prefs, user?.email, composeMode, editorMode]);
 
   // ── Autocomplete ────────────────────────────────────────────────────────────
 
@@ -538,7 +562,18 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
 
                 {/* Body */}
                 {editorMode === 'rich' ? (
-                  <RichEditor value={body} onChange={(v) => { markUserEdited(); setBody(v); }} onAttachFiles={addFiles} />
+                  <RichEditor
+                    value={body}
+                    onChange={(v) => { markUserEdited(); setBody(v); }}
+                    onAttachFiles={addFiles}
+                    // Preferensi "Posisi Balasan": 'below' → caret di bawah
+                    // quote (quote selalu di akhir body), 'above' → di atas.
+                    initialCaret={
+                      composeMode === 'reply' && prefs?.defaults?.SOGoMailReplyPlacement === 'below'
+                        ? 'end'
+                        : composeMode === 'reply' ? 'start' : undefined
+                    }
+                  />
                 ) : editorMode === 'html' ? (
                   <textarea
                     value={body}
@@ -606,6 +641,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     value={editorMode}
                     onChange={(e) => {
                       const newMode = e.target.value;
+                      modeTouchedRef.current = true;
                       markUserEdited();
                       if (newMode === 'plain' && editorMode !== 'plain') {
                         setBody(prev => prev.replace(/<br\s*[\/]?>/gi, '\n').replace(/<[^>]*>?/gm, ''));
@@ -726,7 +762,7 @@ function SignaturePicker({ email, onInsert }) {
 
 // ── Rich Editor ────────────────────────────────────────────────────────────────
 
-function RichEditor({ value, onChange, onAttachFiles }) {
+function RichEditor({ value, onChange, onAttachFiles, initialCaret }) {
   const editorRef    = useRef(null);
   const fileInputRef = useRef(null);
   const [isMounted, setIsMounted]     = useState(false);
@@ -734,6 +770,23 @@ function RichEditor({ value, onChange, onAttachFiles }) {
   const [cidWarning, setCidWarning]   = useState(false);
   const [isDragOver, setIsDragOver]   = useState(false);
   const headingRef = useRef(null);
+  // Posisi caret awal saat compose dibuka (reply: di atas/bawah quote sesuai
+  // preferensi SOGoMailReplyPlacement). Hanya berlaku utk balasan/forward.
+  useEffect(() => {
+    if (editorRef.current && isMounted && initialCaret) {
+      const el = editorRef.current;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(initialCaret === 'end');
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      el.focus();
+    }
+    // Hanya saat mount (isMounted) — initialCaret tidak boleh berubah di tengah
+    // compose karena itu akan memindahkan caret user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMounted]);
   // Setelah user mengetik/mengedit, isi DOM adalah sumber kebenaran — jangan
   // pernah menimpa dari prop `value` (mencegah cursor jump & kehilangan input).
   // Sebelum ada input, `value` tetap disinkronkan: signature yang di-inject,

@@ -2842,3 +2842,10 @@ Test: test-a11y +3 (drag scope wiring). 149 a11y assertions, 55/55 PASS, build O
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-26 audit PreferencesPage: preferensi disimpan tapi tidak dipakai
+- **Bug UX utama**: 4/5 preferensi DisplaySection (composeMode, replyPlacement, weekStart, confirmDelete) disimpan ke SOGo tapi tidak dikonsumsi webmail — setting tanpa efek.
+- **Fix wiring**: (1) composeMode → ComposeModal buka plain bila pref 'text' (sekali/bukaan, modeTouchedRef hormati ubahan manual); (2) replyPlacement → RichEditor initialCaret (end=below / start=above + focus, pola Gmail); (3) weekStart → getWeekDays(date, weekStartsOn) + dayLabelsFor + startPad bulan; (4) confirmDelete → MailPage '0'=hapus langsung, '1'=undo toast.
+- Signature di-strip tag saat mode plain (bug terkait: HTML signature terkirim mentah di plain).
+- Ditinggalkan sengaja: SOGoDateFormat/bahasa (webmail punya format id-ID sendiri; tetap disinkron utk SOGo native).
+- Test: test-a11y +11 → 167 assertions · 56/56 PASS · build OK.

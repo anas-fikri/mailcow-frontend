@@ -312,6 +312,28 @@ assert.ok(contacts.includes('text-lg font-semibold truncate'), 'Contacts: judul 
 assert.ok(contacts.includes('flex gap-1 bg-muted rounded-lg p-0.5 shrink-0'), 'Contacts: cluster filter harus shrink-0');
 passCount += 3;
 
+// ── Preferensi tampilan benar-benar dipakai webmail (2026-08-26) ─────────────
+// Sebelumnya: DisplaySection menyimpan SOGoMailComposeMessageType,
+// SOGoMailReplyPlacement, SOGoFirstDayOfWeek, SOGoConfirmDelete — tapi tidak
+// ada satu pun yang dikonsumsi app (setting diam-diam tidak berefek).
+// composeMode: preferensi 'text' → buka compose Plain Text (sekali per bukaan,
+// tanpa menimpa mode yang sudah diubah user manual).
+assert.ok(compose.includes("SOGoMailComposeMessageType === 'text'"), 'compose: pref mode tulis text dibaca');
+assert.ok(compose.includes('modeTouchedRef.current = true'), 'compose: perubahan mode manual dihormati (tidak ditimpa pref)');
+assert.ok(compose.includes('initialCaret='), 'compose: posisi balasan memakai initialCaret');
+assert.ok(compose.includes("SOGoMailReplyPlacement === 'below'"), 'compose: pref posisi balasan dibaca');
+assert.ok(compose.includes("editorMode === 'plain'") && compose.includes('.replace(/<br\\s*[\\/]?>/gi'), 'compose: signature di-strip saat mode plain');
+// confirmDelete: '0' → hapus langsung tanpa undo toast; '1' → konfirmasi undo.
+assert.ok(mail.includes('SOGoConfirmDelete'), 'mail: pref SOGoConfirmDelete dibaca');
+assert.ok(mail.includes('moveMutation.mutate({ uids, sourceFolder, targetFolder: trashFolder })') && mail.includes('!confirmDeleteEnabled'), 'mail: pref 0 = hapus langsung (tanpa undo)');
+// weekStart: getWeekDays menerima weekStartsOn + rotasi label hari + startPad.
+assert.ok(calendar.includes('function getWeekDays(date, weekStartsOn = 0)'), 'calendar: getWeekDays menerima weekStartsOn');
+assert.ok(calendar.includes('(start.getDay() - weekStartsOn + 7) % 7'), 'calendar: offset awal minggu benar');
+assert.ok(calendar.includes('function dayLabelsFor(weekStartsOn)'), 'calendar: label hari dirotasi sesuai awal minggu');
+assert.ok(calendar.includes('(firstDay.getDay() - weekStartsOn + 7) % 7'), 'calendar: startPad bulan mengikuti awal minggu');
+assert.ok(calendar.includes("String(prefs?.defaults?.SOGoFirstDayOfWeek ?? '0') === '1'"), 'calendar: pref SOGoFirstDayOfWeek dibaca');
+passCount += 11;
+
 // ── Riwayat alamat terkirim + mark-all-read robust (2026-08-26) ──────────────
 // ComposeModal merekam penerima SETELAH kirim sukses + saran menggabung
 // riwayat (getEmailSuggestions) — bukan hanya kontak.

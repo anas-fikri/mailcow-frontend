@@ -7,7 +7,7 @@ import {
   Archive, BellRing, CheckCheck, Clock, Paperclip,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder } from '../lib/api';
+import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder, fetchPreferences } from '../lib/api';
 import { formatAddresses } from '../lib/format';
 import { extractHtml, extractAttachments } from '../lib/messageHtml';
 import { parseSizeToBytes } from '../lib/attachments';
@@ -721,8 +721,24 @@ export default function MailPage() {
   }, [hasMore, loadMore]);
 
   // ── Undo Delete ────────────────────────────────────────────────────────────
+  // Preferensi SOGoConfirmDelete: '1' (default) = konfirmasi via toast undo
+  // 6 detik (pola Gmail); '0' = "Langsung hapus" → pindah ke Sampah langsung.
+  const { data: prefsData } = useQuery({
+    queryKey: ['preferences', user?.sogoToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
+    enabled: !!(user?.sogoToken && user?.email),
+    staleTime: 5 * 60_000,
+  });
+  const confirmDeleteEnabled = String(prefsData?.defaults?.SOGoConfirmDelete ?? '1') === '1';
+
   function scheduleDelete(uids) {
     if (!uids || uids.length === 0) return;
+    if (!confirmDeleteEnabled) {
+      // "Langsung hapus tanpa konfirmasi" — tanpa toast undo.
+      const sourceFolder = selectedFolder;
+      moveMutation.mutate({ uids, sourceFolder, targetFolder: trashFolder });
+      return;
+    }
     const key = Date.now().toString();
     // Kunci folder ASAL saat penjadwalan — timer bisa fire SETELAH user pindah
     // folder (undo toast tetap tampil). moveMutation tanpa sourceFolder eksplisit
