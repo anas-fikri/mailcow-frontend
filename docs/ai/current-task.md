@@ -17,4 +17,4 @@ Ditinggalkan (sengaja): SOGoDateFormat & bahasa — webmail punya format id-ID s
 ## Next
 - Verifikasi browser: ubah Mode Tulis → Teks Biasa + simpan → buka compose baru (harus Plain); Posisi Balasan → bawah → balas email (caret di bawah quote); Awal Minggu → Senin → kalender bulan/minggu mulai Senin; Konfirmasi Hapus → langsung → hapus pesan (langsung pindah, tanpa undo).
 Status: COMPLETED
-Updated At: 2026-08-26T18:15:00Z
+Updated At: 2026-08-26T16:24:35Z

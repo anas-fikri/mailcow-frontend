@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T16:15:59Z
+Generated At: 2026-08-26T16:24:35Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Fitur riwayat alamat terkirim: semua jalur kirim (compose, reply, forward, quick-reply) melewati ComposeModal.handleSend — rekam di sana cukup (grep sendMessage( memastikan tidak ada pemanggil lain). batchWithLimit (concurrency 5 + allSettled) di MailPage dipakai utk mark-all-read: SOGo tidak punya endpoint batch, Promise.all massal memicu 429/500/timeout dan menggagalkan seluruh operasi walau mayoritas sukses — pola utk batch per-uid lain. Pola parse recipient aman: isSafeRecipient + recipientAddress dari emailValidation (tolak kontrol chars, koma, ganda @). Storage per-akun baru: pcp_emailHistory_v1_<email> (≤200, sort lastUsed di baca).
+## 1. [MEDIUM] Follow up on discovered knowledge: Audit PreferencesPage: preferensi tampilan SOGo (SOGoMailComposeMessageType, SOGoMailReplyPlacement, SOGoFirstDayOfWeek, SOGoConfirmDelete) sebelumnya disimpan tapi TIDAK dikonsumsi webmail — pola 'setting tanpa efek'. Pola wiring: cek konsumen dgn grep sebelum menganggap setting berfungsi; query preferences pakai key ['preferences', token] (cache react-query shared antar halaman). SOGoFirstDayOfWeek: 0=Minggu,1=Senin; rotasi label hari = DAYS_ID.slice(1)+DAYS_ID[0]. SOGoConfirmDelete '0' = hapus langsung, '1' = konfirmasi (webmail pakai undo toast 6dtk sbg konfirmasi). SOGoDateFormat strftime tidak dipetakan — webmail punya format id-ID sendiri (renderDate).
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
