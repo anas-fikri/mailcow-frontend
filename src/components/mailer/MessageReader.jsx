@@ -2,10 +2,10 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, Paperclip,
-  Flag, Printer, FolderOpen, Star, AlertTriangle,
+  Flag, Printer, FolderOpen, Star, AlertTriangle, UserPlus, ExternalLink, Eye, X,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages } from '../../lib/api';
+import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, createContact } from '../../lib/api';
 import { unsnoozeMessages } from '../../lib/snooze';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
@@ -14,6 +14,7 @@ import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
 import { formatAddresses } from '../../lib/format';
 import { extractHtml, extractAttachments } from '../../lib/messageHtml';
+import { getFileKind, totalAttachmentSize } from '../../lib/attachments';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
@@ -126,12 +127,39 @@ function isImageType(ct) {
   return ct?.startsWith('image/');
 }
 
+/** Unduh file via blob (fetch + objectURL) — dipakai tombol Unduh di lightbox. */
+async function downloadFileBlob(url, filename) {
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) throw new Error(`${filename || 'file'} (${res.status})`);
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename || 'attachment';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, onSnoozeCleared, shortcutsEnabled = true }) {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [moveOpen, setMoveOpen] = React.useState(false);
+  // Preview lampiran (gambar/PDF) — lightbox full-screen.
+  const [lightbox, setLightbox] = React.useState(null); // { name, url, kind } | null
+  // Tambah ke kontak.
+  const [contactOpen, setContactOpen] = React.useState(false);
+  const [contactSaving, setContactSaving] = React.useState(false);
+  const [contactError, setContactError] = React.useState('');
+  const contactNameRef = React.useRef(null);
+  const contactEmailRef = React.useRef(null);
+  const contactPhoneRef = React.useRef(null);
+  // Unduh semua lampiran.
+  const [downloadingAll, setDownloadingAll] = React.useState(false);
+  const [downloadProgress, setDownloadProgress] = React.useState('');
 
   const { data: msg, isLoading } = useQuery({
     queryKey: ['message', user?.sogoToken, folder, msgId],
@@ -191,6 +219,23 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     },
   });
 
+  // Laporkan Spam — endpoint native SOGo markMessagesAsJunk (set flag Junk +
+  // pindahkan ke folder Junk sekaligus; lebih benar daripada move manual).
+  const spamMutation = useMutation({
+    mutationFn: () => markMessagesAsJunk(user.sogoToken, folder, [msgId]),
+    onSuccess: () => {
+      if (user?.email && unsnoozeMessages(user.email, folder, [msgId]) > 0) {
+        onSnoozeCleared?.();
+      }
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
+      queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+      onClose();
+      onMoveComplete?.();
+      toast.success('Pesan dilaporkan sebagai spam');
+    },
+    onError: (err) => toast.error(err?.message || 'Gagal melaporkan spam.'),
+  });
+
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!msg) return;
@@ -209,11 +254,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       else if (e.key.toLowerCase() === 'f') { e.preventDefault(); handleForward(); }
       else if (e.key === 'Delete') { e.preventDefault(); if (!deleteMutation.isPending) deleteMutation.mutate(); }
       else if (e.key.toLowerCase() === 's') { e.preventDefault(); flagMutation.mutate(!(msg.isFlagged)); }
-      else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      else if (e.key === 'Escape') { e.preventDefault(); if (lightbox) setLightbox(null); else onClose(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [msg, deleteMutation.isPending, shortcutsEnabled]);
+  }, [msg, deleteMutation.isPending, shortcutsEnabled, lightbox]);
 
   function escapeHtml(str) {
     return String(str).replace(/[<>&"']/g, c => {
@@ -316,6 +361,74 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     });
   }
 
+  // Orang yang relevan utk "Tambah ke Kontak" — pengirim (kotak masuk) atau
+  // penerima pertama (Terkirim/Draf).
+  const isSentOrDraft = /(^|\/)sent$/i.test(folder) || /(^|\/)drafts?$/i.test(folder);
+  const contactSource = isSentOrDraft
+    ? (Array.isArray(msg.to) ? msg.to : [])
+    : (Array.isArray(msg.from) ? msg.from : []);
+  const contactPerson = contactSource[0] || {};
+
+  // ── Unduh semua lampiran ───────────────────────────────────────────────────
+  // SOGo downloadURL diarahkan ke tab baru per lampiran (session cookie ikut);
+  // versi ini mengunduh lewat blob + objectURL supaya nama file terjaga.
+  async function handleDownloadAll() {
+    if (downloadingAll) return;
+    const files = attachments
+      .map((att) => ({ url: toSafeUrl(att.downloadURL, { base: SOGO_BASE, allowExternal: false }), name: att.name }))
+      .filter((f) => f.url);
+    if (files.length === 0) return;
+    setDownloadingAll(true);
+    try {
+      let done = 0;
+      for (const f of files) {
+        await downloadFileBlob(f.url, f.name);
+        done += 1;
+        setDownloadProgress(`${done}/${files.length}`);
+      }
+      toast.success(`${done} lampiran diunduh.`);
+    } catch (err) {
+      toast.error(err?.message || 'Gagal mengunduh lampiran.');
+    } finally {
+      setDownloadingAll(false);
+      setDownloadProgress('');
+    }
+  }
+
+  // Buka preview lightbox utk gambar/PDF; file lain → unduh di tab baru.
+  function openPreview(att) {
+    const url = toSafeUrl(att.viewURL || att.downloadURL, { base: SOGO_BASE, allowExternal: false });
+    if (!url) return;
+    const kind = getFileKind(att.name, att.contentType);
+    if (kind === 'image' || kind === 'pdf') {
+      setLightbox({ name: att.name, url, kind });
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  // ── Tambah ke kontak ───────────────────────────────────────────────────────
+  // Simpan pengirim/penerima email ini ke kontak personal (1 klik, form terisi).
+  async function handleSaveContact(e) {
+    e.preventDefault();
+    if (contactSaving) return;
+    setContactError('');
+    setContactSaving(true);
+    try {
+      await createContact(user.sogoToken, {
+        c_cn: (contactNameRef.current?.value || '').trim(),
+        c_mail: (contactEmailRef.current?.value || '').trim(),
+        c_telephonenumber: (contactPhoneRef.current?.value || '').trim(),
+      });
+      setContactOpen(false);
+      toast.success('Kontak disimpan');
+    } catch (err) {
+      setContactError(err?.message || 'Gagal menyimpan kontak.');
+    } finally {
+      setContactSaving(false);
+    }
+  }
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-background w-full">
@@ -358,13 +471,13 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           </button>
           {folder !== 'folderJunk' && (
             <button
-              onClick={() => moveMutation.mutate('folderJunk')}
-              disabled={moveMutation.isPending}
+              onClick={() => spamMutation.mutate()}
+              disabled={spamMutation.isPending}
               className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/10"
               title="Laporkan Spam"
               aria-label="Laporkan spam"
             >
-              <AlertTriangle size={18} />
+              {spamMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <AlertTriangle size={18} />}
             </button>
           )}
           {/* Move to folder — click toggle (mobile-friendly) */}
@@ -402,6 +515,16 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           <button onClick={handlePrint} className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted" title="Cetak" aria-label="Cetak">
             <Printer size={18} />
           </button>
+          {(contactPerson?.email || contactPerson?.name) && (
+            <button
+              onClick={() => { setContactError(''); setContactOpen(true); }}
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-primary hover:bg-muted"
+              title="Tambah ke kontak"
+              aria-label="Tambah pengirim ke kontak"
+            >
+              <UserPlus size={18} />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -474,24 +597,42 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         {/* Attachments */}
         {attachments.length > 0 && (
           <div className="mt-8 pt-6 border-t border-border">
-            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-              <Paperclip size={16} />
-              Lampiran ({attachments.length})
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Paperclip size={16} />
+                Lampiran ({attachments.length})
+                {totalAttachmentSize(attachments) && (
+                  <span className="text-xs font-normal text-muted-foreground">· {totalAttachmentSize(attachments)}</span>
+                )}
+              </h3>
+              {attachments.length > 1 && (
+                <button
+                  onClick={handleDownloadAll}
+                  disabled={downloadingAll}
+                  className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-60"
+                  title="Unduh semua lampiran"
+                >
+                  {downloadingAll ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                  {downloadingAll ? (downloadProgress ? `Mengunduh ${downloadProgress}` : 'Mengunduh…') : 'Unduh Semua'}
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {attachments.map((att, idx) => {
                 const attUrl = toSafeUrl(att.downloadURL, { base: SOGO_BASE, allowExternal: false });
-                const isImage = isImageType(att.contentType);
+                const kind = getFileKind(att.name, att.contentType);
+                const isImage = kind === 'image' || isImageType(att.contentType);
+                const isPdf = kind === 'pdf';
 
-                // Image attachments: show thumbnail preview
+                // Image attachments: show thumbnail preview (klik → lightbox)
                 if (isImage) {
                   return (
                     <a
                       key={idx}
                       href={attUrl || undefined}
-                      target="_blank"
-                      rel="noreferrer"
+                      onClick={(e) => { e.preventDefault(); openPreview(att); }}
                       className="group relative rounded-xl overflow-hidden border border-border bg-card hover:ring-2 hover:ring-primary/30 transition-all"
+                      title="Pratinjau gambar"
                     >
                       <img src={attUrl} alt={att.name} className="w-full h-36 object-cover" loading="lazy" />
                       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-3">
@@ -499,20 +640,22 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                         <div className="text-white/80 text-xs">{formatFileSize(att.size)}</div>
                       </div>
                       <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Download size={14} className="text-white" />
+                        <Eye size={14} className="text-white" />
                       </div>
                     </a>
                   );
                 }
 
-                // Non-image attachments: file card
+                // Non-image attachments: file card (PDF → preview lightbox)
                 return (
                   <a
                     key={idx}
                     href={attUrl || undefined}
-                    target="_blank"
-                    rel="noreferrer"
+                    target={isPdf ? undefined : '_blank'}
+                    rel={isPdf ? undefined : 'noreferrer'}
+                    onClick={isPdf ? (e) => { e.preventDefault(); openPreview(att); } : undefined}
                     className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-muted transition-colors group"
+                    title={isPdf ? 'Pratinjau PDF' : undefined}
                   >
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
                       <FileText size={20} />
@@ -521,7 +664,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                       <div className="text-sm font-medium text-foreground truncate">{att.name}</div>
                       <div className="text-xs text-muted-foreground">{formatFileSize(att.size) || att.contentType || ''}</div>
                     </div>
-                    <Download size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />
+                    {isPdf
+                      ? <Eye size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />
+                      : <Download size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />}
                   </a>
                 );
               })}
@@ -529,6 +674,119 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           </div>
         )}
       </div>
+
+      {/* ── Preview lampiran (lightbox) ────────────────────────────────────── */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/85 flex flex-col items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <div
+            className="flex flex-col w-full max-w-5xl max-h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <span className="text-white text-sm font-medium truncate flex-1">{lightbox.name}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => downloadFileBlob(lightbox.url, lightbox.name).catch(() => {})}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
+                >
+                  <Download size={14} /> Unduh
+                </button>
+                <a
+                  href={lightbox.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
+                >
+                  <ExternalLink size={14} /> Tab baru
+                </a>
+                <button
+                  onClick={() => setLightbox(null)}
+                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  aria-label="Tutup pratinjau"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 rounded-xl overflow-hidden bg-black/40 border border-white/10">
+              {lightbox.kind === 'image' ? (
+                <img src={lightbox.url} alt={lightbox.name} className="w-full h-[80vh] object-contain" />
+              ) : (
+                <iframe src={lightbox.url} title={lightbox.name} className="w-full h-[80vh] bg-white" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Tambah ke kontak modal ─────────────────────────────────────────── */}
+      {contactOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setContactOpen(false)}>
+          <div
+            className="bg-card w-full max-w-md rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <h2 className="text-base font-semibold">Tambah ke Kontak</h2>
+              <button onClick={() => setContactOpen(false)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground">
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveContact} className="p-5 space-y-4">
+              {contactError && (
+                <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg">{contactError}</div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-foreground">Nama Lengkap</label>
+                <input
+                  ref={contactNameRef}
+                  defaultValue={contactPerson?.name || contactPerson?.email || ''}
+                  placeholder="John Doe"
+                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-foreground">Email</label>
+                <input
+                  ref={contactEmailRef}
+                  defaultValue={contactPerson?.email || ''}
+                  type="email"
+                  required
+                  placeholder="email@domain.com"
+                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-foreground">No. Telepon</label>
+                <input
+                  ref={contactPhoneRef}
+                  placeholder="+62..."
+                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setContactOpen(false)}
+                  className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-medium"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={contactSaving}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                >
+                  {contactSaving ? <Loader2 size={14} className="animate-spin" /> : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

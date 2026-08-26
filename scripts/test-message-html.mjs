@@ -95,6 +95,13 @@ assert.equal(atts[0].contentType, 'application/pdf');
 assert.equal(atts[0].downloadURL.includes('viewPart?part=2'), true);
 assert.equal(atts[1].name, 'foto.png');
 assert.equal(atts[1].size, 2048);
+// viewURL tersimpan utk preview lightbox (fallback ke downloadURL).
+assert.equal(atts[0].viewURL.includes('viewPart?part=2'), true, 'viewURL dari part');
+assert.equal(atts[1].viewURL, atts[1].downloadURL, 'viewURL fallback ke downloadURL');
+// part dengan viewURL saja (tanpa downloadURL) tetap lampiran + downloadURL fallback.
+const viewOnly = extractAttachments({ contentType: 'application/pdf', filename: 'v.pdf', viewURL: '/SOGo/so/x/viewPart?part=9' });
+assert.equal(viewOnly.length, 1, 'viewURL saja tetap dihitung lampiran');
+assert.equal(viewOnly[0].downloadURL.includes('part=9'), true, 'downloadURL fallback ke viewURL');
 // part tanpa downloadURL (mis. text/plain) → bukan lampiran
 assert.equal(extractAttachments({ contentType: 'text/plain', content: 'x' }).length, 0);
 assert.equal(extractAttachments(null).length, 0);

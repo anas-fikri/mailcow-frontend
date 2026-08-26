@@ -2474,3 +2474,9 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## MessageReader fitur hilang di-restore (regresi 6c1485f) — 55/55 PASS, live
+- Commit 6c1485f (fix nginx) menimpa MessageReader.jsx dgn versi lama → 5 fitur
+  hilang: lightbox preview gambar/PDF, tambah-ke-kontak, markMessagesAsJunk
+  native, unduh-semua lampiran, viewURL. Semua di-restore + test regresi.
+- Lightbox: Esc tutup lightbox dulu baru reader (lightbox di dep array handler).

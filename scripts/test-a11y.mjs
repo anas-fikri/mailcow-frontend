@@ -216,4 +216,17 @@ assert.ok(contacts.includes('text-lg font-semibold truncate'), 'Contacts: judul 
 assert.ok(contacts.includes('flex gap-1 bg-muted rounded-lg p-0.5 shrink-0'), 'Contacts: cluster filter harus shrink-0');
 passCount += 7;
 
+// ── Fitur MessageReader yang TIDAK BOLEH hilang (regresi 6c1485f) ────────────
+// Commit fix(nginx) menimpa MessageReader dengan versi lama → lightbox preview,
+// tambah-ke-kontak, markMessagesAsJunk, unduh-semua hilang diam-diam.
+assert.ok(reader.includes('setLightbox'), 'Lightbox preview lampiran harus ada');
+assert.ok(reader.includes('function openPreview(att)'), 'openPreview harus ada');
+assert.ok(reader.includes("kind === 'image' || kind === 'pdf'"), 'Preview utk gambar + PDF');
+assert.ok(reader.includes('markMessagesAsJunk(user.sogoToken, folder, [msgId])'), 'Lapor spam pakai endpoint native');
+assert.ok(reader.includes('async function handleSaveContact(e)'), 'Tambah ke kontak harus ada');
+assert.ok(reader.includes('async function handleDownloadAll()'), 'Unduh semua lampiran harus ada');
+assert.ok(reader.includes('totalAttachmentSize(attachments)'), 'Total ukuran lampiran ditampilkan');
+assert.ok(reader.includes('e.key === \'Escape\') { e.preventDefault(); if (lightbox) setLightbox(null); else onClose(); }'), 'Esc tutup lightbox dulu, baru reader');
+passCount += 8;
+
 console.log(`\nA11y audit: ${passCount} assertions PASS ✅`);

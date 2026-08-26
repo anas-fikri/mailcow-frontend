@@ -967,3 +967,14 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Race undo-delete: operasi tertunda (timer 6s) wajib kunci sourceFolder saat penjadwalan — UID SOGo per-folder; moveMutation pakai vars.sourceFolder; seleksi bulk dibersihkan saat DIJADWALKAN (bukan saat sukses). 55/55 PASS, live (index-JAzdFEU-, MailPage-BPYRzevc).
+
+## Komit gabungan nginx+code = risiko overwrite file (durable)
+- 6c1485f bernama "fix(nginx)" tapi diff-nya menimpa MessageReader.jsx penuh
+  dengan versi lama (1014→534 baris) — kemungkinan merge/rebase salah. Fitur
+  hilang diam-diam: lightbox preview, tambah-kontak, markMessagesAsJunk,
+  unduh-semua, viewURL.
+- Pelajaran: (1) commit nginx WAJIB hanya menyentuh configs/; (2) fitur
+  MessageReader punya guard test statis (test-a11y) agar hilangnya terdeteksi;
+  (3) git log -S "openPreview" berguna menemukan commit yang menghapus simbol.
+- Lightbox: preview gambar via <img>, PDF via <iframe> (SOGo viewPart); Esc
+  harus menutup lightbox DULU baru reader — lightbox di dep array keydown.

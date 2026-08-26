@@ -70,12 +70,14 @@ export function extractAttachments(parts, result = []) {
   if (!parts) return result;
   const ct = parts.contentType || '';
   const isInline = ct === 'text/html' || ct === 'text/plain';
-  if (parts.downloadURL && !isInline) {
+  if ((parts.downloadURL || parts.viewURL) && !isInline) {
     result.push({
       name: parts.filename || parts.name || 'attachment',
       size: parts.size || 0,
       contentType: ct,
-      downloadURL: parts.downloadURL,
+      downloadURL: parts.downloadURL || parts.viewURL,
+      // viewURL utk preview lightbox (SOGo viewPart) — preview aman di iframe/img.
+      viewURL: parts.viewURL || parts.downloadURL,
     });
   }
   if (Array.isArray(parts.content)) {

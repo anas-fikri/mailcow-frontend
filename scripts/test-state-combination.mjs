@@ -45,8 +45,8 @@ ok(reader.includes('shortcutsEnabled = true'),
   'MessageReader: prop shortcutsEnabled dengan default true');
 ok(reader.includes('if (!shortcutsEnabled) return;'),
   'MessageReader: handler shortcut skip saat shortcutsEnabled=false');
-ok(reader.includes('[msg, deleteMutation.isPending, shortcutsEnabled]'),
-  'MessageReader: shortcutsEnabled ada di dependency array handler');
+ok(reader.includes('[msg, deleteMutation.isPending, shortcutsEnabled, lightbox]'),
+  'MessageReader: shortcutsEnabled + lightbox ada di dependency array handler (Esc tutup lightbox dulu)');
 ok(mail.includes('shortcutsEnabled={!composeOpen}'),
   'MailPage: reader menerima shortcutsEnabled={!composeOpen} (matikan di belakang modal)');
 
