@@ -1971,3 +1971,25 @@ Test baru test:event-validation (16 assertions). 46/46 PASS.
 -  M src/components/EventModal.jsx
 - ?? scripts/test-event-validation.mjs
 - ?? src/lib/eventValidation.js
+
+## [2026-08-26] Validasi format email di ComposeModal — SELESAI & LIVE
+
+ComposeModal sebelumnya hanya guard "Kepada wajib diisi" — format invalid lolos
+sampai server (400 generik). Tambah firstInvalidRecipient() di
+src/lib/emailValidation.js (entri rusak pertama dlm daftar koma, reuse
+isSafeRecipient anti-CRLF) + guard handleSend per field Kepada/Cc/Bcc dgn pesan
+jelas: "Alamat email tidak valid di \"Kepada\": \"abc\". Gunakan format
+nama@domain.com." Koma trailing diterima; server tetap validasi ulang
+(validateRecipientList). Test:email-validation diperluas 10 kasus unit + 3
+assertion statis ComposeModal. 46/46 PASS.
+
+## 2026-08-26T01:39:42Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M scripts/test-email-validation.mjs
+-  M src/components/mailer/ComposeModal.jsx
+-  M src/lib/emailValidation.js

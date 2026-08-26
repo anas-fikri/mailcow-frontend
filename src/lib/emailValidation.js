@@ -44,6 +44,20 @@ export function validateRecipientList(value) {
   return recipients.length > 0 && recipients.every(isSafeRecipient);
 }
 
+/**
+ * Kembalikan entri pertama yang TIDAK valid dalam daftar recipient
+ * (dipisah koma), atau null bila kosong/semua valid. Dipakai UI compose
+ * untuk pesan error per-field yang jelas (bukan hanya boelan true/false).
+ */
+export function firstInvalidRecipient(value) {
+  if (!value) return null;
+  const recipients = value.split(',').map((item) => item.trim()).filter(Boolean);
+  for (const item of recipients) {
+    if (!isSafeRecipient(item)) return item;
+  }
+  return null;
+}
+
 /** True bila string mengandung karakter kontrol (dipakai utk validasi subject). */
 export function hasControlChars(value) {
   return typeof value === 'string' && CONTROL_CHARS.test(value);

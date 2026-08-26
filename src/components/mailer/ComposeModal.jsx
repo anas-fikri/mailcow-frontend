@@ -13,6 +13,7 @@ import DOMPurify from 'dompurify';
 import { handleEditorPaste, insertImageFile, PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { loadSignatures, getSignatureFor } from '../../lib/signatures';
 import { formatFileSize, totalAttachmentSize } from '../../lib/attachments';
+import { firstInvalidRecipient } from '../../lib/emailValidation';
 
 // Batas lampiran (sama dengan validasi backend — lihat attachmentValidation.js).
 const MAX_ATTACHMENTS = 10;
@@ -259,6 +260,17 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   async function handleSend(e) {
     e.preventDefault();
     if (!to.trim()) { setError('Kolom "Kepada" wajib diisi.'); return; }
+
+    // Validasi format email per field SEBELUM kirim — server juga memvalidasi
+    // (emailValidation.js), tapi error di sini lebih jelas: sebut alamat yang
+    // salah dan field-nya, bukan error 400 generik setelah request dikirim.
+    const invalidField = [['Kepada', to], ['Cc', cc], ['Bcc', bcc]]
+      .map(([label, value]) => ({ label, bad: firstInvalidRecipient(value) }))
+      .find((f) => f.bad);
+    if (invalidField) {
+      setError(`Alamat email tidak valid di "${invalidField.label}": "${invalidField.bad}". Gunakan format nama@domain.com.`);
+      return;
+    }
 
     setSending(true);
     setError('');

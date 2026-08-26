@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  isSafeEmail, isSafeRecipient, recipientAddress, validateRecipientList, hasControlChars,
+  isSafeEmail, isSafeRecipient, recipientAddress, validateRecipientList, hasControlChars, firstInvalidRecipient,
 } from '../src/lib/emailValidation.js';
 
 // ── isSafeEmail ────────────────────────────────────────────────────────────────
@@ -48,4 +48,28 @@ assert.equal(hasControlChars('hello world'), false);
 assert.equal(hasControlChars(''), false);
 assert.equal(hasControlChars(null), false);
 
-console.log('emailValidation assertions passed');
+// ── firstInvalidRecipient ──────────────────────────────────────────────────────
+assert.equal(firstInvalidRecipient(''), null);
+assert.equal(firstInvalidRecipient(null), null);
+assert.equal(firstInvalidRecipient('a@b.com'), null);
+assert.equal(firstInvalidRecipient('a@b.com, c@d.com'), null);
+assert.equal(firstInvalidRecipient('John Doe <a@b.com>, c@d.com'), null);
+assert.equal(firstInvalidRecipient('a@b.com, not-an-email'), 'not-an-email');
+assert.equal(firstInvalidRecipient('bad@@x.com, a@b.com'), 'bad@@x.com'); // kembalikan yg PERTAMA rusak
+assert.equal(firstInvalidRecipient('a@b.com, <evil>@x.com'), '<evil>@x.com');
+assert.equal(firstInvalidRecipient('a@b.com, b@c.com\nBcc: evil@x.com'), 'b@c.com\nBcc: evil@x.com');
+assert.equal(firstInvalidRecipient('a@b.com,  '), null); // koma + spasi trailing → abaikan
+
+// ── ComposeModal memakai validasi sebelum kirim (static source check) ─────────
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const compose = fs.readFileSync(
+  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src/components/mailer/ComposeModal.jsx'),
+  'utf8'
+);
+assert.ok(compose.includes("firstInvalidRecipient"), 'ComposeModal mengimpor firstInvalidRecipient');
+assert.ok(compose.includes('Alamat email tidak valid di'), 'ComposeModal punya pesan error format jelas');
+assert.ok(compose.includes("['Kepada', to], ['Cc', cc], ['Bcc', bcc]"), 'ComposeModal memvalidasi to/cc/bcc');
+
+console.log('emailValidation assertions passed (incl. firstInvalidRecipient + ComposeModal guard)');
