@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict';
 
 const storage = new Map();
+let getItemCalls = 0;
 globalThis.localStorage = {
-  getItem: (k) => storage.get(k) ?? null,
+  getItem: (k) => { getItemCalls += 1; return storage.get(k) ?? null; },
   setItem: (k, v) => storage.set(k, String(v)),
   removeItem: (k) => storage.delete(k),
 };
 
 const {
   FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor,
-  setFlagColorsBulk, getAllFlags, countFlagColors, clearAllFlags,
+  setFlagColorsBulk, getAllFlags, countFlagColors, clearAllFlags, __resetFlagColorCache,
 } = await import('../src/lib/flagColors.js');
 
 const EMAIL = 'u@example.com';
@@ -28,8 +29,22 @@ clearAllFlags(EMAIL);
 assert.deepEqual(getAllFlags(EMAIL), {});
 assert.deepEqual(Object.keys(FLAG_COLORS), FLAG_COLOR_KEYS);
 
+// ── CACHE: getFlagColor per-baris tidak boleh baca ulang localStorage ────────
+// (hot path render MailPage — 50+ baris × beberapa kali per baris). Cache
+// di-invalidate otomatis saat tulis lewat API.
+storage.clear();
+__resetFlagColorCache();
+setFlagColor(EMAIL, '1', 'red'); // tulis (cache di-invalidate setelahnya)
+getFlagColor(EMAIL, '1'); // 1x baca utk repopulate cache (cache miss setelah invalidasi)
+getItemCalls = 0;
+assert.equal(getFlagColor(EMAIL, '1'), 'red');
+assert.equal(getFlagColor(EMAIL, '1'), 'red');
+assert.equal(getFlagColor(EMAIL, '1'), 'red');
+assert.equal(getItemCalls, 0, 'getFlagColor beruntun utk key yang di-cache TIDAK baca localStorage lagi');
+
 // ── Migrasi KEY v1 → v2 (data valid di key lama) ─────────────────────────────
 storage.clear();
+__resetFlagColorCache();
 storage.set(KEY_V1, JSON.stringify({ '7': 'red' }));
 assert.deepEqual(getAllFlags(EMAIL), { '7': 'red' }, 'data v1 tetap terbaca');
 assert.equal(storage.get(KEY), '{"7":"red"}', 'data v1 dipindahkan ke key v2');
@@ -39,6 +54,7 @@ assert.ok(storage.get(KEY_V1) == null, 'key v1 legacy dihapus setelah migrasi');
 // Simulasikan storage lama (key v1) dgn warna yang sudah tidak ada (mis.
 // "orange") + nilai rusak (null, angka) — harus dibuang, ditulis balik ke v2.
 storage.clear();
+__resetFlagColorCache();
 storage.set(KEY_V1, JSON.stringify({
   '1': 'red',
   '2': 'orange',      // warna legacy yang sudah tidak dikenal → dibuang
@@ -63,16 +79,20 @@ assert.equal(storage.get(KEY), rawAfter, 'tidak boleh ada penulisan ulang saat s
 
 // ── Bentuk rusak → {} + storage dibersihkan sekali ───────────────────────────
 // JSON "null" = tidak ada data (tanpa tulis); array/string bisa di-parse → {} + write.
+__resetFlagColorCache();
 storage.set(KEY, 'null');
 assert.deepEqual(getAllFlags(EMAIL), {});
+__resetFlagColorCache();
 storage.set(KEY, JSON.stringify([1, 2]));
 assert.deepEqual(getAllFlags(EMAIL), {});
 assert.equal(storage.get(KEY), '{}', 'storage bentuk array ditulis ulang jadi {}');
+__resetFlagColorCache();
 storage.set(KEY, '"string"');
 assert.deepEqual(getAllFlags(EMAIL), {});
 assert.equal(storage.get(KEY), '{}', 'storage bentuk string ditulis ulang jadi {}');
 
 // Data VALID tidak boleh ditulis ulang
+__resetFlagColorCache();
 const validRaw = JSON.stringify({ '9': 'yellow' });
 storage.set(KEY, validRaw);
 assert.deepEqual(getAllFlags(EMAIL), { '9': 'yellow' });

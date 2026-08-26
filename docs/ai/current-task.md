@@ -1,41 +1,44 @@
 # Current Task
 
-## Task: ai-loop multi-tab — cache React Query di CalendarPage & ContactsPage
+## Task: ai-loop performance & mobile — hot path render, swipe mobile, pola request
 
 **Status: SELESAI (51/51 test PASS, build OK)** → siap commit + push + deploy.
 
 ## Temuan
 
-Cache React Query **per-tab** + `staleTime: 5 menit` (calendar & contacts):
-- Tab A create/update/delete event atau kontak → invalidate HANYA di tab A.
-- Tab B masih menampilkan data basi sampai stale (≤5 menit) atau reload manual.
-- Tidak ada mekanisme sinkronisasi antar-tab untuk domain ini (MailPage sudah
-  dapat storage-event utk snooze; calendar/contacts belum).
+1. **`getFlagColor` di hot path render per-baris (performa).** MailPage
+   memanggil `getFlagColor` beberapa kali PER BARIS pesan (warna flag, filter,
+   flag picker, count). Setiap pemanggilan → `getStore()` membaca + JSON.parse
+   + normalisasi SELURUH store flag dari localStorage → 50+ baris × beberapa
+   kali = puluhan baca/parse per render (jank saat scroll + hit GC).
+2. **Swipe mobile membuka pesan sekaligus (bug UX).** SwipeableRow tidak
+   menekan synthetic click browser setelah touchend → swipe-to-delete di HP
+   MEMBUKA pesan yang sama persis sedang dijadwalkan hapus. Long-press sudah
+   pakai suppressClick; swipe belum.
+3. Diverifikasi aman: BottomNav `pb-16` di AppLayout (list tidak tertutup),
+   polling unseen 60s wajar, `loadPrefs`/signatures tidak di hot path, cache
+   React Query staleTime/refetchOnWindowFocus sudah baik.
 
 ## Perbaikan
 
-**Helper bersama `src/lib/crossTab.js` — "domain version bump":**
-- `bumpDomainVersion(domain, email)` — tulis timestamp **monotonik**
-  (`Math.max(Date.now(), prev+1)` — dua bump dalam ms sama tidak boleh
-  menghasilkan versi sama, kalau tidak tab lain tidak mendeteksi perubahan) ke
-  `pcp_<domain>_v_<email>`. Tanpa email → 0 (no-op).
-- `watchDomainVersion(domain, email, cb)` — listener `storage` (event hanya
-  fire di tab LAIN), invalidate saat versi naik; `e.key === null` (clear)
-  dianggap semua berubah; cleanup otomatis.
-- `readDomainVersion` / `pruneDomainVersions` (TTL 24 jam).
-
-**CalendarPage:** bump `calendar` di handleCreate/Update/DeleteEvent (drag
-reuse handleUpdateEvent → otomatis) + watch → invalidate `['calendar', token]`.
-**ContactsPage:** bump `contacts` di create/deleteMutation onSuccess + watch →
-invalidate `['contacts', token]`.
+1. **Cache in-memory di `src/lib/flagColors.js`** (`storeCache` Map per email):
+   `getStore` hanya baca localStorage sekali per email; di-invalidate saat
+   tulis (`setFlagColor`, `setFlagColorsBulk`, `clearAllFlags`). Tambah
+   `__resetFlagColorCache()` (internal/test — storage diubah langsung dari
+   luar). Semua pemanggilan `getFlagColor` beruntun utk key yang di-cache = 0
+   baca localStorage (diverifikasi test dengan spy getItem).
+2. **`onSwipe` di SwipeableRow** — dipanggil SEBELUM onSwipeLeft/Right saat
+   threshold terlampaui. MailPage: `onSwipe={() => suppressClick.current.add(msg.uid)}`
+   → synthetic click setelah swipe ditelan `handleRowClick` (pola sama dgn
+   long-press).
 
 ## Verifikasi
 
-- `test:cross-tab` baru: read 0 awal, bump > 0, scoped email/domain, watch
-  invalidate saat versi naik, abaikan key domain lain, abaikan event tanpa
-  perubahan, clear() memicu, cleanup listener, **bump monotonik** (bug asli
-  ditemukan oleh test), key rusak → 0, email kosong → 0.
+- `test:flag-colors` diperluas: cache read-count (spy getItem = 0 utk
+  getFlagColor beruntun setelah populate), reset cache antar skenario.
+- `test:a11y` + 4 assertion statis: prop onSwipe + panggilan left/right +
+  suppressClick di MailPage.
 - **51/51 test PASS** · build OK.
 
 Status: COMPLETED
-Updated At: 2026-08-26T02:41:56Z
+Updated At: 2026-08-26T03:2x:00Z

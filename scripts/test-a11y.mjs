@@ -177,4 +177,13 @@ passCount += 4;
 assert.ok(swipe.includes('bg-destructive dark:bg-red-700'), 'SwipeableRow dark:bg-red-700 hilang');
 passCount++;
 
+// Mobile: swipe TIDAK boleh ikut membuka pesan — onSwipe menekan synthetic
+// click via suppressClick (lihat handleRowClick). Tanpa ini, swipe-to-delete
+// di HP membuka pesan sekaligus menjadwalkan hapus.
+assert.ok(swipe.includes('onSwipe'), 'SwipeableRow harus punya prop onSwipe');
+assert.ok(swipe.includes("onSwipe?.('left')"), 'SwipeableRow harus panggil onSwipe left sebelum aksi');
+assert.ok(swipe.includes("onSwipe?.('right')"), 'SwipeableRow harus panggil onSwipe right sebelum aksi');
+assert.ok(mail.includes('onSwipe={() => suppressClick.current.add(msg.uid)}'), 'MailPage harus tekan synthetic click setelah swipe');
+passCount += 4;
+
 console.log(`\nA11y audit: ${passCount} assertions PASS ✅`);

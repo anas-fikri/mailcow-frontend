@@ -742,3 +742,18 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Sync cache React Query lintas tab utk Calendar/Contacts: helper crossTab.js — bumpDomainVersion (monotonik Math.max(Date.now(), prev+1), key pcp_<domain>_v_<email>) + watchDomainVersion (storage event listener, invalidate saat versi naik; e.key null = clear). Dipasang di CalendarPage (create/update/delete+drag) dan ContactsPage (create/delete). Bug ditemukan test: bump berbasis Date.now() bisa sama dalam ms sama → wajib monotonik. 51/51 test PASS, deploy live hash terverifikasi.
+
+## 2026-08-26 — Hot path render bebas baca storage sinkron; gesture tekan synthetic click
+
+- **Hot path render (per-baris × per-render) WAJIB bebas baca localStorage
+  sinkron** — pola getFlagColor → getStore (read+parse+normalize seluruh store)
+  per pemanggilan = jank saat scroll + hit GC. Solusi: cache in-memory per
+  scope (email) + invalidate-on-write; hook/helper harus mengembalikan objek
+  stabil yang di-cache, bukan membaca ulang.
+- **Gesture touch yang memicu aksi (swipe/long-press) harus menekan synthetic
+  click browser** yang dihasilkan setelah touchend — kalau tidak, swipe-to-
+  delete sekaligus membuka pesan. Pola: callback onSwipe sebelum aksi →
+  suppressClick set → onClick menelan.
+- Storage yang diubah LANGSUNG (localStorage.setItem dari luar / tab lain)
+  tidak terlihat oleh cache in-memory — sediakan reset eksplisit utk test dan
+  terima trade-off (sama dgn perilaku pra-cache yang baca per-render).

@@ -21,6 +21,7 @@ const isMobile = typeof window !== 'undefined' && 'ontouchstart' in window;
 export default function SwipeableRow({
   onSwipeLeft,
   onSwipeRight,
+  onSwipe,
   labelLeft = 'Hapus',
   labelRight = 'Baca',
   iconLeft: IconLeft = Trash2,
@@ -66,13 +67,21 @@ export default function SwipeableRow({
 
     const absSwipe = Math.abs(currentX.current);
     if (absSwipe >= SWIPE_THRESHOLD) {
-      if (currentX.current < 0) onSwipeLeft?.();
-      else onSwipeRight?.();
+      // Informasikan swipe (arah: 'left' | 'right') SEBELUM aksi — pemakai
+      // (MailPage) memakai ini utk menekan synthetic click yang dihasilkan
+      // browser setelah touchend, supaya swipe tidak ikut membuka pesan.
+      if (currentX.current < 0) {
+        onSwipe?.('left');
+        onSwipeLeft?.();
+      } else {
+        onSwipe?.('right');
+        onSwipeRight?.();
+      }
     }
 
     setSwipeX(0);
     currentX.current = 0;
-  }, [isSwiping, onSwipeLeft, onSwipeRight]);
+  }, [isSwiping, onSwipeLeft, onSwipeRight, onSwipe]);
 
   if (!isMobile) return <div className={className}>{children}</div>;
 

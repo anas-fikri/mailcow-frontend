@@ -21,30 +21,47 @@ import { writeJSON, readStorage, persistNormalized } from './storageMigrate.js';
 const BASE_KEY = 'flag_colors';
 const LS_KEY = (email) => `flag_colors_v2_${email}`;
 
+// Cache in-memory per email — getFlagColor dipanggil PER-BARIS di hot path
+// render MailPage (50+ baris × beberapa kali per baris). Tanpa cache, setiap
+// pemanggilan membaca + JSON.parse + normalisasi SELURUH store dari
+// localStorage → lambat (jank saat scroll) dan hit GC. Cache di-invalidate
+// saat store ditulis (setFlagColor dkk), jadi selalu segar di tab ini.
+const storeCache = new Map(); // email → parsed store (object)
+
 function getStore(email) {
   if (!email) return {};
+  if (storeCache.has(email)) return storeCache.get(email);
+
   const { value: parsed, key: targetKey, version, fromLegacy } = readStorage(BASE_KEY, email);
-  if (parsed == null) return {};
-  // Guard bentuk: JSON "null"/array/string → operasi store[...] crash.
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+  let result;
+  if (parsed == null) {
+    result = {};
+  } else if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     // Bentuk rusak → bersihkan sekali: tulis {} di key terbaru (v2).
     writeJSON(targetKey, {});
-    return {};
-  }
-  // Migrasi sekali-jalan: buang key dengan warna yang tidak lagi dikenal
-  // (mis. warna lama/rusak) agar countFlagColors/getAllFlags tidak menyimpan
-  // sampah; ditulis balik bila ada yang dibuang.
-  let changed = false;
-  for (const [uid, colorKey] of Object.entries(parsed)) {
-    if (typeof colorKey !== 'string' || !FLAG_COLORS[colorKey]) {
-      delete parsed[uid];
-      changed = true;
+    result = {};
+  } else {
+    // Migrasi sekali-jalan: buang key dengan warna yang tidak lagi dikenal
+    // (mis. warna lama/rusak) agar countFlagColors/getAllFlags tidak menyimpan
+    // sampah; ditulis balik bila ada yang dibuang.
+    let changed = false;
+    for (const [uid, colorKey] of Object.entries(parsed)) {
+      if (typeof colorKey !== 'string' || !FLAG_COLORS[colorKey]) {
+        delete parsed[uid];
+        changed = true;
+      }
     }
+    // Write-back SEKALI-JALAN: hasil prune dipersist + data v1 dipindah ke v2
+    // (key v1 dihapus hanya bila tulis sukses). Idempotent utk data valid.
+    persistNormalized(BASE_KEY, email, parsed, parsed, { fromLegacy, key: targetKey, version });
+    result = parsed;
   }
-  // Write-back SEKALI-JALAN: hasil prune dipersist + data v1 dipindah ke v2
-  // (key v1 dihapus hanya bila tulis sukses). Idempotent utk data valid.
-  persistNormalized(BASE_KEY, email, parsed, parsed, { fromLegacy, key: targetKey, version });
-  return parsed;
+  storeCache.set(email, result);
+  return result;
+}
+
+function invalidateStore(email) {
+  if (email) storeCache.delete(email);
 }
 
 function saveStore(email, store) {
@@ -52,6 +69,7 @@ function saveStore(email, store) {
   try {
     localStorage.setItem(LS_KEY(email), JSON.stringify(store));
   } catch {}
+  invalidateStore(email);
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -115,4 +133,15 @@ export function removeFlagColor(email, msgUid) {
 export function clearAllFlags(email) {
   if (!email) return;
   localStorage.removeItem(LS_KEY(email));
+  invalidateStore(email);
+}
+
+/**
+ * (Internal/test) Kosongkan cache in-memory — dipakai saat storage diubah
+ * langsung dari luar (mis. simulasi tab lain / setup test). Bukan bagian dari
+ * API normal: di aplikasi, semua tulis lewat setFlagColor dkk yang sudah
+ * invalidate cache otomatis.
+ */
+export function __resetFlagColorCache() {
+  storeCache.clear();
 }

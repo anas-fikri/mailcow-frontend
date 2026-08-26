@@ -1183,6 +1183,7 @@ export default function MailPage() {
     return (
       <SwipeableRow
         key={msg.uid}
+        onSwipe={() => suppressClick.current.add(msg.uid)}
         onSwipeLeft={() => scheduleDelete([msg.uid])}
         onSwipeRight={() => {
           markRead(user.sogoToken, selectedFolder, msg.uid, true).then(() => {

@@ -2237,3 +2237,23 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-26 — ai-loop performance & mobile: flagColors cache + swipe click (FIXED)
+
+- **Bug 1 (performa) — getFlagColor baca localStorage per-baris:** getStore()
+  membaca+parse+normalisasi seluruh store flag utk SETIAP pemanggilan
+  getFlagColor — dipanggil beberapa kali per baris × 50+ baris di MailPage.
+  **Fix:** cache in-memory `storeCache` (per email) di flagColors.js,
+  invalidate saat tulis via API. `__resetFlagColorCache()` utk test/storage
+  eksternal. Diverifikasi: getFlagColor beruntun utk key ter-cache = 0 baca
+  localStorage (spy getItem).
+- **Bug 2 (mobile) — swipe membuka pesan sekaligus:** synthetic click browser
+  setelah touchend tidak ditekan → swipe-to-delete juga membuka pesan.
+  **Fix:** prop `onSwipe` di SwipeableRow (dipanggil sebelum aksi saat threshold
+  terlampaui) → MailPage `suppressClick.current.add(uid)` → handleRowClick
+  menelan click (pola sama dengan long-press).
+- **Pelajaran:** hot path render (per-baris × per-render) WAJIB bebas baca
+  storage sinkron — cache in-memory + invalidate-on-write. Gesture touch yang
+  menghasilkan aksi (swipe/long-press) harus menekan synthetic click browser.
+- Test: test-flag-colors (read-count) + test-a11y (+4 assertion swipe) →
+  **51/51 PASS** + build OK.
