@@ -1,28 +1,35 @@
-# Current Task — Ai-loop: ComposeModal/send flow audit
+# Current Task — Audit overlap elemen/ikon (dinamis, semua viewport)
 
 ## Status: Selesai (menunggu commit/push/deploy)
 
 ## Temuan & Perbaikan
 
-### Bug 1 (race) — Autosave in-flight saat TUTUP edit-draft → draft copy yatim
-- `handleClose` hanya membersihkan copy autosave yang SUDAH ada (`draftUidRef.current`) saat ditutup. Tapi saveDraft yang masih berjalan (in-flight) selesai SETELAH tutup → membuat draft copy BARU di folder Draf yang tak pernah dihapus → duplikat menumpuk.
-- **Fix:** guard `closedRef` (pola sama dgn `sentRef`). `handleClose` set `closedRef=true`; `runAutosave` setelah save cek `closedRef.current && editingDraftUidRef.current` → hapus uid hasil save + copy lama. Compose baru TETAP dipertahankan draftnya (fitur lanjutkan dari Draf). Reset `closedRef=false` saat modal dibuka.
+### Bug 1 — Event kalender overlap di slot jam sama (week/day view)
+Dua event yang mulai di jam yang sama di-render `absolute left-1 right-1` (full-width) → **saling menimpa total**.
+**Fix:** helper murni `layoutOverlappingEvents` di `src/lib/calendarEvents.js` (greedy column assignment: event non-overlap → full-width; overlap → side-by-side, width = 100/maxCols). Dipakai di week view + day view (`slotLayouts`), style `left: calc(X% + 2px)` / `width: calc(Y% - 4px)`.
 
-### Bug 2 — Reply/forward memakai signature mode 'new' (bukan 'reply')
-- `handleReply`/`handleForward` di MessageReader tidak mengirim `composeMode: 'reply'` → ComposeModal menetapkan `composeMode='new'` → `getSignatureFor(email, 'new')` → balasan salah memakai signature pesan baru.
-- **Fix:** kedua handler kirim `composeMode: 'reply'` di payload onReply.
+### Bug 2 — Baris "Kepada" di ComposeModal overflow di lebar sempit
+Label (64px) + input (min 150px) + tombol Cc/Bcc (≈90px) = 304px > inner modal mobile (280px @ 320px) → tombol Cc/Bcc terdorong/terpotong, berpotensi menimpa chip.
+**Fix:** `flex-wrap` di baris Kepada — tombol pindah ke baris bawah saat sempit.
 
-### Audit lain (aman)
-- Attachment: validasi jumlah (10) + ukuran (4MB) sebelum FileReader, base64 tanpa prefix, restore draft via downloadURL + Promise.allSettled.
-- Send: validasi recipient per-field dgn pesan jelas, sanitize body (chokepoint ganda: ComposeModal + sendMessage), hapus draft asli+autosave pasca-kirim, 401 → logout paksa.
-- RichEditor: input/paste/tab selalu DOMPurify.sanitize; drop gambar→inline, file lain→lampiran.
-- Modal tanpa backdrop-close = sengaja (cegah kehilangan data).
+### Bug 3 — Footer compose: tombol Kirim bisa terdorong
+Cluster kiri (paperclip + format + signature + status) + Kirim di `justify-between` tanpa wrap → di 320px Kirim terpotong.
+**Fix:** footer `flex-wrap gap-y-2`, cluster kiri `flex-1 min-w-0 flex-wrap`, Kirim `shrink-0`.
+
+### Audit lain (aman — tidak diubah)
+- Bulk toolbar: `flex-wrap gap-2` ✓
+- Reader toolbar: `flex-wrap gap-2` ✓
+- Preferences password inputs: `pr-10`/`pr-20` (teks stop sebelum ikon) ✓
+- RulesPage/StatsPage/Calendar month grid: min-w-0/truncate/shrink-0 ✓
+- Flag/snooze popover: clamp viewport ✓
+- Conversation avatar stack: `relative` z-order benar ✓
+- Calendar month: slice 3 + "+N lagi" ✓
 
 ## Test
-- `test-draft-compose` +8 (closedRef guard 5 + composeMode reply 3) → **44 assertions**
+- `test-calendar-events` +13 (layoutOverlappingEvents: overlap→kolom, berurutan→full, tumpukan 3, single, null aman)
+- `test-a11y` +5 (wiring layout di Calendar, no full-width tersisa)
+- `test-draft-compose` +4 (flex-wrap Kepada, footer wrap, kirim shrink-0)
 - **55/55 PASS** · build OK
 
 ## Next
 - Commit + push (tunnel) + deploy.
-Status: COMPLETED
-Updated At: 2026-08-26T10:04:26Z

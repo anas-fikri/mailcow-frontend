@@ -12,7 +12,7 @@ import { MONTHS_ID, DAYS_ID, CAL_COLORS } from '../lib/constants';
 import { toast } from '../lib/toast';
 import EventModal from '../components/EventModal';
 import { buildDroppedEventData } from '../lib/calendarDrop';
-import { eventsOnDay as eventsForDay } from '../lib/calendarEvents';
+import { eventsOnDay as eventsForDay, layoutOverlappingEvents } from '../lib/calendarEvents';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtTime(unix) {
@@ -677,6 +677,9 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
                   const startHour = ev.start ? new Date(Number(ev.start) * 1000).getHours() : -1;
                   return startHour === hour && !ev.isAllDay;
                 });
+                // Side-by-side bila beberapa event overlap di slot jam yang
+                // sama — tanpa ini semuanya full-width & saling menimpa.
+                const slotLayouts = layoutOverlappingEvents(hourEvents);
 
                 return (
                   <div
@@ -690,19 +693,26 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
                       onDrop(d2, hour);
                     }}
                   >
-                    {hourEvents.map((ev) => (
-                      <div
-                        key={ev.id}
-                        draggable
-                        onDragStart={() => onDragStart(ev)}
-                        className={`absolute inset-x-0.5 top-0.5 rounded px-1 py-0.5 text-[10px] font-medium truncate cursor-grab active:cursor-grabbing z-10 shadow-sm ${calColor(ev.calendar)}`}
-                        style={{ minHeight: '18px' }}
-                        onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
-                      >
-                        {ev.isRecurring && <Repeat size={9} className="inline-block shrink-0 align-[-1px] mr-0.5" aria-label="Berulang" />}
-                        {ev.startHour ? fmtTime(ev.start) : ''} {ev.title}
-                      </div>
-                    ))}
+                    {hourEvents.map((ev, eidx) => {
+                      const layout = slotLayouts[eidx];
+                      return (
+                        <div
+                          key={ev.id}
+                          draggable
+                          onDragStart={() => onDragStart(ev)}
+                          className={`absolute top-0.5 rounded px-1 py-0.5 text-[10px] font-medium truncate cursor-grab active:cursor-grabbing z-10 shadow-sm ${calColor(ev.calendar)}`}
+                          style={{
+                            left: `calc(${layout.leftPct}% + 2px)`,
+                            width: `calc(${layout.widthPct}% - 4px)`,
+                            minHeight: '18px',
+                          }}
+                          onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
+                        >
+                          {ev.isRecurring && <Repeat size={9} className="inline-block shrink-0 align-[-1px] mr-0.5" aria-label="Berulang" />}
+                          {ev.startHour ? fmtTime(ev.start) : ''} {ev.title}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -795,6 +805,7 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
               const startHour = ev.start ? new Date(Number(ev.start) * 1000).getHours() : -1;
               return startHour === hour;
             });
+            const slotLayouts = layoutOverlappingEvents(hourEvents);
 
             return (
               <div
@@ -814,15 +825,22 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
                 </div>
                 {/* Content area */}
                 <div className="flex-1 relative p-1">
-                  {hourEvents.map((ev) => {
+                  {hourEvents.map((ev, eidx) => {
                     const pos = getEventPosition(ev);
+                    const layout = slotLayouts[eidx];
                     return (
                       <div
                         key={ev.id}
                         draggable
                         onDragStart={() => onDragStart(ev)}
-                        className={`absolute left-1 right-1 rounded-lg px-2 py-1 text-xs font-medium truncate cursor-grab active:cursor-grabbing shadow-sm z-10 ${calColor(ev.calendar)}`}
-                        style={{ top: pos.top, height: pos.height, minHeight: '22px' }}
+                        className={`absolute rounded-lg px-2 py-1 text-xs font-medium truncate cursor-grab active:cursor-grabbing shadow-sm z-10 ${calColor(ev.calendar)}`}
+                        style={{
+                          top: pos.top,
+                          height: pos.height,
+                          left: `calc(${layout.leftPct}% + 2px)`,
+                          width: `calc(${layout.widthPct}% - 4px)`,
+                          minHeight: '22px',
+                        }}
                         onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
                       >
                         <div className="font-semibold flex items-center gap-1">

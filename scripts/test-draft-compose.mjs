@@ -102,4 +102,17 @@ ok(compose.includes("const composeMode = initialData?.composeMode === 'reply' ? 
   'ComposeModal harus memetakan composeMode reply');
 ok(compose.includes("getSignatureFor(user.email, composeMode)"), 'ComposeModal harus pilih signature per mode');
 
+// ── Anti-overlap di lebar sempit ─────────────────────────────────────────────
+// Baris "Kepada" (label 64px + input min 150px + tombol Cc/Bcc) melebihi inner
+// modal mobile 320px → harus flex-wrap supaya tombol pindah ke baris bawah,
+// bukan menimpa chip/label.
+ok(compose.includes('flex flex-wrap items-start border-b border-border/60 min-h-[44px]'),
+  'Baris Kepada harus flex-wrap (anti overlap di lebar sempit)');
+// Footer compose: cluster kiri + tombol Kirim harus bisa wrap + shrink.
+ok(compose.includes('flex items-center justify-between bg-card flex-wrap gap-y-2'),
+  'Footer compose harus flex-wrap (kirim tidak terdorong/terpotong)');
+ok(compose.includes('flex items-center gap-2 flex-1 min-w-0 flex-wrap'),
+  'Cluster kiri footer harus flex-1 min-w-0 flex-wrap');
+ok(compose.includes('disabled:opacity-60 text-sm shrink-0"'), 'Tombol Kirim harus shrink-0 (tidak menyusut/tertimpa)');
+
 console.log('\nDraft/compose audit: ' + passCount + ' assertions PASS ✅');

@@ -77,3 +77,45 @@ export function eventsOnDay(events, date) {
     return s <= dayEnd && e > dayStart;
   });
 }
+
+/**
+ * Layout event yang OVERLAP dalam satu slot jam (week/day view) agar tampil
+ * SIDE-BY-SIDE (pola Outlook/Google Calendar), bukan saling menimpa.
+ *
+ * Masalah: dua event yang mulai di jam sama di-render `left-1 right-1`
+ * (full-width) → menimpa total. Solusi: partisi jadi kolom non-overlap.
+ *
+ * Algoritma (greedy, simple): urutkan by start; untuk tiap event cari kolom
+ * pertama yang event terakhirnya selesai ≤ start event ini; total kolom yang
+ * dipakai = lebar maksimum antar tumpukan. Event dalam tumpukan yang sama
+ * mendapat kolom berbeda (width = 100/maxCols).
+ *
+ * @param {Array} events daftar {start, end} (epoch detik) dalam satu slot jam
+ * @returns {Array<{leftPct:number, widthPct:number}>} — indeks sama dgn input
+ */
+export function layoutOverlappingEvents(events = []) {
+  const list = (Array.isArray(events) ? events : [])
+    .map((ev) => ({ ev, start: Number(ev?.start) || 0, end: Number(ev?.end) || 0 }))
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const columns = []; // tiap kolom: end terakhir
+  const colIndex = new Map();
+  let maxCols = 0;
+
+  for (const item of list) {
+    let placed = -1;
+    for (let c = 0; c < columns.length; c++) {
+      if (columns[c] <= item.start) { placed = c; break; }
+    }
+    if (placed === -1) { placed = columns.length; columns.push(item.end); }
+    else columns[placed] = item.end;
+    colIndex.set(item.ev, placed);
+    maxCols = Math.max(maxCols, placed + 1);
+  }
+
+  const widthPct = maxCols > 0 ? 100 / maxCols : 100;
+  return list.map((item) => ({
+    leftPct: colIndex.get(item.ev) * widthPct,
+    widthPct,
+  }));
+}

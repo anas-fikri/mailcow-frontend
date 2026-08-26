@@ -464,8 +464,10 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                 {/* Fields */}
                 <div className="px-5 py-3 space-y-0 border-b border-border">
 
-                  {/* To */}
-                  <div className="relative py-1 flex items-start border-b border-border/60 min-h-[44px]">
+                  {/* To — flex-wrap: di lebar sempit (modal mobile 320px) tombol
+                      Cc/Bcc pindah ke baris bawah input, TIDAK menimpa chip/
+                      label (label 64px + input min 150px + tombol ≈90px > 280px). */}
+                  <div className="relative py-1 flex flex-wrap items-start border-b border-border/60 min-h-[44px]">
                     <label className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Kepada:</label>
                     <MultiEmailInput 
                       value={to} 
@@ -583,8 +585,8 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
               )}
 
               {/* Footer */}
-              <div className="px-5 py-3 border-t border-border flex items-center justify-between bg-card">
-                <div className="flex items-center gap-2">
+              <div className="px-5 py-3 border-t border-border flex items-center justify-between bg-card flex-wrap gap-y-2">
+                <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
                   <button
                     type="button"
                     onClick={() => attachInputRef.current?.click()}
@@ -660,7 +662,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                 <button
                   type="submit"
                   disabled={sending || success}
-                  className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 font-medium transition-colors disabled:opacity-60 text-sm"
+                  className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 font-medium transition-colors disabled:opacity-60 text-sm shrink-0"
                 >
                   {sending
                     ? <><Loader2 size={16} className="animate-spin" /> Mengirim...</>

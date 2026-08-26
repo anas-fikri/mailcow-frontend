@@ -210,6 +210,18 @@ passCount++;
 assert.ok(mail.includes("labelField: isSentOrDraft ? 'to' : 'from'"), 'Conversation header: labelField (to utk Terkirim/Draf) hilang');
 passCount++;
 
+// Calendar: event overlap di slot jam sama harus side-by-side (bukan timpa)
+assert.ok(calendar.includes("layoutOverlappingEvents"), 'Calendar: layoutOverlappingEvents tidak dipakai');
+passCount++;
+assert.ok(calendar.includes('const slotLayouts = layoutOverlappingEvents(hourEvents)'), 'Calendar: slotLayouts tidak dihitung per jam');
+passCount++;
+assert.ok(calendar.includes('left: `calc(${layout.leftPct}% + 2px)`'), 'Calendar: event overlap pakai left % (side-by-side)');
+passCount++;
+assert.ok(calendar.includes('width: `calc(${layout.widthPct}% - 4px)`'), 'Calendar: event overlap pakai width % (side-by-side)');
+passCount++;
+assert.ok(!calendar.includes('absolute left-1 right-1 rounded-lg'), 'Calendar: full-width event overlap masih ada (menimpa)');
+passCount++;
+
 // Star/spam kontras perbaikan
 assert.ok(mail.includes('text-amber-600 fill-amber-600 dark:text-amber-400 dark:fill-amber-400'), 'Star amber-600 dark split hilang');
 assert.ok(mail.includes('text-orange-600 dark:text-orange-500'), 'Spam orange-600 hilang');

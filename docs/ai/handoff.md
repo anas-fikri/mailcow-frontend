@@ -2567,3 +2567,16 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Audit anti-overlap elemen/ikon (2026-08-26)
+
+**Bug 1 (kalender):** event overlap di slot jam sama (week/day view) full-width → saling menimpa. Fix: `layoutOverlappingEvents` (lib calendarEvents.js, greedy columns) + dipakai di week & day view via `slotLayouts`; style left/width pakai calc(%).
+
+**Bug 2 (compose):** baris "Kepada" overflow di modal mobile (label+input+Cc/Bcc > 280px inner). Fix: flex-wrap.
+
+**Bug 3 (compose):** footer Kirim terpotong. Fix: footer wrap + cluster kiri flex-1 min-w-0 + Kirim shrink-0.
+
+**Aman (audit pass):** bulk toolbar, reader toolbar, password inputs pr-10/20, RulesPage/StatsPage, flag/snooze clamp, avatar stack z-order, month grid slice+3.
+
+**Test:** test-calendar-events +13, test-a11y +5, test-draft-compose +4 → **55/55 PASS** · build OK.
+**Belum:** commit + push + deploy.

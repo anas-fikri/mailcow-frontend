@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseCalendarEvents, eventsOnDay } from '../src/lib/calendarEvents.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -17,6 +17,11 @@ const ROOT = path.resolve(__dirname, '..');
 
 let pass = 0;
 const ok = (cond, name) => { assert.ok(cond, name); pass++; console.log(`  ✓ ${name}`); };
+const eq = (actual, expected, name) => {
+  assert.deepStrictEqual(actual, expected, name);
+  pass++;
+  console.log(`  ✓ ${name}`);
+};
 
 // ── Helper: bangun raw eventsblocks ──────────────────────────────────────────
 const FIELDS = ['c_name', 'c_title', 'c_startdate', 'c_enddate', 'c_isallday', 'c_iscycle', 'c_partmails', 'c_classification', 'calendarName', 'c_location', 'c_description', 'c_folder', 'c_owner', 'c_status', 'startHour'];
@@ -144,6 +149,47 @@ ok(!page.includes('function eventsForDay('), 'eventsForDay lokal dihapus (tidak 
 ok(page.includes('if (ev.isRecurring && !ev.repeat)'), 'drag recurring cek repeat kosong');
 ok(page.includes('await fetchCalendarEventDetail(user?.sogoToken, ev.id)'), 'drag recurring ambil detail via /view utk pola repeat');
 ok(page.includes('eventData = { ...eventData, repeat: detail.repeat }'), 'repeat digabung sebelum simpan drag');
+
+// ── 6b. layoutOverlappingEvents: event overlap side-by-side ─────────────────
+const { layoutOverlappingEvents } = await import(pathToFileURL(path.join(ROOT, 'src/lib/calendarEvents.js')).href);
+
+// Dua event overlap penuh (mulai sama) → 2 kolom masing 50%.
+const l1 = layoutOverlappingEvents([
+  { start: 3600, end: 7200 },
+  { start: 3600, end: 7200 },
+]);
+eq(l1.length, 2, 'layout: 2 event overlap → 2 kolom');
+eq(l1[0].leftPct, 0, 'event pertama kolom 0');
+eq(l1[0].widthPct, 50, 'lebar 50% per kolom');
+eq(l1[1].leftPct, 50, 'event kedua kolom 1 (50%)');
+
+// Event berurutan (tidak overlap) → full-width 100%, kolom sama.
+const l2 = layoutOverlappingEvents([
+  { start: 3600, end: 5400 },
+  { start: 7200, end: 9000 },
+]);
+eq(l2[0].widthPct, 100, 'event berurutan → full-width');
+eq(l2[1].widthPct, 100, 'event berurutan kedua → full-width');
+
+// Tumpukan 3: A(9-11), B(9.30-10), C(10.30-11.30) → 2 kolom (A & C sejajar,
+// B di kolom lain).
+const l3 = layoutOverlappingEvents([
+  { start: 32400, end: 39600 }, // 09:00-11:00
+  { start: 34200, end: 36000 }, // 09:30-10:00
+  { start: 37800, end: 41400 }, // 10:30-11:30
+]);
+eq(l3.length, 3, 'layout: 3 event → 3 layout');
+ok(l3[0].widthPct <= 50, 'A (09:00-11:00) tumpang tindih dgn B → bukan full-width');
+ok(l3[1].widthPct === l3[0].widthPct, 'B satu tumpukan dgn A → lebar sama');
+
+// Event tunggal → full-width 100%.
+const l4 = layoutOverlappingEvents([{ start: 3600, end: 7200 }]);
+eq(l4[0].widthPct, 100, 'event tunggal full-width');
+eq(l4[0].leftPct, 0, 'event tunggal kiri 0');
+
+// Array kosong / non-array aman.
+eq(layoutOverlappingEvents([]).length, 0, 'kosong aman');
+eq(layoutOverlappingEvents(null).length, 0, 'null aman');
 
 // ── 7. openCreateModal: default jam 09:00 utk klik sel bulan / tombol Event ──
 // Klik "+" sel bulan mengirim tanggal MIDNIGHT → tanpa default, event baru
