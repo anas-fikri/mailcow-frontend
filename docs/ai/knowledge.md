@@ -773,3 +773,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Baca localStorage di browser = sinkron di main thread + IPC + GC → biaya
   nyata lebih besar dari microbenchmark Node; kurangi SEMUA baca sinkron dari
   hot path render (per-baris × per-frame).
+
+## 2026-08-26T02:58:08Z
+- Task: 
+- Status: COMPLETED
+- Finding: Pengukuran dampak cache flagColors: benchmark A/B scripts/benchmark-flag-cache.mjs (npm run bench:flag-cache) memakai modul asli + data realistis. Hasil konsisten: 58-84% waktu lebih cepat & 98-99% baca localStorage berkurang (60-120 baca per siklus render → 1). Keterbatasan: CPU-side Node; verifikasi jank scroll browser butuh sesi login asli. 51/51 test PASS.

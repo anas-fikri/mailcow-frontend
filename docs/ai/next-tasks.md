@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T02:50:50Z
+Generated At: 2026-08-26T02:58:08Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Round performance & mobile: (1) getFlagColor hot path — getStore baca+parse localStorage utk tiap baris × per-render → cache in-memory per email + invalidate-on-write + __resetFlagColorCache utk test; (2) swipe mobile membuka pesan — onSwipe callback di SwipeableRow sebelum aksi, MailPage suppressClick utk menelan synthetic click (pola long-press). Pelajaran: hot path render bebas baca storage sinkron; gesture yang memicu aksi harus tekan synthetic click. 51/51 test PASS, deploy live hash terverifikasi.
+## 1. [MEDIUM] Follow up on discovered knowledge: Pengukuran dampak cache flagColors: benchmark A/B scripts/benchmark-flag-cache.mjs (npm run bench:flag-cache) memakai modul asli + data realistis. Hasil konsisten: 58-84% waktu lebih cepat & 98-99% baca localStorage berkurang (60-120 baca per siklus render → 1). Keterbatasan: CPU-side Node; verifikasi jank scroll browser butuh sesi login asli. 51/51 test PASS.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
