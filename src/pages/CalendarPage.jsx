@@ -12,6 +12,7 @@ import { MONTHS_ID, DAYS_ID, CAL_COLORS } from '../lib/constants';
 import { toast } from '../lib/toast';
 import EventModal from '../components/EventModal';
 import { buildDroppedEventData } from '../lib/calendarDrop';
+import { eventsOnDay as eventsForDay } from '../lib/calendarEvents';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtTime(unix) {
@@ -29,16 +30,6 @@ function fmtDateShort(unix) {
   if (!unix) return '';
   const d = new Date(unix * 1000);
   return `${d.getDate()} ${MONTHS_ID[d.getMonth()].slice(0, 3)}`;
-}
-
-function toDayStart(date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function toDayEnd(date) {
-  const d = toDayStart(date);
-  d.setDate(d.getDate() + 1);
-  return d;
 }
 
 function calColor(calName = '') {
@@ -64,15 +55,6 @@ function getWeekDays(date) {
     days.push(d);
   }
   return days;
-}
-
-function eventsForDay(events, date) {
-  const dayStart = Math.floor(toDayStart(date).getTime() / 1000);
-  const dayEnd = dayStart + 86399;
-  return events.filter((ev) => {
-    const s = Number(ev.start);
-    return s >= dayStart && s <= dayEnd;
-  });
 }
 
 function getEventPosition(ev) {
@@ -261,16 +243,33 @@ export default function CalendarPage() {
     dragEvRef.current = ev;
   }
 
-  function handleDrop(date, hour = null) {
+  async function handleDrop(date, hour = null) {
     if (!dragEvRef.current) return;
     const ev = dragEvRef.current;
-    const eventData = buildDroppedEventData(ev, new Date(date), hour);
+    let eventData = buildDroppedEventData(ev, new Date(date), hour);
     if (!eventData) return;
 
-    handleUpdateEvent(eventData, ev.id).catch((err) => {
+    // Drag event BERULANG: pola repeat tidak ada di data grid (eventsblocks
+    // hanya c_iscycle boolean). Kalau simpan tanpa repeat, SOGo menimpa
+    // recurrence → pola hilang diam-diam. Ambil pola asli via /view dulu.
+    if (ev.isRecurring && !ev.repeat) {
+      try {
+        const detail = await fetchCalendarEventDetail(user?.sogoToken, ev.id);
+        if (detail?.repeat && typeof detail.repeat === 'object') {
+          eventData = { ...eventData, repeat: detail.repeat };
+        }
+      } catch {
+        // Gagal ambil detail → pindah tanpa repeat (jarang); tak perlu blokir.
+      }
+    }
+
+    try {
+      await handleUpdateEvent(eventData, ev.id);
+    } catch (err) {
       toast.error(err.message || 'Gagal memindahkan event');
-    });
-    dragEvRef.current = null;
+    } finally {
+      dragEvRef.current = null;
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

@@ -2,16 +2,33 @@
 
 ## Status: SELESAI ✅
 
-**Terapkan pola `min-w-0`/`truncate`/`shrink-0` ke header Kalender & Kontak**
+**Ai-loop rotasi kalender — recurring & timezone/DST: 3 bug diperbaiki**
 
-Konsistensi dengan perbaikan posisi ikon MailPage (commit `e259df2`).
+### Bug 1 (KRITIS) — Tanggal pakai toISOString() (UTC) padahal waktu lokal
+`toDateStr`/`fmtInputDate` (EventModal) + `buildDroppedEventData` (calendarDrop)
+memakai `toISOString().slice(0,10)` → UTC. Untuk WIB (+7), jam 00:00–06:59
+= tanggal UTC hari SEBELUMNYA. Dampak nyata:
+- klik sel kalender (midnight lokal) → modal terisi **tanggal kemarin**
+- edit event jam 02:00 → tersimpan **sehari lebih awal**
+- drag & drop ke slot dini hari → mendarat di **hari sebelumnya**
+**Fix:** helper baru `src/lib/dateFormat.js` (`toLocalDateStr`/`toLocalTimeStr`)
+memakai komponen getFullYear/getHours (selalu lokal). Dipakai EventModal
+(create prefill, edit, view display) + calendarDrop.
 
-### Perubahan
-- **CalendarPage**: wrapper judul `min-w-0 flex-1` + judul `truncate`; ViewSwitcher dibungkus `shrink-0`; cluster aksi navigasi `shrink-0`; judul periode `shrink-0 whitespace-nowrap`.
-- **ContactsPage**: wrapper judul `min-w-0 flex-1` + judul `truncate` + badge hitung `shrink-0`; tombol Tambah `shrink-0`; cluster filter `shrink-0`.
-- **test-a11y**: +7 assertion statis → 80 assertions total.
+### Bug 2 — Event multi-hari hanya muncul di hari mulai
+`eventsForDay` filter `s >= dayStart && s <= dayEnd` → event 2 hari hanya
+tampil di hari pertama. **Fix:** `eventsOnDay` overlap-based
+(`s <= dayEnd && e > dayStart`, end eksklusif) di `calendarEvents.js`;
+CalendarPage import dari lib (lokal dihapus).
+
+### Bug 3 — Drag event berulang menghapus recurrence diam-diam
+Data grid (eventsblocks) hanya punya `c_iscycle` boolean — `ev.repeat` selalu
+undefined → `buildDroppedEventData` set repeat null → SOGo simpan tanpa pola
+→ recurrence hilang. **Fix:** `handleDrop` ambil detail via `/view` saat
+`ev.isRecurring && !ev.repeat`, gabung `repeat` sebelum simpan.
 
 ### Validasi
-- `npx vite build` OK
-- 53/53 test PASS (node + bash)
-- Deploy live terverifikasi hash
+- Baru `test:date-format` (11 assertion, TZ Asia/Jakarta + America/New_York)
+- `test-calendar-drop` +4 (drag 02:00/00:00 WIB — regresi UTC)
+- `test-calendar-events` +12 (multi-day span, all-day eksklusif, static drag-recurring)
+- **54/54 PASS** · build OK · deploy live terverifikasi hash

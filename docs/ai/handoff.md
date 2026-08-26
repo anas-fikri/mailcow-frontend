@@ -2398,3 +2398,15 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - CalendarPage: judul truncate (menyusut duluan), ViewSwitcher + cluster navigasi + judul periode shrink-0.
 - ContactsPage: judul truncate + badge shrink-0, tombol Tambah + cluster filter shrink-0.
 - test-a11y +7 assertion statis (80 total).
+
+## Kalender recurring & timezone (3 bug) — 54/54 PASS, live
+- **UTC vs lokal**: SEMUA tanggal kalender wajib helper `src/lib/dateFormat.js`
+  (`toLocalDateStr`/`toLocalTimeStr`), JANGAN `toISOString()` (UTC). WIB +7:
+  00:00–06:59 lokal = tanggal UTC kemarin → klik sel / edit 02:00 / drag dini
+  hari pindah sehari. EventModal + calendarDrop sudah dipindah.
+- **Multi-day**: eventsOnDay overlap (`s <= dayEnd && e > dayStart`, end
+  eksklusif) — event 2 hari muncul di semua hari yang di-span; all-day tetap 1 hari.
+- **Drag recurring**: grid eventsblocks tidak punya repeat (hanya c_iscycle) →
+  handleDrop fetch /view saat isRecurring utk gabung repeat sebelum save.
+  Keterbatasan tercatat: drag/edit occurrence tunggal = edit seluruh seri
+  (SOGo pakai id sama; butuh recurrence-id exception utk edit 1 kejadian).

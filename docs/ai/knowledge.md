@@ -885,3 +885,14 @@ Header halaman list (Mail/Calendar/Contacts) wajib memakai pola konsisten saat p
 - judul: `truncate` (teks menyusut duluan)
 - cluster aksi/ikon/filter: `shrink-0` (selalu utuh)
 Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (240px) dan mobile.
+
+## Kalender: tanggal lokal, bukan UTC (durable)
+- `toISOString()` = UTC. Untuk WIB (+7) jam 00:00–06:59 → tanggal hari
+  sebelumnya. Jangan pernah format tanggal input kalender dengan toISOString.
+- Helper: `src/lib/dateFormat.js` — `toLocalDateStr(d)`/`toLocalTimeStr(d)`.
+- Event SOGo `eventsblocks`: `c_startdate/c_enddate` unix; recurring di-expand
+  per occurrence oleh SOGo (id sama, start beda — dedup hanya id+start+calendar);
+  pola repeat TIDAK ada di grid — ambil via `/view` (`repeat` object) saat perlu
+  (drag/edit) agar SOGo tidak menghapus recurrence.
+- End event bersifat eksklusif (all-day end = tengah malam berikutnya) →
+  overlap check `s <= dayEnd && e > dayStart`.

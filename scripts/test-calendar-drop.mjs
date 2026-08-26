@@ -2,8 +2,15 @@
 // Regresi: buildDroppedEventData dulu menghilangkan attendees + repeat saat
 // drag (attendees di-set '' dan repeat tidak dikirim) → peserta & recurrence
 // hilang diam-diam setelah event dipindah.
+//
+// Regresi #2 (timezone): tanggal pakai toISOString() (UTC) → drag ke slot
+// dini hari (02:00 WIB = 19:00 UTC hari sebelumnya) mendarat di hari KEMARIN.
 import assert from 'node:assert';
-import { buildDroppedEventData } from '../src/lib/calendarDrop.js';
+
+// WIB (UTC+7) — TZ paling umum pemakai aplikasi ini.
+process.env.TZ = 'Asia/Jakarta';
+
+const { buildDroppedEventData } = await import('../src/lib/calendarDrop.js');
 
 const ev = {
   title: 'Rapat Bulanan',
@@ -48,6 +55,17 @@ assert.equal(noRepeat.attendees, '', 'tanpa attendees → kosong');
 const monthDrop = buildDroppedEventData(ev, new Date('2026-09-01T00:00:00'), null);
 assert.equal(monthDrop.startTime, '09:00', 'drop sel bulan default 09:00'); 
 assert.equal(monthDrop.startDate, '2026-09-01', 'tanggal target benar'); 
+
+// ── REGRESI timezone: drag ke slot dini hari (02:00) → TANGGAL SAMA HARI ────
+// 02:00 WIB = 19:00 UTC hari sebelumnya — toISOString salah, helper lokal benar.
+const dawn = buildDroppedEventData(ev, new Date('2026-08-27T00:00:00'), 2);
+assert.equal(dawn.startDate, '2026-08-27', 'drag ke 02:00 → tanggal 27 (bukan 26)'); 
+assert.equal(dawn.startTime, '02:00', 'jam target 02:00'); 
+assert.equal(dawn.endTime, '03:00', 'durasi 1 jam dipertahankan'); 
+
+// Drop ke midnight (00:00) via sel hari — tanggal tidak bergeser.
+const mid = buildDroppedEventData(ev, new Date('2026-08-28T00:00:00'), 0);
+assert.equal(mid.startDate, '2026-08-28', 'drag ke 00:00 → tanggal 28 (bukan 27)'); 
 
 // ── Guard input ─────────────────────────────────────────────────────────────
 assert.equal(buildDroppedEventData(null, target, 9), null, 'ev null → null'); 

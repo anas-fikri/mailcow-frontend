@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Calendar, Clock, MapPin, Users, FileText } from 'lucide-react';
 import { validateEventTimes, normalizeRepeatCount } from '../lib/eventValidation';
+import { toLocalDateStr, toLocalTimeStr } from '../lib/dateFormat';
 
 const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
@@ -35,27 +36,11 @@ function dayCodeFromDate(date) {
 const WEEKDAYS_ONLY = ['MO', 'TU', 'WE', 'TH', 'FR'];
 
 // Hati-hati: event tanpa `start`/`end` yang valid (mis. NaN) membuat
-// Date invalid dan toISOString() melempar RangeError → crash halaman.
-// Selalu guard dengan isNaN sebelum memformat.
+// Date invalid → selalu guard dengan isNaN sebelum memformat.
 function toValidDate(value) {
   if (!value) return null;
   const d = new Date(value);
   return isNaN(d.getTime()) ? null : d;
-}
-
-function toDateStr(d) {
-  const dt = toValidDate(d);
-  return dt ? dt.toISOString().slice(0, 10) : '';
-}
-
-function toTimeStr(d) {
-  const dt = toValidDate(d);
-  return dt ? dt.toTimeString().slice(0, 5) : '';
-}
-
-function fmtInputDate(date) {
-  const d = toValidDate(date);
-  return d ? d.toISOString().slice(0, 10) : '';
 }
 
 function todayAt(h, m) {
@@ -69,9 +54,9 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
   const isView = mode === 'view';
 
   const [title, setTitle] = useState('');
-  const [startDate, setStartDate] = useState(toDateStr(todayAt(9, 0)));
+  const [startDate, setStartDate] = useState(toLocalDateStr(todayAt(9, 0)));
   const [startTime, setStartTime] = useState('09:00');
-  const [endDate, setEndDate] = useState(toDateStr(todayAt(10, 0)));
+  const [endDate, setEndDate] = useState(toLocalDateStr(todayAt(10, 0)));
   const [endTime, setEndTime] = useState('10:00');
   const [isAllDay, setIsAllDay] = useState(false);
   const [location, setLocation] = useState('');
@@ -150,10 +135,10 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         const start = event;
         const end   = new Date(start.getTime() + 3600000);
         setTitle('');
-        setStartDate(toDateStr(start));
-        setStartTime(toTimeStr(start));
-        setEndDate(toDateStr(end));
-        setEndTime(toTimeStr(end));
+        setStartDate(toLocalDateStr(start));
+        setStartTime(toLocalTimeStr(start));
+        setEndDate(toLocalDateStr(end));
+        setEndTime(toLocalTimeStr(end));
         setIsAllDay(false);
         setLocation('');
         setDescription('');
@@ -165,10 +150,10 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         setTitle(event.title || '');
         const start = event.start ? new Date(Number(event.start) * 1000) : todayAt(9, 0);
         const end   = event.end  ? new Date(Number(event.end)   * 1000) : new Date(start.getTime() + 3600000);
-        setStartDate(toDateStr(start));
-        setStartTime(toTimeStr(start));
-        setEndDate(toDateStr(end));
-        setEndTime(toTimeStr(end));
+        setStartDate(toLocalDateStr(start));
+        setStartTime(toLocalTimeStr(start));
+        setEndDate(toLocalDateStr(end));
+        setEndTime(toLocalTimeStr(end));
         setIsAllDay(!!event.isAllDay);
         setLocation(event.location || '');
         setDescription(event.description || '');
@@ -178,9 +163,9 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
       } else {
         /* ── Fresh create (no pre-fill) ── */
         setTitle('');
-        setStartDate(toDateStr(todayAt(9, 0)));
+        setStartDate(toLocalDateStr(todayAt(9, 0)));
         setStartTime('09:00');
-        setEndDate(toDateStr(todayAt(10, 0)));
+        setEndDate(toLocalDateStr(todayAt(10, 0)));
         setEndTime('10:00');
         setIsAllDay(false);
         setLocation('');
@@ -309,7 +294,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                       <span>Sepanjang hari</span>
                     ) : (
                       <>
-                        <div>{fmtInputDate(Number(event?.start) * 1000)}</div>
+                        <div>{toLocalDateStr(new Date(Number(event?.start) * 1000))}</div>
                         <div className="text-muted-foreground">
                           {startTime} – {endTime}
                         </div>

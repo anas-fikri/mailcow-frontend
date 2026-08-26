@@ -53,3 +53,27 @@ export function parseCalendarEvents(raw) {
   }
   return events;
 }
+
+/**
+ * Event yang TAMPIL pada satu hari (local midnight → +24 jam).
+ *
+ * Overlap-based, bukan hanya hari-mulai: event multi-hari (mis. konferensi
+ * 2 hari, all-day lintas tanggal) harus muncul di SEMUA hari yang di-span,
+ * bukan hanya hari pertama. End bersifat eksklusif (end = tengah malam hari
+ * berikutnya tidak menampilkan event di hari itu).
+ *
+ * @param {Array} events daftar event (dari parseCalendarEvents)
+ * @param {Date} date  tanggal lokal apa pun dalam hari yang dicari
+ */
+export function eventsOnDay(events, date) {
+  const dt = date instanceof Date ? date : new Date(date);
+  if (!dt || Number.isNaN(dt.getTime())) return [];
+  const dayStart = Math.floor(new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime() / 1000);
+  const dayEnd = dayStart + 86399;
+  return (Array.isArray(events) ? events : []).filter((ev) => {
+    const s = Number(ev.start);
+    if (!Number.isFinite(s)) return false;
+    const e = Number(ev.end) || s;
+    return s <= dayEnd && e > dayStart;
+  });
+}

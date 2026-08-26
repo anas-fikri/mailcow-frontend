@@ -3,7 +3,11 @@
  * Dipisah dari komponen agar logika murni dan bisa diuji: drag harus
  * mempertahankan attendees, pola repeat, dan classification — regresi
  * sebelumnya menghapus ketiganya diam-diam (attendees='', repeat hilang).
+ *
+ * Tanggal memakai komponen LOKAL (bukan toISOString/UTC) — drag ke slot
+ * dini hari (mis. 02:00 WIB) tidak boleh mendarat di hari sebelumnya.
  */
+import { toLocalDateStr } from './dateFormat.js';
 
 /**
  * Bangun payload update utk event yang dipindah (drag) ke tanggal/jam baru.
@@ -31,9 +35,9 @@ export function buildDroppedEventData(ev, targetDate, hour = null) {
 
   return {
     title: ev.title || '',
-    startDate: newStartDate.toISOString().slice(0, 10),
+    startDate: toLocalDateStr(newStartDate),
     startTime: newStartDate.toTimeString().slice(0, 5),
-    endDate: newEndDate.toISOString().slice(0, 10),
+    endDate: toLocalDateStr(newEndDate),
     endTime: newEndDate.toTimeString().slice(0, 5),
     location: ev.location || '',
     description: ev.description || '',

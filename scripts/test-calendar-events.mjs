@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseCalendarEvents } from '../src/lib/calendarEvents.js';
+import { parseCalendarEvents, eventsOnDay } from '../src/lib/calendarEvents.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -89,11 +89,60 @@ ok(evs[0].location === 'Ruang 1', 'location dipetakan');
 evs = parseCalendarEvents(cal([{ c_name: 'evt-u', c_title: '', c_startdate: 1700000000 }]));
 ok(evs[0].title === '(Tanpa Judul)', 'title kosong → placeholder');
 
+// ── 3b. eventsOnDay: event multi-hari tampil di SEMUA hari yang di-span ─────
+// Bangun unix dari MIDNIGHT LOKAL (bukan konstanta sembarang) agar batas hari
+// presisi; end bersifat eksklusif.
+const d1 = new Date(2026, 8, 15); // 15 Sep 2026 00:00 lokal
+const day1 = Math.floor(d1.getTime() / 1000);
+const day2 = day1 + 86400;
+const day3 = day1 + 2 * 86400;
+const mk = (id, start, end) => ({ id, start, end, isAllDay: false });
+const spanEvents = [
+  mk('konf', day1, day3),                                // konferensi 2 hari
+  mk('rapat', day1 + 10 * 3600, day1 + 11 * 3600),       // 1 jam di hari 1
+  mk('all', day1, day2),                                 // all-day (end eksklusif)
+];
+const d2 = new Date(day2 * 1000);
+const d3 = new Date(day3 * 1000);
+
+let onDay = eventsOnDay(spanEvents, d1);
+ok(onDay.some((e) => e.id === 'konf'), 'multi-day tampil di hari 1');
+ok(onDay.some((e) => e.id === 'rapat'), 'event 1 jam tampil di hari 1');
+ok(onDay.some((e) => e.id === 'all'), 'all-day tampil di hari mulainya');
+
+onDay = eventsOnDay(spanEvents, d2);
+ok(onDay.some((e) => e.id === 'konf'), 'multi-day tampil di hari 2 (regresi: dulu hanya hari mulai)');
+ok(!onDay.some((e) => e.id === 'rapat'), 'event 1 jam TIDAK tampil di hari 2');
+ok(!onDay.some((e) => e.id === 'all'), 'all-day end eksklusif → tidak tampil di hari berikutnya');
+
+onDay = eventsOnDay(spanEvents, d3);
+ok(!onDay.some((e) => e.id === 'konf'), 'multi-day berakhir → tidak tampil di hari 3');
+
+// Guard: events non-array / start rusak tidak crash.
+assert.deepEqual(eventsOnDay(null, d1), [], 'events null → []');
+pass++;
+assert.deepEqual(eventsOnDay([{ id: 'x', start: 'invalid' }], d1), [], 'start invalid → di-skip');
+pass++;
+assert.deepEqual(eventsOnDay(spanEvents, new Date('invalid')), [], 'tanggal invalid → []');
+pass++;
+
 // ── 4. EventModal guard re-entry (static source check) ───────────────────────
 const modal = fs.readFileSync(path.join(ROOT, 'src/components/EventModal.jsx'), 'utf8');
 ok(modal.includes('const savingRef = useRef(false)'), 'EventModal punya savingRef');
 ok(modal.includes('if (savingRef.current) return; // double-submit'), 'handleSave guard re-entry');
 ok(modal.includes('if (savingRef.current) return; // double-click hapus'), 'handleDelete guard re-entry');
 ok(modal.includes('savingRef.current = false'), 'savingRef di-reset di finally');
+
+// ── 5. EventModal pakai helper tanggal LOKAL (regresi UTC/toISOString) ──────
+ok(modal.includes("from '../lib/dateFormat'"), 'EventModal import dateFormat helper');
+ok(!modal.includes('toISOString'), 'EventModal tidak boleh pakai toISOString utk tanggal');
+
+// ── 6. CalendarPage: eventsOnDay (multi-day) + drag recurring ───────────────
+const page = fs.readFileSync(path.join(ROOT, 'src/pages/CalendarPage.jsx'), 'utf8');
+ok(page.includes("eventsOnDay as eventsForDay"), 'CalendarPage pakai eventsOnDay dari lib (multi-day)');
+ok(!page.includes('function eventsForDay('), 'eventsForDay lokal dihapus (tidak ada duplikasi)');
+ok(page.includes('if (ev.isRecurring && !ev.repeat)'), 'drag recurring cek repeat kosong');
+ok(page.includes('await fetchCalendarEventDetail(user?.sogoToken, ev.id)'), 'drag recurring ambil detail via /view utk pola repeat');
+ok(page.includes('eventData = { ...eventData, repeat: detail.repeat }'), 'repeat digabung sebelum simpan drag');
 
 console.log(`\nCalendar-events: ${pass} assertions PASS ✅`);
