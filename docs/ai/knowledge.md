@@ -1025,3 +1025,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Pola overlap yang luput dari audit visual: elemen opacity-0 pointer-events-none TETAP reserve ruang di flex layout — di lebar sempit elemen lain bisa terjepit habis walau tidak 'tumpang tindih'. Selalu gunakan display:none (hidden) untuk aksi hover yang harus mengosongkan ruang, atau jadikan overlay absolute. Date group-hover:hidden + aksi hidden group-hover:flex = pola Gmail yang benar.
+
+## 2026-08-26T10:29:37Z
+- Task: 
+- Status: COMPLETED
+- Finding: Rotasi audit PreferencesPage/signatures: (1) race one-time migration — migratedRef di-set sebelum data async (fetchPreferences) tiba → migrasi di-skip selamanya; fix: guard `if (!data) return;` SEBELUM `ref.current = true` dengan deps [email, prefs]. (2) Signature HTML aman: selalu lewat DOMPurify PURIFY_CONFIG + hardenAnchorNode di 3 titik (inject editor, paste, chokepoint send) — tidak perlu sanitize di storage layer. (3) syncToSogo = aksi manual, idempotent, placeholder legacy tidak ter-sync. 119 a11y assertions, 55/55 PASS, live di produksi.
