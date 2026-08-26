@@ -2756,3 +2756,22 @@ wajib dua lapis: (1) jangan pernah save payload yang kehilangan `repeat`
 pada event berulang — resolve dulu atau tolak; (2) konfirmasi delete harus
 menyebut scope (seluruh seri). Fitur "edit/hapus satu occurrence" (recurrence_id
 / EXDATE) adalah workstream terpisah — lihat next-tasks.
+
+## 2026-08-26T10:50:02Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+- No local changes detected
+
+## 2026-08-26 audit RulesPage: auto-archive vs snooze vs filter kategori
+4 temuan diperbaiki (semua interaksi state di rules/snooze):
+
+1. **Klaim multi-tab TIDAK berfungsi (sessionStorage per-tab)** — bug pada fitur yang diklaim sudah "fixed" sebelumnya: sessionStorage adalah per-tab, jadi klaim tab A tidak pernah terlihat tab B → double-move tetap terjadi. Test lama (test-multitab) hanya mensimulasikan SATU storage bersama sehingga lolos walau perilaku asli salah. Fix: klaim pindah ke localStorage (di-share antar tab) + ownership per-instance (claimOwnerId) + release HANYA klaim milik sendiri (klaim tab lain tidak boleh dilepas saat move masih jalan) + storage listener di MailPage (bump claimsTick → re-run engine → SKIP uid yang diproses tab lain, menutup race klaim berbarengan). Test ditulis ulang: dua instance modul via cache-buster import (?tab=A / ?tab=B) + shared localStorage — mensimulasikan dua tab sungguhan.
+2. **handleRunNow (RulesPage) memindahkan pesan yang sedang di-snooze** — tidak konsisten dengan engine otomatis (executeRules exclude snoozed): intent user "tunda utk dilihat" dilanggar + entri snooze v3 jadi yatim di folderINBOX. Fix: exclude loadSnoozes(user.email).folderINBOX + koordinasi klaim (skip uid yang diproses tab lain) + release own di finally + invalidate query ['messages'].
+3. **Category tab counts termasuk pesan di-snooze** — tab "Promosi 5" padahal daftar cuma 3 (snoozed disembunyikan). Fix: categorySource = messages minus snoozedUids, diteruskan ke CategoryTabs.
+4. **Pesan di-snooze di-arsip ulang saat bangun** — behavior lama: wake → snoozedUids menyusut → effect re-run → rule memindahkan pesan sebelum user sempat melihat (berlawanan dengan tujuan snooze "tampilkan nanti"; Gmail tidak menjalankan ulang filter saat wake). Fix: pesan di-snooze yang di-exclude engine kini DITANDAI processed → saat bangun pesan tetap di Inbox. Konsekuensi: rule baru yang dibuat setelah pesan di-snooze tidak berlaku retroaktif ke pesan itu (pola Gmail; aplikasi retroaktif manual lewat "Jalankan" di RulesPage).
+
+Diverifikasi aman: snooze folder-scoped v3 + unsnoozeMessages saat move manual (moveMutation), search mode skip rule engine, QuickRuleModal target folder, multi-akun claim per-email.
+
+Test: test-multitab ditulis ulang (ownership + TTL + legacy record + cross-tab), test-a11y +8 (137 assertions), test-search-flow deps update. 55/55 PASS, build OK.

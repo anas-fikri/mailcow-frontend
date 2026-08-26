@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Trash2, ToggleLeft, ToggleRight, Folder, Filter,
   ChevronDown, ChevronUp, AlertCircle, RefreshCw, Play, Zap, Loader2,
@@ -12,7 +12,9 @@ import {
   getRules, addRule, updateRule, deleteRule, toggleRule,
   RULE_FIELDS, RULE_OPS, RULE_MATCH_TYPES, executeRules,
   testRuleAgainstMessage, matchRules,
+  claimAutoArchiveUids, releaseAutoArchiveClaims,
 } from '../lib/autoArchive';
+import { loadSnoozes } from '../lib/snooze';
 import { DEFAULT_FOLDERS, STALE_TIMES } from '../lib/constants';
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
@@ -609,6 +611,7 @@ function DeleteConfirmModal({ isOpen, onClose, onConfirm, ruleName }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function RulesPage() {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
   const [testRule, setTestRule] = useState(null);
@@ -645,28 +648,50 @@ export default function RulesPage() {
   const handleRunNow = async (rule) => {
     if (!user?.sogoToken || runningRuleId) return;
     setRunningRuleId(rule.id);
+    let claimed = [];
     try {
       const { messages } = await fetchMessages(user.sogoToken, 'folderINBOX', {});
+      // Pesan yang sedang di-snooze TIDAK boleh dipindah manual — konsisten
+      // dengan engine otomatis (executeRules exclude snoozed): user minta
+      // tunda utk DILIHAT. Memindahnya melanggar intent + meninggalkan entri
+      // snooze yatim di folderINBOX.
+      const snoozedInbox = new Set(
+        Object.keys(loadSnoozes(user.email).folderINBOX || {})
+      );
       const matchedUids = messages
         .filter((m) => matchRules(user.email, m).includes(rule.id))
+        .filter((m) => !snoozedInbox.has(String(m.uid)))
         .map((m) => m.uid);
       if (matchedUids.length === 0) {
         toast.info(`Tidak ada email di Inbox yang cocok dengan "${rule.name}"`);
         return;
       }
+      // Koordinasi multi-tab (klaim di localStorage, sama seperti engine
+      // otomatis): uid yang sedang diklaim/diproses tab lain di-skip, supaya
+      // run-manual dan engine tab lain tidak memindahkan pesan yang sama.
+      claimed = claimAutoArchiveUids(user.email, matchedUids);
+      if (claimed.length === 0) {
+        toast.info('Email yang cocok sedang diproses di tab lain — coba lagi sebentar.');
+        return;
+      }
       const targetFolder = folderById(rule.actionFolder);
-      await moveMessages(user.sogoToken, 'folderINBOX', matchedUids, targetFolder || rule.actionFolder);
+      await moveMessages(user.sogoToken, 'folderINBOX', claimed, targetFolder || rule.actionFolder);
       updateRule(user.email, rule.id, {
         runCount: (rule.runCount || 0) + 1,
         lastRunAt: Date.now(),
       });
       // Bug fix: tampilkan label folder yang manusiawi, bukan raw ID
       const folderLabel = targetFolder?.label || rule.actionFolder?.replace(/^folder/, '') || 'folder';
-      toast.success(`${matchedUids.length} email dipindahkan ke ${folderLabel}`);
+      toast.success(`${claimed.length} email dipindahkan ke ${folderLabel}`);
       handleRefresh();
+      // Inbox berubah — refresh query pesan agar MailPage (folder Inbox) tidak basi.
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
     } catch (err) {
       toast.error(err?.message || 'Gagal menjalankan aturan.');
     } finally {
+      // Lepas klaim MILIK tab ini (move selesai / gagal / dibatalkan) biar
+      // tab lain bisa memproses uid yang sama bila masih relevan.
+      if (claimed.length > 0) releaseAutoArchiveClaims(user.email, claimed);
       setRunningRuleId(null);
     }
   };

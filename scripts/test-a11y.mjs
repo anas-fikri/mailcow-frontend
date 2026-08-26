@@ -108,6 +108,8 @@ const app = read('src/App.jsx');
 const login = read('src/pages/LoginPage.jsx');
 const modal = read('src/components/EventModal.jsx');
 const drop = read('src/lib/calendarDrop.js');
+const rules = read('src/pages/RulesPage.jsx');
+const autoArchive = read('src/lib/autoArchive.js');
 
 console.log('\n— Target sentuh 44px (min-w-11/min-h-11) —');
 const countOcc = (hay, needle) => hay.split(needle).length - 1;
@@ -350,6 +352,68 @@ passCount++;
 assert.ok(modal.includes('repeatTouched: repeatTouchedRef.current') && modal.includes('isRecurring: !!event?.isRecurring'), 'EventModal: payload membawa repeatTouched + isRecurring utk safety net');
 passCount++;
 assert.ok(drop.includes('isRecurring: ev.isRecurring || false'), 'calendarDrop: isRecurring diteruskan utk safety net drag');
+passCount++;
+
+// ── Interaksi auto-archive vs snooze vs filter kategori ─────────────────────
+// (1) Klaim multi-tab HARUS di localStorage (di-share antar tab) — sessionStorage
+// adalah per-tab, jadi klaim tab A tak terlihat tab B → double-move tetap
+// terjadi (bug yang ditemukan audit: fix lama tidak benar-benar bekerja).
+assert.ok(
+  autoArchive.includes("localStorage.getItem(claimsKey(email))") &&
+  !autoArchive.includes("sessionStorage.getItem(claimsKey(email))"),
+  'autoArchive: klaim multi-tab harus pakai localStorage (di-share antar tab)'
+);
+passCount++;
+// Release hanya menghapus klaim MILIK instance sendiri (ownership) — melepas
+// klaim tab lain membuatnya kehilangan proteksi saat move masih berjalan.
+assert.ok(
+  autoArchive.includes('.owner === claimOwnerId') && autoArchive.includes('claimOwnerId'),
+  'autoArchive: release harus ownership-based (hanya klaim sendiri)'
+);
+passCount++;
+// MailPage: listener storage utk key klaim → re-run engine saat tab lain
+// claim/release (menutup race klaim berbarengan).
+assert.ok(
+  mail.includes('autoArchiveClaimsKey(user.email)') && mail.includes('setClaimsTick'),
+  'MailPage: listener storage klaim lintas-tab + bump claimsTick'
+);
+passCount++;
+// MailPage: release hanya uid yang DIKLAIM tab ini (bukan semua unprocessed) —
+// dengan ownership di lib, passing semua unprocessed tetap aman, tapi release
+// yang presisi mencegah kebingungan dan kerja ekstra.
+assert.ok(
+  mail.includes('claimed.filter((uid) => !movedUids.has(String(uid)))'),
+  'MailPage: release hanya klaim milik tab ini yang tidak jadi dipindah'
+);
+passCount++;
+// Pesan yang di-snooze ditandai processed → saat bangun TIDAK di-arsip ulang
+// oleh rule (pola Gmail: filter tidak jalan ulang saat snooze bangun; user
+// minta tunda utk DILIHAT, bukan untuk langsung disembunyikan).
+assert.ok(
+  mail.includes("movedUids.has(String(m.uid)) || snoozedUids.has(String(m.uid))"),
+  'MailPage: pesan di-snooze ditandai processed (tidak di-arsip saat bangun)'
+);
+passCount++;
+// Hitung kategori (tab Utama/Promosi/Sosial/Update) hanya pesan yang terlihat
+// — pesan di-snooze disembunyikan dari daftar, tidak boleh ikut dihitung.
+assert.ok(
+  mail.includes('categorySource') && mail.includes('messages={categorySource}'),
+  'MailPage: hitung kategori tidak termasuk pesan yang di-snooze'
+);
+passCount++;
+// RulesPage handleRunNow: (a) exclude pesan yang di-snooze (konsisten dengan
+// engine otomatis), (b) koordinasi klaim multi-tab, (c) lepas klaim miliknya.
+assert.ok(
+  rules.includes("loadSnoozes(user.email).folderINBOX") &&
+  rules.includes('!snoozedInbox.has(String(m.uid))'),
+  'RulesPage: run-manual tidak memindahkan pesan yang sedang di-snooze'
+);
+passCount++;
+assert.ok(
+  rules.includes('claimAutoArchiveUids(user.email, matchedUids)') &&
+  rules.includes('releaseAutoArchiveClaims(user.email, claimed)'),
+  'RulesPage: run-manual memakai klaim multi-tab + lepas klaim milik sendiri'
+);
 passCount++;
 
 console.log(`\nA11y audit: ${passCount} assertions PASS ✅`);

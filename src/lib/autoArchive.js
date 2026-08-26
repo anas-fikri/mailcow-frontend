@@ -365,20 +365,40 @@ export function clearAllRules(email) {
 // (query cache + rulesProcessed per-tab). Tanpa koordinasi, kedua tab bisa
 // memindahkan pesan yang SAMA bersamaan (double-move / double-toast).
 //
-// Solusi: klaim uid di sessionStorage (per-tab, hilang saat tab ditutup —
-// tidak meninggalkan sampah permanen) dengan TTL. Tab yang pertama claim
-// berhak memindahkan; tab lain melihat klaim dan SKIP uid tsb.
+// Solusi: klaim uid di localStorage (DI-SHARE antar tab) dengan ownership
+// per-instance + TTL 5 menit. Tab yang pertama claim berhak memindahkan;
+// tab lain melihat klaim (baca langsung + storage event) dan SKIP uid tsb.
+// Release HANYA menghapus klaim milik sendiri — klaim tab lain tidak boleh
+// dilepas (kalau tidak, tab lain kehilangan proteksinya saat move berjalan).
+//
+// (Dulu memakai sessionStorage — SALAH: sessionStorage adalah PER-TAB, jadi
+// klaim tab A tidak pernah terlihat tab B → double-move tetap terjadi. Test
+// lama hanya mensimulasikan satu storage bersama, sehingga lolos walau
+// perilaku aslinya salah. Diperbaiki ke localStorage + ownership + test
+// dua-instance yang memisahkan identitas tab.)
 
 const CLAIM_PREFIX = 'pcp_aa_claims';
 const CLAIM_TTL_MS = 5 * 60_000; // klaim valid 5 menit
+
+// Identitas unik per instance modul (= per tab / per konteks test). Dipakai
+// agar release hanya menghapus klaim milik sendiri.
+const claimOwnerId =
+  (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `tab_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
 
 function claimsKey(email) {
   return `${CLAIM_PREFIX}_${typeof email === 'string' ? email.toLowerCase() : ''}`;
 }
 
+/** Nama key klaim utk satu akun (dipakai listener storage lintas-tab di UI). */
+export function autoArchiveClaimsKey(email) {
+  return claimsKey(email);
+}
+
 function readClaims(email) {
   try {
-    const raw = sessionStorage.getItem(claimsKey(email));
+    const raw = localStorage.getItem(claimsKey(email));
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
@@ -389,37 +409,61 @@ function readClaims(email) {
 
 function writeClaims(email, claims) {
   try {
-    sessionStorage.setItem(claimsKey(email), JSON.stringify(claims));
-  } catch { /* sessionStorage penuh / tidak tersedia — abaikan */ }
+    localStorage.setItem(claimsKey(email), JSON.stringify(claims));
+  } catch { /* localStorage penuh / tidak tersedia — abaikan */ }
+}
+
+/** Normalisasi satu record klaim: { owner, ts } (toleran bentuk lama angka). */
+function normClaim(rec) {
+  if (rec && typeof rec === 'object' && !Array.isArray(rec)) {
+    return {
+      owner: typeof rec.owner === 'string' ? rec.owner : '',
+      ts: Number(rec.ts),
+    };
+  }
+  return { owner: '', ts: Number(rec) }; // bentuk legacy angka polos
 }
 
 /**
- * Klaim uid utk diproses tab ini (hapus klaim yang sudah kedaluwarsa dulu).
- * @returns {string[]} uid yang BERHASIL diklaim tab ini (bisa diproses)
+ * Klaim uid utk diproses instance ini (hapus klaim kedaluwarsa dulu).
+ * @returns {string[]} uid yang BERHASIL diklaim instance ini (bisa diproses)
  */
 export function claimAutoArchiveUids(email, uids) {
   if (!email || !Array.isArray(uids) || uids.length === 0) return [];
   const now = Date.now();
   const claims = readClaims(email);
   const cleaned = {};
-  for (const [uid, ts] of Object.entries(claims)) {
-    if (Number(ts) > now - CLAIM_TTL_MS) cleaned[uid] = ts; // masih valid
+  for (const [uid, rec] of Object.entries(claims)) {
+    const { ts } = normClaim(rec);
+    if (Number.isFinite(ts) && ts > now - CLAIM_TTL_MS) {
+      cleaned[uid] = { owner: normClaim(rec).owner, ts }; // masih valid
+    }
   }
   const fresh = [];
   for (const uid of uids) {
     const k = String(uid);
-    if (cleaned[k]) continue; // sudah diklaim tab lain (atau diri sendiri) → skip
-    cleaned[k] = now;
+    if (cleaned[k]) continue; // sudah diklaim (instance ini / lain) → skip
+    cleaned[k] = { owner: claimOwnerId, ts: now };
     fresh.push(k);
   }
   writeClaims(email, cleaned);
   return fresh;
 }
 
-/** Hapus klaim (dipanggil setelah move selesai / gagal). */
+/**
+ * Hapus klaim MILIK INSTANCE INI (dipanggil setelah move selesai / gagal).
+ * Klaim milik tab/instance lain dibiarkan utuh — mereka sedang memprosesnya.
+ */
 export function releaseAutoArchiveClaims(email, uids) {
   if (!email || !Array.isArray(uids) || uids.length === 0) return;
   const claims = readClaims(email);
-  for (const uid of uids) delete claims[String(uid)];
-  writeClaims(email, claims);
+  let changed = false;
+  for (const uid of uids) {
+    const k = String(uid);
+    if (claims[k] && normClaim(claims[k]).owner === claimOwnerId) {
+      delete claims[k];
+      changed = true;
+    }
+  }
+  if (changed) writeClaims(email, claims);
 }

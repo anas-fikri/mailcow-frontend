@@ -21,7 +21,7 @@ import KeyboardShortcutsModal from '../components/KeyboardShortcuts';
 import SwipeableRow from '../components/SwipeableRow';
 import Avatar from '../components/Avatar';
 import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor } from '../lib/flagColors';
-import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveClaims } from '../lib/autoArchive';
+import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveClaims, autoArchiveClaimsKey } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
 import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate, applyMessageWindow } from '../lib/dateGroups';
@@ -157,6 +157,7 @@ export default function MailPage() {
   const [snoozePicker, setSnoozePicker] = useState(null); // { uid, x, y } — pilih durasi snooze
   const [quickRuleSender, setQuickRuleSender] = useState(null); // sender label utk QuickRuleModal
   const [snoozeTick, setSnoozeTick] = useState(0); // bump utk re-render setelah prune
+  const [claimsTick, setClaimsTick] = useState(0); // bump utk re-run engine saat klaim berubah di tab lain
   const [expandedConversations, setExpandedConversations] = useState(new Set());
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set()); // folder sidebar yang di-ciutkan
   const prevUnseenRef = useRef(null); // notifikasi email baru — bandingkan unseen count
@@ -416,6 +417,14 @@ export default function MailPage() {
     return new Set(Object.keys(folderMap || {}));
   }, [user?.email, selectedFolder, snoozeTick]);
 
+  // Sumber hitung kategori: pesan yang BENAR-BENAR terlihat. Pesan yang
+  // di-snooze disembunyikan dari daftar → tidak boleh ikut dihitung di tab
+  // kategori (kalau tidak: tab "Promosi 5" tapi daftar cuma 3 → membingungkan).
+  const categorySource = useMemo(
+    () => messages.filter((m) => !snoozedUids.has(String(m.uid))),
+    [messages, snoozedUids]
+  );
+
   // Folder Arsip — SOGo/Dovecot punya folder root "Archive" (diverifikasi).
   const archiveFolder = (Array.isArray(folders) ? folders : [])
     .find((f) => /(^|\/)archive$/i.test(f.path || f.name || '')) || null;
@@ -480,6 +489,22 @@ export default function MailPage() {
       const k = e?.key;
       if (k === myKey || k === legacyKey || k === null /* clear() */) {
         setSnoozeTick((t) => t + 1);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [user?.email]);
+
+  // Sinkronisasi KLAIM auto-archive antar-tab: klaim disimpan di localStorage
+  // (di-share antar tab). Saat tab lain menulis klaim (claim/release), tab ini
+  // re-run engine agar SKIP uid yang sedang diproses tab lain — menutup race
+  // klaim berbarengan (keduanya baca kosong sebelum salah satu menulis).
+  useEffect(() => {
+    if (!user?.email) return;
+    const myClaimsKey = autoArchiveClaimsKey(user.email);
+    const onStorage = (e) => {
+      if (e?.key === myClaimsKey || e?.key === null /* clear() */) {
+        setClaimsTick((t) => t + 1);
       }
     };
     window.addEventListener('storage', onStorage);
@@ -578,19 +603,25 @@ export default function MailPage() {
       // Pesan yang DICLAIM tab lain juga di-skip (multi-tab guard).
       (m) => snoozedUids.has(String(m?.uid)) || !claimedSet.has(String(m?.uid))
     ).then((actions) => {
-      const movedUids = actions.flatMap((a) => a.uids);
-      // Lepas klaim utk pesan yang TIDAK jadi dipindah (snooze / tidak match
-      // rule / diklaim tab lain) — biar tab lain atau run berikutnya bisa
-      // memprosesnya.
+      const movedUids = new Set(actions.flatMap((a) => a.uids).map(String));
+      // Lepas klaim MILIK tab ini utk uid yang tidak jadi dipindah (snooze /
+      // tidak match rule). Klaim tab lain TIDAK disentuh (ownership-based) —
+      // melepas klaim tab lain membuatnya kehilangan proteksi saat move jalan.
       releaseAutoArchiveClaims(
         user.email,
-        unprocessed.filter((m) => !movedUids.includes(m.uid)).map((m) => m.uid)
+        claimed.filter((uid) => !movedUids.has(String(uid)))
       );
-      // Tandai processed HANYA pesan yang benar-benar diproses tab ini.
-      // Pesan yang di-skip karena diklaim tab lain TIDAK ditandai — saat
-      // klaim kedaluwarsa/rileks, run berikutnya akan mencobanya lagi.
       unprocessed.forEach((m) => {
-        if (movedUids.includes(m.uid)) rulesProcessed.current[m.uid] = true;
+        // Tandai processed: (1) benar-benar dipindah tab ini, (2) sedang
+        // di-snooze. Yang (2) PENTING: pesan yang di-snooze TIDAK boleh
+        // di-arsip rule saat bangun — user minta tunda utk DILIHAT; kalau
+        // rule jalan lagi saat wake, pesan langsung hilang ke folder tujuan
+        // sebelum sempat terlihat (pola Gmail: filter tidak dijalankan ulang
+        // saat snooze bangun). Pesan yang di-skip karena diklaim tab lain
+        // TIDAK ditandai — run berikutnya mencobanya lagi.
+        if (movedUids.has(String(m.uid)) || snoozedUids.has(String(m.uid))) {
+          rulesProcessed.current[m.uid] = true;
+        }
       });
 
       if (actions.length > 0) {
@@ -599,13 +630,14 @@ export default function MailPage() {
         queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
       }
     }).catch((err) => {
-      // Gagal (network/SOGo) — lepas klaim agar run berikutnya bisa coba lagi.
-      releaseAutoArchiveClaims(user.email, unprocessed.map((m) => m.uid));
+      // Gagal (network/SOGo) — lepas klaim MILIK tab ini agar run berikutnya
+      // bisa coba lagi (klaim tab lain dibiarkan).
+      releaseAutoArchiveClaims(user.email, claimed);
       console.warn('[rules] Gagal menjalankan aturan otomatis:', err?.message || err);
       // Bug fix: tampilkan toast error ke user (bukan hanya console.warn)
       toast.warning('Sebagian aturan gagal dijalankan — coba lagi nanti.');
     });
-  }, [messages.length, selectedFolder, user?.email, user?.sogoToken, enabledRules, snoozedUids, searchQuery]);
+  }, [messages.length, selectedFolder, user?.email, user?.sogoToken, enabledRules, snoozedUids, searchQuery, claimsTick]);
 
   // loadMore dua tahap:
   // 1) reveal header yang SUDAH ada (client-side, instant);
@@ -1778,7 +1810,7 @@ export default function MailPage() {
           {/* Category tabs — Utama/Promosi/Sosial/Update (mirip Gmail) */}
           {!searchQuery && (
             <CategoryTabs
-              messages={messages}
+              messages={categorySource}
               categoryFilter={categoryFilter}
               onSelect={setCategoryFilter}
             />

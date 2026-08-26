@@ -24,7 +24,7 @@ ok(mail.includes('applyMessageWindow') && mail.includes('from \'../lib/dateGroup
 // Rules memindahkan pesan; memindahkan hasil pencarian mengejutkan user.
 ok(mail.includes('if (searchQuery) return;\n    if (!user?.email || !user?.sogoToken || !messages.length || !enabledRules) return;'),
   'executeRules effect harus di-skip saat searchQuery');
-ok(mail.includes('snoozedUids, searchQuery]'), 'searchQuery harus masuk deps effect rules');
+ok(mail.includes('snoozedUids, searchQuery, claimsTick]'), 'searchQuery + claimsTick harus masuk deps effect rules');
 
 // ── Bug 3: pesan di-snooze TETAP muncul di hasil search ──────────────────────
 // Di-snooze = tersembunyi dari daftar biasa; search adalah satu-satunya jalan

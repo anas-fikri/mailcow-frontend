@@ -1035,3 +1035,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Rotasi OWASP (rate-limit + data leak antar role): (1) 429 harus masuk daftar no-retry react-query — retry 429 memperparah rate-limit server (hanya 401/403/404 yang dikecualikan sebelumnya). (2) queryClient.clear() wajib di SEMUA jalur logout: session-expired sudah benar, tapi logout manual (Sidebar) & login baru (LoginPage) hanya clearUser() → cache akun A (pesan/kontak/kalender/prefs) tersisa di memori saat akun B login di perangkat sama; query key memuat sogoToken jadi tak tampil, tapi hygiene memori buruk di shared device. (3) Backend sudah solid: rate-limit per-akun (send 10/mnt key session.user), ownership /api/preferences (403 bila email != sesi), from dipaksa session.user (anti-spoof), cookie SMTP HttpOnly+SameSite=Strict+Path=/api (CSRF tertutup via preflight JSON juga). 123 a11y assertions, 55/55 PASS.
+
+## 2026-08-26T10:50:02Z
+- Task: 
+- Status: COMPLETED
+- Finding: Rotasi CalendarPage recurring: (1) data loss: save event recurring tanpa repeat → SOGo menimpa recurrence (pola hilang); semua jalur edit/drag wajib resolve repeat via /view sebelum save atau TOLAK save (safety net: isRecurring && !repeat && !repeatTouched). Edit event berulang harus diblokir saat detail /view gagal — fallback ke data grid (eventsblocks) yang tanpa repeat = pola rusak. (2) Hapus occurrence recurring = hapus SELURUH seri (satu UID) — konfirmasi wajib menyebut scope. (3) Fitur edit/hapus satu occurrence butuh recurrence_id/EXDATE (SOGo 5) — workstream terpisah. 129 a11y assertions, 55/55 PASS.
