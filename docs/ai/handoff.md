@@ -2802,3 +2802,11 @@ Test: test-calendar-api +8 (occurrence save/delete/detail URL + body tanpa repea
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-26 drag scope occurrence (drag satu kejadian ≠ pindah seri)
+Menutup workstream drag dari fitur occurrence sebelumnya. Perubahan:
+- `handleDragStart(ev, e)` menyimpan `{ ev, series: !!e.shiftKey }`; SEMUA view (Month/Week/Day, 5 titik onDragStart) meneruskan native event → Shift+drag = pindah SELURUH seri (jalur lama), drag biasa occurrence = pindah SATU kejadian.
+- `handleDrop`: occurrence && !series → payload editScope 'single' + occurrenceId + repeat null + repeatTouched false → handleUpdateEvent routing ke occurence{ts} (safety net repeat master TIDAK berlaku di jalur ini, dan benar — repeat null wajib agar seri tidak berubah). Shift+drag / event biasa → resolve repeat master via /view (jalur lama).
+- Konsisten dengan fitur occurrence sebelumnya (edit/hapus satu kejadian via recurrence_id): drag kini behavior-nya sama dengan edit — default scope single, seri hanya via Shift.
+
+Test: test-a11y +3 (drag scope wiring). 149 a11y assertions, 55/55 PASS, build OK.

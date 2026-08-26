@@ -481,4 +481,25 @@ assert.ok(
 );
 passCount++;
 
+// ── Drag scope occurrence: drag SATU kejadian = pindahkan kejadian itu ─────
+// (exception RECURRENCE-ID via occurence{ts}), bukan seluruh seri. Shift+drag
+// tetap = pindahkan seluruh seri (jalur lama dipertahankan).
+assert.ok(
+  calendar.includes('dragEvRef.current = { ev, series: !!(e?.shiftKey) }'),
+  'CalendarPage: drag menyimpan scope (series hanya saat Shift)'
+);
+passCount++;
+assert.ok(
+  calendar.includes("isOccurrence && !series") &&
+  calendar.includes("editScope: 'single'") &&
+  calendar.includes('occurrenceId: ev.occurrenceId'),
+  'CalendarPage: drag occurrence default → scope single (occurence{ts}, repeat null)'
+);
+passCount++;
+assert.ok(
+  calendar.includes('onDragStart={(e) => onDragStart(ev, e)}'),
+  'CalendarPage: view meneruskan native event drag (Shift = pindah seri)'
+);
+passCount++;
+
 console.log(`\nA11y audit: ${passCount} assertions PASS ✅`);

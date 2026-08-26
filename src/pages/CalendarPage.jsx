@@ -300,20 +300,37 @@ export default function CalendarPage() {
   }
 
   // ── Drag & Drop ────────────────────────────────────────────────────────────
-  function handleDragStart(ev) {
-    dragEvRef.current = ev;
+  // ref = { ev, series }: `series=true` (Shift+drag) → pindahkan SELURUH seri;
+  // false (default) → drag SATU occurrence (event berulang) hanya memindahkan
+  // kejadian itu (exception RECURRENCE-ID via occurence{ts}), pola seri utuh.
+  function handleDragStart(ev, e) {
+    dragEvRef.current = { ev, series: !!(e?.shiftKey) };
   }
 
   async function handleDrop(date, hour = null) {
     if (!dragEvRef.current) return;
-    const ev = dragEvRef.current;
+    const { ev, series } = dragEvRef.current;
     let eventData = buildDroppedEventData(ev, new Date(date), hour);
     if (!eventData) return;
 
-    // Drag event BERULANG: pola repeat tidak ada di data grid (eventsblocks
-    // hanya c_iscycle boolean). Kalau simpan tanpa repeat, SOGo menimpa
-    // recurrence → pola hilang diam-diam. Ambil pola asli via /view dulu.
-    if (ev.isRecurring && !ev.repeat) {
+    const isOccurrence = ev.isRecurring && ev.occurrenceId;
+    if (isOccurrence && !series) {
+      // Drag occurrence (default) = pindah SATU kejadian: save ke segmen
+      // occurence{ts} membuat exception RECURRENCE-ID. repeat WAJIB null
+      // (mengirim repeat mengubah pola SERI) — dan safety net repeat di bawah
+      // TIDAK berlaku (payload sengaja tanpa repeat).
+      eventData = {
+        ...eventData,
+        editScope: 'single',
+        occurrenceId: ev.occurrenceId,
+        repeat: null,
+        repeatTouched: false,
+      };
+    } else if (ev.isRecurring && !ev.repeat) {
+      // Drag SERI (Shift+drag) / event berulang: pola repeat tidak ada di data
+      // grid (eventsblocks hanya c_iscycle boolean). Kalau simpan tanpa repeat,
+      // SOGo menimpa recurrence → pola hilang diam-diam. Ambil pola asli via
+      // /view dulu.
       try {
         const detail = await fetchCalendarEventDetail(user?.sogoToken, ev.id);
         if (detail?.repeat && typeof detail.repeat === 'object') {
@@ -724,7 +741,7 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
                   <div
                     key={ev.id || idx}
                     draggable
-                    onDragStart={() => onDragStart(ev)}
+                    onDragStart={(e) => onDragStart(ev, e)}
                     className={`text-[10px] px-1.5 py-0.5 rounded truncate w-full cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
                     onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
                   >
@@ -833,7 +850,7 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
                         <div
                           key={ev.id}
                           draggable
-                          onDragStart={() => onDragStart(ev)}
+                          onDragStart={(e) => onDragStart(ev, e)}
                           className={`absolute top-0.5 rounded px-1 py-0.5 text-[10px] font-medium truncate cursor-grab active:cursor-grabbing z-10 shadow-sm ${calColor(ev.calendar)}`}
                           style={{
                             left: `calc(${layout.leftPct}% + 2px)`,
@@ -867,7 +884,7 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
                       <div
                         key={ev.id}
                         draggable
-                        onDragStart={() => onDragStart(ev)}
+                        onDragStart={(e) => onDragStart(ev, e)}
                         className={`text-[9px] px-1 py-0.5 rounded truncate cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
                         onClick={() => onEventClick(ev)}
                       >
@@ -913,7 +930,7 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
             <div
               key={ev.id}
               draggable
-              onDragStart={() => onDragStart(ev)}
+              onDragStart={(e) => onDragStart(ev, e)}
               className={`text-xs px-2 py-1 rounded-lg cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
               onClick={() => onEventClick(ev)}
             >
@@ -966,7 +983,7 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
                       <div
                         key={ev.id}
                         draggable
-                        onDragStart={() => onDragStart(ev)}
+                        onDragStart={(e) => onDragStart(ev, e)}
                         className={`absolute rounded-lg px-2 py-1 text-xs font-medium truncate cursor-grab active:cursor-grabbing shadow-sm z-10 ${calColor(ev.calendar)}`}
                         style={{
                           top: pos.top,
