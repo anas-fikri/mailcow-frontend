@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T03:14:25Z
+Generated At: 2026-08-26T03:21:11Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Pola race autosave: 3 guard ref wajib — autosaveBusy (cegah tumpukan, finally reschedule), sentRef (autosave in-flight saat Send membersihkan draftnya sendiri), userEditedRef (autosave hanya setelah input user berubah). handleSend harus clearTimeout sebelum request. extractHtml SOGo parts: prefer text/html di kedalaman mana pun (findHtml dua-pass), fallback text/plain wrap div. Edit draft tanpa draftId SOGo: buka compose pre-filled dari /view + autosave ke draft baru + hapus draft asli saat kirim. Keterbatasan: draft ber-lampiran tidak bisa direstorasi (saveDraft tanpa lampiran).
+## 1. [MEDIUM] Follow up on discovered knowledge: Restorasi lampiran draft SOGo: downloadURL dari /view memuat token sesi — fetch + credentials include + sogoHeaders (XSRF); base64 chunked 32KB. extractAttachments di messageHtml.js (dedup reader+mail). Unduh paralel Promise.allSettled, gagal satu → skip + warning. Restore ≠ user edit (tidak memicu autosave). Keterbatasan: saveDraft SOGo hanya teks — lampiran restore hanya hidup di sesi compose.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

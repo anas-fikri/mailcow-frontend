@@ -838,3 +838,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   hanya hidup di sesi compose (memori); begitu modal ditutup tanpa kirim, draft di folder
   tetap tanpa lampiran. Sinkronisasi penuh lampiran → draft butuh endpoint upload lampiran
   SOGo (belum dieksplorasi).
+
+## 2026-08-26T03:21:10Z
+- Task: 
+- Status: COMPLETED
+- Finding: Restorasi lampiran draft SOGo: downloadURL dari /view memuat token sesi — fetch + credentials include + sogoHeaders (XSRF); base64 chunked 32KB. extractAttachments di messageHtml.js (dedup reader+mail). Unduh paralel Promise.allSettled, gagal satu → skip + warning. Restore ≠ user edit (tidak memicu autosave). Keterbatasan: saveDraft SOGo hanya teks — lampiran restore hanya hidup di sesi compose.
