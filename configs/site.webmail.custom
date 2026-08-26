@@ -1,39 +1,58 @@
 # site.webmail.custom - SOGo React Frontend
 # CSP: SPA murni tanpa inline script; email-body pakai inline style (unsafe-inline style)
 # dan Google Fonts. connect-src 'self' cukup karena SOGo & /api dilayani origin yang sama.
+# img-src TIDAK memuat https: — semua gambar eksternal email di-rewrite ke
+# /api/image-proxy (anti tracking-pixel); mengizinkan https: langsung akan
+# membuka jalur pixel tanpa proxy.
+# HSTS tanpa includeSubDomains: hanya host ini yang dijamin HTTPS (subdomain lain
+# belum tentu HTTPS — includeSubDomains bisa memutus aksesnya).
 location /webmail {
     root /web;
     index index.html;
     try_files $uri $uri/ /webmail/index.html;
 
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; frame-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; frame-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
+    add_header X-XSS-Protection "0" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-origin" always;
 
     location ~* \.html$ {
         add_header Cache-Control "no-store, no-cache, must-revalidate";
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; frame-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; frame-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
+        add_header X-XSS-Protection "0" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
         expires -1;
     }
 
     location ~* \.(css|js|woff2?|svg|gif|png|jpe?g|ico)$ {
         add_header Cache-Control "public, max-age=31536000, immutable";
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; frame-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" always;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; object-src 'none'; frame-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
+        add_header X-XSS-Protection "0" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
         add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
     }
 }
 
 # SMTP proxy backend (server.js di host; port khusus SOGo, bukan Control Tower).
 # Exact locations must win over Control Tower's broader /api regex routes.
+# Header keamanan utk respon /api/* sudah di-set oleh server.js (CSP, XFO,
+# nosniff, Referrer-Policy, Permissions-Policy) — tidak diulang di sini.
 location = /api/health {
     proxy_pass http://172.25.1.1:3005;
     proxy_set_header Host $host;

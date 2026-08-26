@@ -2074,3 +2074,24 @@ test:contact-signature-edge 18 assertions. 49/49 PASS.
 -  M src/pages/PreferencesPage.jsx
 - ?? scripts/test-contact-signature-edge.mjs
 - ?? src/lib/contactUtils.js
+
+## [2026-08-26] Audit keamanan nginx webmail (CSP/HSTS) — SELESAI & LIVE
+
+configs/site.webmail.custom gap: HSTS, COOP, CORP, X-XSS-Protection,
+upgrade-insecure-requests tidak ada di produksi. Ditambahkan ke 3 blok
+location (/webmail, *.html, assets). HSTS tanpa includeSubDomains (subdomain
+lain belum tentu HTTPS). img-src tetap 'self' data: TANPA https: — semua
+gambar eksternal email lewat /api/image-proxy (anti tracking-pixel);
+mengizinkan https: langsung membuka jalur pixel. nginx -t OK → reload →
+headers live terverifikasi (curl). Non-regresi: image-proxy routing OK
+(400 passthrough utk url invalid; 502 = status sengaja remoteImage.js utk
+fetch gagal — DNS/redirect/UA). Webmail 200, health via key 200.
+
+## 2026-08-26T02:01:52Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M configs/site.webmail.custom
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md

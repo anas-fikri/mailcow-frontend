@@ -1,16 +1,16 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T01:57:43Z
+Generated At: 2026-08-26T02:01:52Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Edge kontak & signature: (1) highlight seleksi kontak 'selected?.uid===contact.uid' crash-logika saat uid kosong (entri GAL/rusak) — SEMUA baris kosong-uid ke-highlight; pola aman: contact.uid ? uid===selected.uid : contact===selected. (2) Duplikat kontak: blokir duplikat PERSONAL (pesan jelas), IZINKAN duplikat GAL (direktori read-only, salinan personal dari kolega = normal) — findDuplicateKind prioritas personal > gal, case-insensitive. (3) Sync signature SOGo one-way push → perangkat lain stale selamanya (fallback SOGo hanya saat daftar lokal KOSONG); fix pull-back idempotent: shouldImportSogoSignature(list, html) = sogoHtml non-empty && tidak ada entri dgn html trim sama — tarik sebagai entri baru saat buka Settings; tidak menimpa editan lokal, tidak menumpuk. Test test:contact-signature-edge = 18 assertions.
+## 1. [MEDIUM] Follow up on discovered knowledge: Nginx webmail security: HSTS wajib tanpa includeSubDomains (subdomain lain bisa non-HTTPS); COOP same-origin + CORP same-origin + X-XSS-Protection 0 + CSP upgrade-insecure-requests ditambahkan ke 3 blok location. Keputusan penting: img-src 'self' data: TANPA https: — semua gambar eksternal email di-rewrite ke /api/image-proxy (anti tracking-pixel); mengizinkan https: langsung = browser bisa muat pixel tanpa proxy. Referrer-Policy strict-origin-when-cross-origin krusial krn URL SOGo memuat sogoToken di path (hanya origin yg bocor keluar). /api/* proxy tidak perlu header tambahan — server.js upstream sudah set sendiri. Image-proxy 502 utk URL gambar gagal = status sengaja remoteImage.js (DNS/redirect/UA), bukan regresi nginx; 400 passthrough utk url invalid bukti routing jalan. Config single-source: configs/site.webmail.custom + deploy.sh substitusi port + reload; validasi docker exec nginx -t dulu sebelum reload.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
 ## 2. [LOW] Review and commit current changes
-- Why: 10 uncommitted file entries remain in the project.
+- Why: 5 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use
