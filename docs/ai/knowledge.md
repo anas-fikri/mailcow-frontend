@@ -873,3 +873,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - **items-baseline vs items-center:** `items-baseline` dengan tombol ikon (tanpa teks)
   menaruh ikon mengambang tinggi (baseline tombol = tepi bawah). Untuk baris dengan
   tombol ikon + teks satu baris, `items-center` lebih aman di semua lebar.
+
+## 2026-08-26T03:32:20Z
+- Task: 
+- Status: COMPLETED
+- Finding: Posisi ikon di layout dinamis (Tailwind): (1) tombol overlay di input butuh padding kanan >= lebar tombol (36px → pr-10); (2) header judul+badge+cluster tombol: wrapper kiri min-w-0 flex-1 + label truncate + kanan shrink-0 agar judul menyusut duluan; (3) items-baseline dengan tombol ikon tanpa teks bikin ikon mengambang — pakai items-center.
