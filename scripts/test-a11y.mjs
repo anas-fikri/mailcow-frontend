@@ -309,7 +309,10 @@ assert.ok(calendar.includes('hidden sm:block shrink-0 whitespace-nowrap'), 'Cale
 assert.ok(contacts.includes('flex items-center gap-2 min-w-0 flex-1'), 'Contacts: wrapper judul harus min-w-0 flex-1');
 assert.ok(contacts.includes('text-lg font-semibold truncate'), 'Contacts: judul harus truncate');
 assert.ok(contacts.includes('flex gap-1 bg-muted rounded-lg p-0.5 shrink-0'), 'Contacts: cluster filter harus shrink-0');
-passCount += 7;
+passCount += 3;
+
+// ── Kontrak API kontak SOGo (audit 2026-08-26) ──────────────────────────────
+// (assertions runtime di bawah, dekat deklarasi apiSrc)
 
 // ── Fitur MessageReader yang TIDAK BOLEH hilang (regresi 6c1485f) ────────────
 // Commit fix(nginx) menimpa MessageReader dengan versi lama → lightbox preview,
@@ -421,6 +424,15 @@ passCount++;
 // (SOGoCalendarComponent.lookupName: hasPrefix "occurence" + substring 9 =
 // intValue). c_recurrence_id dari eventsblocks = unix detik start occurrence.
 const apiSrc = read('src/lib/api.js');
+// ── Kontrak API kontak SOGo (audit 2026-08-26) ──────────────────────────────
+// Server SOGo `lookupName` di SOGoContactGCSFolder hanya membuat objek baru
+// bila URL berakhiran AsContact/AsList. `POST .../Contacts/personal/new` → 404;
+// kontrak UI SOGo live = `POST .../_new_/saveAsContact` + c_component: 'vcard'.
+// Delete memakai GET (Resource.remove UI SOGo), bukan POST.
+assert.ok(apiSrc.includes("Contacts/personal/_new_/saveAsContact"), 'api: createContact harus pakai _new_/saveAsContact (bukan /new)');
+assert.ok(apiSrc.includes("c_component: 'vcard'"), 'api: createContact harus sertakan c_component vcard');
+assert.ok(apiSrc.includes("method: 'GET'" ) && apiSrc.includes("/Contacts/personal/${pathSegment(cardId, 'cardId')}/delete"), 'api: deleteContact harus GET {pid}/{uid}/delete (kontrak UI SOGo)');
+passCount += 3;
 const calendarEventsSrc = read('src/lib/calendarEvents.js');
 // Parser memetakan c_recurrence_id → occurrenceId (identitas occurrence).
 assert.ok(

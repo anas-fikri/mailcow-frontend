@@ -1066,11 +1066,16 @@ export async function fetchContacts(sogoToken) {
 }
 
 export async function createContact(sogoToken, contactData) {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Contacts/personal/new`, {
+  // Kontrak SOGo (diverifikasi dari UI SOGo 5.12 live + source server):
+  // server `lookupName` di SOGoContactGCSFolder hanya membuat objek baru bila
+  // URL berakhiran `AsContact`/`AsList` — `POST .../Contacts/personal/new`
+  // menghasilkan 404. Create yang benar: `POST .../Contacts/personal/_new_/
+  // saveAsContact` dengan body JSON berisi `c_component: 'vcard'` + fields.
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Contacts/personal/_new_/saveAsContact`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(contactData),
+    body: JSON.stringify({ c_component: 'vcard', ...contactData }),
   });
   throwIfAuthError(res);
   if (!res.ok) throw new Error('Gagal menambah kontak.');
@@ -1078,8 +1083,10 @@ export async function createContact(sogoToken, contactData) {
 }
 
 export async function deleteContact(sogoToken, cardId) {
+  // UI SOGo live memakai `Resource.remove` → GET {pid}/{uid}/delete
+  // (bukan POST) — mengikuti kontrak yang dipakai produksi.
   const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Contacts/personal/${pathSegment(cardId, 'cardId')}/delete`, {
-    method: 'POST',
+    method: 'GET',
     credentials: 'include',
     headers: sogoHeaders(),
   });

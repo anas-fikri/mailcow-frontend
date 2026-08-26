@@ -1,15 +1,18 @@
-# Current Task — Drag scope occurrence: pindah SATU kejadian (bukan seri)
+# Current Task — Audit ContactsPage: kontrak SOGo create/delete kontak
 
 ## Status
-Selesai ✅ — drag occurrence kini memindahkan SATU kejadian (exception RECURRENCE-ID via occurence{ts}); Shift+drag mempertahankan jalur lama (pindah seluruh seri). 55/55 test PASS, live di produksi, ter-push.
+Selesai ✅ — create kontak diperbaiki ke kontrak SOGo yang benar (`POST .../_new_/saveAsContact` + `c_component: 'vcard'`), delete kontak beralih ke `GET {pid}/{uid}/delete` (kontrak UI SOGo live). 55/55 test PASS, build OK, live di produksi, ter-push.
 
-## Implementasi
-- `handleDragStart(ev, e)` → `dragEvRef = { ev, series: !!e.shiftKey }` (semua 5 view meneruskan native event).
-- `handleDrop`: occurrence && !series → payload `{ editScope: 'single', occurrenceId, repeat: null, repeatTouched: false }` → handleUpdateEvent routing scope single ke `occurence{ts}` (repeat tidak dikirim — mengubah pola seri). Shift+drag / event biasa → jalur lama (resolve repeat master via /view).
-- Toast hasil: "Kejadian diperbarui" (single) vs "Event diperbarui" (seri).
+## Temuan (diverifikasi dari source SOGo 5.12.10 + UI SOGo live produksi)
+1. **createContact memakai endpoint salah** — `POST .../Contacts/personal/new`; server `lookupName` di SOGoContactGCSFolder hanya membuat objek baru bila URL berakhiran `AsContact`/`AsList` → 404. Kontrak UI SOGo live: `POST .../Contacts/personal/_new_/saveAsContact` + body JSON berisi `c_component: 'vcard'`.
+2. **deleteContact memakai POST** — UI SOGo live memakai `Resource.remove` → `GET {pid}/{uid}/delete`. POST → `POSTAction` WebDAV-only → 500.
+
+## Perbaikan
+- `createContact`: URL → `_new_/saveAsContact`, body → `{ c_component: 'vcard', ...contactData }`.
+- `deleteContact`: method POST → GET.
 
 ## Next
-- Verifikasi browser: drag occurrence → hanya kejadian itu pindah; Shift+drag → seluruh seri pindah.
-- Pertimbangkan hint visual saat drag (scope yang sedang aktif).
+- Verifikasi browser: buat kontak baru (cek 201 + muncul di daftar), hapus kontak (cek hilang dari daftar).
+- GAL tab: pertimbangkan dukungan fetch GAL (kontrak berbeda — `/GAL` sumber) bila dibutuhkan.
 Status: COMPLETED
-Updated At: 2026-08-26T14:18:09Z
+Updated At: 2026-08-26T16:45:00Z
