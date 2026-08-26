@@ -311,6 +311,29 @@ verify() {
     fi
 
     verify_image_proxy "$host"
+    verify_health "$host"
+}
+
+# /api/health butuh API key (dienforce di server.js requireApiKey, bukan di
+# nginx — nginx passthrough). Preflight sudah cek backend langsung; di sini
+# cek END-TO-END via nginx supaya routing /api/health ikut tervalidasi
+# setelah deploy (konsisten dengan preflight yang memakai key yang sama).
+verify_health() {
+    local host="$1"
+    info "Verifikasi /api/health (end-to-end via nginx, butuh API key)..."
+    local code
+    code=$(ssh "$SERVER" "host=$host bash -s" <<'REMOTE_HEALTH'
+set -euo pipefail
+api_key="$(awk -F= '/^API_KEY=/{print substr($0, index($0, "=") + 1); exit}' /home/anas.fikri/sogo-proxy/.env)"
+[ -n "$api_key" ]
+curl -sk --max-time 10 --resolve "${host}:443:127.0.0.1" -o /dev/null -w '%{http_code}' -H "X-Api-Key: $api_key" -- "https://${host}/api/health"
+REMOTE_HEALTH
+)
+    if [ "$code" = "200" ]; then
+        ok "/api/health OK (HTTP $code via nginx + API key)."
+    else
+        err "/api/health -> HTTP $code via nginx (harap 200 dengan API key)."
+    fi
 }
 
 verify_image_proxy() {

@@ -1,42 +1,42 @@
 # Current Task
 
-## Task: Audit keamanan nginx production webmail — CSP/HSTS/security headers
+## Task: Cek /api/health butuh API key di nginx — konsisten dengan deploy.sh verify
 
-**Status: SELESAI (live)** → config di-apply + nginx -t + reload + verifikasi headers.
+**Status: SELESAI (49/49 test PASS, live)** → commit + push + deploy.
 
-## Ringkasan
-Audit `configs/site.webmail.custom` vs kebutuhan app. Gap ditemukan:
-**HSTS, COOP, CORP, X-XSS-Protection, upgrade-insecure-requests semuanya
-tidak ada** di produksi. Diperbaiki + divalidasi live.
+## Temuan
+1. **`/api/health` BUTUH API key** — di-enforce di **app level** (server.js
+   `app.use('/api', requireApiKey)` SEBELUM route health; live terverifikasi:
+   403 tanpa key, 200 dengan key). Nginx hanya passthrough (key dicek di
+   upstream) — konsisten dengan semua lokasi `/api/*`.
+2. **deploy.sh preflight** sudah cek `/api/health` DENGAN key (langsung ke
+   backend port 3005) ✓ — konsisten.
+3. **GAP: deploy.sh `verify()` tidak cek `/api/health`** — hanya webmail +
+   image-proxy. Routing nginx → backend untuk health tidak tervalidasi
+   pasca-deploy.
 
-## Gap sebelum / Sesudah
+## Perbaikan
+Tambahkan `verify_health()` di deploy.sh, dipanggil dari `verify()`:
+- Cek **end-to-end via nginx** (`--resolve host:443:127.0.0.1`) dengan
+  `X-Api-Key` diambil dari .env server (pola awk sama seperti preflight,
+  via heredoc — anti-escaping).
+- Sukses bila 200; selain itu `err` (deploy tetap dilaporkan gagal).
+- Konsisten: preflight (backend langsung) + verify (via nginx) memakai key
+  yang sama dan mengharapkan 200.
 
-| Header | Sebelum | Sesudah |
-|---|---|---|
-| `Strict-Transport-Security` (HSTS) | ❌ tidak ada | ✅ `max-age=31536000` (tanpa includeSubDomains — subdomain lain belum tentu HTTPS) |
-| `Cross-Origin-Opener-Policy` | ❌ | ✅ `same-origin` |
-| `Cross-Origin-Resource-Policy` | ❌ | ✅ `same-origin` |
-| `X-XSS-Protection` | ❌ | ✅ `0` (filter XSS legacy dinonaktifkan — konsisten dgn server.js) |
-| CSP `upgrade-insecure-requests` | ❌ | ✅ |
-| CSP `img-src` | `'self' data:` (dipertahankan) | `'self' data:` — **TANPA `https:`** (sengaja: semua gambar eksternal email di-rewrite ke /api/image-proxy; mengizinkan https: langsung membuka jalur tracking-pixel) |
-| nosniff / XFO DENY / Referrer-Policy / Permissions-Policy | ✅ | ✅ (dipertahankan) |
+## Keputusan
+- `/api/health` TETAP di belakang API key (bukan public) — konsisten dengan
+  seluruh `/api/*`; key tidak melindungi apa pun yang sensitif (health cuma
+  `{ok:true}`), tapi menjaga pola seragam dan mencegah probing tanpa identitas.
+- Catatan: `VITE_API_KEY` ada di bundle frontend → key adalah soft gate;
+  auth sebenarnya utk /api/send & co adalah cookie SMTP httpOnly.
 
-## Detail
-- Diterapkan ke 3 blok location (/webmail root, *.html, assets) — konsisten.
-- `/api/*` proxy: tidak diubah — respon dari server.js sudah set header
-  keamanannya sendiri (CSP, XFO, nosniff, dll); HSTS cukup dari halaman.
-- Referrer-Policy `strict-origin-when-cross-origin` penting: URL SOGo memuat
-  sogoToken di path — hanya origin yang dikirim saat navigasi keluar.
-- Validasi: `nginx -t` OK di container → reload → headers live terverifikasi
-  via curl. Webmail 200, health via key 200.
-- **Non-regresi**: /api/image-proxy routing tetap jalan (test `not-a-url` →
-  400 passthrough; 502 utk URL gambar gagal = status sengaja dari
-  remoteImage.js utk fetch error — bukan regresi).
-
-## Catatan operasional
-- Config live = `configs/site.webmail.custom` (single source; deploy.sh
-  substitusi port + copy + reload). Sudah di-apply manual + diverifikasi;
-  deploy.sh berikutnya akan menerapkan ulang (idempotent).
+## Test
+- `test:security-hardening` diperluas (21 assertions): `/api/health`
+  didefinisikan SETELAH requireApiKey (butuh key); deploy.sh punya
+  verify_health + dipanggil verify() + pakai X-Api-Key; preflight juga cek
+  health. `bash -n deploy.sh` OK.
+- **49/49 test PASS**
 
 Status: COMPLETED
-Updated At: 2026-08-26T02:01:52Z
+Updated At: 2026-08-26T02:04:33Z

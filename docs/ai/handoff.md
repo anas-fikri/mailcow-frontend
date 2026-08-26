@@ -2095,3 +2095,24 @@ fetch gagal — DNS/redirect/UA). Webmail 200, health via key 200.
 -  M configs/site.webmail.custom
 -  M docs/ai/current-task.md
 -  M docs/ai/handoff.md
+
+## [2026-08-26] /api/health konsistensi key + verify deploy — SELESAI & LIVE
+
+/api/health butuh API key (server.js requireApiKey, bukan nginx — passthrough;
+live 403/200). preflight deploy.sh sudah cek dgn key (backend langsung), tapi
+verify() tidak cek health sama sekali — gap routing nginx pasca-deploy. Tambah
+verify_health() di verify(): end-to-end via nginx (--resolve 127.0.0.1) + key
+dari .env (pola awk heredoc spt preflight), harap 200. Keputusan: health tetap
+di belakang key (konsisten /api/*; hanya {ok:true}, tidak sensitif). Catatan:
+VITE_API_KEY di bundle = soft gate; auth sebenarnya cookie SMTP httpOnly.
+Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
+
+## 2026-08-26T02:04:33Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M deploy.sh
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M scripts/test-security-hardening.mjs

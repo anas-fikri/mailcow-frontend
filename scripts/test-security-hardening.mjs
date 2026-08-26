@@ -64,4 +64,15 @@ pass++;
 // /api/preferences terikat session user (403 saat email != session)
 ok(server.includes("requestedEmail.toLowerCase() !== sessionEmail.toLowerCase()"), '/api/preferences cek user-binding');
 
+// ── 4. /api/health konsisten antara server & deploy.sh verify ───────────────
+// /api/health butuh API key (requireApiKey di server.js) — bukan public.
+ok(server.indexOf("app.get('/api/health'") > server.indexOf("app.use('/api', requireApiKey)"),
+  '/api/health didefinisikan SETELAH requireApiKey (butuh API key)');
+
+const deploy = fs.readFileSync(path.join(ROOT, 'deploy.sh'), 'utf8');
+ok(deploy.includes('verify_health'), 'deploy.sh punya verify_health');
+ok(deploy.includes('verify_health "$host"'), 'verify() memanggil verify_health (end-to-end pasca-deploy)');
+ok(deploy.includes('/api/health') && deploy.includes('X-Api-Key'), 'verify_health memakai API key utk /api/health');
+ok(deploy.includes('preflight') && deploy.includes('/api/health'), 'preflight juga cek /api/health');
+
 console.log(`\nSecurity-hardening: ${pass} assertions PASS ✅`);
