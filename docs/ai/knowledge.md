@@ -822,3 +822,19 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Pola race autosave: 3 guard ref wajib — autosaveBusy (cegah tumpukan, finally reschedule), sentRef (autosave in-flight saat Send membersihkan draftnya sendiri), userEditedRef (autosave hanya setelah input user berubah). handleSend harus clearTimeout sebelum request. extractHtml SOGo parts: prefer text/html di kedalaman mana pun (findHtml dua-pass), fallback text/plain wrap div. Edit draft tanpa draftId SOGo: buka compose pre-filled dari /view + autosave ke draft baru + hapus draft asli saat kirim. Keterbatasan: draft ber-lampiran tidak bisa direstorasi (saveDraft tanpa lampiran).
+
+## [2026-08-26] Restorasi lampiran draft SOGo
+- **Pola:** downloadURL dari /view sudah memuat token sesi → cukup `fetch(downloadURL)`
+  dengan `credentials: 'include'` + `sogoHeaders()` (X-XSRF-TOKEN). Konversi
+  arrayBuffer → base64 harus chunked (32 KB) untuk file besar — fromCharCode dengan
+  spread penuh bisa stack overflow.
+- **extractAttachments:** part non-inline (bukan text/html|text/plain) yang punya
+  downloadURL, termasuk bersarang (rekursif). Dipakai reader (daftar lampiran) +
+  MailPage (restore draft).
+- **Restore draft:** unduh paralel via Promise.allSettled — satu gagal → skip + warning,
+  jangan blokir. Seed ke compose saat reset dengan id baru; restore ≠ user edit (tidak
+  memicu autosave/userEditedRef).
+- **Keterbatasan tersisa:** saveDraft SOGo tetap hanya teks — lampiran yang direstorasi
+  hanya hidup di sesi compose (memori); begitu modal ditutup tanpa kirim, draft di folder
+  tetap tanpa lampiran. Sinkronisasi penuh lampiran → draft butuh endpoint upload lampiran
+  SOGo (belum dieksplorasi).

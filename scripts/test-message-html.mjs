@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { looksLikeHtmlInPlainText, HTML_IN_PLAIN_RE, extractHtml } from '../src/lib/messageHtml.js';
+import { looksLikeHtmlInPlainText, HTML_IN_PLAIN_RE, extractHtml, extractAttachments } from '../src/lib/messageHtml.js';
 
 // ── Bounce SOGo "Mail delivery failed" (text/plain berisi markup HTML) ───────
 const bounce = `<div class="mailer_plaincontent">This message was created automatically by mail delivery software.<br /><br />A message that you sent could not be delivered to one or more of its<br />recipients. This is a permanent error. The following address(es) failed:<br /><br />  fabii_<a rel="noopener" href="mailto:cristina@hotmail.com">cristina@hotmail.com</a><br />    Domain pcpexpress.com has exceeded the max defers and failures per hour (30/30 (42%)) allowed. Message discarded.<br /></div>`;
@@ -65,5 +65,38 @@ assert.equal(extractHtml(null), '');
 assert.equal(extractHtml({}), '');
 assert.equal(extractHtml({ contentType: 'application/pdf', content: 'x' }), '');
 assert.equal(extractHtml({ contentType: 'text/html' }), '');
+
+// ── extractAttachments (part non-inline dengan downloadURL) ──────────────────
+const partsWithAtt = {
+  contentType: 'multipart/mixed',
+  content: [
+    { contentType: 'text/html', content: '<p>isi</p>' }, // inline → bukan lampiran
+    {
+      contentType: 'application/pdf',
+      filename: 'laporan.pdf',
+      size: '1.2 MB',
+      downloadURL: '/SOGo/so/x/Mail/0/folderDrafts/9/viewPart?part=2',
+    },
+    {
+      contentType: 'multipart/mixed',
+      content: [{
+        contentType: 'image/png',
+        filename: 'foto.png',
+        size: 2048,
+        downloadURL: '/SOGo/so/x/Mail/0/folderDrafts/9/viewPart?part=3',
+      }],
+    },
+  ],
+};
+const atts = extractAttachments(partsWithAtt);
+assert.equal(atts.length, 2, 'html inline tidak dihitung, nested ikut');
+assert.equal(atts[0].name, 'laporan.pdf');
+assert.equal(atts[0].contentType, 'application/pdf');
+assert.equal(atts[0].downloadURL.includes('viewPart?part=2'), true);
+assert.equal(atts[1].name, 'foto.png');
+assert.equal(atts[1].size, 2048);
+// part tanpa downloadURL (mis. text/plain) → bukan lampiran
+assert.equal(extractAttachments({ contentType: 'text/plain', content: 'x' }).length, 0);
+assert.equal(extractAttachments(null).length, 0);
 
 console.log('messageHtml assertions passed');

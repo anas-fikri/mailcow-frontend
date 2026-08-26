@@ -7,9 +7,10 @@ import {
   Archive, BellRing, CheckCheck, Clock, Paperclip,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder } from '../lib/api';
+import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder } from '../lib/api';
 import { formatAddresses } from '../lib/format';
-import { extractHtml } from '../lib/messageHtml';
+import { extractHtml, extractAttachments } from '../lib/messageHtml';
+import { parseSizeToBytes } from '../lib/attachments';
 import MessageReader from '../components/mailer/MessageReader';
 import ComposeModal from '../components/mailer/ComposeModal';
 import QuickRuleModal from '../components/mailer/QuickRuleModal';
@@ -945,6 +946,26 @@ export default function MailPage() {
   async function openDraftForEdit(uid) {
     try {
       const detail = await fetchMessage(user?.sogoToken, selectedFolder, uid);
+      // Restorasi lampiran draft: unduh tiap part (base64) agar ikut terkirim
+      // dan tidak hilang saat autosave berikutnya. Gagal satu → lewati, jangan
+      // blokir seluruh pembukaan draft.
+      const restoredAttachments = [];
+      const restored = await Promise.allSettled(
+        extractAttachments(detail.parts).map(async (att) => {
+          const data = await fetchAttachmentData(att.downloadURL);
+          if (!data) throw new Error('tidak ada data');
+          return {
+            name: att.name,
+            type: att.contentType || 'application/octet-stream',
+            size: parseSizeToBytes(att.size) || 0,
+            data,
+          };
+        })
+      );
+      for (const r of restored) {
+        if (r.status === 'fulfilled') restoredAttachments.push(r.value);
+        else console.warn('[Draft] Gagal merestorasi lampiran:', r.reason?.message || r.reason);
+      }
       setComposeData({
         composeMode: 'draft',
         to: formatAddresses(detail.to),
@@ -953,6 +974,7 @@ export default function MailPage() {
         subject: detail.subject || '',
         body: extractHtml(detail.parts),
         draftUid: uid,
+        attachments: restoredAttachments,
       });
       setComposeOpen(true);
     } catch (err) {

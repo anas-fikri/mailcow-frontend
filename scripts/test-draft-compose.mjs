@@ -50,9 +50,24 @@ ok(compose.includes("editingDraftUidRef.current = initialData?.draftUid || null;
 ok(compose.includes("if (initialData?.composeMode === 'draft') { sigInjected.current = true; return; }"),
   'draft yang dibuka tidak boleh disuntik signature ganda');
 
+// ── Restorasi lampiran saat edit draft ───────────────────────────────────────
+ok(lib.includes('export function extractAttachments(parts, result = [])'),
+  'extractAttachments harus ada di messageHtml.js');
+ok(reader.includes('extractAttachments'), 'MessageReader harus pakai extractAttachments dari lib');
+ok(!reader.includes('function extractAttachments(parts, result = [])'),
+  'MessageReader tidak boleh punya duplikat extractAttachments lokal');
+ok(mail.includes('fetchAttachmentData(att.downloadURL)'),
+  'openDraftForEdit harus mengunduh tiap lampiran draft via downloadURL');
+ok(mail.includes('Promise.allSettled('), 'restorasi multi-lampiran harus paralel + toleran gagal');
+ok(mail.includes('attachments: restoredAttachments'), 'initialData harus membawa lampiran hasil restorasi');
+ok(compose.includes('Array.isArray(initialData?.attachments)'),
+  'ComposeModal harus seed attachments dari initialData');
+ok(mail.includes("fetchAttachmentData,") || mail.includes('fetchAttachmentData,'),
+  'fetchAttachmentData harus di-import di MailPage');
+
 // ── extractHtml dipindah ke lib + dipakai reader & mail (dedup) ──────────────
 ok(lib.includes('export function extractHtml(parts)'), 'extractHtml harus ada di messageHtml.js');
-ok(reader.includes("import { extractHtml } from '../../lib/messageHtml';"), 'MessageReader harus import dari lib');
+ok(/import \{ extractHtml, extractAttachments \} from '..\/..\/lib\/messageHtml'/.test(reader), 'MessageReader harus import dari lib');
 ok(!reader.includes('function extractHtml(parts)'), 'MessageReader tidak boleh punya duplikat extractHtml lokal');
 // Preferensi html di kedalaman mana pun (bug latent: plain bisa menang bila
 // text/plain ada di urutan part lebih awal dari html yang bersarang).

@@ -865,6 +865,29 @@ export async function saveDraft(sogoToken, draftId, payload) {
 }
 
 /** Hapus draft yang sudah tidak dipakai (mis. autosave yang berhasil dikirim). */
+/**
+ * Unduh konten lampiran dari SOGo → base64 (tanpa prefix data URI).
+ * Dipakai merestorasi lampiran draft saat diedit: downloadURL (dari /view)
+ * sudah memuat token sesi, jadi cukup fetch + credentials include.
+ */
+export async function fetchAttachmentData(downloadURL) {
+  if (!downloadURL) return null;
+  const url = String(downloadURL).startsWith('http')
+    ? downloadURL
+    : `${SOGO_BASE}${downloadURL}`;
+  const res = await fetch(url, { credentials: 'include', headers: sogoHeaders() });
+  throwIfAuthError(res);
+  if (!res.ok) throw new Error(`Gagal mengunduh lampiran (${res.status}).`);
+  const buf = await res.arrayBuffer();
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  const CHUNK = 0x8000; // 32 KB — hindari stack overflow fromCharCode utk file besar
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
 export async function deleteDraft(sogoToken, uid) {
   if (!uid) return;
   try {

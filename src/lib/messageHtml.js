@@ -61,3 +61,25 @@ export function extractHtml(parts) {
   if (plain) return `<div style="white-space:pre-wrap">${plain}</div>`;
   return '';
 }
+
+/**
+ * Kumpulkan lampiran (part non-inline dengan downloadURL) dari tree parts.
+ * @returns {Array<{name:string, size:*, contentType:string, downloadURL:string}>}
+ */
+export function extractAttachments(parts, result = []) {
+  if (!parts) return result;
+  const ct = parts.contentType || '';
+  const isInline = ct === 'text/html' || ct === 'text/plain';
+  if (parts.downloadURL && !isInline) {
+    result.push({
+      name: parts.filename || parts.name || 'attachment',
+      size: parts.size || 0,
+      contentType: ct,
+      downloadURL: parts.downloadURL,
+    });
+  }
+  if (Array.isArray(parts.content)) {
+    parts.content.forEach((child) => extractAttachments(child, result));
+  }
+  return result;
+}

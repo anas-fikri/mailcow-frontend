@@ -13,7 +13,7 @@ import { MessageReaderSkeleton } from '../Skeleton';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
 import { formatAddresses } from '../../lib/format';
-import { extractHtml } from '../../lib/messageHtml';
+import { extractHtml, extractAttachments } from '../../lib/messageHtml';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
@@ -42,24 +42,6 @@ const EMAIL_PURIFY_CONFIG = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function extractAttachments(parts, result = []) {
-  if (!parts) return result;
-  const ct = parts.contentType || '';
-  const isInline = ct === 'text/html' || ct === 'text/plain';
-  if (parts.downloadURL && !isInline) {
-    result.push({
-      name: parts.filename || parts.name || 'attachment',
-      size: parts.size || 0,
-      contentType: ct,
-      downloadURL: parts.downloadURL,
-    });
-  }
-  if (Array.isArray(parts.content)) {
-    parts.content.forEach((child) => extractAttachments(child, result));
-  }
-  return result;
-}
 
 function extractInlineImages(parts, result = []) {
   if (!parts) return result;

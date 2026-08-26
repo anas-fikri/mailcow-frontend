@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createDraft, saveDraft, deleteDraft, sendMessage } from '../src/lib/api.js';
+import { createDraft, saveDraft, deleteDraft, sendMessage, fetchAttachmentData } from '../src/lib/api.js';
 
 const calls = [];
 const draftJson = { draftId: 'draft-123' };
@@ -119,5 +119,44 @@ assert.deepEqual(JSON.parse(calls[0].options.body), { uids: [99] });
 calls.length = 0;
 await deleteDraft('user@example.test', null);
 assert.equal(calls.length, 0);
+
+// ── fetchAttachmentData — unduh lampiran draft → base64 tanpa prefix ─────────
+const fileBytes = new TextEncoder().encode('PDF-CONTENT-123');
+const binMock = {
+  status: 200, ok: true, headers: { get: () => 'application/pdf' },
+  arrayBuffer: async () => fileBytes.buffer,
+};
+const origFetch = globalThis.fetch;
+globalThis.fetch = async (url, options = {}) => {
+  calls.push({ url: String(url), options });
+  if (String(url).includes('viewPart')) return binMock;
+  return origFetch(url, options);
+};
+
+// downloadURL relatif → di-prefix SOGO_BASE, credentials include.
+calls.length = 0;
+const b64 = await fetchAttachmentData('/SOGo/so/t/Mail/0/folderDrafts/9/viewPart?part=2');
+assert.equal(typeof b64, 'string');
+assert.equal(b64, Buffer.from('PDF-CONTENT-123').toString('base64'), 'hasil harus base64 standar');
+assert.equal(calls.length, 1);
+assert.ok(calls[0].url.startsWith('http') || calls[0].url.includes('SOGo'), 'URL harus absolut (SOGO_BASE + path)');
+assert.equal(calls[0].options.credentials, 'include', 'harus kirim cookie sesi');
+
+// downloadURL sudah absolut → dipakai langsung.
+calls.length = 0;
+await fetchAttachmentData('https://mail.example.test/SOGo/so/t/.../viewPart?part=3');
+assert.equal(calls.length, 1);
+assert.ok(calls[0].url.startsWith('https://mail.example.test'), 'URL absolut dipakai apa adanya');
+
+// downloadURL kosong / 404 → null / throw.
+assert.equal(await fetchAttachmentData(''), null);
+assert.equal(await fetchAttachmentData(null), null);
+let attThrew = null;
+globalThis.fetch = async (url) => ({ status: 404, ok: false, headers: { get: () => '' }, json: async () => ({}) });
+try { await fetchAttachmentData('/SOGo/so/t/x'); } catch (e) { attThrew = e; }
+assert.ok(attThrew, '404 harus throw');
+assert.match(attThrew.message, /404/);
+
+globalThis.fetch = origFetch;
 
 console.log('draft API assertions passed');

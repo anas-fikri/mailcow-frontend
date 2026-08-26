@@ -101,7 +101,18 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       autosaveBusy.current = false;
       sentRef.current = false;
       userEditedRef.current = false;
-      setAttachments([]);
+      // Restorasi lampiran draft yang dibuka utk diedit (base64 sudah diunduh
+      // MailPage). Bukan "user edit" — tidak memicu autosave sendiri.
+      setAttachments(
+        (Array.isArray(initialData?.attachments) ? initialData.attachments : [])
+          .map((a) => ({
+            id: ++attachIdRef.current,
+            name: a.name || 'attachment',
+            type: a.type || a.contentType || 'application/octet-stream',
+            size: a.size || 0,
+            data: a.data || '',
+          }))
+      );
       clearTimeout(saveTimerRef.current);
     }
   }, [isOpen, initialData]);

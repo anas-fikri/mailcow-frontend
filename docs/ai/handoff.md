@@ -2332,3 +2332,18 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## [2026-08-26] Restorasi lampiran draft saat edit
+- **Task:** hilangkan keterbatasan draft ber-lampiran tidak bisa direstorasi.
+- **Flow:** `openDraftForEdit` (MailPage) → extractAttachments(detail.parts) →
+  Promise.allSettled(fetchAttachmentData(downloadURL)) → base64 → initialData.attachments
+  → ComposeModal seed attachments saat reset (id baru dari attachIdRef, tanpa memicu
+  autosave). Kirim via /api/send membawa lampiran; draft asli + autosave dihapus.
+- **Dedup:** extractAttachments dipindah ke src/lib/messageHtml.js (dipakai MessageReader
+  + MailPage). fetchAttachmentData baru di api.js (downloadURL memuat token sesi, chunked
+  base64 32KB).
+- **Perilaku gagal:** satu lampiran gagal diunduh → dilewati + warning console; buka
+  draft tetap berjalan. Bukan user edit → tidak memicu autosave.
+- Test: test-message-html (+8), test-draft-api (+9), test-draft-compose (+8). 52/52 PASS.
+- TODO manual: verifikasi di browser produksi dengan draft yang punya lampiran (buka →
+  lampiran muncul → kirim → cek terkirim lengkap). Butuh akun yang punya draft ber-lampiran.
