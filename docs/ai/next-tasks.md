@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T09:09:50Z
+Generated At: 2026-08-26T09:25:32Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Regresi overwrite: commit 6c1485f 'fix(nginx)' menimpa MessageReader.jsx dengan versi lama — 5 fitur hilang (lightbox preview gambar/PDF, tambah-kontak, markMessagesAsJunk, unduh-semua, viewURL). Restored + guard test-a11y statis. Pelajaran: git log -S simbol utk cari commit penghapus; commit nginx jangan campur code. 55/55 PASS, live (index-C98uu0QO, MailPage-BR9Zl6lN).
+## 1. [MEDIUM] Follow up on discovered knowledge: Conversation grouping Outlook-like: cluster by normalized subject + participant overlap dengan selfEmail dikecualikan; baris dalam percakapan harus satu sumber border kiri (border-l-4 di dalam thread line = garis ganda bertumpuk). 55/55 test PASS, live di produksi (index-v0ElPSRV, MailPage-Cx_GFAiC).
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

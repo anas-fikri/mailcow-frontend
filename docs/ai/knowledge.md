@@ -990,3 +990,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Solusi: cluster = subjek ternormalisasi + **partisipan overlap** (from+to, alamat akun sendiri DICUALIKAN via `selfEmail`). Tanpa pengecualian self, semua pesan ke akun yang sama jadi satu titik temu → salah menyatu.
 - Baris di dalam percakapan tidak boleh punya border kiri sendiri (border-l-4) bila wrapper sudah memberi thread line — hasilnya garis ganda bertumpuk. Gunakan satu sumber border.
 - Urutan grup = by pesan terbaru; pesan dalam grup = urutan input (pastikan caller menyortir date-desc dulu).
+
+## 2026-08-26T09:25:31Z
+- Task: 
+- Status: COMPLETED
+- Finding: Conversation grouping Outlook-like: cluster by normalized subject + participant overlap dengan selfEmail dikecualikan; baris dalam percakapan harus satu sumber border kiri (border-l-4 di dalam thread line = garis ganda bertumpuk). 55/55 test PASS, live di produksi (index-v0ElPSRV, MailPage-Cx_GFAiC).
