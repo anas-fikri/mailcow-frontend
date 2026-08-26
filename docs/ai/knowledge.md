@@ -928,3 +928,13 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Kontak SOGo: fetchContacts sekarang pakai parseContactRow murni (contactUtils.js) — field c_cn/c_mail/emails bisa object, wajib dinormalisasi string; emails bisa array string ATAU array object. ContactsPage tambah savingRef anti double-submit create. 54/54 PASS, live terverifikasi hash (index-CHLCPQI3, ContactsPage-DdssLPt0).
+
+## Push ke GitLab saat host unreachable dari workspace (durable)
+- Gejala: `git push origin main` timeout (gitlab.pcpexpress.com resolve ke
+  115.178.128.141 tapi koneksi 443 hang dari environment ini).
+- GitLab tetap reachable dari server `deploy-mail` (curl → 302) → buka tunnel
+  SOCKS5: `ssh -f -N -D 1080 deploy-mail` (atau pakai tunnel yang sudah ada
+  di port 1080) lalu push lewat proxy:
+  `git -c http.proxy=socks5h://127.0.0.1:1080 push origin main`
+- socks5h: DNS di-resolve di sisi server → host asli tetap → credential store
+  (`~/.git-credentials`, helper `store`) cocok tanpa SSL override.
