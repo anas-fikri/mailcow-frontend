@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchContacts, createContact, deleteContact } from '../lib/api';
+import { findDuplicateKind } from '../lib/contactUtils';
 import { toast } from '../lib/toast';
 import { ContactsListSkeleton } from '../components/Skeleton';
 import Avatar from '../components/Avatar';
@@ -162,6 +163,18 @@ export default function ContactsPage() {
     if (window.confirm(`Hapus kontak "${name}"?`)) deleteMutation.mutate(id);
   }
 
+  // Cegah duplikat kontak pribadi: email yang sudah ada di kontak personal
+  // diblokir dengan pesan jelas. Duplikat di GAL TIDAK diblokir — GAL adalah
+  // direktori read-only dan user sah menambah salinan personal dari kolega.
+  function handleAddContact(data) {
+    if (findDuplicateKind(contacts, data.c_mail) === 'personal') {
+      setModalError('Kontak dengan email ini sudah ada di kontak pribadi.');
+      return;
+    }
+    setModalError('');
+    createMutation.mutate(data);
+  }
+
   // Filter + search
   const filtered = useMemo(() => {
     let list = contacts;
@@ -245,12 +258,19 @@ export default function ContactsPage() {
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {filtered.map((contact, idx) => (
+              {filtered.map((contact, idx) => {
+                // Highlight seleksi: uid bisa kosong untuk entri GAL/rusak —
+                // kalau kosong, bandingkan identitas objek (jangan match semua
+                // baris kosong-uid sekaligus).
+                const isSelectedRow = !!selected && (
+                  contact.uid ? contact.uid === selected.uid : contact === selected
+                );
+                return (
                 <button
                   key={contact.uid || idx}
                   onClick={() => setSelected(contact)}
                   className={`w-full flex items-center gap-3 px-5 py-3 hover:bg-muted/50 transition-colors text-left ${
-                    selected?.uid === contact.uid ? 'bg-muted' : ''
+                    isSelectedRow ? 'bg-muted' : ''
                   }`}
                 >
                   <Avatar name={contact.name} email={contact.email} />
@@ -269,7 +289,8 @@ export default function ContactsPage() {
                     <div className="shrink-0 text-xs text-muted-foreground hidden sm:block">{contact.phone}</div>
                   )}
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -307,7 +328,7 @@ export default function ContactsPage() {
       {showModal && (
         <AddContactModal
           onClose={() => { setShowModal(false); setModalError(''); }}
-          onSave={data => createMutation.mutate(data)}
+          onSave={handleAddContact}
           isLoading={createMutation.isPending}
           error={modalError}
         />

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { registerSmtpSession, changePassword, fetchPreferences, savePreferences } from '../lib/api';
-import { loadSignatures, addSignature, updateSignature, removeSignature, setDefaultSignature, getSignatureById } from '../lib/signatures';
+import { loadSignatures, addSignature, updateSignature, removeSignature, setDefaultSignature, getSignatureById, shouldImportSogoSignature } from '../lib/signatures';
 import HtmlEditor from '../components/HtmlEditor';
 import Skeleton from '../components/Skeleton';
 
@@ -280,10 +280,20 @@ function SignatureSection() {
   useEffect(() => {
     if (!email || migratedRef.current) return;
     migratedRef.current = true;
-    const local = loadSignatures(email);
     const savedSogo = prefs?.defaults?.SOGoMailSignature || '';
-    if (local.list.length === 0 && savedSogo.trim()) {
-      addSignature(email, 'Signature', savedSogo);
+    if (savedSogo.trim()) {
+      const local = loadSignatures(email);
+      if (local.list.length === 0) {
+        // Migrasi mulus: belum ada signature lokal → jadikan SOGo signature
+        // sebagai signature pertama.
+        addSignature(email, 'Signature', savedSogo);
+      } else if (shouldImportSogoSignature(local.list, savedSogo)) {
+        // Reconcile multi-device: SOGoMailSignature adalah sumber bersama
+        // yang ditulis syncToSogo dari perangkat mana pun. Tarik ke daftar
+        // lokal bila html-nya belum ada (idempotent — tidak menumpuk,
+        // tidak menimpa editan lokal).
+        addSignature(email, 'Signature SOGo', savedSogo);
+      }
     }
     const fresh = loadSignatures(email);
     setSigList(fresh.list);

@@ -2047,3 +2047,30 @@ timing-safe, cookie httpOnly SameSite=Strict. Test test:security-hardening
 -  M src/lib/messageRequests.js
 -  M src/pages/MailPage.jsx
 - ?? scripts/test-security-hardening.mjs
+
+## [2026-08-26] Edge case kontak & sync signature — SELESAI & LIVE
+
+3 fix: (1) highlight seleksi kontak match semua baris uid kosong — fix
+isSelectedRow (uid bila ada, identitas objek bila kosong). (2) tambah kontak
+duplikat personal dibuat diam-diam — fix findDuplicateKind() di
+src/lib/contactUtils.js: duplikat personal diblokir dgn pesan, duplikat GAL
+diizinkan (direktori read-only, salinan personal dari kolega = normal),
+prioritas personal > gal. (3) sync signature SOGo one-way — perangkat lain
+tak pernah menarik; fix shouldImportSogoSignature() di signatures.js
+(idempotent by html trim) + PreferencesPage tarik sbg entri 'Signature SOGo'
+saat belum ada di lokal; tidak menimpa editan, tidak menumpuk. Test
+test:contact-signature-edge 18 assertions. 49/49 PASS.
+
+## 2026-08-26T01:57:43Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M package.json
+-  M src/lib/signatures.js
+-  M src/pages/ContactsPage.jsx
+-  M src/pages/PreferencesPage.jsx
+- ?? scripts/test-contact-signature-edge.mjs
+- ?? src/lib/contactUtils.js

@@ -148,3 +148,24 @@ export function getSignatureById(email, id) {
 export function signatureLabel(sig) {
   return sig ? (sig.name || 'Signature') : '';
 }
+
+/**
+ * Keputusan impor signature SOGo ke daftar lokal (reconcile multi-device).
+ *
+ * SOGoMailSignature adalah sumber BERSAMA antar perangkat (syncToSogo
+ * menulisnya); perangkat lain harus bisa menariknya ke daftar lokal tanpa
+ * menimpa editan lokal. Idempotent: jangan impor bila html yang sama sudah
+ * ada di daftar (normalisasi trim) atau SOGo kosong — mencegah penumpukan
+ * entri duplikat tiap kali halaman dibuka.
+ *
+ * @param {Array} list  daftar signature lokal [{id,name,html}]
+ * @param {string} sogoHtml  nilai SOGoMailSignature dari prefs
+ * @returns {boolean} true bila SOGo punya signature yang belum ada di lokal
+ */
+export function shouldImportSogoSignature(list, sogoHtml) {
+  const html = String(sogoHtml || '').trim();
+  if (!html) return false;
+  return !(Array.isArray(list) ? list : []).some(
+    (s) => typeof s?.html === 'string' && s.html.trim() === html
+  );
+}
