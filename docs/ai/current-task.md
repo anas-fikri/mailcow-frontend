@@ -27,3 +27,5 @@ MessageReader dengan versi LAMA → 5 fitur hilang diam-diam di produksi:
 - test-a11y +8 (regresi fitur reader — 88 assertions)
 - test-state-combination diperbarui (dep array + lightbox)
 - **55/55 PASS** · build OK · deploy live terverifikasi hash
+Status: COMPLETED
+Updated At: 2026-08-26T09:09:50Z

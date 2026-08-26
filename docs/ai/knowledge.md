@@ -978,3 +978,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   (3) git log -S "openPreview" berguna menemukan commit yang menghapus simbol.
 - Lightbox: preview gambar via <img>, PDF via <iframe> (SOGo viewPart); Esc
   harus menutup lightbox DULU baru reader — lightbox di dep array keydown.
+
+## 2026-08-26T09:09:50Z
+- Task: 
+- Status: COMPLETED
+- Finding: Regresi overwrite: commit 6c1485f 'fix(nginx)' menimpa MessageReader.jsx dengan versi lama — 5 fitur hilang (lightbox preview gambar/PDF, tambah-kontak, markMessagesAsJunk, unduh-semua, viewURL). Restored + guard test-a11y statis. Pelajaran: git log -S simbol utk cari commit penghapus; commit nginx jangan campur code. 55/55 PASS, live (index-C98uu0QO, MailPage-BR9Zl6lN).

@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T09:02:26Z
+Generated At: 2026-08-26T09:09:50Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Race undo-delete: operasi tertunda (timer 6s) wajib kunci sourceFolder saat penjadwalan — UID SOGo per-folder; moveMutation pakai vars.sourceFolder; seleksi bulk dibersihkan saat DIJADWALKAN (bukan saat sukses). 55/55 PASS, live (index-JAzdFEU-, MailPage-BPYRzevc).
+## 1. [MEDIUM] Follow up on discovered knowledge: Regresi overwrite: commit 6c1485f 'fix(nginx)' menimpa MessageReader.jsx dengan versi lama — 5 fitur hilang (lightbox preview gambar/PDF, tambah-kontak, markMessagesAsJunk, unduh-semua, viewURL). Restored + guard test-a11y statis. Pelajaran: git log -S simbol utk cari commit penghapus; commit nginx jangan campur code. 55/55 PASS, live (index-C98uu0QO, MailPage-BR9Zl6lN).
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
