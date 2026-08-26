@@ -901,3 +901,12 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Kalender: helper tanggal lokal baru src/lib/dateFormat.js — jangan pernah pakai toISOString() utk tanggal input (UTC; WIB +7 jam 00:00-06:59 = hari sebelumnya → klik sel/event 02:00/drag dini hari pindah sehari). eventsOnDay overlap utk multi-day (end eksklusif). Drag recurring harus fetch /view utk pola repeat (grid eventsblocks tidak memuat repeat, hanya c_iscycle); keterbatasan: edit occurrence tunggal = edit seluruh seri. 54/54 PASS, live terverifikasi hash.
+
+## Hardening error production (durable)
+- Semua fetch kritis ke backend butuh deadline (`fetchWithTimeout`) — tanpa ini
+  backend down = halaman menggantung tanpa pesan.
+- "Failed to fetch" / "NetworkError" / "Load failed" adalah error browser-level
+  → petakan ke pesan Indonesia via `isNetworkError`/`friendlyLoginError`.
+- Chunk lazy-load 404 setelah deploy: `rsync --delete` menghapus chunk lama;
+  tab yang masih buka memegang nama lama → import() gagal → error. Fix:
+  `lazyWithReload` → reload sekali, sessionStorage flag anti-loop.

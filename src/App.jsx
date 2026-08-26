@@ -9,13 +9,33 @@ import { toast } from './lib/toast'
 import ErrorBoundary from './components/ErrorBoundary'
 
 // ─── Code Splitting: lazy load pages ─────────────────────────────────────────
-const LoginPage = lazy(() => import('./pages/LoginPage'))
-const MailPage = lazy(() => import('./pages/MailPage'))
-const CalendarPage = lazy(() => import('./pages/CalendarPage'))
-const ContactsPage = lazy(() => import('./pages/ContactsPage'))
-const PreferencesPage = lazy(() => import('./pages/PreferencesPage'))
-const StatsPage = lazy(() => import('./pages/StatsPage'))
-const RulesPage = lazy(() => import('./pages/RulesPage'))
+// lazyWithReload: chunk hasil build memakai nama content-hash; setelah deploy
+// (rsync --delete), chunk lama terhapus. Tab yang masih terbuka memegang
+// referensi nama chunk lama → import() gagal (404) → React melempar ke
+// ErrorBoundary ("Terjadi Kesalahan"). Reload SEKALI mengembalikan index.html
+// baru + nama chunk terbaru; flag sessionStorage mencegah reload loop. Error
+// nyata (bukan stale chunk) tetap diteruskan ke ErrorBoundary.
+const CHUNK_RELOAD_KEY = '__pcp_chunk_reload';
+function lazyWithReload(factory) {
+  return lazy(() =>
+    factory().catch((err) => {
+      if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+        window.location.reload();
+        return new Promise(() => {}); // menunggu reload selesai
+      }
+      throw err;
+    })
+  )
+}
+
+const LoginPage = lazyWithReload(() => import('./pages/LoginPage'))
+const MailPage = lazyWithReload(() => import('./pages/MailPage'))
+const CalendarPage = lazyWithReload(() => import('./pages/CalendarPage'))
+const ContactsPage = lazyWithReload(() => import('./pages/ContactsPage'))
+const PreferencesPage = lazyWithReload(() => import('./pages/PreferencesPage'))
+const StatsPage = lazyWithReload(() => import('./pages/StatsPage'))
+const RulesPage = lazyWithReload(() => import('./pages/RulesPage'))
 
 // ─── Page Loading Fallback ───────────────────────────────────────────────────
 function PageLoader() {
@@ -65,12 +85,22 @@ function SessionWatcher({ children }) {
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
+function ChunkReloadFlagReset() {
+  useEffect(() => {
+    // App berhasil dimuat (lazy chunk sukses) → bersihkan flag reload agar
+    // deploy berikutnya yang menghapus chunk lama tetap memicu reload.
+    try { sessionStorage.removeItem(CHUNK_RELOAD_KEY); } catch { /* abaikan */ }
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter basename="/webmail">
         <ErrorBoundary>
           <SessionWatcher>
+            <ChunkReloadFlagReset />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />

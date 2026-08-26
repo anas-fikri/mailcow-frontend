@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Eye, EyeOff, Loader2, AlertCircle, Sun, Moon } from 'lucide-react';
 import { login, logout, resetSessionExpiredFlag, registerSmtpSession, revokeSmtpSession } from '../lib/api';
+import { friendlyLoginError } from '../lib/loginDiagnostics';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router';
 import { toast } from '../lib/toast';
@@ -68,7 +69,7 @@ export default function LoginPage() {
       }
       navigate('/mail');
     } catch (err) {
-      setError(err.message || 'Login gagal. Periksa koneksi dan status akun.');
+      setError(friendlyLoginError(err));
     } finally {
       setLoading(false);
     }

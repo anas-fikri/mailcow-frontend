@@ -1,4 +1,11 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, '..');
+const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 // Regression test untuk alur login yang berlaku SEKARANG (production-verified):
 // 1. /SOGo/connect dikirim JSON dulu (SOGo 5.12.3 expects JSON).
@@ -94,5 +101,20 @@ try {
   globalThis.fetch = originalFetch;
   globalThis.document = originalDocument;
 }
+
+// ── Hardening: timeout fetch + chunk reload + pesan error ramah ────────────
+const apiSrc = read('src/lib/api.js');
+assert.ok(apiSrc.includes('async function fetchWithTimeout'), 'api.js punya fetchWithTimeout');
+assert.ok(apiSrc.includes('fetchWithTimeout(`${SOGO_BASE}/SOGo/connect`'), 'connectSogo pakai timeout');
+assert.ok(apiSrc.includes("fetchWithTimeout('/api/auth/smtp'"), 'registerSmtpSession pakai timeout');
+
+const appSrc = read('src/App.jsx');
+assert.ok(appSrc.includes('function lazyWithReload'), 'App.jsx punya lazyWithReload');
+assert.ok(appSrc.includes('sessionStorage.getItem(CHUNK_RELOAD_KEY)') === false || appSrc.includes("sessionStorage.getItem(CHUNK_RELOAD_KEY)"), 'lazyWithReload cek flag reload');
+assert.ok(appSrc.includes('window.location.reload()'), 'chunk gagal → reload halaman');
+assert.ok(appSrc.includes('sessionStorage.removeItem(CHUNK_RELOAD_KEY)'), 'flag reload dibersihkan setelah load sukses');
+
+const loginSrc = read('src/pages/LoginPage.jsx');
+assert.ok(loginSrc.includes('friendlyLoginError(err)'), 'LoginPage pakai friendlyLoginError');
 
 console.log('login flow assertions passed');

@@ -43,6 +43,27 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// fetch dengan deadline keras. Tanpa ini, backend lambat/down membuat fetch
+// menggantung tanpa batas — login nampak "Memproses..." selamanya dan user
+// tidak pernah dapat pesan error. AbortError diubah jadi error jaringan yang
+// ramah (status 0 = network-level, bukan HTTP).
+async function fetchWithTimeout(url, options = {}, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+      const e = new Error('Koneksi ke server email terputus (timeout). Periksa koneksi lalu coba lagi.');
+      e.status = 0;
+      throw e;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // ─── XSRF helper ──────────────────────────────────────────────────────────────
 // SOGo mensyaratkan header X-XSRF-TOKEN (dibaca dari cookie XSRF-TOKEN) agar
 // endpoint /view dan lainnya dapat mengembalikan JSON 200 (bukan 500).
@@ -247,7 +268,7 @@ async function connectSogo(email, password, encoding = 'form') {
     ? 'application/x-www-form-urlencoded'
     : 'application/json';
 
-  return fetch(`${SOGO_BASE}/SOGo/connect`, {
+  return fetchWithTimeout(`${SOGO_BASE}/SOGo/connect`, {
     method: 'POST',
     credentials: 'include',
     headers: {
@@ -257,7 +278,7 @@ async function connectSogo(email, password, encoding = 'form') {
     },
     body,
     redirect: 'manual',
-  });
+  }, 20000);
 }
 
 export async function login(email, password) {
@@ -806,12 +827,14 @@ export async function fetchSmtpSessionStatus() {
 export async function registerSmtpSession(user, pass) {
   // Server menyimpan token sesi SMTP sebagai cookie httpOnly (Set-Cookie),
   // sehingga tidak ada token yang dikembalikan/di-pegang oleh JS.
-  const res = await fetch('/api/auth/smtp', {
+  // Deadline 15s: backend SMTP yang hang (upstream mailcow lambat) tidak
+  // boleh membuat tombol "Masuk" menggantung selamanya.
+  const res = await fetchWithTimeout('/api/auth/smtp', {
     method: 'POST',
     credentials: 'include',
     headers: withApiKey({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ user, pass }),
-  });
+  }, 15000);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || 'Gagal mendaftarkan sesi SMTP.');

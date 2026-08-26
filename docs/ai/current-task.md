@@ -2,35 +2,27 @@
 
 ## Status: SELESAI ✅
 
-**Ai-loop rotasi kalender — recurring & timezone/DST: 3 bug diperbaiki**
+**Hardening error production: "Terjadi Kesalahan" di /webmail/mail + gagal fetch saat login**
 
-### Bug 1 (KRITIS) — Tanggal pakai toISOString() (UTC) padahal waktu lokal
-`toDateStr`/`fmtInputDate` (EventModal) + `buildDroppedEventData` (calendarDrop)
-memakai `toISOString().slice(0,10)` → UTC. Untuk WIB (+7), jam 00:00–06:59
-= tanggal UTC hari SEBELUMNYA. Dampak nyata:
-- klik sel kalender (midnight lokal) → modal terisi **tanggal kemarin**
-- edit event jam 02:00 → tersimpan **sehari lebih awal**
-- drag & drop ke slot dini hari → mendarat di **hari sebelumnya**
-**Fix:** helper baru `src/lib/dateFormat.js` (`toLocalDateStr`/`toLocalTimeStr`)
-memakai komponen getFullYear/getHours (selalu lokal). Dipakai EventModal
-(create prefill, edit, view display) + calendarDrop.
+Laporan user: sebagian user kena ErrorBoundary saat buka `/webmail/mail`, sebagian gagal fetch saat login. Infra luar dicek sehat (`.com`/`.co.id` → 202.148.2.139, HTTP 200, CSP `connect-src 'self'`, `/SOGo/connect` reachable, tanpa service worker). Root cause persis butuh `pcp_last_error` dari user (ditanyakan).
 
-### Bug 2 — Event multi-hari hanya muncul di hari mulai
-`eventsForDay` filter `s >= dayStart && s <= dayEnd` → event 2 hari hanya
-tampil di hari pertama. **Fix:** `eventsOnDay` overlap-based
-(`s <= dayEnd && e > dayStart`, end eksklusif) di `calendarEvents.js`;
-CalendarPage import dari lib (lokal dihapus).
+Hardening defensif diterapkan (terlepas root cause):
 
-### Bug 3 — Drag event berulang menghapus recurrence diam-diam
-Data grid (eventsblocks) hanya punya `c_iscycle` boolean — `ev.repeat` selalu
-undefined → `buildDroppedEventData` set repeat null → SOGo simpan tanpa pola
-→ recurrence hilang. **Fix:** `handleDrop` ambil detail via `/view` saat
-`ev.isRecurring && !ev.repeat`, gabung `repeat` sebelum simpan.
+1. **Timeout fetch login/SMTP** — `fetchWithTimeout` (api.js) dengan AbortController:
+   `connectSogo` 20s, `registerSmtpSession` 15s. AbortError → error jaringan ramah.
+   Tanpa ini backend hang → tombol "Masuk" menggantung selamanya tanpa pesan.
+2. **Pesan error login ramah** — `isNetworkError`/`friendlyLoginError` (loginDiagnostics.js):
+   "Failed to fetch"/"NetworkError"/AbortError → pesan Indonesia jelas; HTTP error
+   tetap pakai pesan spesifik. Dipakai LoginPage.
+3. **Recover chunk load gagal** — `lazyWithReload` (App.jsx): setelah deploy
+   (rsync --delete), chunk lama 404 → reload sekali (flag sessionStorage anti-loop)
+   → ambil index.html + nama chunk baru. Error nyata tetap ke ErrorBoundary.
 
 ### Validasi
-- Baru `test:date-format` (11 assertion, TZ Asia/Jakarta + America/New_York)
-- `test-calendar-drop` +4 (drag 02:00/00:00 WIB — regresi UTC)
-- `test-calendar-events` +12 (multi-day span, all-day eksklusif, static drag-recurring)
+- test-login-diagnostics +16 (isNetworkError/friendlyLoginError)
+- test-login-flow +7 statis (timeout connect/smtp, lazyWithReload, friendlyLoginError)
 - **54/54 PASS** · build OK · deploy live terverifikasi hash
-Status: COMPLETED
-Updated At: 2026-08-26T07:29:38Z
+
+### Tindak lanjut
+- Minta user `localStorage.getItem('pcp_last_error')` / teks error login persis
+  untuk pinpoint root cause akun-spesifik.

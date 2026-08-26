@@ -15,6 +15,36 @@ function normalizeMessage(value) {
   return message;
 }
 
+// ── Network error detection & friendly message ────────────────────────────────
+// fetch yang gagal di level jaringan (DNS/offline/connection reset/timeout)
+// melempar TypeError/AbortError TANPA status HTTP. Jangan tampilkan teks mentah
+// browser ("Failed to fetch"/"NetworkError") ke user — petakan ke pesan jelas.
+const NETWORK_ERROR_RE = /failed to fetch|networkerror|load failed|fetch failed|network request failed|err_internet|err_network|network is unreachable|connection refused|connection reset|the user aborted|timeout/i;
+
+/**
+ * True bila error adalah kegagalan jaringan/abort (bukan respons HTTP).
+ * Error dengan status HTTP (err.status) punya pesan spesifik sendiri.
+ */
+export function isNetworkError(err) {
+  if (!err) return false;
+  if (err.status) return false;
+  const name = String(err?.name || '').toLowerCase();
+  if (name === 'aborterror' || name === 'timeouterror') return true;
+  const msg = String(err?.message || err);
+  return NETWORK_ERROR_RE.test(msg);
+}
+
+/**
+ * Ubah error login jadi pesan ramah user. Network error → instruksi jelas;
+ * error lain dibiarkan apa adanya (sudah dipetakan extractLoginErrorMessage).
+ */
+export function friendlyLoginError(err) {
+  if (isNetworkError(err)) {
+    return 'Tidak dapat terhubung ke server email. Periksa koneksi internet atau VPN Anda, lalu coba lagi.';
+  }
+  return err?.message || 'Login gagal. Periksa koneksi dan status akun.';
+}
+
 export function extractLoginErrorMessage(data, status) {
   const raw = normalizeMessage(
     data?.message || data?.error || data?.reason || data?.localizedError

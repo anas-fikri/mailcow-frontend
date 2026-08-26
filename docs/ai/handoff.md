@@ -2417,3 +2417,10 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Hardening error production — timeout + chunk reload + pesan ramah
+3 fix defensif untuk "sebagian user kena ErrorBoundary di /webmail/mail" dan
+"gagal fetch saat login":
+- **fetchWithTimeout**: connectSogo 20s, registerSmtpSession 15s (AbortError → pesan jaringan).
+- **friendlyLoginError**: "Failed to fetch"/"NetworkError"/AbortError/TCP reset → pesan Indonesia.
+- **lazyWithReload**: chunk 404 pasca deploy → reload sekali (sessionStorage flag) → hindari ErrorBoundary.
