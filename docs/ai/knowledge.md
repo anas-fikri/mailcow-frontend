@@ -1020,3 +1020,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Audit overlap UI menyeluruh putaran 2: pattern yang wajib — container flex dengan min-w-0, teks truncate, elemen kanan shrink-0; badge dengan ml-auto perlu shrink-0 + truncate agar tidak saling dorong di layar sempit. Semua halaman (mail, kalender, kontak, stats, rules, login, modal) sudah diverifikasi.
+
+## 2026-08-26T10:24:06Z
+- Task: 
+- Status: COMPLETED
+- Finding: Pola overlap yang luput dari audit visual: elemen opacity-0 pointer-events-none TETAP reserve ruang di flex layout — di lebar sempit elemen lain bisa terjepit habis walau tidak 'tumpang tindih'. Selalu gunakan display:none (hidden) untuk aksi hover yang harus mengosongkan ruang, atau jadikan overlay absolute. Date group-hover:hidden + aksi hidden group-hover:flex = pola Gmail yang benar.
