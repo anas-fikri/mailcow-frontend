@@ -2830,3 +2830,8 @@ Test: test-a11y +3 (drag scope wiring). 149 a11y assertions, 55/55 PASS, build O
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-26 riwayat alamat terkirim + fix mark-all-read
+- **Fitur**: `src/lib/emailHistory.js` — `recordSentRecipients` (dipanggil di ComposeModal setelah kirim sukses; semua jalur kirim lewat handleSend) + `getEmailSuggestions` (kontak + riwayat, dedup per email, min 2 char). Storage `pcp_emailHistory_v1_<email>` ≤200 entri, sort lastUsed di baca.
+- **Bug**: "Gagal menandai semua pesan" — `Promise.all(messages.map(markRead))` membanjiri SOGo (puluhan request paralel → 429/500/timeout) → reject walau mayoritas sukses. Fix: `batchWithLimit` (concurrency 5, allSettled) di MailPage + skip pesan sudah dibaca + pesan parsial jujur.
+- Test: test-email-history.mjs baru (runtime, parse/record/dedup/cap/rusak) + test-a11y +8 → 156 assertions · 56/56 PASS · build OK.

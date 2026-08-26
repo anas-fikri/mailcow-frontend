@@ -30,6 +30,25 @@ import { groupConversations } from '../lib/conversations';
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 const MESSAGE_WINDOW_MONTHS = 5;
 
+// Jalankan tasks dengan concurrency terbatas, toleran gagal (allSettled).
+// Dipakai utk batch per-uid (mark-all-read, dll) — SOGo tidak punya endpoint
+// batch; request massal paralel penuh memicu 429/500/timeout.
+async function batchWithLimit(tasks, limit = 5) {
+  const results = new Array(tasks.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, async () => {
+    while (next < tasks.length) {
+      const i = next++;
+      results[i] = await tasks[i]().then(
+        (v) => ({ status: 'fulfilled', value: v }),
+        (e) => ({ status: 'rejected', reason: e })
+      );
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 // ─── Icon mapping ─────────────────────────────────────────────────────────────
 const FOLDER_ICONS = {
   inbox: Inbox, sent: Send, draft: FileText, trash: Trash2, junk: AlertCircle, custom: Folder,
@@ -827,14 +846,33 @@ export default function MailPage() {
     onError: (err) => toast.error(err?.message || 'Gagal menghapus folder.'),
   });
 
-  // Tandai semua pesan di folder aktif sebagai dibaca (batch per-uid)
+  // Tandai semua pesan di folder aktif sebagai dibaca (batch per-uid).
+  // Skip pesan yang SUDAH dibaca; concurrency dibatasi (5) supaya tidak
+  // membanjiri SOGo dengan puluhan request paralel (429/500/timeout — akar
+  // dari "Gagal menandai semua pesan"). allSettled: kegagalan sebagian
+  // tidak menggagalkan sisanya; pesan memakai jumlah yang benar.
   const markAllReadMutation = useMutation({
-    mutationFn: () =>
-      Promise.all(messages.map((m) => markRead(user.sogoToken, selectedFolder, m.uid, true))),
-    onSuccess: () => {
+    mutationFn: async () => {
+      const unread = messages.filter((m) => !m.isRead);
+      if (unread.length === 0) return { total: 0, failed: 0 };
+      const results = await batchWithLimit(
+        unread.map((m) => () => markRead(user.sogoToken, selectedFolder, m.uid, true)),
+        5
+      );
+      return { total: unread.length, failed: results.filter((r) => r.status === 'rejected').length };
+    },
+    onSuccess: ({ total, failed }) => {
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      toast.success('Semua pesan ditandai dibaca.');
+      if (total === 0) {
+        toast.success('Semua pesan sudah dibaca.');
+      } else if (failed === 0) {
+        toast.success(`${total} pesan ditandai dibaca.`);
+      } else if (failed === total) {
+        toast.error('Gagal menandai semua pesan. Coba lagi.');
+      } else {
+        toast.error(`${total - failed} dari ${total} pesan ditandai dibaca (${failed} gagal). Coba lagi.`);
+      }
     },
     onError: () => toast.error('Gagal menandai semua pesan.'),
   });

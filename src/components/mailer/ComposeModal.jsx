@@ -14,6 +14,7 @@ import { handleEditorPaste, insertImageFile, PURIFY_CONFIG } from '../../lib/pas
 import { loadSignatures, getSignatureFor } from '../../lib/signatures';
 import { formatFileSize, totalAttachmentSize } from '../../lib/attachments';
 import { firstInvalidRecipient } from '../../lib/emailValidation';
+import { recordSentRecipients, getEmailSuggestions } from '../../lib/emailHistory';
 
 // Batas lampiran (sama dengan validasi backend — lihat attachmentValidation.js).
 const MAX_ATTACHMENTS = 10;
@@ -241,13 +242,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
     const lastWord = fieldValue.split(',').pop().trim().toLowerCase();
     if (lastWord.length < 2) return [];
 
-    return contacts
-      .filter(c => {
-        const name  = c.name  || c.c_cn  || (Array.isArray(c) ? c[1] : '') || '';
-        const email = c.email || c.c_mail || (Array.isArray(c) ? c[2] : '') || '';
-        return `${name} ${email}`.toLowerCase().includes(lastWord);
-      })
-      .slice(0, 6);
+    // Kontak (diutamakan) + riwayat alamat yang pernah dikirim (dedup per
+    // email) — pola Gmail "people you've emailed".
+    return getEmailSuggestions(user?.email, contacts, lastWord);
   }
 
   function selectContact(contact, fieldValue, setField, setShow) {
@@ -367,6 +364,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       });
       setSuccess(true);
       sentRef.current = true;
+      // Simpan riwayat alamat yang pernah dikirim (autocomplete berikutnya).
+      // Dipanggil SETELAH kirim sukses — hanya alamat yang benar-benar terkirim.
+      recordSentRecipients(user?.email, to, cc, bcc);
       // Refresh Sent folder setelah sukses kirim
       if (token) {
         queryClient.invalidateQueries({ queryKey: ['messages', token, 'folderSent'] });

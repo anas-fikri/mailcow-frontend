@@ -96,6 +96,7 @@ for (const [name, fg, bg, min] of checks) {
 // ── 2. Static source assertions ──────────────────────────────────────────────
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const mail = read('src/pages/MailPage.jsx');
+const compose = read('src/components/mailer/ComposeModal.jsx');
 const reader = read('src/components/mailer/MessageReader.jsx');
 const sidebar = read('src/components/layout/Sidebar.jsx');
 const css = read('src/index.css');
@@ -310,6 +311,21 @@ assert.ok(contacts.includes('flex items-center gap-2 min-w-0 flex-1'), 'Contacts
 assert.ok(contacts.includes('text-lg font-semibold truncate'), 'Contacts: judul harus truncate');
 assert.ok(contacts.includes('flex gap-1 bg-muted rounded-lg p-0.5 shrink-0'), 'Contacts: cluster filter harus shrink-0');
 passCount += 3;
+
+// ── Riwayat alamat terkirim + mark-all-read robust (2026-08-26) ──────────────
+// ComposeModal merekam penerima SETELAH kirim sukses + saran menggabung
+// riwayat (getEmailSuggestions) — bukan hanya kontak.
+assert.ok(compose.includes("recordSentRecipients(user?.email, to, cc, bcc)"), 'compose: alamat penerima direkam setelah kirim sukses');
+assert.ok(compose.includes("getEmailSuggestions(user?.email, contacts, lastWord)"), 'compose: saran = kontak + riwayat terkirim');
+assert.ok(compose.includes("import { recordSentRecipients, getEmailSuggestions } from '../../lib/emailHistory'"), 'compose: import emailHistory');
+// MailPage: mark-all-read tidak lagi Promise.all massal — skip sudah-dibaca,
+// concurrency dibatasi (batchWithLimit), toleran kegagalan parsial (allSettled).
+assert.ok(mail.includes('function batchWithLimit'), 'mail: helper batchWithLimit tersedia');
+assert.ok(mail.includes('batchWithLimit(\n        unread.map'), 'mail: mark-all-read memakai batchWithLimit');
+assert.ok(mail.includes('messages.filter((m) => !m.isRead)'), 'mail: skip pesan yang sudah dibaca');
+assert.ok(mail.includes("results.filter((r) => r.status === 'rejected')"), 'mail: kegagalan parsial dihitung (allSettled)');
+assert.ok(mail.includes('dari ${total} pesan ditandai dibaca'), 'mail: pesan kegagalan parsial jujur');
+passCount += 8;
 
 // ── Kontrak API kontak SOGo (audit 2026-08-26) ──────────────────────────────
 // (assertions runtime di bawah, dekat deklarasi apiSrc)
