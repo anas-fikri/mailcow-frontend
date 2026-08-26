@@ -51,6 +51,18 @@ function lsKey(email) {
   return `auto_archive_rules_v2_${email}`;
 }
 
+// Cache in-memory per email — getRules dipanggil di render (getRuleSummary),
+// matchRules per pesan (executeRules), dan CRUD. Tanpa cache, setiap pemanggilan
+// membaca + JSON.parse + normalisasi SELURUH rules dari localStorage (termasuk
+// persistNormalized yang membandingkan JSON). Di-invalidate saat tulis via
+// saveRules/clearAllRules — selalu segar di tab ini.
+const rulesCache = new Map(); // email → normalized rules array
+
+/** (Internal/test) Kosongkan cache — dipakai saat storage diubah langsung. */
+export function __resetRulesCache() {
+  rulesCache.clear();
+}
+
 // ─── Read / Write ─────────────────────────────────────────────────────────────
 
 /**
@@ -65,12 +77,14 @@ function lsKey(email) {
  */
 export function getRules(email) {
   if (!email) return [];
+  if (rulesCache.has(email)) return rulesCache.get(email);
   const { value: parsed, key: targetKey, version, fromLegacy } = readStorage(BASE_KEY, email);
   if (parsed == null) return [];
   if (!Array.isArray(parsed)) {
     // Bentuk rusak (object/string/null) → bersihkan sekali: tulis []
     // di key terbaru (v2), hapus key lama bila sumbernya legacy.
     persistNormalized(BASE_KEY, email, parsed, [], { fromLegacy, key: targetKey, version });
+    rulesCache.set(email, []);
     return [];
   }
   const list = parsed
@@ -97,15 +111,17 @@ export function getRules(email) {
   // ternormalisasi (entri dibuang / field di-coerce / key order beda),
   // tulis balik agar baca berikutnya tidak mengulang normalisasi.
   persistNormalized(BASE_KEY, email, parsed, list, { fromLegacy, key: targetKey, version });
+  rulesCache.set(email, list);
   return list;
 }
 
-/** Simpan rules */
+/** Simpan rules — invalidate cache agar baca berikutnya fresh. */
 function saveRules(email, rules) {
   if (!email) return;
   try {
     localStorage.setItem(lsKey(email), JSON.stringify(rules));
   } catch { /* quota exceeded — silent */ }
+  rulesCache.delete(email);
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
@@ -341,6 +357,7 @@ export function clearAllRules(email) {
   // Hapus key v2 + key legacy v1 agar benar-benar bersih.
   try { localStorage.removeItem(lsKey(email)); } catch {}
   try { localStorage.removeItem(`auto_archive_rules_${email}`); } catch {}
+  rulesCache.delete(email);
 }
 
 // ─── Multi-tab claim (cegah double-move) ────────────────────────────────────

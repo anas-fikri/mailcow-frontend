@@ -8,7 +8,7 @@ globalThis.localStorage = {
   removeItem: (k) => storage.delete(k),
 };
 
-const { getRules, addRule, matchRules, executeRules } = await import('../src/lib/autoArchive.js');
+const { getRules, addRule, matchRules, executeRules, __resetRulesCache, getRuleSummary } = await import('../src/lib/autoArchive.js');
 
 const EMAIL = 'u@example.com';
 const KEY = `auto_archive_rules_v2_${EMAIL}`;  // key v2 (sekarang)
@@ -87,6 +87,8 @@ assert.ok(!matched.includes('r1'), 'rule r1 (from=12345, to=equals \'\') tidak m
 assert.ok(!matched.includes('r3'), 'rule r3 disabled tidak match');
 
 // ── JSON non-array → [] (bukan crash) + storage dibersihkan sekali ───────────
+// Storage diubah langsung (simulasi data rusak) — reset cache agar baca fresh.
+__resetRulesCache();
 storage.set(KEY, '{}');
 assert.deepEqual(getRules(EMAIL), []);
 assert.equal(storage.get(KEY), '[]', 'storage bentuk rusak ditulis ulang jadi []');
@@ -97,8 +99,49 @@ assert.deepEqual(getRules(EMAIL), []);
 storage.set(KEY, '[1,2,3]');
 assert.deepEqual(getRules(EMAIL), [], 'array angka → [] tanpa crash');
 
+// ── CACHE: getRules tidak boleh baca localStorage berulang (hot path render) ──
+// getRuleSummary dipanggil per-render MailPage; tanpa cache setiap render
+// membaca + JSON.parse + normalisasi seluruh rules dari localStorage.
+let reads = 0;
+const origGetItem = globalThis.localStorage.getItem;
+globalThis.localStorage.getItem = (k) => {
+  if (String(k).includes('auto_archive_rules')) reads += 1;
+  return origGetItem.call(globalThis.localStorage, k);
+};
+
+storage.clear();
+__resetRulesCache();
+addRule(EMAIL, { name: 'CacheA', conditions: [{ field: 'from', operator: 'contains', value: 'x' }] });
+__resetRulesCache();
+reads = 0;
+
+const cachedRules = getRules(EMAIL);
+const firstReads = reads;
+assert.ok(firstReads >= 1 && firstReads <= 2, `baca pertama boleh 1-2 (v2+v1 fallback), dapat ${firstReads}`);
+assert.equal(cachedRules.length, 1);
+
+// Panggilan beruntun (simulasi render) → 0 baca tambahan.
+for (let i = 0; i < 20; i++) getRules(EMAIL);
+assert.equal(reads, firstReads, 'getRules beruntun tidak boleh baca localStorage lagi (cache)');
+
+// matchRules / getRuleSummary ikut memakai cache (engine + render path).
+getRuleSummary(EMAIL);
+matchRules(EMAIL, { from: 'x@a.test', subject: 'y', date: 'x' });
+assert.equal(reads, firstReads, 'matchRules/getRuleSummary memakai cache, bukan baca ulang');
+
+// Tulis via CRUD → cache di-invalidate → baca berikutnya baca ulang sekali.
+const before = reads;
+addRule(EMAIL, { name: 'CacheB', conditions: [{ field: 'from', operator: 'contains', value: 'y' }] });
+getRules(EMAIL);
+assert.ok(reads > before, 'setelah tulis, cache di-invalidate → baca ulang');
+assert.ok(reads - before <= 2, `invalidate → ≤2 baca (v2+v1), dapat ${reads - before}`);
+
+globalThis.localStorage.getItem = origGetItem;
+__resetRulesCache();
+
 // ── addRule tetap menghasilkan data yg bisa dibaca ulang tanpa berubah bentuk ─
 storage.clear();
+__resetRulesCache();
 const added = addRule(EMAIL, { name: 'Baru', conditions: [{ field: 'from', operator: 'contains', value: 'x' }] });
 const reloaded = getRules(EMAIL);
 assert.equal(reloaded.length, 1);
@@ -119,6 +162,7 @@ assert.deepEqual(reloaded[0], {
 // di-snooze (user minta tunda), rule TIDAK boleh memindahkannya — memindahnya
 // membuat snooze yatim (uid berubah) + mengabaikan keinginan user.
 storage.clear();
+__resetRulesCache();
 addRule(EMAIL, {
   name: 'Promo → Proyek',
   conditions: [{ field: 'subject', operator: 'contains', value: 'promo' }],

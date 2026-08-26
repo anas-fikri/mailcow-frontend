@@ -778,3 +778,20 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Pengukuran dampak cache flagColors: benchmark A/B scripts/benchmark-flag-cache.mjs (npm run bench:flag-cache) memakai modul asli + data realistis. Hasil konsisten: 58-84% waktu lebih cepat & 98-99% baca localStorage berkurang (60-120 baca per siklus render → 1). Keterbatasan: CPU-side Node; verifikasi jank scroll browser butuh sesi login asli. 51/51 test PASS.
+
+## [2026-08-26] Pola cache in-memory utk storage yang dibaca di hot path
+- **Pola (dua kali terbukti — flagColors lalu autoArchive):** fungsi baca storage
+  (getFlagColor / getRules / getRuleSummary) yang dipanggil per-render/per-pesan
+  menyimpan cache in-memory per-email (Map). Cache miss = baca localStorage ≤2 (fallback
+  chain v2+v1 via readStorage), hit = 0 baca. Invalidate di SEMUA jalur tulis modul itu
+  (jangan hanya setter utama — cek lewat grep `localStorage.setItem/removeItem` di modul).
+- **Trap 1 (test):** `storage.setItem` mentah di test TIDAK invalidate cache → assertion
+  baca data stale. Wajib `__reset*Cache()` setelah mutasi storage langsung, atau tulis
+  lewat API modul (pola yang sama di test-flag-colors & test-autoarchive).
+- **Trap 2 (test):** `localStorage.clear()` juga tidak menyentuh cache in-memory — reset
+  cache manual setelahnya bila test lanjut memakai data baru.
+- **Detail readStorage:** 1 call = 1-2 getItem (coba versi tertinggi → fallback versi
+  lama) — jadi assertion read-count pertama harus toleran (≥1 && ≤2).
+- **Verifikasi jalur tulis tersembunyi:** executeRules bump runCount lewat updateRule →
+  ikut invalidate. Selalu audit mutasi in-place terhadap array hasil cache (updateRule/
+  toggleRule memutasi elemen cached lalu saveRules delete cache — aman).

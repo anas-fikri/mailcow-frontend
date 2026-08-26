@@ -2286,3 +2286,17 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## [2026-08-26] Cache getRules (hot path) — ai-loop performa round 2
+- **Task:** terapkan pola cache flagColors ke rules engine auto-archive.
+- `getRuleSummary` dipanggil per-render MailPage, `getRules` di render RulesPage, dan
+  `matchRules` per-message di executeRules — semua sebelumnya baca + parse + normalisasi
+  SELURUH rules dari localStorage per pemanggilan.
+- **Fix:** cache in-memory `rulesCache` (Map email → array) di autoArchive.js, invalidate
+  di saveRules + clearAllRules (semua CRUD lewat jalur ini; executeRules bump runCount
+  lewat updateRule → ikut invalidate). `__resetRulesCache()` utk test/storage eksternal.
+- **Test:** assertion read-count spy di test-autoarchive (1-2 baca pertama, 0 baca untuk
+  20 panggilan beruntun + matchRules/getRuleSummary, ≤2 baca setelah invalidate).
+  50/50 PASS + bash script + build OK.
+- **TODO manual (dari round benchmark):** verifikasi jank scroll browser end-to-end di
+  inbox besar (butuh sesi login asli) — belum diverifikasi live karena sandbox.
