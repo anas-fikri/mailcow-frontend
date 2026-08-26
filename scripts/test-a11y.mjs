@@ -100,6 +100,8 @@ const reader = read('src/components/mailer/MessageReader.jsx');
 const sidebar = read('src/components/layout/Sidebar.jsx');
 const css = read('src/index.css');
 const swipe = read('src/components/SwipeableRow.jsx');
+const calendar = read('src/pages/CalendarPage.jsx');
+const contacts = read('src/pages/ContactsPage.jsx');
 
 console.log('\n— Target sentuh 44px (min-w-11/min-h-11) —');
 const countOcc = (hay, needle) => hay.split(needle).length - 1;
@@ -202,5 +204,16 @@ passCount += 4;
 //    baris pengirim (items-center, bukan items-baseline) di semua lebar list.
 assert.ok(mail.includes('flex justify-between items-center mb-1 gap-2'), 'Header baris harus items-center (bukan items-baseline)');
 passCount++;
+
+// ── Header Kalender & Kontak: pola min-w-0/truncate/shrink-0 ──────────────────
+// Judul menyusut duluan (min-w-0 flex-1 + truncate), cluster aksi shrink-0.
+assert.ok(calendar.includes('flex items-center gap-2 min-w-0 flex-1'), 'Calendar: wrapper judul harus min-w-0 flex-1');
+assert.ok(calendar.includes('text-base font-semibold truncate'), 'Calendar: judul harus truncate');
+assert.ok(calendar.includes('flex items-center gap-2 shrink-0'), 'Calendar: cluster aksi harus shrink-0');
+assert.ok(calendar.includes('hidden sm:block shrink-0 whitespace-nowrap'), 'Calendar: judul periode harus shrink-0 whitespace-nowrap');
+assert.ok(contacts.includes('flex items-center gap-2 min-w-0 flex-1'), 'Contacts: wrapper judul harus min-w-0 flex-1');
+assert.ok(contacts.includes('text-lg font-semibold truncate'), 'Contacts: judul harus truncate');
+assert.ok(contacts.includes('flex gap-1 bg-muted rounded-lg p-0.5 shrink-0'), 'Contacts: cluster filter harus shrink-0');
+passCount += 7;
 
 console.log(`\nA11y audit: ${passCount} assertions PASS ✅`);

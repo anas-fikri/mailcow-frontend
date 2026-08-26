@@ -2392,3 +2392,9 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Header Kalender & Kontak — konsistensi dynamic sizing
+Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke header Kalender & Kontak:
+- CalendarPage: judul truncate (menyusut duluan), ViewSwitcher + cluster navigasi + judul periode shrink-0.
+- ContactsPage: judul truncate + badge shrink-0, tombol Tambah + cluster filter shrink-0.
+- test-a11y +7 assertion statis (80 total).

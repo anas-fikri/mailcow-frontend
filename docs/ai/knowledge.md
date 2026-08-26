@@ -878,3 +878,10 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Posisi ikon di layout dinamis (Tailwind): (1) tombol overlay di input butuh padding kanan >= lebar tombol (36px → pr-10); (2) header judul+badge+cluster tombol: wrapper kiri min-w-0 flex-1 + label truncate + kanan shrink-0 agar judul menyusut duluan; (3) items-baseline dengan tombol ikon tanpa teks bikin ikon mengambang — pakai items-center.
+
+## Pola dynamic sizing header (durable)
+Header halaman list (Mail/Calendar/Contacts) wajib memakai pola konsisten saat panel menyempit:
+- wrapper judul: `flex items-center gap-2 min-w-0 flex-1`
+- judul: `truncate` (teks menyusut duluan)
+- cluster aksi/ikon/filter: `shrink-0` (selalu utuh)
+Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (240px) dan mobile.

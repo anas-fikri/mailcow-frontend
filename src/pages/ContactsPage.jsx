@@ -211,14 +211,14 @@ export default function ContactsPage() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <div className="px-5 py-4 border-b border-border bg-card flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Users size={20} className="text-primary" />
-            <h1 className="text-lg font-semibold">Kontak</h1>
-            {!isLoading && <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{contacts.length}</span>}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Users size={20} className="text-primary shrink-0" />
+            <h1 className="text-lg font-semibold truncate">Kontak</h1>
+            {!isLoading && <span className="shrink-0 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{contacts.length}</span>}
           </div>
           <button
             onClick={() => { setShowModal(true); setModalError(''); }}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium"
+            className="shrink-0 flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium"
           >
             <Plus size={16} /> Tambah
           </button>
@@ -236,7 +236,7 @@ export default function ContactsPage() {
               className="w-full bg-muted border-none rounded-lg pl-9 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
             />
           </div>
-          <div className="flex gap-1 bg-muted rounded-lg p-0.5">
+          <div className="flex gap-1 bg-muted rounded-lg p-0.5 shrink-0">
             {[
               { id: 'all',      label: `Semua (${contacts.length})` },
               { id: 'gal',      label: `GAL (${galCount})` },

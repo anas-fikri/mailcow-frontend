@@ -283,12 +283,14 @@ export default function CalendarPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Header */}
         <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between sticky top-0 z-10 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <CalIcon size={20} className="text-primary" />
-            <h1 className="text-base font-semibold">Kalender</h1>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <CalIcon size={20} className="text-primary shrink-0" />
+            <h1 className="text-base font-semibold truncate">Kalender</h1>
           </div>
-          <ViewSwitcher view={view} onChange={setView} />
-          <div className="flex items-center gap-2">
+          <div className="shrink-0">
+            <ViewSwitcher view={view} onChange={setView} />
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
             <button onClick={goBack} className="p-2 rounded-full hover:bg-muted text-muted-foreground" aria-label="Bulan sebelumnya">
               <ChevronLeft size={18} />
             </button>
@@ -301,7 +303,7 @@ export default function CalendarPage() {
             <button onClick={goForward} className="p-2 rounded-full hover:bg-muted text-muted-foreground" aria-label="Bulan berikutnya">
               <ChevronRight size={18} />
             </button>
-            <span className="text-sm font-semibold text-foreground min-w-[120px] text-center hidden sm:block">
+            <span className="text-sm font-semibold text-foreground min-w-[120px] text-center hidden sm:block shrink-0 whitespace-nowrap">
               {getTitle()}
             </span>
             <button
