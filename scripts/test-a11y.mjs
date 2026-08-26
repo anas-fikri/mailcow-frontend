@@ -186,4 +186,21 @@ assert.ok(swipe.includes("onSwipe?.('right')"), 'SwipeableRow harus panggil onSw
 assert.ok(mail.includes('onSwipe={() => suppressClick.current.add(msg.uid)}'), 'MailPage harus tekan synthetic click setelah swipe');
 passCount += 4;
 
+// ── Posisi ikon saat dynamic sizing (lebar panel berubah) ─────────────────────
+// 1) Search: tombol bersihkan (✕) tidak boleh menimpa teks yang diketik —
+//    input butuh pr-10 (bukan pr-4) agar teks berhenti sebelum tombol 36px.
+assert.ok(mail.includes('pl-9 pr-10 py-2'), 'Input search harus pr-10 agar ✕ tidak nimpa teks');
+passCount++;
+// 2) Header list: judul folder truncate + badge/ikon shrink-0 — saat panel
+//    list menyempit, judul menyusut duluan, tombol aksi tidak terpotong.
+assert.ok(mail.includes('className="flex items-center gap-2 min-w-0 flex-1"'), 'Header harus min-w-0 flex-1 utk dynamic sizing');
+assert.ok(mail.includes('<span className="truncate">{selectedFolderMeta.label}</span>'), 'Judul folder harus truncate');
+assert.ok(mail.includes('gap-1.5 tabular-nums shrink-0'), 'Badge hitung harus shrink-0');
+assert.ok(mail.includes('flex items-center gap-1 shrink-0'), 'Cluster tombol header harus shrink-0');
+passCount += 4;
+// 3) Baris pesan: cluster ikon (snooze/arsip/star/date) sejajar vertikal dgn
+//    baris pengirim (items-center, bukan items-baseline) di semua lebar list.
+assert.ok(mail.includes('flex justify-between items-center mb-1 gap-2'), 'Header baris harus items-center (bukan items-baseline)');
+passCount++;
+
 console.log(`\nA11y audit: ${passCount} assertions PASS ✅`);

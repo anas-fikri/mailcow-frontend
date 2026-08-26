@@ -2375,3 +2375,13 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## [2026-08-26] Posisi ikon dynamic sizing (MailPage)
+- **Fix 1:** input search pr-4 → pr-10 — tombol ✕ (36px) tidak lagi menimpa teks query.
+- **Fix 2:** header list (judul + badge + 5 tombol ikon) min-w-0 flex-1 + label truncate +
+  badge/cluster shrink-0 — tidak overflow saat panel list menyempit ke 240px.
+- **Fix 3:** header baris pesan items-baseline → items-center — cluster ikon sejajar
+  vertikal dgn baris pengirim.
+- Test: test:a11y +6 assertion (73 total). 53/53 PASS + build OK.
+- TODO manual: cek visual di browser (desktop + mobile) — lebar list 240px + nama folder
+  panjang + query search panjang; konfirmasi tidak ada ikon terpotong/timpang.

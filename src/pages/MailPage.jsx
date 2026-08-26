@@ -1361,7 +1361,9 @@ export default function MailPage() {
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            <div className="flex justify-between items-baseline mb-1 gap-2">
+            {/* items-center: cluster ikon (snooze/arsip/star/date) tetap sejajar
+                vertikal dengan baris pengirim walau lebar list berubah-ubah */}
+            <div className="flex justify-between items-center mb-1 gap-2">
               <button
                 type="button"
                 onClick={(e) => searchBySender(senderLabel, e)}
@@ -1660,17 +1662,19 @@ export default function MailPage() {
       >
         {/* Header */}
         <div className="p-3 border-b border-border flex flex-col gap-3 bg-card sticky top-0 z-10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2">
+            {/* min-w-0 + truncate: judul folder menyusut duluan saat lebar panel
+                list menyempit (dynamic sizing), tombol aksi di kanan tetap utuh */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <button
-                className="md:hidden p-2 rounded-md hover:bg-muted text-muted-foreground"
+                className="md:hidden p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0"
                 onClick={() => setFolderPanelOpen(true)}
               >
                 <Menu size={20} />
               </button>
-              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                {selectedFolderMeta.label}
-                <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 tabular-nums">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 min-w-0">
+                <span className="truncate">{selectedFolderMeta.label}</span>
+                <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 tabular-nums shrink-0">
                   {messages.length < totalMessageCount ? (
                     <>
                       <span>{messages.length.toLocaleString('id')}</span>
@@ -1685,10 +1689,10 @@ export default function MailPage() {
 
               </h2>
               {isFetchingMessages && !loadingMessages && (
-                <Loader2 size={14} className="animate-spin text-muted-foreground" />
+                <Loader2 size={14} className="animate-spin text-muted-foreground shrink-0" />
               )}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
                 onClick={() => setConversationView(!conversationView)}
@@ -1794,7 +1798,7 @@ export default function MailPage() {
                   onChange={(e) => setSearchInput(e.target.value)}
                   ref={searchInputRef}
                   maxLength={300}
-                  className="w-full bg-muted border-none rounded-lg pl-9 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="w-full bg-muted border-none rounded-lg pl-9 pr-10 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
                 />
                 {searchInput && (
                   <button

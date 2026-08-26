@@ -862,3 +862,14 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Pola interaksi search: (1) search menembus batasan daftar biasa — window bulan + filter snooze di-skip saat searchQuery (pola Gmail), filter tampak tetap berlaku; (2) rules engine yang memindah pesan harus off saat search (early-return + deps); (3) filter yang UI-nya disembunyikan saat mode lain wajib di-reset state-nya (categoryFilter saat search); (4) ekstrak logika window inline ke helper murni (applyMessageWindow di dateGroups.js) agar testable.
+
+## [2026-08-26] Posisi ikon di layout dinamis (Tailwind)
+- **Tombol overlay di dalam input** (eye/clear/generate): input butuh padding kanan ≥
+  lebar tombol + jarak — tombol 36px di right-1.5 → `pr-10`. `pr-4` membuat teks berjalan
+  di bawah tombol.
+- **Header dengan judul + badge + cluster tombol:** wrapper kiri `min-w-0 flex-1`, teks
+  judul di-wrap `<span className="truncate">`, elemen kanan `shrink-0` — saat lebar
+  menyempit, judul menyusut duluan, tombol aksi tidak pernah terpotong.
+- **items-baseline vs items-center:** `items-baseline` dengan tombol ikon (tanpa teks)
+  menaruh ikon mengambang tinggi (baseline tombol = tepi bawah). Untuk baris dengan
+  tombol ikon + teks satu baris, `items-center` lebih aman di semua lebar.

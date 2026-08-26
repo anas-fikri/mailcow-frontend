@@ -1,50 +1,44 @@
 # Current Task
 
-## Task: ai-loop rotasi search flow (window 5 bulan, rules, snooze, kategori)
+## Task: Perbaiki posisi ikon fitur di segala kondisi (dynamic sizing)
 
-**Status: SELESAI — 4 bug interaksi search diperbaiki, 53/53 test PASS, live build terverifikasi.**
+**Status: SELESAI — 3 area posisi ikon diperbaiki, 53/53 test PASS, live build terverifikasi.**
 
 ## Konteks
-Rotasi ai-loop fokus **search flow** — interaksi pencarian server-side dengan
-window Kotak Masuk, auto-archive rules, snooze, dan filter kategori.
+Audit posisi ikon saat lebar panel berubah-ubah (dynamic sizing: sidebar/list
+resizable, mobile, nama panjang). Ditemukan 3 masalah konkret di MailPage.
 
-## Bug & Fix (semua di src/pages/MailPage.jsx + helper baru)
+## Fix (semua di src/pages/MailPage.jsx)
 
-### Bug 1 — Search di INBOX tetap terbatas 5 bulan
-`messagesInWindow` menerapkan potongan MESSAGE_WINDOW_MONTHS saat
-`selectedFolder === 'folderINBOX'` TANPA mengecualikan mode search. Padahal UI
-menjanjikan "Email lebih lama bisa dicari" — tapi hasil pencarian di INBOX
-ikut dipotong 5 bulan → email lama TETAP tak bisa ditemukan.
-**Fix:** `if (searchQuery || selectedFolder !== 'folderINBOX') return messages;`
-+ helper murni `applyMessageWindow(messages, {months, now})` di dateGroups.js
-(pola lib testable — unparseable dianggap dalam window).
+### 1 — Tombol ✕ pencarian menimpa teks yang diketik
+Input search `pr-4` (16px) padahal tombol bersihkan `w-9` (36px) di `right-1.5`
+→ query panjang berjalan di bawah tombol. **Fix:** `pr-10` — teks berhenti
+sebelum tombol.
 
-### Bug 2 — Auto-archive rules dieksekusi saat mode search
-Effect `executeRules` berjalan saat `messages` berubah — termasuk hasil
-pencarian. User yang sedang mencari tiba-tiba pesannya DIPINDAHKAN rule
-otomatis (pesan hilang dari hasil cari).
-**Fix:** `if (searchQuery) return;` di awal effect + `searchQuery` masuk deps.
+### 2 — Header list overflow saat panel list menyempit
+Header `flex justify-between` tanpa min-w-0: judul folder (text-lg) + badge
+hitung + 5 tombol ikon (min-w-11 ≈ 220px). Di lebar list minimum (240px)
+konten meluber → tombol kanan (refresh) terpotong / judul terjepit.
+**Fix:** wrapper kiri `min-w-0 flex-1`, label folder di-wrap span `truncate`,
+badge + Loader + cluster kanan `shrink-0` — judul menyusut duluan, tombol
+aksi tetap utuh.
 
-### Bug 3 — Pesan di-snooze tidak bisa ditemukan lewat search
-`displayMessages` menyaring `snoozedUids` selalu. Pesan di-snooze tersembunyi
-dari daftar biasa DAN dari hasil pencarian → tak bisa ditemukan sampai waktu
-wake (jalan buntu).
-**Fix:** `if (!searchQuery && snoozedUids.has(...)) return false;` — search =
-intent eksplisit menemukan pesan (pola Gmail: pesan snooze muncul di hasil
-pencarian).
+### 3 — Cluster ikon baris pesan tidak sejajar vertikal
+Header baris `items-baseline` + tombol ikon tinggi (p-1.5 = 38px, tanpa teks)
+→ ikon mengambang jauh di atas baris teks pengirim (baseline tombol = tepi
+bawah, bukan baseline teks). **Fix:** `items-center` — cluster ikon
+(snooze/arsip/star/date) sejajar vertikal dengan baris pengirim di semua lebar.
 
-### Bug 4 — Filter kategori tersembunyi tapi tetap aktif saat search
-Tab kategori disembunyikan saat search (`{!searchQuery && <CategoryTabs/>}`)
-tapi `categoryFilter` tidak di-reset → hasil pencarian disaring kategori secara
-tak terlihat tanpa cara membersihkannya.
-**Fix:** `setCategoryFilter(null)` di `handleSearchSubmit` + `searchBySender`.
+## Diverifikasi aman (tidak diubah)
+- PreferencesPage/LoginPage input password sudah `pr-10`/`pr-20` (tidak overlap)
+- Chip lampiran compose: nama truncate + ikon shrink-0 (sudah benar)
+- Folder row: actions invisibel tetap reserve ruang (tanpa shift saat hover —
+  keputusan desain, bukan bug)
+- BottomNav mobile: flex-1 items-center (sudah benar)
 
 ## Test
-- `test-date-groups` +7 assertion `applyMessageWindow` (dalam/luar/unparseable,
-  months=0, null/[] aman)
-- **Baru `test:search-flow`** — 9 assertion statis (skip window, helper dipakai,
-  rules skip saat search, deps, snooze bypass, reset kategori di 2 jalur)
-- **53/53 PASS** (52 + search-flow) · build OK
+- `test:a11y` +6 assertion statis (pr-10 search, header min-w-0/truncate/shrink-0,
+  items-center baris) → **73 assertions** · **53/53 PASS** · build OK
 
 Status: COMPLETED
-Updated At: 2026-08-26T03:26:21Z
+Updated At: 2026-08-26T04:25:00Z
