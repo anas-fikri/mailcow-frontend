@@ -27,4 +27,4 @@
 - Push (via SOCKS tunnel bila gitlab unreachable) + deploy `SERVER=deploy-mail ./deploy.sh`.
 - Verifikasi visual di browser: mode conversation lebar list sempit & lebar, thread dengan banyak peserta.
 Status: COMPLETED
-Updated At: 2026-08-26T09:25:31Z
+Updated At: 2026-08-26T09:40:03Z

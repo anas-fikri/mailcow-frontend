@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T09:25:32Z
+Generated At: 2026-08-26T09:40:04Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Conversation grouping Outlook-like: cluster by normalized subject + participant overlap dengan selfEmail dikecualikan; baris dalam percakapan harus satu sumber border kiri (border-l-4 di dalam thread line = garis ganda bertumpuk). 55/55 test PASS, live di produksi (index-v0ElPSRV, MailPage-Cx_GFAiC).
+## 1. [MEDIUM] Follow up on discovered knowledge: Auto-advance reader (navigateAfter) sempat hilang saat merge restore fitur 08bef9c: prop siblingUids/onNavigateTo tetap di-pass MailPage tapi tidak dikonsumsi → hapus/pindah/spam selalu tutup reader. Pola yang benar: setelah aksi, siblingUids[idx+1] ?? siblingUids[idx-1] → onNavigateTo, fallback onClose. Guard test statis wajib untuk fitur yang pernah hilang karena overwrite.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

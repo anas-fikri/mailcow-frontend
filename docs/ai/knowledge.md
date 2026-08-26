@@ -995,3 +995,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Conversation grouping Outlook-like: cluster by normalized subject + participant overlap dengan selfEmail dikecualikan; baris dalam percakapan harus satu sumber border kiri (border-l-4 di dalam thread line = garis ganda bertumpuk). 55/55 test PASS, live di produksi (index-v0ElPSRV, MailPage-Cx_GFAiC).
+
+## 2026-08-26T09:40:03Z
+- Task: 
+- Status: COMPLETED
+- Finding: Auto-advance reader (navigateAfter) sempat hilang saat merge restore fitur 08bef9c: prop siblingUids/onNavigateTo tetap di-pass MailPage tapi tidak dikonsumsi → hapus/pindah/spam selalu tutup reader. Pola yang benar: setelah aksi, siblingUids[idx+1] ?? siblingUids[idx-1] → onNavigateTo, fallback onClose. Guard test statis wajib untuk fitur yang pernah hilang karena overwrite.
