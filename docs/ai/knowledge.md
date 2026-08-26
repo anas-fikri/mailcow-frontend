@@ -955,3 +955,10 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Ai-loop menyeluruh: security & robustness bersih (XSS/tabnabbing/input validation solid dari round sebelumnya). 2 bug flow diperbaiki: (1) kalender klik sel bulan mengirim Date midnight → openCreateModal default jam 09:00, week/day kirim hour asli; (2) tutup compose edit-draft tanpa kirim → handleClose hapus copy autosave (draft asli tetap; compose baru tidak dihapus). 54/54 PASS, live (index-Dmd94Swz, CalendarPage-DWieJ8Gk, MailPage-CMVgao9L).
+
+## Undo-delete & folder race (durable)
+- Operasi yang DITUNDA (timer 6s undo-delete) wajib mengunci folder asal saat
+  penjadwalan — UID SOGo bersifat PER-FOLDER; memakai selectedFolder saat
+  timer fire bisa menghapus pesan yang salah di folder lain.
+- Seleksi bulk harus dibersihkan saat aksi DIJADWALKAN (bukan saat promise
+  selesai) untuk mencegah double-schedule / aksi kedua menyentuh uid pending.

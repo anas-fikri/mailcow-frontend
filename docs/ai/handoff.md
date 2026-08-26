@@ -2460,3 +2460,10 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Rotasi bulk/undo-delete — 1 bug data-kritis, 55/55 PASS, live
+- Timer undo-delete 6s fire setelah user pindah folder → moveMutation dulu
+  memakai selectedFolder saat ini → UID sama di folder baru (pesan BEDA) ikut
+  terhapus. Fix: sourceFolder dikunci saat scheduleDelete; moveMutation pakai
+  vars.sourceFolder; snooze/invalidate pakai folder asal; seleksi dibersihkan
+  saat menjadwalkan (bukan saat move sukses).

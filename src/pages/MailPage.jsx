@@ -700,9 +700,14 @@ export default function MailPage() {
   function scheduleDelete(uids) {
     if (!uids || uids.length === 0) return;
     const key = Date.now().toString();
+    // Kunci folder ASAL saat penjadwalan — timer bisa fire SETELAH user pindah
+    // folder (undo toast tetap tampil). moveMutation tanpa sourceFolder eksplisit
+    // memakai selectedFolder SAAT INI → UID yang sama di folder baru (berbeda
+    // pesan) ikut terhapus. UID bersifat per-folder di SOGo.
+    const sourceFolder = selectedFolder;
 
     pendingTimers.current[key] = setTimeout(() => {
-      moveMutation.mutate({ uids, targetFolder: trashFolder });
+      moveMutation.mutate({ uids, sourceFolder, targetFolder: trashFolder });
       delete pendingTimers.current[key];
     }, 6000);
 
@@ -722,18 +727,21 @@ export default function MailPage() {
   // yatim dan bisa menyembunyikan pesan baru yang memakai ulang UID tsb.
   // Bump snoozeTick saat ada yang terhapus agar memo snoozedUids ter-refresh
   // (tanpa itu pesan tetap tersembunyi sampai interval 60 detik berikutnya).
-  const clearSnoozesForMoved = (uids) => {
+  const clearSnoozesForMoved = (uids, folder = selectedFolder) => {
     if (!user?.email || !Array.isArray(uids) || uids.length === 0) return;
-    const removed = unsnoozeMessages(user.email, selectedFolder, uids);
+    const removed = unsnoozeMessages(user.email, folder, uids);
     if (removed > 0) setSnoozeTick((t) => t + 1);
   };
 
+  // sourceFolder WAJIB eksplisit untuk operasi yang ditunda (undo-delete 6s) —
+  // user bisa pindah folder sebelum timer fire. UID per-folder: memakai
+  // selectedFolder saat ini akan menghapus pesan yang SALAH di folder baru.
   const moveMutation = useMutation({
-    mutationFn: ({ uids, targetFolder }) =>
-      moveMessages(user.sogoToken, selectedFolder, uids, targetFolder),
+    mutationFn: ({ uids, sourceFolder = selectedFolder, targetFolder }) =>
+      moveMessages(user.sogoToken, sourceFolder, uids, targetFolder),
     onSuccess: (_data, vars) => {
-      clearSnoozesForMoved(vars?.uids || []);
-      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
+      clearSnoozesForMoved(vars?.uids || [], vars?.sourceFolder);
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, vars?.sourceFolder || selectedFolder] });
       setSelectedUids([]);
     },
   });
@@ -742,6 +750,10 @@ export default function MailPage() {
     mutationFn: () => scheduleDelete(selectedUids),
     onSuccess: () => {
       if (selectedUids.includes(selectedMsgId)) setSelectedMsgId(null);
+      // Pesan sudah DIJADWALKAN hapus — bersihkan seleksi sekarang (header
+      // tidak boleh tetap "N dipilih"; aksi bulk berikutnya tidak boleh
+      // menyentuh uid yang sedang pending delete = double-schedule / race).
+      setSelectedUids([]);
     },
   });
 
