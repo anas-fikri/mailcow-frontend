@@ -1,32 +1,19 @@
-# Current Task — Audit overlap putaran 2 (halaman tersisa)
+# Current Task — Audit overlap putaran 3 (width-budget baris pesan)
 
 ## Status: Selesai (menunggu commit/push/deploy)
 
 ## Temuan & Perbaikan
 
-### Bug — Badge user info StatsPage (email panjang timpa error)
-`col-span-full flex` dengan `span` email tanpa truncate + `ml-auto` error → di layar sempit email panjang mendorong error terpotong/bertumpuk.
-**Fix:** container `min-w-0`, span email `truncate min-w-0`, error `ml-auto shrink-0`.
+### Bug — 4 tombol aksi invisible menyedot 104px di baris pesan
+Width-budget baris pesan di lebar list 240px:
+- padding 24px + avatar 40px → konten 176px
+- cluster kanan: filter+snooze+archive+star+date ≈ 163px — TAPI filter/snooze/archive/star saat idle hanya `opacity-0 pointer-events-none` → **tetap reserve ruang 104px tak terlihat** → pengirim terpotong jadi ~13px ("…").
 
-## Audit menyeluruh (semua aman)
-- Conversation group header: avatar stack + subjek + peserta + waktu + count + chevron — flex-1 min-w-0 + truncate + shrink-0 ✓
-- Reader toolbar (7 tombol 44px + Balas/Teruskan): flex-wrap ✓
-- Sidebar nav collapsed: justify-center, label disembunyikan ✓
-- Calendar header (view switcher + nav + Hari Ini + Event): flex-wrap + tanggal hidden sm ✓
-- Contacts header + detail sheet mobile (max-w-sm) ✓
-- QuickRuleModal / EventModal (grid-cols-2) ✓
-- RichEditor toolbar: flex-wrap ✓
-- SuggestionList autocomplete: left-1 right-0 bind container ✓
-- LoginPage: theme toggle + password eye di dalam input ✓
-- Email body: overflow-wrap break-word + table max-width + pre overflow-x ✓
-- DragHandle + list resize clamp 240-560px ✓
-- Flag/snooze popover: clamp viewport ✓
+**Fix (pola Gmail):** aksi hover kini `hidden group-hover:flex` (tidak reserve ruang saat idle), dan **date `group-hover:hidden`** — saat hover aksi menggantikan posisi tanggal, bukan menimpa pengirim. Star: `starVisible` (berflag/touch) selalu tampil; tidak berflag di desktop → `hidden group-hover:flex`. Checkbox avatar tetap overlay absolute (tidak reserve).
 
 ## Test
-- `test-a11y` +2 (StatsPage truncate + shrink-0) → **114 assertions**
+- `test-a11y` +3 (hidden cluster, date group-hover:hidden, star conditional) → **117 assertions**
 - **55/55 PASS** · build OK
 
 ## Next
 - Commit + push (tunnel) + deploy.
-Status: COMPLETED
-Updated At: 2026-08-26T10:18:07Z

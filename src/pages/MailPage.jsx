@@ -1363,81 +1363,89 @@ export default function MailPage() {
                 {senderLabel}
               </button>
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* Buat aturan utk pengirim ini — hover desktop */}
-                {!isTouch && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setQuickRuleSender(senderLabel);
-                    }}
-                    tabIndex={-1}
-                    className="p-1.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
-                    title="Buat aturan otomatis untuk pengirim ini"
-                    aria-label="Buat aturan otomatis untuk pengirim ini"
-                  >
-                    <Filter size={14} />
-                  </button>
-                )}
-                {/* Snooze per-baris — hover desktop; picker durasi */}
-                {selectedFolder === 'folderINBOX' && !isTouch && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSnoozePicker(snoozePicker?.uid === msg.uid ? null : { uid: msg.uid, x: e.clientX, y: e.clientY });
-                    }}
-                    tabIndex={-1}
-                    className="p-1.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
-                    title="Snooze"
-                    aria-label="Tunda pesan"
-                  >
-                    <Clock size={14} />
-                  </button>
-                )}
-                {/* Arsip cepat per-baris — hanya saat hover desktop */}
-                {archiveFolder && selectedFolder !== archiveFolder.id && !isTouch && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveMessages(user.sogoToken, selectedFolder, [msg.uid], archiveFolder)
-                        .then(() => {
-                          queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
-                          queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-                        })
-                        .catch(() => toast.error('Gagal mengarsipkan pesan.'));
-                    }}
-                    tabIndex={-1}
-                    className="p-1.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
-                    title="Arsip"
-                    aria-label="Arsipkan pesan"
-                  >
-                    <Archive size={14} />
-                  </button>
-                )}
-                {/* Hapus cepat per-baris — hanya folder Draf (hover desktop) */}
-                {isDraftFolder && !isTouch && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      scheduleDelete([msg.uid]);
-                    }}
-                    tabIndex={-1}
-                    className="p-1.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-destructive transition-opacity"
-                    title="Hapus"
-                    aria-label="Hapus pesan"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
-                {/* Star/flag — di kanan (tidak nimpa avatar): berflag atau hover (desktop);
-                    selalu tampil di layar sentuh */}
+                {/* Aksi hover (Gmail-like): HANYA tampil saat hover, menggantikan
+                    tanggal (date group-hover:hidden). Sebelumnya tombol ini
+                    opacity-0 tapi TETAP reserve ruang → di lebar list 240px
+                    pengirim terpotong jadi ~13px oleh 4 tombol invisible. */}
+                <div className="hidden group-hover:flex items-center gap-1.5">
+                  {/* Buat aturan utk pengirim ini — hover desktop */}
+                  {!isTouch && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setQuickRuleSender(senderLabel);
+                      }}
+                      tabIndex={-1}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors"
+                      title="Buat aturan otomatis untuk pengirim ini"
+                      aria-label="Buat aturan otomatis untuk pengirim ini"
+                    >
+                      <Filter size={14} />
+                    </button>
+                  )}
+                  {/* Snooze per-baris — hover desktop; picker durasi */}
+                  {selectedFolder === 'folderINBOX' && !isTouch && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSnoozePicker(snoozePicker?.uid === msg.uid ? null : { uid: msg.uid, x: e.clientX, y: e.clientY });
+                      }}
+                      tabIndex={-1}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors"
+                      title="Snooze"
+                      aria-label="Tunda pesan"
+                    >
+                      <Clock size={14} />
+                    </button>
+                  )}
+                  {/* Arsip cepat per-baris — hanya saat hover desktop */}
+                  {archiveFolder && selectedFolder !== archiveFolder.id && !isTouch && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        moveMessages(user.sogoToken, selectedFolder, [msg.uid], archiveFolder)
+                          .then(() => {
+                            queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
+                            queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+                          })
+                          .catch(() => toast.error('Gagal mengarsipkan pesan.'));
+                      }}
+                      tabIndex={-1}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors"
+                      title="Arsip"
+                      aria-label="Arsipkan pesan"
+                    >
+                      <Archive size={14} />
+                    </button>
+                  )}
+                  {/* Hapus cepat per-baris — hanya folder Draf (hover desktop) */}
+                  {isDraftFolder && !isTouch && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        scheduleDelete([msg.uid]);
+                      }}
+                      tabIndex={-1}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-destructive transition-colors"
+                      title="Hapus"
+                      aria-label="Hapus pesan"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+                {/* Star/flag — SELALU tampil bila berflag atau layar sentuh;
+                    saat desktop & tidak berflag muncul bersama cluster hover.
+                    Date disembunyikan saat hover (group-hover:hidden) supaya
+                    aksi menggantikan posisi tanggal, bukan menimpa pengirim. */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
                   }}
                   tabIndex={starVisible ? 0 : -1}
-                  className={`p-1.5 rounded-md transition-opacity ${
-                    starVisible ? '' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+                  className={`p-1.5 rounded-md transition-colors ${
+                    starVisible ? '' : 'hidden group-hover:flex text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400'
                   }`}
                   aria-label="Tandai penting"
                 >
@@ -1451,7 +1459,7 @@ export default function MailPage() {
                     return <Star size={14} className="text-muted-foreground" />;
                   })()}
                 </button>
-                <span className="text-xs text-muted-foreground">{msg.date}</span>
+                <span className="text-xs text-muted-foreground group-hover:hidden">{msg.date}</span>
               </div>
             </div>
             <div className={`text-sm truncate ${msg.isRead ? 'text-muted-foreground' : 'text-primary font-medium'}`}>

@@ -2603,3 +2603,12 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Audit overlap putaran 3 — width-budget baris pesan (2026-08-26)
+
+**Bug:** cluster aksi baris pesan (filter/snooze/archive/star) memakai `opacity-0 pointer-events-none` saat idle → TETAP reserve ruang. Di list 240px: konten 176px − 104px tombol invisible ≈ pengirim 13px.
+
+**Fix (Gmail-like):** aksi `hidden group-hover:flex`, date `group-hover:hidden` (aksi menggantikan posisi tanggal saat hover); star selalu tampil bila berflag/touch, hidden-until-hover di desktop saat tidak berflag. Checkbox avatar tetap overlay absolute (tidak reserve). Folder sidebar row tetap opacity-0 (sengaja, tanpa shift hover).
+
+**Test:** test-a11y +3 → 117 assertions · **55/55 PASS** · build OK.
+**Belum:** commit + push + deploy.

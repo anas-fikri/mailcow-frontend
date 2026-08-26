@@ -160,6 +160,15 @@ for (const label of ['Buat aturan otomatis untuk pengirim ini', 'Tunda pesan', '
   assert.ok(mail.includes(`aria-label="${label}"`), `MailPage row: aria-label "${label}" hilang`);
   passCount++;
 }
+// Anti-overlap: aksi hover harus hidden (bukan opacity-0) supaya tidak reserve
+// ruang di lebar sempit — pengirim tidak boleh terjepit ~13px oleh 4 tombol
+// invisible. Date diganti posisinya oleh aksi saat hover (group-hover:hidden).
+assert.ok(mail.includes('hidden group-hover:flex items-center gap-1.5'), 'MailPage: aksi hover tidak hidden (reserve ruang di lebar sempit)');
+passCount++;
+assert.ok(mail.includes('group-hover:hidden'), 'MailPage: date tidak disembunyikan saat hover (aksi menimpa pengirim)');
+passCount++;
+assert.ok(mail.includes("starVisible ? '' : 'hidden group-hover:flex"), 'MailPage: star unflagged tidak hidden-until-hover (reserve ruang)');
+passCount++;
 assert.ok(mail.includes('aria-label="Hapus flag"'), 'Flag remove aria hilang');
 passCount++;
 
