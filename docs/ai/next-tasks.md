@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T09:40:04Z
+Generated At: 2026-08-26T09:57:58Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Auto-advance reader (navigateAfter) sempat hilang saat merge restore fitur 08bef9c: prop siblingUids/onNavigateTo tetap di-pass MailPage tapi tidak dikonsumsi → hapus/pindah/spam selalu tutup reader. Pola yang benar: setelah aksi, siblingUids[idx+1] ?? siblingUids[idx-1] → onNavigateTo, fallback onClose. Guard test statis wajib untuk fitur yang pernah hilang karena overwrite.
+## 1. [MEDIUM] Follow up on discovered knowledge: Fitur lib bisa mati diam-diam walau unit test hijau: proxyExternalImages (imageProxy.js) lengkap + test 68 assertion tapi tidak pernah di-wire ke MessageReader → gambar eksternal bocor langsung ke pengirim (IP + read-receipt). Wajib assertion statis wiring di komponen untuk fitur yang berdampak keamanan/privacy. Juga: labelField 'to' utk folder Terkirim/Draf di header percakapan (konsisten dgn renderMessageRow); SOGo viewPart kirim X-Frame-Options SAMEORIGIN → iframe lightbox PDF aman.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

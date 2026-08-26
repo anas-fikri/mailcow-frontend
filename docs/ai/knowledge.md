@@ -1000,3 +1000,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Auto-advance reader (navigateAfter) sempat hilang saat merge restore fitur 08bef9c: prop siblingUids/onNavigateTo tetap di-pass MailPage tapi tidak dikonsumsi → hapus/pindah/spam selalu tutup reader. Pola yang benar: setelah aksi, siblingUids[idx+1] ?? siblingUids[idx-1] → onNavigateTo, fallback onClose. Guard test statis wajib untuk fitur yang pernah hilang karena overwrite.
+
+## 2026-08-26T09:57:58Z
+- Task: 
+- Status: COMPLETED
+- Finding: Fitur lib bisa mati diam-diam walau unit test hijau: proxyExternalImages (imageProxy.js) lengkap + test 68 assertion tapi tidak pernah di-wire ke MessageReader → gambar eksternal bocor langsung ke pengirim (IP + read-receipt). Wajib assertion statis wiring di komponen untuk fitur yang berdampak keamanan/privacy. Juga: labelField 'to' utk folder Terkirim/Draf di header percakapan (konsisten dgn renderMessageRow); SOGo viewPart kirim X-Frame-Options SAMEORIGIN → iframe lightbox PDF aman.
