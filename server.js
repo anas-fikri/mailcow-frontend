@@ -200,6 +200,15 @@ function requireSmtpSession(req, res, next) {
   next();
 }
 
+// Resolve sesi tanpa menolak — dipakai middleware rate-limit utk meng-key
+// bucket per AKUN (bukan per IP). Req tanpa sesi sah jatuh ke key IP.
+function resolveSmtpSession(req, _res, next) {
+  const token = getSmtpSessionToken(req);
+  const session = token ? getSmtpSession(token) : null;
+  req.smtpSession = session; // mungkin null — handler yang menolak
+  next();
+}
+
 // ── Remote image proxy (anti tracking-pixel) ────────────────────────────────
 // Logika fetch (SSRF guard, hard deadline anti slow-drip, redirect, size cap)
 // dipindah ke src/lib/remoteImage.js agar bisa diuji tanpa menyalakan Express.
@@ -413,7 +422,10 @@ const sendEmailSchema = z.object({
   })).max(MAX_ATTACHMENTS).optional().default([]),
 });
 
-app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), async (req, res) => {
+// Rate-limit kirim per AKUN (bukan per IP): kantor/NAT berbagi satu IP
+// publik, key IP membuat 10 kirim/menit tersedot semua user (429 palsu /
+// self-DoS). Key = session.user; request tanpa sesi sah fallback ke IP.
+app.post('/api/send', resolveSmtpSession, rateLimit({ max: 10, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) }), async (req, res) => {
   // Zod validation
   const parsed = sendEmailSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -443,7 +455,9 @@ app.post('/api/send', rateLimit({ max: 10, windowMs: 60000, keyFn: clientIp }), 
   }
 
   // Look up SMTP session — token diambil dari cookie httpOnly (fallback header/body).
-  const session = getSmtpSession(getSmtpSessionToken(req));
+  // resolveSmtpSession sudah mengisinya utk rate-limit key; lookup ulang di sini
+  // TIDAK dilakukan — pakai req.smtpSession (nilai sama, di-refresh lastUsed).
+  const session = req.smtpSession;
   if (!session) {
     // Log 401 with hint untuk monitoring rasio idle expiry (lihat scripts/monitor-smtp.sh).
     // Jangan log token/email — sebelumnya tak ada telemetry, ini hanya counter + ip.

@@ -2019,3 +2019,31 @@ dinormalisasi; baris rusak di-skip. Test test:calendar-events 18 assertions.
 -  M src/lib/api.js
 - ?? scripts/test-calendar-events.mjs
 - ?? src/lib/calendarEvents.js
+
+## [2026-08-26] Security & data refresh (OWASP) — SELESAI & LIVE
+
+2 temuan: (1) /api/send rate-limit per-IP = self-DoS kantor/NAT (10 kirim/mnt
+tersedot semua user 1 IP publik). Fix resolveSmtpSession middleware + key
+bucket per session.user (fallback IP utk tanpa sesi); handler reuse
+req.smtpSession, telemetry [smtp-session] 401 send dipertahankan
+(monitor-smtp.sh grep). (2) searchMessages tanpa cap panjang → body raksasa
+ke SOGo; fix MAX_SEARCH_QUERY_LENGTH=500 di buildMessageSearchBody +
+maxLength=300 input MailPage. Verified kuat: semua route rate-limited
+per-route, clientIp trusted-proxy-only, preferences/send user-binding 403,
+pathSegment anti-traversal, attachment filename anti-path/CRLF, toSafeUrl
+allowlist, headers CSP/XFO DENY, image-proxy sandbox+SSRF, API key
+timing-safe, cookie httpOnly SameSite=Strict. Test test:security-hardening
+16 assertions. 48/48 PASS. Deploy sync backend (restart proxy).
+
+## 2026-08-26T01:49:00Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M package.json
+-  M server.js
+-  M src/lib/messageRequests.js
+-  M src/pages/MailPage.jsx
+- ?? scripts/test-security-hardening.mjs

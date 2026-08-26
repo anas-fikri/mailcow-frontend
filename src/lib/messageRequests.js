@@ -18,6 +18,9 @@ export function buildMessageViewBody(params = {}) {
  * filter valid: {searchBy, searchInput, negative, operator}.
  * searchBy SOGo: subject_or_from, subject_or_to, contains, body, from, to, subject.
  */
+/** Panjang maksimal query pencarian yang dikirim ke SOGo. */
+export const MAX_SEARCH_QUERY_LENGTH = 500;
+
 export function buildMessageSearchBody(query, criteria = 'all') {
   // Map kriteria UI (all/from/to/subject/body) ke searchBy SOGo.
   const searchBy = {
@@ -26,10 +29,13 @@ export function buildMessageSearchBody(query, criteria = 'all') {
     subject: 'subject',
     body: 'body',
   }[criteria] || 'contains';
+  // Cap defensif: query raksasa → body besar ke SOGo. Input UI sudah
+  // maxLength=300, tapi pemanggil lain/state korup harus aman juga.
+  const safeQuery = String(query ?? '').slice(0, MAX_SEARCH_QUERY_LENGTH);
   return {
     sortingAttributes: { sort: 'date', asc: 0 },
     filters: [
-      { searchBy, searchInput: query, negative: 0 },
+      { searchBy, searchInput: safeQuery, negative: 0 },
     ],
   };
 }

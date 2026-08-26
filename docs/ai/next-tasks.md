@@ -1,12 +1,12 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T01:43:52Z
+Generated At: 2026-08-26T01:49:00Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Duplikat event kalender: (1) EventModal double-submit — tombol disabled={saving} (state async) TIDAK melindungi Enter auto-repeat/klik ganda di tick yang sama; handleSave/handleDelete butuh guard re-entry via useRef sinkron (savingRef), bukan state, karena 2x createCalendarEvent = 2x newEventGuid = 2 event. (2) SOGo eventsblocks meng-expand recurring jadi satu baris PER OCCURRENCE (start berbeda) — JANGAN dedup by id saja; dedup benar by id
-- Why: start|calendar (normalisasi String utk number vs string), recurring & cross-calendar tetap dipertahankan. Parser dipindah ke src/lib/calendarEvents.js (murni, bisa diuji) + guard baris rusak (blocks/baris non-array) agar satu baris korup tidak merusak kalender. Test test:calendar-events = 18 assertions.|Latest completed-task finding may imply documentation, validation, or follow-up work.
+## 1. [MEDIUM] Follow up on discovered knowledge: Security refresh: (1) rate-limit /api/send harus per-AKUN bukan per-IP — kantor/NAT berbagi 1 IP publik, key IP = 10 kirim/mnt tersedot semua user (429 palsu). Pola: middleware resolveSmtpSession (isi req.smtpSession tanpa 401) sebelum rateLimit, keyFn (req)=>req.smtpSession?.user
+- Why: |clientIp(req); handler reuse req.smtpSession; JANGAN hapus log '[smtp-session] 401 send' (monitor-smtp.sh grep '401 send'). (2) Query pencarian ke SOGo wajib di-cap (MAX_SEARCH_QUERY_LENGTH=500 di buildMessageSearchBody + maxLength input) — body /view tanpa batas = DoS ringan ke SOGo. Pola tetap kuat: clientIp hanya percaya X-Real-IP dari trusted proxy; pathSegment anti-traversal (hanya %2F utk folder); attachment filename anti-path/CRLF; toSafeUrl allowlist; /api/preferences bind session.user (403 mismatch); API key timing-safe; cookie httpOnly SameSite=Strict.|Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
 ## 2. [LOW] Review and commit current changes
