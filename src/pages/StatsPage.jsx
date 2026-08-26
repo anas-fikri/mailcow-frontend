@@ -67,11 +67,11 @@ export default function StatsPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {/* User info badge */}
           {summary?._user && (
-            <div className="col-span-full flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-xl text-xs text-muted-foreground">
-              <User size={14} />
-              <span>Statistik untuk: <strong className="text-foreground">{summary._user}</strong></span>
+            <div className="col-span-full flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-xl text-xs text-muted-foreground min-w-0">
+              <User size={14} className="shrink-0" />
+              <span className="truncate min-w-0">Statistik untuk: <strong className="text-foreground">{summary._user}</strong></span>
               {summary._error && (
-                <span className="ml-auto text-destructive/70">⚠ {summary._error}</span>
+                <span className="ml-auto shrink-0 text-destructive/70">⚠ {summary._error}</span>
               )}
             </div>
           )}

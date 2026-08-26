@@ -102,6 +102,7 @@ const css = read('src/index.css');
 const swipe = read('src/components/SwipeableRow.jsx');
 const calendar = read('src/pages/CalendarPage.jsx');
 const contacts = read('src/pages/ContactsPage.jsx');
+const stats = read('src/pages/StatsPage.jsx');
 
 console.log('\n— Target sentuh 44px (min-w-11/min-h-11) —');
 const countOcc = (hay, needle) => hay.split(needle).length - 1;
@@ -220,6 +221,12 @@ passCount++;
 assert.ok(calendar.includes('width: `calc(${layout.widthPct}% - 4px)`'), 'Calendar: event overlap pakai width % (side-by-side)');
 passCount++;
 assert.ok(!calendar.includes('absolute left-1 right-1 rounded-lg'), 'Calendar: full-width event overlap masih ada (menimpa)');
+passCount++;
+
+// StatsPage user badge: email panjang harus truncate (tidak mendorong error)
+assert.ok(stats.includes('min-w-0"') && stats.includes('truncate min-w-0'), 'StatsPage: badge user tidak truncate (bisa timpa error)');
+passCount++;
+assert.ok(stats.includes('ml-auto shrink-0 text-destructive/70'), 'StatsPage: error badge harus shrink-0 (tidak terjepit)');
 passCount++;
 
 // Star/spam kontras perbaikan

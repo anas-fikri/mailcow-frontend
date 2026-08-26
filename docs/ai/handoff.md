@@ -2587,3 +2587,12 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Audit overlap putaran 2 (2026-08-26) — halaman tersisa
+
+**Bug:** badge user info StatsPage — email panjang tanpa truncate mendorong error badge (ml-auto) terpotong di layar sempit. Fix: container min-w-0 + span truncate min-w-0 + error ml-auto shrink-0.
+
+**Audit pass (tidak diubah):** conversation header, reader toolbar, sidebar collapsed, calendar header, contacts, QuickRule/EventModal, RichEditor toolbar, suggestion list, login, email-body CSS (table/pre/overflow), drag-resize clamp, popover clamp.
+
+**Test:** test-a11y +2 → 114 assertions · **55/55 PASS** · build OK.
+**Belum:** commit + push + deploy.
