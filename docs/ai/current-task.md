@@ -15,4 +15,4 @@ Selesai ✅ — riwayat alamat yang pernah dikirim direkam per-akun (localStorag
 ## Next
 - Verifikasi browser: kirim email ke alamat baru → buka compose lagi → ketik 2 huruf → alamat muncul di saran; klik "Tandai semua dibaca" di folder berisi banyak email → tidak ada lagi "Gagal menandai semua pesan" (sukses atau pesan parsial jujur).
 Status: COMPLETED
-Updated At: 2026-08-26T17:30:00Z
+Updated At: 2026-08-26T16:15:59Z
