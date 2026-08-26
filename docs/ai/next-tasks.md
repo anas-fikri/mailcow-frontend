@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T02:06:04Z
+Generated At: 2026-08-26T02:16:57Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: verify_health ditambahkan ke deploy.sh verify() — cek /api/health end-to-end via nginx + API key (sebelumnya hanya preflight backend langsung). /api/health di-enforce requireApiKey di server.js (app level), nginx passthrough; konsisten dgn preflight. Deploy terverifikasi live: webmail 200, image-proxy 200, health 200.
+## 1. [MEDIUM] Follow up on discovered knowledge: Snooze di-migrasi ke schema v3 folder-scoped {[folderId]:{[uid]:wake}} — UID SOGo per-folder membuat entri snooze flat (v2) yatim saat pesan di-archive (false-positive sembunyikan pesan baru dgn UID reuse). executeRules terima isExcluded(msg) utk skip pesan tersnooze (deferral eksplisit user). unsnoozeMessages membersihkan entri saat move/delete/junk/archive + bump tick. Migrasi versi per-domain via readStorage(base, scope, 3) tanpa ubah STORAGE_VERSION global. 49/49 test PASS, deploy live terverifikasi hash.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

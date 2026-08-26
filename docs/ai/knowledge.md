@@ -677,3 +677,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - **Pembersihan entri yatim:** hapus snooze utk uids yang dipindah di onSuccess
   mutation (move/delete/junk/archive) + bump tick/memo agar UI langsung
   ter-refresh (jangan nunggu interval prune 60s).
+
+## 2026-08-26T02:16:57Z
+- Task: 
+- Status: COMPLETED
+- Finding: Snooze di-migrasi ke schema v3 folder-scoped {[folderId]:{[uid]:wake}} — UID SOGo per-folder membuat entri snooze flat (v2) yatim saat pesan di-archive (false-positive sembunyikan pesan baru dgn UID reuse). executeRules terima isExcluded(msg) utk skip pesan tersnooze (deferral eksplisit user). unsnoozeMessages membersihkan entri saat move/delete/junk/archive + bump tick. Migrasi versi per-domain via readStorage(base, scope, 3) tanpa ubah STORAGE_VERSION global. 49/49 test PASS, deploy live terverifikasi hash.
