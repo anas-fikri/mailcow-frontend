@@ -1948,3 +1948,26 @@ Test baru test:state-combination (7 assertions). 45/45 PASS.
 -  M src/components/mailer/MessageReader.jsx
 -  M src/pages/MailPage.jsx
 - ?? scripts/test-state-combination.mjs
+
+## [2026-08-26] Bug hunt edge case (event kalender) — SELESAI & LIVE
+
+Pass 6+ edge case: EventModal tidak validasi end >= start → event durasi
+negatif dikirim ke SOGo (rusak/500). Fix helper murni src/lib/eventValidation.js
+(validateEventTimes + normalizeRepeatCount) + guard di handleSave; all-day
+start==end tetap valid. repeat interval/count 0/negatif/NaN di-clamp ke 1.
+Diverifikasi aman: pagination MailPage (dedup+sort+cufoff via uid min+stop
+loop), StatsPage (semua default 0, Math.max guard), ContactsPage key uid||idx,
+RulesPage StatsBar total==0, ComposeModal guard Kepada + validasi server.
+Test baru test:event-validation (16 assertions). 46/46 PASS.
+
+## 2026-08-26T01:35:07Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M package.json
+-  M src/components/EventModal.jsx
+- ?? scripts/test-event-validation.mjs
+- ?? src/lib/eventValidation.js

@@ -53,7 +53,8 @@
     "test:calendar-drop": "node scripts/test-calendar-drop.mjs",
     "test:keyboard-ownership": "node scripts/test-keyboard-ownership.mjs",
     "test:a11y": "node scripts/test-a11y.mjs",
-    "test:state-combination": "node scripts/test-state-combination.mjs"
+    "test:state-combination": "node scripts/test-state-combination.mjs",
+    "test:event-validation": "node scripts/test-event-validation.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

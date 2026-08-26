@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Calendar, Clock, MapPin, Users, FileText } from 'lucide-react';
+import { validateEventTimes, normalizeRepeatCount } from '../lib/eventValidation';
 
 const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
@@ -191,6 +192,11 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
     e.preventDefault();
     if (!title.trim()) { setError('Judul event wajib diisi.'); return; }
 
+    // Cegah event durasi negatif: SOGo menerima payload end < start dan
+    // membuat event rusak / error 500 — validasi di sini (bukan hanya UI input).
+    const timeCheck = validateEventTimes({ startDate, startTime, endDate, endTime, isAllDay });
+    if (!timeCheck.ok) { setError(timeCheck.message); return; }
+
     setSaving(true);
     setError('');
 
@@ -200,12 +206,12 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
       let repeat = null;
       if (repeatTouchedRef.current) {
         if (freq !== 'never') {
-          repeat = { frequency: freq, interval: Number(repeatInterval) || 1 };
+          repeat = { frequency: freq, interval: normalizeRepeatCount(repeatInterval) };
           if (freq === 'weekly') {
             const days = weekDays.length > 0 ? weekDays : [dayCodeFromDate(startDate)];
             repeat.days = days.map((d) => ({ day: d }));
           }
-          if (repeatEnd === 'count') repeat.count = Number(repeatCount) || 1;
+          if (repeatEnd === 'count') repeat.count = normalizeRepeatCount(repeatCount);
           else if (repeatEnd === 'until' && repeatUntil) repeat.until = repeatUntil;
         }
       } else {
