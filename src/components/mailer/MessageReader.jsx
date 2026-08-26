@@ -13,6 +13,7 @@ import { MessageReaderSkeleton } from '../Skeleton';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
 import { formatAddresses } from '../../lib/format';
+import { extractHtml } from '../../lib/messageHtml';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
@@ -41,28 +42,6 @@ const EMAIL_PURIFY_CONFIG = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function extractHtml(parts) {
-  if (!parts) return '';
-  if (parts.contentType === 'text/html' && parts.content) return parts.content;
-  if (parts.contentType === 'text/plain' && parts.content) {
-    // Jangan escape HTML entities — biarkan DOMPurify yang handle.
-    // SOGo sering kirim bounce email sebagai text/plain dengan tag HTML
-    // semu (seperti <br/>, <div>, <a>) sebagai teks biasa.
-    // Dengan tidak escape, tag tersebut jadi HTML asli setelah DOMPurify.
-    // Bungkus di div agar whitespace terjaga.
-    return `<div style="white-space:pre-wrap">${parts.content}</div>`;
-  }
-  if (Array.isArray(parts.content)) {
-    const htmlPart = parts.content.find((c) => c.contentType === 'text/html');
-    if (htmlPart) return extractHtml(htmlPart);
-    for (const child of parts.content) {
-      const html = extractHtml(child);
-      if (html) return html;
-    }
-  }
-  return '';
-}
 
 function extractAttachments(parts, result = []) {
   if (!parts) return result;

@@ -7,7 +7,9 @@ import {
   Archive, BellRing, CheckCheck, Clock, Paperclip,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchFolders, fetchMessages, fetchMessageHeaders, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder } from '../lib/api';
+import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder } from '../lib/api';
+import { formatAddresses } from '../lib/format';
+import { extractHtml } from '../lib/messageHtml';
 import MessageReader from '../components/mailer/MessageReader';
 import ComposeModal from '../components/mailer/ComposeModal';
 import QuickRuleModal from '../components/mailer/QuickRuleModal';
@@ -937,11 +939,38 @@ export default function MailPage() {
     }
   }
 
+  // Draft di folder Draf dibuka ke editor compose (bukan reader) agar bisa
+  // dilanjutkan — isi diambil dari detail pesan, autosave menyimpan ke draft
+  // baru, dan draft lama dihapus saat terkirim (lihat ComposeModal).
+  async function openDraftForEdit(uid) {
+    try {
+      const detail = await fetchMessage(user?.sogoToken, selectedFolder, uid);
+      setComposeData({
+        composeMode: 'draft',
+        to: formatAddresses(detail.to),
+        cc: formatAddresses(detail.cc),
+        bcc: formatAddresses(detail.bcc),
+        subject: detail.subject || '',
+        body: extractHtml(detail.parts),
+        draftUid: uid,
+      });
+      setComposeOpen(true);
+    } catch (err) {
+      console.warn('[Draft] Gagal membuka draft untuk diedit:', err);
+      setSelectedMsgId(uid); // fallback: tampilkan lewat reader biasa
+    }
+  }
+
   function handleRowClick(uid) {
     // Klik sintetis browser setelah long-press — jangan buka/toggle dobel
     if (suppressClick.current.delete(uid)) return;
     if (selectionMode) {
       toggleSelect(uid); // di mode seleksi, tap = toggle pilihan (pola Gmail)
+      return;
+    }
+    // Draft: buka editor compose untuk dilanjutkan, bukan reader baca-saja.
+    if (isDraftFolder) {
+      openDraftForEdit(uid);
       return;
     }
     setSelectedMsgId(uid);

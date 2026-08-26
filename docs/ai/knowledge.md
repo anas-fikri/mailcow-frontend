@@ -800,3 +800,20 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Pola cache in-memory per-email untuk storage yang dibaca di hot path (getFlagColor → getRules/getRuleSummary): cache miss = ≤2 baca localStorage (fallback v2+v1), hit = 0. Invalidate di SEMUA jalur tulis modul (audit via grep localStorage.setItem/removeItem; executeRules bump runCount lewat updateRule ikut invalidate). Trap test: storage.setItem/clear() mentah tidak invalidate cache → wajib __reset*Cache. ReadStorage 1 call = 1-2 getItem, assertion read-count pertama harus toleran.
+
+## [2026-08-26] Pola race autosave (debounce + in-flight + send)
+- **Tiga guard wajib untuk autosave compose:** (1) `autosaveBusy` ref — cegah tumpukan;
+  kalau sibuk tandai dirty, biarkan finally jadwalkan ulang (bukan start baru); (2) `sentRef`
+  — autosave yang sedang berjalan saat user menekan Send harus membersihkan draftnya sendiri
+  (delete setelah save bila sentRef true), karena handleSend tidak bisa menunggu promise yang
+  sudah lepas; (3) `userEditedRef` — autosave HANYA setelah user mengubah input; membuka
+  form terisi (reply/forward/edit-draft) tidak boleh langsung membuat salinan draft baru.
+- **Send handler:** `clearTimeout(timer)` + `autosaveDirty=false` sebelum request — kalau
+  tidak, timer 3s bisa fire saat send in-flight → draft yatim.
+- **extractHtml SOGo parts:** prefer text/html di kedalaman mana pun dari tree parts
+  (findHtml dua-pass), baru fallback text/plain yang di-wrap div white-space:pre-wrap.
+  Cek child langsung saja bisa memilih plain padahal html ada bersarang (multipart/mixed →
+  text/plain dulu, html di dalam multipart/alternative).
+- **Edit draft tanpa draftId:** SOGo draftId (session compose) tidak tersedia dari /view —
+  strategi aman: buka compose pre-filled dari /view, autosave ke draft BARU, hapus draft
+  asli + autosave saat kirim sukses. Duplikat dihindari oleh userEditedRef.

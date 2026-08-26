@@ -15,3 +15,49 @@ export function looksLikeHtmlInPlainText(content) {
   if (!content) return false;
   return HTML_IN_PLAIN_RE.test(content);
 }
+
+/** Cari konten text/html di kedalaman mana pun dari tree parts. */
+function findHtml(parts) {
+  if (!parts) return null;
+  const ct = parts.contentType || '';
+  if (ct === 'text/html' && parts.content) return parts.content;
+  if (Array.isArray(parts.content)) {
+    for (const child of parts.content) {
+      const found = findHtml(child);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/** Cari konten text/plain di kedalaman mana pun dari tree parts. */
+function findPlain(parts) {
+  if (!parts) return null;
+  const ct = parts.contentType || '';
+  if (ct === 'text/plain' && parts.content) return parts.content;
+  if (Array.isArray(parts.content)) {
+    for (const child of parts.content) {
+      const found = findPlain(child);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Ambil konten HTML dari struktur MIME parts SOGo (view).
+ * - text/html DIKEDALKAN di kedalaman mana pun — SOGo sering menaruh
+ *   text/html di dalam multipart/alternative yang bersarang di dalam
+ *   multipart/mixed, sementara text/plain ada di urutan part lebih awal;
+ *   versi lama hanya cek child langsung sehingga plain bisa menang.
+ * - text/plain → dibungkus div white-space:pre-wrap (jangan escape: biarkan
+ *   DOMPurify yang handle — SOGo sering kirim bounce sebagai text/plain berisi
+ *   tag HTML semu, dan di-hydrate ke contentEditable via innerHTML)
+ */
+export function extractHtml(parts) {
+  const html = findHtml(parts);
+  if (html) return html;
+  const plain = findPlain(parts);
+  if (plain) return `<div style="white-space:pre-wrap">${plain}</div>`;
+  return '';
+}

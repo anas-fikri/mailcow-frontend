@@ -2307,3 +2307,21 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## [2026-08-26] ai-loop compose & draft flow — race autosave + edit draft
+- **Task:** rotasi ai-loop fokus compose/draft. 3 bug + 1 latent diperbaiki.
+- **Autosave race:** handleSend tidak clearTimeout → draft yatim saat kirim; tidak ada
+  in-flight guard → konten stale bisa menimpa. Fix: sentRef + autosaveBusy + reschedule
+  di finally + clearTimeout di handleSend.
+- **Edit draft (UX baru):** klik draft di folder Draf → buka ComposeModal (openDraftForEdit
+  di MailPage, fetch detail + extractHtml). Autosave ke draft baru, draft asli dihapus saat
+  kirim. Signature tidak disuntik ulang. Autosave digate userEditedRef (buka tanpa edit ≠
+  buat salinan).
+- **Bug latent extractHtml:** prefer text/html di kedalaman mana pun (dulu plain bisa menang
+  bila html bersarang lebih dalam dari part plain pertama). Dipindah ke src/lib/messageHtml.js,
+  dipakai MessageReader + MailPage.
+- **KETERBATASAN KNOWN:** draft dengan lampiran tidak bisa direstorasi (saveDraft tidak
+  menyimpan lampiran; payload SOGo save hanya teks). Saat edit draft ber-lampiran, user
+  harus lampirkan ulang. Bisa jadi task berikutnya (perlu upload lampiran ke draft SOGo).
+- Test: test:draft-compose baru (24 assertion statis) + test-message-html diperluas.
+  52/52 PASS + build OK.

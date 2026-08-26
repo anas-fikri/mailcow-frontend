@@ -1,0 +1,61 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+// ── Assertion statis untuk alur compose/draft (pola test-a11y) ───────────────
+// Memverifikasi guard race autosave + alur edit-draft hadir di source, karena
+// logika React tidak bisa dijalankan langsung di Node tanpa transpile JSX.
+const compose = fs.readFileSync('src/components/mailer/ComposeModal.jsx', 'utf8');
+const mail = fs.readFileSync('src/pages/MailPage.jsx', 'utf8');
+const reader = fs.readFileSync('src/components/mailer/MessageReader.jsx', 'utf8');
+const lib = fs.readFileSync('src/lib/messageHtml.js', 'utf8');
+
+let passCount = 0;
+const ok = (cond, msg) => { assert.ok(cond, msg); passCount++; };
+
+// ── Race 1: autosave tidak boleh tumpuk (stale overwrite konten lebih baru) ──
+ok(/autosaveBusy\s+= useRef\(false\)/.test(compose), 'guard autosaveBusy harus ada');
+ok(compose.includes('if (autosaveBusy.current) { autosaveDirty.current = true; return; }'),
+  'autosave sibuk → tandai dirty + skip (bukan tumpuk)');
+ok(compose.includes('if (autosaveDirty.current) {\n        clearTimeout(saveTimerRef.current);\n        saveTimerRef.current = setTimeout(() => { runAutosave(); }, 3000);'),
+  'finally harus jadwalkan ulang bila ada perubahan baru selama autosave');
+
+// ── Race 2: autosave in-flight saat Send → draft tidak boleh yatim ──────────
+ok(/sentRef\s+= useRef\(false\)/.test(compose), 'guard sentRef harus ada');
+ok(compose.includes('clearTimeout(saveTimerRef.current);\n    autosaveDirty.current = false;\n    sentRef.current = false;'),
+  'handleSend harus hentikan timer autosave sebelum kirim');
+ok(compose.includes("if (sentRef.current) {"), 'runAutosave harus cek sentRef setelah save');
+ok(compose.includes('const staleUids = [editingDraftUidRef.current, uid || draftUidRef.current].filter(Boolean);'),
+  'autosave pasca-kirim harus bersihkan draft asli + autosave');
+ok(compose.includes('const uidsToDelete = [editingDraftUidRef.current, draftUidRef.current].filter(Boolean);'),
+  'handleSend harus hapus draft asli (edit-draft) + draft autosave');
+
+// ── Gerbang autosave: hanya setelah user mengedit (buka draft ≠ buat salinan) ─
+ok(/userEditedRef\s+= useRef\(false\)/.test(compose), 'guard userEditedRef harus ada');
+ok(compose.includes('if (!userEditedRef.current) return;'),
+  'autosave hanya boleh jalan setelah user mengubah apa pun');
+ok(compose.includes('markUserEdited(); setTo(v)') && compose.includes('markUserEdited(); setCc(v)')
+  && compose.includes('markUserEdited(); setBcc(v)'), 'field to/cc/bcc harus tandai userEdited');
+ok(compose.includes('markUserEdited(); setSubject(e.target.value)'), 'subject harus tandai userEdited');
+ok(compose.includes('markUserEdited(); setBody(v)'), 'editor rich harus tandai userEdited');
+ok(compose.includes('markUserEdited(); setBody(e.target.value)'), 'textarea html/plain harus tandai userEdited');
+
+// ── Edit draft: klik draft di folder Draf → buka compose (bukan reader) ──────
+ok(mail.includes("composeMode: 'draft'"), 'openDraftForEdit harus set composeMode draft');
+ok(mail.includes('draftUid: uid'), 'initialData harus membawa uid draft asli (untuk dibersihkan saat kirim)');
+ok(mail.includes('if (isDraftFolder) {\n      openDraftForEdit(uid);\n      return;\n    }'),
+  'handleRowClick di folder Draf harus buka editor, bukan reader');
+ok(mail.includes("extractHtml(detail.parts)"), 'isi draft diambil dari detail.parts');
+ok(compose.includes("editingDraftUidRef.current = initialData?.draftUid || null;"),
+  'ComposeModal harus menyimpan uid draft asli saat edit');
+ok(compose.includes("if (initialData?.composeMode === 'draft') { sigInjected.current = true; return; }"),
+  'draft yang dibuka tidak boleh disuntik signature ganda');
+
+// ── extractHtml dipindah ke lib + dipakai reader & mail (dedup) ──────────────
+ok(lib.includes('export function extractHtml(parts)'), 'extractHtml harus ada di messageHtml.js');
+ok(reader.includes("import { extractHtml } from '../../lib/messageHtml';"), 'MessageReader harus import dari lib');
+ok(!reader.includes('function extractHtml(parts)'), 'MessageReader tidak boleh punya duplikat extractHtml lokal');
+// Preferensi html di kedalaman mana pun (bug latent: plain bisa menang bila
+// text/plain ada di urutan part lebih awal dari html yang bersarang).
+ok(lib.includes('const html = findHtml(parts);'), 'extractHtml harus prefer html di kedalaman mana pun');
+
+console.log('\nDraft/compose audit: ' + passCount + ' assertions PASS ✅');

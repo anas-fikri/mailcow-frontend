@@ -41,6 +41,10 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   const draftUidRef  = useRef(null); // uid terakhir hasil save (utk hapus setelah kirim)
   const saveTimerRef = useRef(null);
   const autosaveDirty = useRef(false);
+  const editingDraftUidRef = useRef(null); // uid draft asli (mode edit draft) — hapus saat kirim
+  const autosaveBusy  = useRef(false);     // autosave sedang berjalan — cegah tumpukan/stale overwrite
+  const sentRef       = useRef(false);     // email sudah terkirim — autosave in-flight harus bersihkan draft
+  const userEditedRef = useRef(false);     // user sudah mengubah apa pun — gerbang autosave
 
   const [showToSugg, setShowToSugg]  = useState(false);
   const [showCcSugg, setShowCcSugg]  = useState(false);
@@ -93,6 +97,10 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       draftIdRef.current = null;
       draftUidRef.current = null;
       autosaveDirty.current = false;
+      editingDraftUidRef.current = initialData?.draftUid || null;
+      autosaveBusy.current = false;
+      sentRef.current = false;
+      userEditedRef.current = false;
       setAttachments([]);
       clearTimeout(saveTimerRef.current);
     }
@@ -104,11 +112,18 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   // setelah email terkirim (deleteDraft) supaya tidak menumpuk di Draf.
   const hasContent = !!(to.trim() || cc.trim() || bcc.trim() || subject.trim() || body.trim() || attachments.length > 0);
 
+  const markUserEdited = useCallback(() => { userEditedRef.current = true; }, []);
+
   const runAutosave = useCallback(async () => {
     if (!token || !user?.email || !hasContent) {
       autosaveDirty.current = false;
       return;
     }
+    // Cegah tumpukan: kalau autosave lain masih berjalan, tandai dirty dan
+    // biarkan finally menjadwalkan ulang — mencegah konten STALE menimpa
+    // konten yang lebih baru (race dua autosave yang saling menimpa).
+    if (autosaveBusy.current) { autosaveDirty.current = true; return; }
+    autosaveBusy.current = true;
     try {
       setDraftState('saving');
       if (!draftIdRef.current) {
@@ -121,16 +136,40 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         isHTML: editorMode !== 'plain',
         from: userFrom,
       });
+      if (sentRef.current) {
+        // Email sudah terkirim saat autosave ini berjalan — jangan simpan ref,
+        // bersihkan draft (asli + autosave) supaya tidak yatim di folder Draf.
+        autosaveDirty.current = false;
+        const staleUids = [editingDraftUidRef.current, uid || draftUidRef.current].filter(Boolean);
+        staleUids.forEach((dUid) => deleteDraft(token, dUid));
+        draftUidRef.current = null;
+        draftIdRef.current = null;
+        editingDraftUidRef.current = null;
+        return;
+      }
       if (uid) draftUidRef.current = uid;
       autosaveDirty.current = false;
       setDraftState('saved');
     } catch {
       setDraftState('error'); // gagal autosave — jangan ganggu compose, retry berikutnya
+    } finally {
+      autosaveBusy.current = false;
+      // Ada perubahan baru yang masuk selama autosave berjalan (dirty lagi)
+      // atau autosave tadi di-skip karena sibuk → jadwalkan ulang supaya
+      // konten terbaru tidak pernah terlewat.
+      if (autosaveDirty.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => { runAutosave(); }, 3000);
+      }
     }
   }, [token, user?.email, hasContent, to, cc, bcc, subject, body, editorMode, userFrom]);
 
   useEffect(() => {
     if (!isOpen || success || !hasContent) return;
+    // Autosave HANYA setelah user mengubah apa pun — membuka draft/reply yang
+    // sudah terisi (initialData) tanpa edit tidak boleh langsung membuat
+    // salinan draft baru di folder Draf.
+    if (!userEditedRef.current) return;
     autosaveDirty.current = true;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => { runAutosave(); }, 3000);
@@ -144,6 +183,10 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   // Fallback ke SOGoMailSignature lama bila belum ada signature lokal.
   useEffect(() => {
     if (!isOpen || sigInjected.current || !user?.email) return;
+    // Draft yang dibuka untuk dilanjutkan TIDAK disuntik signature baru —
+    // body-nya adalah yang terakhir disimpan user (mungkin sudah berisi
+    // signature lama). Injeksi ulang akan menduplikasi signature.
+    if (initialData?.composeMode === 'draft') { sigInjected.current = true; return; }
     const localSig = getSignatureFor(user.email, composeMode);
     // Entri legacy ber-placeholder tidak ikut disuntik ke email baru — hanya
     // diisi saat user mengeditnya (flag placeholder dihapus oleh updateSignature).
@@ -203,6 +246,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   const addFiles = useCallback((fileList) => {
     const files = Array.from(fileList || []);
     if (files.length === 0) return;
+    markUserEdited();
 
     // Validasi jumlah & ukuran di luar updater (deterministik, tanpa double-run).
     const remaining = MAX_ATTACHMENTS - attachCountRef.current;
@@ -246,7 +290,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       };
       reader.readAsDataURL(file);
     }
-  }, []);
+  }, [markUserEdited]);
 
   const onAttachFiles = useCallback((e) => {
     addFiles(e.target.files);
@@ -254,8 +298,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   }, [addFiles]);
 
   const removeAttachment = useCallback((id) => {
+    markUserEdited();
     setAttachments(prev => prev.filter(a => a.id !== id));
-  }, []);
+  }, [markUserEdited]);
 
   async function handleSend(e) {
     e.preventDefault();
@@ -272,6 +317,11 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       return;
     }
 
+    // Hentikan autosave sebelum kirim — draft akan dihapus setelah sukses;
+    // autosave yang sedang berjalan diarahkan bersih-bersih lewat sentRef.
+    clearTimeout(saveTimerRef.current);
+    autosaveDirty.current = false;
+    sentRef.current = false;
     setSending(true);
     setError('');
     setSuccess(false);
@@ -289,17 +339,21 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
           .map(a => ({ filename: a.name, contentType: a.type, data: a.data })),
       });
       setSuccess(true);
+      sentRef.current = true;
       // Refresh Sent folder setelah sukses kirim
       if (token) {
         queryClient.invalidateQueries({ queryKey: ['messages', token, 'folderSent'] });
         queryClient.invalidateQueries({ queryKey: ['messages', token, 'folderDrafts'] });
       }
-      // Hapus draft autosave (kalau ada) supaya tidak menumpuk di Draf
-      if (draftUidRef.current) {
-        deleteDraft(token, draftUidRef.current).finally(() => {
-          draftUidRef.current = null;
-          draftIdRef.current = null;
-        });
+      // Hapus draft autosave + draft asli (mode edit draft) supaya tidak
+      // menumpuk di Draf. Kalau autosave masih berjalan saat kirim, sentRef
+      // membuat runAutosave membersihkan draftnya sendiri begitu selesai.
+      const uidsToDelete = [editingDraftUidRef.current, draftUidRef.current].filter(Boolean);
+      if (uidsToDelete.length > 0) {
+        uidsToDelete.forEach((dUid) => deleteDraft(token, dUid));
+        draftUidRef.current = null;
+        draftIdRef.current = null;
+        editingDraftUidRef.current = null;
       }
       setTimeout(() => onClose(), 1500);
     } catch (err) {
@@ -370,7 +424,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     <label className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Kepada:</label>
                     <MultiEmailInput 
                       value={to} 
-                      onChange={setTo} 
+                      onChange={(v) => { markUserEdited(); setTo(v); }} 
                       placeholder="nama@domain.com (Tab/Enter)" 
                       suggestions={getSuggestions} 
                     />
@@ -402,7 +456,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                       <label className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Cc:</label>
                       <MultiEmailInput 
                         value={cc} 
-                        onChange={setCc} 
+                        onChange={(v) => { markUserEdited(); setCc(v); }} 
                         placeholder="cc@domain.com (Tab/Enter)" 
                         suggestions={getSuggestions} 
                       />
@@ -415,7 +469,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                       <label className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Bcc:</label>
                       <MultiEmailInput 
                         value={bcc} 
-                        onChange={setBcc} 
+                        onChange={(v) => { markUserEdited(); setBcc(v); }} 
                         placeholder="bcc@domain.com (Tab/Enter)" 
                         suggestions={getSuggestions} 
                       />
@@ -428,7 +482,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     <input
                       type="text"
                       value={subject}
-                      onChange={e => setSubject(e.target.value)}
+                      onChange={(e) => { markUserEdited(); setSubject(e.target.value); }}
                       className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm font-medium"
                       placeholder="Subjek pesan..."
                     />
@@ -437,18 +491,18 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
 
                 {/* Body */}
                 {editorMode === 'rich' ? (
-                  <RichEditor value={body} onChange={setBody} onAttachFiles={addFiles} />
+                  <RichEditor value={body} onChange={(v) => { markUserEdited(); setBody(v); }} onAttachFiles={addFiles} />
                 ) : editorMode === 'html' ? (
                   <textarea
                     value={body}
-                    onChange={e => setBody(e.target.value)}
+                    onChange={(e) => { markUserEdited(); setBody(e.target.value); }}
                     className="flex-1 w-full min-h-[200px] p-5 bg-transparent border-t border-border/40 focus:outline-none focus:ring-0 text-sm resize-none font-mono text-muted-foreground"
                     placeholder="<p>Tulis kode HTML di sini...</p>"
                   />
                 ) : (
                   <textarea
                     value={body.replace(/<[^>]*>?/gm, '')}
-                    onChange={e => setBody(e.target.value)}
+                    onChange={(e) => { markUserEdited(); setBody(e.target.value); }}
                     className="flex-1 w-full min-h-[200px] p-5 bg-transparent border-t border-border/40 focus:outline-none focus:ring-0 text-sm resize-none"
                     placeholder="Tulis pesan Anda di sini..."
                   />
@@ -505,6 +559,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     value={editorMode}
                     onChange={(e) => {
                       const newMode = e.target.value;
+                      markUserEdited();
                       if (newMode === 'plain' && editorMode !== 'plain') {
                         setBody(prev => prev.replace(/<br\s*[\/]?>/gi, '\n').replace(/<[^>]*>?/gm, ''));
                       } else if (editorMode === 'plain' && newMode !== 'plain') {
@@ -526,6 +581,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     email={user?.email || ''}
                     onInsert={(sigHtml) => {
                       if (!sigHtml) return;
+                      markUserEdited();
                       setBody(cur => {
                         if (cur.includes(sigHtml.substring(0, 80))) return cur;
                         const bqIdx = cur.indexOf('<blockquote');
