@@ -817,3 +817,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - **Edit draft tanpa draftId:** SOGo draftId (session compose) tidak tersedia dari /view —
   strategi aman: buka compose pre-filled dari /view, autosave ke draft BARU, hapus draft
   asli + autosave saat kirim sukses. Duplikat dihindari oleh userEditedRef.
+
+## 2026-08-26T03:14:25Z
+- Task: 
+- Status: COMPLETED
+- Finding: Pola race autosave: 3 guard ref wajib — autosaveBusy (cegah tumpukan, finally reschedule), sentRef (autosave in-flight saat Send membersihkan draftnya sendiri), userEditedRef (autosave hanya setelah input user berubah). handleSend harus clearTimeout sebelum request. extractHtml SOGo parts: prefer text/html di kedalaman mana pun (findHtml dua-pass), fallback text/plain wrap div. Edit draft tanpa draftId SOGo: buka compose pre-filled dari /view + autosave ke draft baru + hapus draft asli saat kirim. Keterbatasan: draft ber-lampiran tidak bisa direstorasi (saveDraft tanpa lampiran).
