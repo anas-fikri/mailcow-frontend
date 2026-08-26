@@ -276,13 +276,24 @@ function SignatureSection() {
     staleTime: 0,
   });
 
+  // Daftar signature LOKAL dimuat langsung dari localStorage — TIDAK boleh
+  // menunggu network (prefs SOGo). Kalau fetchPreferences lambat/gagal,
+  // daftar lokal tetap tampil (regresi: sebelumnya list kosong sampai query
+  // prefs sukses → signature lokal hilang saat SOGo down).
   const migratedRef = useRef(false);
   useEffect(() => {
+    if (!email) return;
+    const fresh = loadSignatures(email);
+    setSigList(fresh.list);
+    setDefaults(fresh.defaults);
+  }, [email]);
+
+  // Import SOGo signature SEKALI: hanya setelah fetchPreferences selesai.
+  // Guard migratedRef di-set SETELAH prefs tiba — kalau prefs gagal/lambat,
+  // ref tidak pernah terkunci dan import tetap berjalan saat prefs akhirnya
+  // datang (deps [email, prefs] men-trigger ulang).
+  useEffect(() => {
     if (!email || migratedRef.current) return;
-    // Race fix: prefs belum dimuat (undefined saat loading) — TUNGGU sampai
-    // fetchPreferences selesai. Sebelumnya migratedRef di-set duluan, jadi
-    // kalau prefs lambat, SOGo signature TIDAK PERNAH diimport (effect tidak
-    // dijalankan ulang walau prefs akhirnya datang).
     if (!prefs) return;
     migratedRef.current = true;
     const savedSogo = prefs?.defaults?.SOGoMailSignature || '';
@@ -299,10 +310,10 @@ function SignatureSection() {
         // tidak menimpa editan lokal).
         addSignature(email, 'Signature SOGo', savedSogo);
       }
+      const fresh = loadSignatures(email);
+      setSigList(fresh.list);
+      setDefaults(fresh.defaults);
     }
-    const fresh = loadSignatures(email);
-    setSigList(fresh.list);
-    setDefaults(fresh.defaults);
   }, [email, prefs]);
 
   function refresh() {

@@ -246,6 +246,10 @@ assert.ok(prefs.includes('if (!prefs) return;'), 'Preferences: import signature 
 passCount++;
 assert.ok(prefs.includes('migratedRef.current = true;') && prefs.includes('if (!prefs) return;\n    migratedRef.current = true;'), 'Preferences: migratedRef di-set sebelum prefs siap');
 passCount++;
+// Regresi: daftar signature LOKAL harus dimuat INDEPENDEN dari prefs (effect
+// dengan deps [email]) — kalau fetchPreferences gagal, list lokal tetap tampil.
+assert.ok(prefs.includes('}, [email]);') && prefs.includes('const fresh = loadSignatures(email);\n    setSigList(fresh.list);'), 'Preferences: list lokal tidak bergantung pada query prefs');
+passCount++;
 
 // Star/spam kontras perbaikan
 assert.ok(mail.includes('text-amber-600 fill-amber-600 dark:text-amber-400 dark:fill-amber-400'), 'Star amber-600 dark split hilang');

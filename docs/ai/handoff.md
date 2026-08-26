@@ -2645,3 +2645,24 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 Race "one-time migration" yang bergantung data async harus menunggu data, bukan cuma
 menunggu mount — kalau guard ref di-set sebelum data datang, migrasi bisa skipped
 selamanya. Pola: `if (!data) return;` SEBELUM `ref.current = true`.
+
+## 2026-08-26T10:29:37Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+- No local changes detected
+
+## Hotfix: regresi list signature saat prefs SOGo gagal/lambat
+
+**Commit:** pemisahan dua effect di SignatureSection.
+- **Regresi dari 0c5830e:** daftar signature LOKAL ikut menunggu query
+  `fetchPreferences` — kalau query error (SOGo down/network), `prefs` tetap
+  undefined → `loadSignatures` tak pernah dipanggil → list kosong ("Belum ada
+  signature") walau data ada di localStorage. Tertangkap oleh
+  `test-settings-signature` (jsdom bundle produksi).
+- **Fix:** effect #1 deps `[email]` memuat list lokal langsung dari
+  localStorage (independen network). Effect #2 (import SOGo sekali-jalan)
+  tetap menunggu prefs dengan guard `migratedRef` setelah data tiba.
+- Test: test-a11y +1 (list lokal tak bergantung prefs) → **120 assertions**,
+  55/55 PASS, build OK.
