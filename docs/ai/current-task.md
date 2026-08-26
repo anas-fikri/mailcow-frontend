@@ -19,3 +19,5 @@ Selesai ✅ — kontrak recurrence SOGo 5 terverifikasi dari source (UI SOGo 5.1
 ## Next
 - Verifikasi browser: buat event berulang mingguan → edit/hapus satu kejadian (pastikan kejadian lain tetap), edit semua kejadian, hapus seluruh seri.
 - Drag occurrence (saat ini = pindah seri) bisa jadi pilihan scope berikutnya.
+Status: COMPLETED
+Updated At: 2026-08-26T14:06:36Z
