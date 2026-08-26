@@ -915,3 +915,11 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Hardening error produksi: fetchWithTimeout (connectSogo 20s, registerSmtpSession 15s); friendlyLoginError petakan Failed to fetch/NetworkError/AbortError ke pesan Indonesia; lazyWithReload reload sekali saat chunk 404 pasca deploy (sessionStorage flag anti-loop). Root cause akun-spesifik masih butuh pcp_last_error dari user. 54/54 PASS, live terverifikasi hash (index-CFA4jfth, LoginPage-BZQgrSvg).
+
+## Kontak SOGo: normalisasi field (durable)
+- SOGo `Contacts/personal/view` bisa mengembalikan c_cn/c_mail/emails sebagai
+  object (bukan string) → WAJIB dinormalisasi string sebelum masuk state/React.
+  Pola sama dgn messageRows (subject/date object). Helper: parseContactRow di
+  contactUtils.js; field `emails` bisa array string ATAU array object {email,address,value}.
+- Duplikat GAL TIDAK diblokir (read-only, sah menambah salinan personal);
+  duplikat personal diblokir (findDuplicateKind prioritas 'personal').

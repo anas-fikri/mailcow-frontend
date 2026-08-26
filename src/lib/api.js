@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { PURIFY_CONFIG } from './pasteUtils.js';
 import { getMessageTotal } from './messageTotals.js';
 import { parseMessageRows } from './messageRows.js';
+import { parseContactRow } from './contactUtils.js';
 import { parseCalendarEvents } from './calendarEvents.js';
 import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
 import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFormat } from './loginDiagnostics.js';
@@ -1056,23 +1057,7 @@ export async function fetchContacts(sogoToken) {
     const cols = data.headers?.[0] || [];
     const rows = data.headers?.slice(1) || [];
 
-    return rows.map(row => {
-      // Guard baris malformed (sama dgn parseMessageRow): baris non-array
-      // (null/string) tidak boleh crash — buang dan lanjutkan.
-      if (!Array.isArray(row)) return null;
-      const c = Object.fromEntries(cols.map((k, i) => [k, row[i]]));
-      return {
-        uid:       c.id    || c.c_uid || '',
-        name:      c.c_cn  || c.fn   || c.c_uid || '',
-        firstName: c.c_givenname || '',
-        lastName:  c.c_sn  || '',
-        email:     c.c_mail || (Array.isArray(c.emails) ? c.emails[0] : '') || '',
-        phone:     c.c_telephonenumber || '',
-        org:       c.c_o   || '',
-        isGAL:     String(c.containerName || '').includes('GAL'),
-        source:    c.sourceID || '',
-      };
-    }).filter(Boolean);
+    return rows.map(row => parseContactRow(cols, row)).filter(Boolean);
   } catch (e) {
     // Auth failure harus propagate (biar session-expired UI jalan);
     // error lain juga propagate agar halaman menampilkan error, bukan state kosong palsu.

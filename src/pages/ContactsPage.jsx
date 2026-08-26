@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users, Search, Plus, Trash2, Mail, Phone, Building2,
@@ -133,6 +133,7 @@ export default function ContactsPage() {
   const [showModal, setShowModal] = useState(false);
   const [modalError, setModalError] = useState('');
   const [selected, setSelected]   = useState(null);
+  const savingRef = useRef(false); // anti double-submit create
 
   const { data: contacts = [], isLoading, error: contactsError } = useQuery({
     queryKey: ['contacts', user?.sogoToken],
@@ -180,12 +181,16 @@ export default function ContactsPage() {
   // diblokir dengan pesan jelas. Duplikat di GAL TIDAK diblokir — GAL adalah
   // direktori read-only dan user sah menambah salinan personal dari kolega.
   function handleAddContact(data) {
+    if (savingRef.current) return;
     if (findDuplicateKind(contacts, data.c_mail) === 'personal') {
       setModalError('Kontak dengan email ini sudah ada di kontak pribadi.');
       return;
     }
     setModalError('');
-    createMutation.mutate(data);
+    savingRef.current = true;
+    createMutation.mutate(data, {
+      onSettled: () => { savingRef.current = false; },
+    });
   }
 
   // Filter + search

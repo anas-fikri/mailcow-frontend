@@ -2431,3 +2431,10 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Rotasi kontak (GAL/personal) — 2 bug, 54/54 PASS, live
+- **parseContactRow** (contactUtils.js): SOGo kadang balik c_cn/c_mail/emails
+  sebagai OBJECT → filter search `.toLowerCase()` / render React crash. Semua
+  field dinormalisasi string + emails array-of-string/object + baris rusak → null.
+- **savingRef** di ContactsPage: anti double-submit create (Enter auto-repeat /
+  klik ganda = kontak duplikat).

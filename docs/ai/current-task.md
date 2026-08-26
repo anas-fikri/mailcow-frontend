@@ -2,29 +2,25 @@
 
 ## Status: SELESAI ✅
 
-**Hardening error production: "Terjadi Kesalahan" di /webmail/mail + gagal fetch saat login**
+**Ai-loop rotasi kontak (GAL/personal) — 2 bug diperbaiki**
 
-Laporan user: sebagian user kena ErrorBoundary saat buka `/webmail/mail`, sebagian gagal fetch saat login. Infra luar dicek sehat (`.com`/`.co.id` → 202.148.2.139, HTTP 200, CSP `connect-src 'self'`, `/SOGo/connect` reachable, tanpa service worker). Root cause persis butuh `pcp_last_error` dari user (ditanyakan).
+### Bug 1 — Field kontak SOGo bisa berupa object → crash halaman kontak
+`fetchContacts` melempar `c.c_cn`/`c_mail`/`emails` mentah ke React + filter
+search (`.toLowerCase()`). Beberapa versi SOGo mengembalikan field tsb sebagai
+object → TypeError di filter pencarian ATAU "Objects are not valid as a React
+child" saat render (satu kelas bug dgn subject/date di messageRows yang sudah
+diatasi sebelumnya).
+**Fix:** `parseContactRow` murni di `contactUtils.js` — semua field dinormalisasi
+string (`str()`), `emails` array-of-string/array-of-object ditangani, baris rusak
+→ null. Dipakai `fetchContacts`.
 
-Hardening defensif diterapkan (terlepas root cause):
-
-1. **Timeout fetch login/SMTP** — `fetchWithTimeout` (api.js) dengan AbortController:
-   `connectSogo` 20s, `registerSmtpSession` 15s. AbortError → error jaringan ramah.
-   Tanpa ini backend hang → tombol "Masuk" menggantung selamanya tanpa pesan.
-2. **Pesan error login ramah** — `isNetworkError`/`friendlyLoginError` (loginDiagnostics.js):
-   "Failed to fetch"/"NetworkError"/AbortError → pesan Indonesia jelas; HTTP error
-   tetap pakai pesan spesifik. Dipakai LoginPage.
-3. **Recover chunk load gagal** — `lazyWithReload` (App.jsx): setelah deploy
-   (rsync --delete), chunk lama 404 → reload sekali (flag sessionStorage anti-loop)
-   → ambil index.html + nama chunk baru. Error nyata tetap ke ErrorBoundary.
+### Bug 2 — Double-submit create kontak
+`AddContactModal` tidak punya guard re-entry (disabled={isLoading} hanya efektif
+setelah re-render) → Enter auto-repeat/klik ganda = kontak duplikat.
+**Fix:** `savingRef` di ContactsPage — `if (savingRef.current) return` +
+reset via `onSettled` mutation (pola sama dgn EventModal/ComposeModal).
 
 ### Validasi
-- test-login-diagnostics +16 (isNetworkError/friendlyLoginError)
-- test-login-flow +7 statis (timeout connect/smtp, lazyWithReload, friendlyLoginError)
+- test-contact-signature-edge +13 (parseContactRow: object→string, emails
+  array-of-object, baris rusak, guard double-submit) → 34 assertions
 - **54/54 PASS** · build OK · deploy live terverifikasi hash
-
-### Tindak lanjut
-- Minta user `localStorage.getItem('pcp_last_error')` / teks error login persis
-  untuk pinpoint root cause akun-spesifik.
-Status: COMPLETED
-Updated At: 2026-08-26T08:12:44Z
