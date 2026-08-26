@@ -12,3 +12,5 @@ Selesai ✅ — 4 temuan diperbaiki, 55/55 test PASS, live di produksi, ter-push
 ## Next
 - Verifikasi browser: dua tab akun sama (double-move), snooze → wake (pesan tetap di Inbox), run-manual tidak menyentuh pesan di-snooze, count kategori tanpa pesan tersembunyi.
 - Lanjut rotasi ai-loop berikutnya dari next-tasks.md.
+Status: COMPLETED
+Updated At: 2026-08-26T13:44:54Z
