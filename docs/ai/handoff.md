@@ -2183,3 +2183,23 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-26 — ai-loop multi-tab: snooze sync + auto-archive claim (FIXED)
+
+- **Bug 1 — Snooze tidak sinkron antar-tab:** event `storage` hanya ter-fire di
+  tab LAIN. Tambah listener di MailPage utk key `pcp_snooze_v3_<email>` /
+  `pcp_snooze_v2_<email>` / `clear()` → bump `snoozeTick` → daftar langsung
+  refetch (tab B lihat snooze/unsnooze tab A tanpa nunggu interval 60s).
+- **Bug 2 — Auto-archive double-move antar-tab:** dua tab akun sama menjalankan
+  rule engine independen (query cache + rulesProcessed per-tab) → bisa
+  memindahkan pesan SAMA bersamaan. **Fix:** `claimAutoArchiveUids` di
+  autoArchive.js — klaim uid di sessionStorage (per-tab, TTL 5 mnt); tab kedua
+  SKIP uid yang sudah diklaim. `releaseAutoArchiveClaims` setelah move
+  selesai/gagal. `rulesProcessed` hanya utk pesan yang BENAR-BENAR dipindah.
+- **Notifikasi:** sudah aman — `tag: 'sogo-new-mail'` membuat browser mengganti
+  notifikasi antar tab (tidak menumpuk).
+- **Pelajaran:** koordinasi lintas tab = `sessionStorage` (per-tab, auto-clean)
+  utk klaim/lock + event `storage` (antar-tab) utk sinkronisasi UI. Klaim TTL
+  wajib agar kegagalan tidak mengunci selamanya.
+- Test: `test:multitab` baru (claim, skip, release, TTL, scoped email) →
+  **50/50 PASS** + build OK.

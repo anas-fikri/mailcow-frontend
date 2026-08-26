@@ -342,3 +342,67 @@ export function clearAllRules(email) {
   try { localStorage.removeItem(lsKey(email)); } catch {}
   try { localStorage.removeItem(`auto_archive_rules_${email}`); } catch {}
 }
+
+// ─── Multi-tab claim (cegah double-move) ────────────────────────────────────
+// Dua tab webmail akun yang sama menjalankan rule engine secara independen
+// (query cache + rulesProcessed per-tab). Tanpa koordinasi, kedua tab bisa
+// memindahkan pesan yang SAMA bersamaan (double-move / double-toast).
+//
+// Solusi: klaim uid di sessionStorage (per-tab, hilang saat tab ditutup —
+// tidak meninggalkan sampah permanen) dengan TTL. Tab yang pertama claim
+// berhak memindahkan; tab lain melihat klaim dan SKIP uid tsb.
+
+const CLAIM_PREFIX = 'pcp_aa_claims';
+const CLAIM_TTL_MS = 5 * 60_000; // klaim valid 5 menit
+
+function claimsKey(email) {
+  return `${CLAIM_PREFIX}_${typeof email === 'string' ? email.toLowerCase() : ''}`;
+}
+
+function readClaims(email) {
+  try {
+    const raw = sessionStorage.getItem(claimsKey(email));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeClaims(email, claims) {
+  try {
+    sessionStorage.setItem(claimsKey(email), JSON.stringify(claims));
+  } catch { /* sessionStorage penuh / tidak tersedia — abaikan */ }
+}
+
+/**
+ * Klaim uid utk diproses tab ini (hapus klaim yang sudah kedaluwarsa dulu).
+ * @returns {string[]} uid yang BERHASIL diklaim tab ini (bisa diproses)
+ */
+export function claimAutoArchiveUids(email, uids) {
+  if (!email || !Array.isArray(uids) || uids.length === 0) return [];
+  const now = Date.now();
+  const claims = readClaims(email);
+  const cleaned = {};
+  for (const [uid, ts] of Object.entries(claims)) {
+    if (Number(ts) > now - CLAIM_TTL_MS) cleaned[uid] = ts; // masih valid
+  }
+  const fresh = [];
+  for (const uid of uids) {
+    const k = String(uid);
+    if (cleaned[k]) continue; // sudah diklaim tab lain (atau diri sendiri) → skip
+    cleaned[k] = now;
+    fresh.push(k);
+  }
+  writeClaims(email, cleaned);
+  return fresh;
+}
+
+/** Hapus klaim (dipanggil setelah move selesai / gagal). */
+export function releaseAutoArchiveClaims(email, uids) {
+  if (!email || !Array.isArray(uids) || uids.length === 0) return;
+  const claims = readClaims(email);
+  for (const uid of uids) delete claims[String(uid)];
+  writeClaims(email, claims);
+}

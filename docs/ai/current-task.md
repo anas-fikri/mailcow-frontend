@@ -1,50 +1,41 @@
 # Current Task
 
-## Task: ai-loop sorting — konflik sortAsc + conversation view + group-by-tanggal di MailPage
+## Task: ai-loop multi-tab — dua tab webmail akun sama: polling unseen, snooze prune, auto-archive race
 
-**Status: SELESAI (49/49 test PASS, build OK)** → siap commit + push + deploy.
+**Status: SELESAI (50/50 test PASS, build OK)** → siap commit + push + deploy.
 
 ## Temuan
 
-1. **Sort by UID, bukan tanggal.** `sortedMessages` mengurutkan by `uid`
-   (asc/desc sesuai sortAsc). UID SOGo per-folder TIDAK dijamin sekuensial
-   dengan waktu → urutan tampil bisa menyimpang dari tanggal. Saat `sortAsc`
-   (terlama dulu) urutan baris terbalik total → date-group header muncul
-   TERBALIK (Lebih Lama di atas, Hari Ini di bawah) + sticky header "Lebih
-   Lama" menempel saat scroll melewati pesan baru.
-2. **Conversation view mengabaikan sortAsc.** `groupMessages` selalu urutkan
-   grup by max-UID descending → toggle sort tidak berpengaruh di conversation
-   view (inkonsisten dgn flat view).
-3. **Fallback `visibleOrderUids` kosong** saat conversation view aktif tapi
-   `conversationGroups` kosong (semua subjek unik) → range-select / auto-advance
-   reader / keyboard navigation mati di kondisi tsb.
-4. **Keyboard focus pakai urutan berbeda dari render.** `focusIdx` (j/k)
-   menunjuk `messages` (uid-sort) sedangkan render baris memakai indeks
-   date-group (sortedMessages) → highlight fokus bisa menunjuk pesan yang
-   berbeda dari yang dirender.
+1. **Snooze tidak sinkron antar-tab.** localStorage dibagi antar tab, tapi event
+   `storage` hanya ter-fire di tab LAIN (bukan yang menulis). Tab B tidak tahu
+   tab A menynooze/unsnooze → daftar pesan tab B basi sampai interval 60 detik
+   (atau tanpa batas bila tidak ada perubahan local).
+2. **Auto-archive double-move antar-tab.** Dua tab akun sama menjalankan rule
+   engine independen (query cache + rulesProcessed per-tab). Keduanya bisa
+   memindahkan pesan yang SAMA bersamaan → double-move / double-toast.
+3. **Notifikasi email baru** — dua tab polling unseen sama-sama memunculkan
+   notifikasi; `tag: 'sogo-new-mail'` membuat browser mengganti notifikasi
+   (tidak menumpuk) → aman, tidak perlu diubah.
 
 ## Perbaikan
 
-- **`sortMessagesByDate(messages, {asc, getDate, now})`** di `src/lib/dateGroups.js`
-  — urut by DATE (parseMessageDate toleran), tiebreak uid desc, unparseable
-  paling bawah. `asc` TIDAK membalik baris — hanya urutan GRUP (dipanggil
-  `reorderDateGroups` / `groupMessages` asc).
-- **`reorderDateGroups(groups, asc)`** — balik urutan grup tanggal saat asc
-  (header Lebih Lama → Hari Ini), isi tiap grup tetap date-descending.
-- **MailPage:** `sortedMessages` = `sortMessagesByDate(displayMessages)`
-  (selalu date-desc); flat view render `reorderDateGroups(groupMessagesByDate(...), sortAsc)`;
-  `groupMessages(messages, sortAsc)` — asc membalik urutan THREAD, pesan dalam
-  thread tetap terbaru-dulu (pola Gmail).
-- **Keyboard focus** (j/k/o/enter/targetUids/scroll-into-view/clamp) kini pakai
-  `sortedMessages` — konsisten dengan urutan render. Deps handler + `sortedMessages`.
-- `visibleOrderUids` fallback ke `sortedMessages` bila conversationGroups kosong.
+1. **Storage event listener utk snooze** (MailPage): watch key
+   `pcp_snooze_v3_<email>` / `pcp_snooze_v2_<email>` / `clear()` → bump
+   `snoozeTick` saat tab lain menulis. UI langsung ter-refresh.
+2. **Klaim auto-archive antar-tab** (`src/lib/autoArchive.js`):
+   `claimAutoArchiveUids(email, uids)` — klaim uid di sessionStorage (per-tab,
+   hilang saat tab ditutup) dengan TTL 5 menit; tab pertama menang, tab lain
+   SKIP uid tsb. `releaseAutoArchiveClaims(email, uids)` — lepas klaim setelah
+   move selesai/gagal. MailPage: claim sebelum executeRules, lepas utk pesan
+   yang tidak jadi dipindah; `rulesProcessed` hanya di-set utk pesan yang
+   BENAR-BENAR dipindah (yang di-skip karena klaim tab lain tetap bisa dicoba
+   lagi saat klaim kedaluwarsa).
 
-## Verifikasi
+## Verifikasi aman
 
-- `test:date-groups` diperluas: sortMessagesByDate (date-desc + tiebreak +
-  unparseable), asc tidak membalik baris, getDate custom, reorderDateGroups
-  (asc → header terbalik, isi grup tetap), semua-invalid → uid-desc.
-- **49/49 test PASS** · build OK.
+- `test:multitab` baru: claim pertama, claim tab kedua skip, scoped per email,
+  release, TTL kedaluwarsa, input invalid, regresi snooze v3.
+- **50/50 test PASS** · build OK.
 
 Status: COMPLETED
-Updated At: 2026-08-26T02:23:56Z
+Updated At: 2026-08-26T03:0x:00Z

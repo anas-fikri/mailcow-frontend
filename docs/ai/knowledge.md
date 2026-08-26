@@ -703,3 +703,18 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Konflik sorting MailPage: sortedMessages kini urut by TANGGAL (sortMessagesByDate — uid SOGo tidak dijamin sekuensial dgn waktu). sortAsc hanya membalik urutan GRUP (reorderDateGroups utk date-group, groupMessages asc utk conversation thread), isi grup tetap date-descending. Keyboard j/k + range-select visibleOrderUids pakai sumber urutan sama dengan render; fallback saat conversation view tanpa grup. 49/49 test PASS, deploy live hash terverifikasi.
+
+## 2026-08-26 — Koordinasi lintas tab: sessionStorage utk klaim, storage event utk sync
+
+- **Event `storage` hanya ter-fire di tab LAIN** (bukan tab yang menulis) —
+  untuk sinkronisasi UI antar tab, pasang `window.addEventListener('storage')`
+  dan cocokkan `e.key` dengan key domain (jangan lupa `e.key === null` = clear).
+- **Klaim/lock lintas tab = sessionStorage** (per-tab, otomatis hilang saat tab
+  ditutup) + TTL eksplisit (mis. 5 menit) agar kegagalan tidak mengunci
+  selamanya. `localStorage` untuk lock lintas tab berisiko meninggalkan sampah
+  permanen saat tab mati mendadak.
+- **Double-execution guard:** `rulesProcessed` (ref per-tab) tidak cukup untuk
+  multi-tab — dua tab menjalankan engine yang sama independen. Kombinasi:
+  claim (sessionStorage) + skip + release setelah sukses/gagal.
+- **Notification API `tag`** — browser mengganti notifikasi dengan tag sama;
+  cukup utk dedup notifikasi lintas tab (tidak perlu koordinasi manual).

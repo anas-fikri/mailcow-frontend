@@ -18,7 +18,7 @@ import KeyboardShortcutsModal from '../components/KeyboardShortcuts';
 import SwipeableRow from '../components/SwipeableRow';
 import Avatar from '../components/Avatar';
 import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor } from '../lib/flagColors';
-import { getRuleSummary, executeRules } from '../lib/autoArchive';
+import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveClaims } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
 import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate } from '../lib/dateGroups';
@@ -497,6 +497,26 @@ export default function MailPage() {
     return () => clearInterval(iv);
   }, [user?.email]);
 
+  // Sinkronisasi SNOOZE antar-tab: localStorage dibagi antar tab, tapi event
+  // 'storage' hanya ter-fire di tab LAIN (bukan yang menulis). Tanpa listener
+  // ini, tab B tidak tahu tab A menynooze/unsnooze pesan → daftar pesan tab B
+  // basi sampai interval 60 detik berikutnya (bahkan tanpa batas bila tidak
+  // ada perubahan). Bump snoozeTick saat key snooze user berubah di tab lain.
+  useEffect(() => {
+    if (!user?.email) return;
+    const norm = (s) => typeof s === 'string' ? s.trim().toLowerCase() : '';
+    const myKey = `pcp_snooze_v3_${norm(user.email)}`;
+    const legacyKey = `pcp_snooze_v2_${norm(user.email)}`;
+    const onStorage = (e) => {
+      const k = e?.key;
+      if (k === myKey || k === legacyKey || k === null /* clear() */) {
+        setSnoozeTick((t) => t + 1);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [user?.email]);
+
   // Sort by DATE (client-side), selalu date-descending untuk semua view.
   // Sebelumnya sort by UID: (1) uid SOGo per-folder tidak dijamin sekuensial
   // dgn waktu → urutan tampil bisa menyimpang dari tanggal; (2) saat sortAsc
@@ -555,6 +575,14 @@ export default function MailPage() {
     const unprocessed = messages.filter((m) => !rulesProcessed.current[m.uid]);
     if (!unprocessed.length) return;
 
+    // MULTI-TAB: klaim uid yg akan diproses tab ini di sessionStorage (TTL 5
+    // mnt). Dua tab akun sama menjalankan rule engine independen; tanpa klaim
+    // keduanya bisa memindahkan pesan SAMA bersamaan (double-move). Tab yang
+    // claim duluan menang; tab lain SKIP uid tsb (claims tetap dianggap
+    // unprocessed utk diproses nanti bila masih ada di folder).
+    const claimed = claimAutoArchiveUids(user.email, unprocessed.map((m) => m.uid));
+    const claimedSet = new Set(claimed);
+
     executeRules(
       user.email,
       user.sogoToken,
@@ -564,9 +592,23 @@ export default function MailPage() {
       // Pesan yang sedang di-snooze TIDAK boleh dipindah rule otomatis —
       // user meminta tunda; memindahnya membuat snooze yatim (uid berubah)
       // dan mengabaikan keinginan user. Rules diproses ulang saat wake.
-      (m) => snoozedUids.has(String(m?.uid))
+      // Pesan yang DICLAIM tab lain juga di-skip (multi-tab guard).
+      (m) => snoozedUids.has(String(m?.uid)) || !claimedSet.has(String(m?.uid))
     ).then((actions) => {
-      unprocessed.forEach((m) => { rulesProcessed.current[m.uid] = true; });
+      const movedUids = actions.flatMap((a) => a.uids);
+      // Lepas klaim utk pesan yang TIDAK jadi dipindah (snooze / tidak match
+      // rule / diklaim tab lain) — biar tab lain atau run berikutnya bisa
+      // memprosesnya.
+      releaseAutoArchiveClaims(
+        user.email,
+        unprocessed.filter((m) => !movedUids.includes(m.uid)).map((m) => m.uid)
+      );
+      // Tandai processed HANYA pesan yang benar-benar diproses tab ini.
+      // Pesan yang di-skip karena diklaim tab lain TIDAK ditandai — saat
+      // klaim kedaluwarsa/rileks, run berikutnya akan mencobanya lagi.
+      unprocessed.forEach((m) => {
+        if (movedUids.includes(m.uid)) rulesProcessed.current[m.uid] = true;
+      });
 
       if (actions.length > 0) {
         const totalMoved = actions.reduce((sum, a) => sum + a.uids.length, 0);
@@ -574,6 +616,8 @@ export default function MailPage() {
         queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
       }
     }).catch((err) => {
+      // Gagal (network/SOGo) — lepas klaim agar run berikutnya bisa coba lagi.
+      releaseAutoArchiveClaims(user.email, unprocessed.map((m) => m.uid));
       console.warn('[rules] Gagal menjalankan aturan otomatis:', err?.message || err);
       // Bug fix: tampilkan toast error ke user (bukan hanya console.warn)
       toast.warning('Sebagian aturan gagal dijalankan — coba lagi nanti.');
