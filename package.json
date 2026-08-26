@@ -54,7 +54,8 @@
     "test:keyboard-ownership": "node scripts/test-keyboard-ownership.mjs",
     "test:a11y": "node scripts/test-a11y.mjs",
     "test:state-combination": "node scripts/test-state-combination.mjs",
-    "test:event-validation": "node scripts/test-event-validation.mjs"
+    "test:event-validation": "node scripts/test-event-validation.mjs",
+    "test:calendar-events": "node scripts/test-calendar-events.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

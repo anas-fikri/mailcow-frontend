@@ -1993,3 +1993,29 @@ assertion statis ComposeModal. 46/46 PASS.
 -  M scripts/test-email-validation.mjs
 -  M src/components/mailer/ComposeModal.jsx
 -  M src/lib/emailValidation.js
+
+## [2026-08-26] Konflik duplikat event kalender — SELESAI & LIVE
+
+2 jalur duplikasi event: (1) double-submit create — handleSave/handleDelete
+tanpa re-entry guard; tombol disabled={saving} hanya efektif setelah re-render,
+Enter auto-repeat/klik ganda di tick sama → 2x newEventGuid = 2 event. Fix
+savingRef (useRef sinkron) di handleSave + handleDelete, reset di finally.
+(2) Parsing eventsblocks tanpa dedup — baris duplikat id+start+calendar sama
+dirender 2x. Fix: parser murni src/lib/calendarEvents.js (parseCalendarEvents)
+dipakai api.js, dedup by id|start|calendar — recurring (start beda) & 
+cross-calendar (kalender beda) TETAP dipertahankan; number vs string start
+dinormalisasi; baris rusak di-skip. Test test:calendar-events 18 assertions.
+47/47 PASS.
+
+## 2026-08-26T01:43:52Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M package.json
+-  M src/components/EventModal.jsx
+-  M src/lib/api.js
+- ?? scripts/test-calendar-events.mjs
+- ?? src/lib/calendarEvents.js

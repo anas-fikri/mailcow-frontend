@@ -79,6 +79,10 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
   const [attendees, setAttendees] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Guard re-entry: tombol disabled={saving} hanya efektif SETELAH re-render;
+  // Enter auto-repeat / klik ganda di tick yang sama bisa memanggil handleSave
+  // dua kali → dua event (masing-masing newEventGuid). Ref ini sinkron.
+  const savingRef = useRef(false);
 
   // Recurrence — kirim ke SOGo sebagai objek `repeat` (iCalRepeatableEntityObject+SOGo.m).
   const [freq, setFreq] = useState('never');                 // never|daily|weekly|monthly|yearly
@@ -190,6 +194,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
 
   async function handleSave(e) {
     e.preventDefault();
+    if (savingRef.current) return; // double-submit (Enter auto-repeat / klik ganda)
     if (!title.trim()) { setError('Judul event wajib diisi.'); return; }
 
     // Cegah event durasi negatif: SOGo menerima payload end < start dan
@@ -197,6 +202,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
     const timeCheck = validateEventTimes({ startDate, startTime, endDate, endTime, isAllDay });
     if (!timeCheck.ok) { setError(timeCheck.message); return; }
 
+    savingRef.current = true;
     setSaving(true);
     setError('');
 
@@ -243,11 +249,14 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
       setError(err.message || 'Gagal menyimpan event.');
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   }
 
   async function handleDelete() {
     if (!event?.id) return;
+    if (savingRef.current) return; // double-click hapus → satu eksekusi
+    savingRef.current = true;
     setSaving(true);
     try {
       await onDelete(event.id);
@@ -256,6 +265,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
       setError(err.message || 'Gagal menghapus event.');
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   }
 

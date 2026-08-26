@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { PURIFY_CONFIG } from './pasteUtils.js';
 import { getMessageTotal } from './messageTotals.js';
 import { parseMessageRows } from './messageRows.js';
+import { parseCalendarEvents } from './calendarEvents.js';
 import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
 import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFormat } from './loginDiagnostics.js';
 import { flattenMailboxes } from './mailboxTree.js';
@@ -1208,34 +1209,10 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
     if (!res.ok) throwApiError('Gagal memuat kalender.', res.status);
     const raw = await safeJson(res);
 
-    // raw = array of calendar objects, each has eventsFields + blocks
-    const events = [];
-    for (const cal of (Array.isArray(raw) ? raw : [])) {
-      const fields = cal.eventsFields || [];
-      for (const block of (cal.blocks || [])) {
-        const ev = Object.fromEntries(fields.map((f, i) => [f, block[i]]));
-        events.push({
-          id:        ev.c_name || '',
-          title:     ev.c_title || '(Tanpa Judul)',
-          start:     ev.c_startdate,   // unix timestamp
-          end:       ev.c_enddate,     // unix timestamp
-          startHour: ev.startHour || '',
-          location:  ev.c_location || '',
-          isAllDay:  !!ev.c_isallday,
-          isRecurring: !!ev.c_iscycle,
-          calendar:  ev.calendarName || '',
-          folder:    ev.c_folder || '',
-          owner:     ev.c_owner || '',
-          status:    ev.c_status,
-          description: ev.c_description || '',
-          // c_partmails newline-separated (iCalEvent+SOGo.m quickRecordFromContent)
-          attendees: ev.c_partmails ? String(ev.c_partmails).split('\n').filter(Boolean).join(', ') : '',
-          // c_classification: 0=public, 1=private, 2=confidential
-          classification: ev.c_classification === 1 ? 'private' : ev.c_classification === 2 ? 'confidential' : 'public',
-      });
-      }
-    }
-    return events;
+    // raw = array of calendar objects, each has eventsFields + blocks.
+    // Parser murni di src/lib/calendarEvents.js — termasuk dedup baris
+    // duplikat (id+start+calendar) agar event yang sama tidak dirender 2x.
+    return parseCalendarEvents(raw);
   } catch (err) {
     // Auth failure harus propagate (session-expired UI); error lain juga
     // propagate agar halaman menampilkan error, bukan kalender kosong palsu.

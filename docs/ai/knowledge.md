@@ -629,3 +629,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Validasi recipient compose: ComposeModal hanya guard to wajib, format invalid lolos sampai server (400 generik). Fix: firstInvalidRecipient(value) di src/lib/emailValidation.js — entri pertama tidak valid dlm daftar dipisah koma (null bila valid), reuse isSafeRecipient (anti CRLF/header injection, support 'Nama <email>'); guard handleSend validasi Kepada/Cc/Bcc berurutan dgn pesan 'Alamat email tidak valid di "<field>": "<addr>". Gunakan format nama@domain.com.'; koma/spasi trailing diterima (filter Boolean); server tetap validasi ulang (validateRecipientList) — defense-in-depth dua lapis.
+
+## 2026-08-26T01:43:52Z
+- Task: 
+- Status: COMPLETED
+- Finding: Duplikat event kalender: (1) EventModal double-submit — tombol disabled={saving} (state async) TIDAK melindungi Enter auto-repeat/klik ganda di tick yang sama; handleSave/handleDelete butuh guard re-entry via useRef sinkron (savingRef), bukan state, karena 2x createCalendarEvent = 2x newEventGuid = 2 event. (2) SOGo eventsblocks meng-expand recurring jadi satu baris PER OCCURRENCE (start berbeda) — JANGAN dedup by id saja; dedup benar by id|start|calendar (normalisasi String utk number vs string), recurring & cross-calendar tetap dipertahankan. Parser dipindah ke src/lib/calendarEvents.js (murni, bisa diuji) + guard baris rusak (blocks/baris non-array) agar satu baris korup tidak merusak kalender. Test test:calendar-events = 18 assertions.
