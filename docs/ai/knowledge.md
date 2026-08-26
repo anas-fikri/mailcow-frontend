@@ -950,3 +950,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   menimpa draft asli. Tutup tanpa kirim harus menghapus copy (draftUidRef) —
   kalau tidak, folder Draf menumpuk duplikat. Compose baru jangan dihapus saat
   tutup (draft autosave = fitur lanjutkan dari Draf).
+
+## 2026-08-26T08:43:38Z
+- Task: 
+- Status: COMPLETED
+- Finding: Ai-loop menyeluruh: security & robustness bersih (XSS/tabnabbing/input validation solid dari round sebelumnya). 2 bug flow diperbaiki: (1) kalender klik sel bulan mengirim Date midnight → openCreateModal default jam 09:00, week/day kirim hour asli; (2) tutup compose edit-draft tanpa kirim → handleClose hapus copy autosave (draft asli tetap; compose baru tidak dihapus). 54/54 PASS, live (index-Dmd94Swz, CalendarPage-DWieJ8Gk, MailPage-CMVgao9L).

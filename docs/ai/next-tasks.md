@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T08:27:10Z
+Generated At: 2026-08-26T08:43:38Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Kontak SOGo: fetchContacts sekarang pakai parseContactRow murni (contactUtils.js) — field c_cn/c_mail/emails bisa object, wajib dinormalisasi string; emails bisa array string ATAU array object. ContactsPage tambah savingRef anti double-submit create. 54/54 PASS, live terverifikasi hash (index-CHLCPQI3, ContactsPage-DdssLPt0).
+## 1. [MEDIUM] Follow up on discovered knowledge: Ai-loop menyeluruh: security & robustness bersih (XSS/tabnabbing/input validation solid dari round sebelumnya). 2 bug flow diperbaiki: (1) kalender klik sel bulan mengirim Date midnight → openCreateModal default jam 09:00, week/day kirim hour asli; (2) tutup compose edit-draft tanpa kirim → handleClose hapus copy autosave (draft asli tetap; compose baru tidak dihapus). 54/54 PASS, live (index-Dmd94Swz, CalendarPage-DWieJ8Gk, MailPage-CMVgao9L).
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
