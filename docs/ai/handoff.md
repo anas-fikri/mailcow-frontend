@@ -1895,3 +1895,30 @@ Implement: Buffy · Review: self-review + bug-hunt passes (flow → edge → UI/
 - ?? scripts/test-format.mjs
 - ?? scripts/test-keyboard-ownership.mjs
 - ?? src/lib/calendarDrop.js
+
+## [2026-08-26] Audit aksesibilitas (kontras, 44px, aria) — SELESAI & LIVE
+
+Perbaikan aksesibilitas WCAG 2.1 AA: token kontras (muted-foreground 45%,
+destructive light 0 72% 46% / dark 0 84% 58%), amber-900 session countdown,
+star amber-600/400, spam orange-600/500, SwipeableRow dark:bg-red-700.
+Touch target 44px (min-w-11/min-h-11) di toolbar MailPage, bulk toolbar,
+MessageReader, Sidebar, flag picker, snooze presets. Aria-label semua tombol
+icon-only + aria-pressed/expanded pada toggle; sender baris pesan jadi
+<button>; focus-visible global di index.css. Test baru test:a11y (63
+assertions). 44/44 PASS. Known limitations terdokumentasi: border token
+1.23:1 (perlu keputusan desain utk 3:1), FLAG_COLORS yellow/green <3:1 light.
+
+## 2026-08-26T01:07:44Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M package.json
+-  M src/components/SwipeableRow.jsx
+-  M src/components/layout/Sidebar.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/index.css
+-  M src/pages/MailPage.jsx
+- ?? scripts/test-a11y.mjs

@@ -51,7 +51,8 @@
     "test:storage-migrate": "node scripts/test-storage-migrate.mjs",
     "test:format": "node scripts/test-format.mjs",
     "test:calendar-drop": "node scripts/test-calendar-drop.mjs",
-    "test:keyboard-ownership": "node scripts/test-keyboard-ownership.mjs"
+    "test:keyboard-ownership": "node scripts/test-keyboard-ownership.mjs",
+    "test:a11y": "node scripts/test-a11y.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

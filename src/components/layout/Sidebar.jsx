@@ -62,11 +62,11 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
         {/* Toggle buttons */}
         <div className="flex items-center">
           {/* Mobile close */}
-          <button className="md:hidden p-1.5 rounded-lg text-muted-foreground hover:bg-muted" onClick={onClose}>
+          <button className="md:hidden min-w-11 min-h-11 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" onClick={onClose} aria-label="Tutup menu">
             <X size={18} />
           </button>
           {/* Desktop collapse */}
-          <button className="hidden md:flex p-1.5 rounded-lg text-muted-foreground hover:bg-muted" onClick={onToggleCollapse}>
+          <button className="hidden md:flex min-w-11 min-h-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" onClick={onToggleCollapse} aria-label={collapsed ? 'Buka sidebar' : 'Ciutkan sidebar'}>
             {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           </button>
         </div>
@@ -108,8 +108,9 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
       <div className="p-3 border-t border-border flex flex-col gap-2">
         <button
           onClick={toggleTheme}
-          className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all ${collapsed ? 'justify-center' : ''}`}
+          className={`flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all ${collapsed ? 'justify-center' : ''}`}
           title="Ganti Tema"
+          aria-label="Ganti tema"
         >
           {theme === 'dark' ? <Sun size={15} className="shrink-0" /> : <Moon size={15} className="shrink-0" />}
           {!collapsed && <span>Tema {theme === 'dark' ? 'Terang' : 'Gelap'}</span>}
@@ -140,8 +141,9 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
         )}
         <button
           onClick={handleLogout}
-          className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all ${collapsed ? 'justify-center' : ''}`}
+          className={`flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all ${collapsed ? 'justify-center' : ''}`}
           title="Keluar"
+          aria-label="Keluar"
         >
           <LogOut size={15} className="shrink-0" />
           {!collapsed && <span>Keluar</span>}
@@ -160,7 +162,7 @@ function SessionCountdown({ remainingMs }) {
   const text = formatRemaining(remainingMs);
   const palette = {
     ok:     'bg-muted text-muted-foreground',
-    warn:   'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+    warn:   'bg-amber-500/10 text-amber-900 dark:text-amber-400',
     urgent: 'bg-destructive/10 text-destructive animate-pulse',
   }[level];
   return (

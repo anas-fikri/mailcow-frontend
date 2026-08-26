@@ -101,7 +101,7 @@ export default function SwipeableRow({
 
       {/* Background kanan (swipe kiri → hapus) */}
       <div
-        className="absolute inset-y-0 right-0 flex items-center justify-start px-4 bg-destructive text-destructive-foreground font-medium text-sm gap-2 z-0 transition-opacity"
+        className="absolute inset-y-0 right-0 flex items-center justify-start px-4 bg-destructive dark:bg-red-700 text-destructive-foreground font-medium text-sm gap-2 z-0 transition-opacity"
         style={{
           width: isLeft ? actionWidth : 0,
           opacity: isLeft ? Math.min(1, Math.abs(swipeX) / SWIPE_THRESHOLD) : 0,

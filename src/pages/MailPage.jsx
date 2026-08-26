@@ -1163,10 +1163,12 @@ export default function MailPage() {
                         }
                         setFlagPickerOpen(null);
                       }}
-                      className={`w-7 h-7 rounded-full ${FLAG_COLORS[key].bg} hover:scale-110 transition-transform ${
+                      className={`w-9 h-9 rounded-full ${FLAG_COLORS[key].bg} hover:scale-110 transition-transform ${
                         getFlagColor(user?.email, msg.uid) === key ? 'ring-2 ring-offset-2 ring-border' : ''
                       }`}
                       title={FLAG_COLORS[key].label}
+                      aria-label={`Tandai ${FLAG_COLORS[key].label.toLowerCase()}`}
+                      aria-pressed={getFlagColor(user?.email, msg.uid) === key}
                     />
                   ))}
                   <div className="w-px bg-border mx-1" />
@@ -1177,8 +1179,9 @@ export default function MailPage() {
                       if (msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, false).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] })).catch(() => {});
                       setFlagPickerOpen(null);
                     }}
-                    className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-xs text-muted-foreground"
+                    className="w-9 h-9 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-xs text-muted-foreground"
                     title="Hapus flag"
+                    aria-label="Hapus flag"
                   >
                     ✕
                   </button>
@@ -1197,7 +1200,7 @@ export default function MailPage() {
                     <button
                       key={p.id}
                       onClick={(e) => { e.stopPropagation(); handleSnooze(msg.uid, p.hours); }}
-                      className="block w-full text-left px-3 py-1.5 rounded-lg text-sm hover:bg-muted transition-colors"
+                      className="block w-full text-left px-3 min-h-11 flex items-center rounded-lg text-sm hover:bg-muted transition-colors"
                     >
                       {p.label}
                     </button>
@@ -1210,13 +1213,14 @@ export default function MailPage() {
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex justify-between items-baseline mb-1 gap-2">
-              <span
+              <button
+                type="button"
                 onClick={(e) => searchBySender(senderLabel, e)}
                 title={`Cari semua email dari pengirim ini`}
-                className={`text-sm truncate cursor-pointer hover:underline ${msg.isRead ? 'text-muted-foreground font-medium' : 'text-foreground font-bold'}`}
+                className={`text-sm truncate text-left hover:underline ${msg.isRead ? 'text-muted-foreground font-medium' : 'text-foreground font-bold'}`}
               >
                 {senderLabel}
-              </span>
+              </button>
               <div className="flex items-center gap-1.5 shrink-0">
                 {/* Buat aturan utk pengirim ini — hover desktop */}
                 {!isTouch && (
@@ -1226,8 +1230,9 @@ export default function MailPage() {
                       setQuickRuleSender(senderLabel);
                     }}
                     tabIndex={-1}
-                    className="p-0.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
+                    className="p-1.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
                     title="Buat aturan otomatis untuk pengirim ini"
+                    aria-label="Buat aturan otomatis untuk pengirim ini"
                   >
                     <Filter size={14} />
                   </button>
@@ -1240,8 +1245,9 @@ export default function MailPage() {
                       setSnoozePicker(snoozePicker?.uid === msg.uid ? null : { uid: msg.uid, x: e.clientX, y: e.clientY });
                     }}
                     tabIndex={-1}
-                    className="p-0.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
+                    className="p-1.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
                     title="Snooze"
+                    aria-label="Tunda pesan"
                   >
                     <Clock size={14} />
                   </button>
@@ -1259,8 +1265,9 @@ export default function MailPage() {
                         .catch(() => toast.error('Gagal mengarsipkan pesan.'));
                     }}
                     tabIndex={-1}
-                    className="p-0.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
+                    className="p-1.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-primary transition-opacity"
                     title="Arsip"
+                    aria-label="Arsipkan pesan"
                   >
                     <Archive size={14} />
                   </button>
@@ -1273,8 +1280,9 @@ export default function MailPage() {
                       scheduleDelete([msg.uid]);
                     }}
                     tabIndex={-1}
-                    className="p-0.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-destructive transition-opacity"
+                    className="p-1.5 rounded-md opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto text-muted-foreground hover:text-destructive transition-opacity"
                     title="Hapus"
+                    aria-label="Hapus pesan"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -1287,7 +1295,7 @@ export default function MailPage() {
                     setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
                   }}
                   tabIndex={starVisible ? 0 : -1}
-                  className={`p-0.5 rounded-md transition-opacity ${
+                  className={`p-1.5 rounded-md transition-opacity ${
                     starVisible ? '' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
                   }`}
                   aria-label="Tandai penting"
@@ -1297,7 +1305,7 @@ export default function MailPage() {
                       return <Star size={14} className={`${FLAG_COLORS[colorKey].text} ${FLAG_COLORS[colorKey].fill}`} />;
                     }
                     if (msg.isFlagged) {
-                      return <Star size={14} className="text-amber-500 fill-amber-500" />;
+                      return <Star size={14} className="text-amber-600 fill-amber-600 dark:text-amber-400 dark:fill-amber-400" />;
                     }
                     return <Star size={14} className="text-muted-foreground" />;
                   })()}
@@ -1533,45 +1541,59 @@ export default function MailPage() {
             </div>
             <div className="flex items-center gap-1">
               <button
+                type="button"
                 onClick={() => setConversationView(!conversationView)}
-                className={`p-2 rounded-full transition-colors ${
+                className={`min-w-11 min-h-11 flex items-center justify-center rounded-full transition-colors ${
                   conversationView ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
                 }`}
                 title={conversationView ? 'Tampilan biasa' : 'Tampilan percakapan'}
+                aria-label={conversationView ? 'Tampilan biasa' : 'Tampilan percakapan'}
+                aria-pressed={conversationView}
               >
                 <MessagesSquare size={16} />
               </button>
               <button
+                type="button"
                 onClick={() => setSortAsc(!sortAsc)}
-                className={`p-2 rounded-full transition-colors ${
+                className={`min-w-11 min-h-11 flex items-center justify-center rounded-full transition-colors ${
                   sortAsc ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
                 }`}
                 title={sortAsc ? 'Terlama dulu' : 'Terbaru dulu'}
+                aria-label={sortAsc ? 'Urutkan terlama dulu' : 'Urutkan terbaru dulu'}
+                aria-pressed={sortAsc}
               >
                 <ArrowUpDown size={16} className={sortAsc ? 'rotate-180' : ''} />
               </button>
               <button
+                type="button"
                 onClick={() => setUnreadOnly(!unreadOnly)}
-                className={`p-2 rounded-full transition-colors ${
+                className={`min-w-11 min-h-11 flex items-center justify-center rounded-full transition-colors ${
                   unreadOnly ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
                 }`}
                 title={unreadOnly ? 'Tampilkan semua' : 'Hanya belum dibaca'}
+                aria-label={unreadOnly ? 'Tampilkan semua pesan' : 'Hanya pesan belum dibaca'}
+                aria-pressed={unreadOnly}
               >
                 <MailOpen size={16} />
               </button>
               <button
+                type="button"
                 onClick={() => setHasAttachmentOnly(!hasAttachmentOnly)}
-                className={`p-2 rounded-full transition-colors ${
+                className={`min-w-11 min-h-11 flex items-center justify-center rounded-full transition-colors ${
                   hasAttachmentOnly ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
                 }`}
                 title={hasAttachmentOnly ? 'Tampilkan semua' : 'Hanya email berlampiran'}
+                aria-label={hasAttachmentOnly ? 'Tampilkan semua email' : 'Hanya email berlampiran'}
+                aria-pressed={hasAttachmentOnly}
               >
                 <Paperclip size={16} />
               </button>
               <button
+                type="button"
                 onClick={() => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] })}
-                className="p-2 rounded-full hover:bg-muted text-muted-foreground"
-                title="Refresh"
+                className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground"
+                title="Muat ulang pesan"
+                aria-label="Muat ulang pesan"
               >
                 <RefreshCw size={16} />
               </button>
@@ -1583,7 +1605,7 @@ export default function MailPage() {
             <div className="flex items-center gap-1 -mx-1 px-1">
               <button
                 onClick={() => markAllReadMutation.mutate()}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 title="Tandai semua di folder ini sebagai dibaca"
               >
                 <CheckCheck size={14} />
@@ -1592,7 +1614,7 @@ export default function MailPage() {
               {archiveFolder && selectedFolder !== archiveFolder.id && (
                 <button
                   onClick={() => archiveMutation.mutate()}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                   title="Pindahkan semua ke Arsip"
                 >
                   <Archive size={14} />
@@ -1628,7 +1650,8 @@ export default function MailPage() {
                   <button
                     type="button"
                     onClick={() => { setSearchInput(''); setSearchQuery(''); }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                    aria-label="Bersihkan pencarian"
                   >
                     <X size={14} />
                   </button>
@@ -1637,10 +1660,12 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={() => setShowSearchFilter(!showSearchFilter)}
-                className={`p-2 rounded-lg transition-colors ${
+                className={`min-w-11 min-h-11 flex items-center justify-center rounded-lg transition-colors ${
                   searchCriteria !== 'all' ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:bg-muted'
                 }`}
                 title="Filter pencarian"
+                aria-label="Filter pencarian"
+                aria-expanded={showSearchFilter}
               >
                 <Filter size={16} />
               </button>
@@ -1675,20 +1700,22 @@ export default function MailPage() {
               {selectionMode && (
                 <button
                   onClick={() => { setSelectedUids([]); setSelectionMode(false); }}
-                  className="p-1.5 text-muted-foreground hover:text-foreground rounded"
+                  className="min-w-11 min-h-11 flex items-center justify-center text-muted-foreground hover:text-foreground rounded"
                   title="Keluar dari mode seleksi"
+                  aria-label="Keluar dari mode seleksi"
                 >
                   <X size={16} />
                 </button>
               )}
-              <button onClick={toggleSelectAll} className="text-primary hover:opacity-80">
+              <button onClick={toggleSelectAll} className="min-w-11 min-h-11 flex items-center justify-center text-primary hover:opacity-80" aria-label="Pilih semua pesan">
                 <CheckSquare size={18} />
               </button>
               <span className="font-medium text-primary">{selectedUids.length} terpilih</span>
             </div>
             <div className="flex items-center gap-2">
               <select
-                className="bulk-move-select bg-background border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none"
+                className="bulk-move-select bg-background border border-border rounded px-2 min-h-11 text-xs text-foreground"
+                aria-label="Pindah pesan terpilih ke folder"
                 onChange={(e) => { if (e.target.value) { quickMoveMutation.mutate({ targetFolder: folderById(e.target.value) || e.target.value }); e.target.value = ''; } }}
               >
                 <option value="">Pindah ke...</option>
@@ -1698,38 +1725,43 @@ export default function MailPage() {
               </select>
               <button
                 onClick={() => bulkFlagMutation.mutate(true)}
-                className="p-1.5 text-muted-foreground hover:text-amber-500 rounded"
+                className="min-w-11 min-h-11 flex items-center justify-center text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 rounded"
                 title="Tandai berbintang"
+                aria-label="Tandai berbintang"
               >
                 <Star size={16} />
               </button>
               <button
                 onClick={() => bulkMarkReadMutation.mutate(true)}
-                className="p-1.5 text-muted-foreground hover:text-primary rounded"
-                title="Tandai Dibaca"
+                className="min-w-11 min-h-11 flex items-center justify-center text-muted-foreground hover:text-primary rounded"
+                title="Tandai dibaca"
+                aria-label="Tandai pesan terpilih sebagai dibaca"
               >
                 <MailOpen size={16} />
               </button>
               <button
                 onClick={() => bulkMarkReadMutation.mutate(false)}
-                className="p-1.5 text-muted-foreground hover:text-primary rounded"
-                title="Tandai Belum Dibaca"
+                className="min-w-11 min-h-11 flex items-center justify-center text-muted-foreground hover:text-primary rounded"
+                title="Tandai belum dibaca"
+                aria-label="Tandai pesan terpilih sebagai belum dibaca"
               >
                 <Mail size={16} />
               </button>
               {selectedFolder !== 'folderJunk' && (
                 <button
                   onClick={() => junkMutation.mutate({ uids: selectedUids })}
-                  className="p-1.5 text-orange-500 hover:bg-orange-500/10 rounded"
+                  className="min-w-11 min-h-11 flex items-center justify-center text-orange-600 dark:text-orange-500 hover:bg-orange-500/10 rounded"
                   title="Laporkan Spam"
+                  aria-label="Laporkan pesan terpilih sebagai spam"
                 >
                   <AlertTriangle size={16} />
                 </button>
               )}
               <button
                 onClick={() => bulkDeleteMutation.mutate()}
-                className="p-1.5 text-destructive hover:bg-destructive/10 rounded"
+                className="min-w-11 min-h-11 flex items-center justify-center text-destructive hover:bg-destructive/10 rounded"
                 title="Hapus"
+                aria-label="Hapus pesan terpilih"
               >
                 <Trash size={16} />
               </button>

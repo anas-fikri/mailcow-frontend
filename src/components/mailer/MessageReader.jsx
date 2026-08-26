@@ -346,7 +346,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       {/* Toolbar */}
       <div className="p-3 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10 flex-wrap gap-2">
         <div className="flex items-center gap-1">
-          <button onClick={onClose} className="md:hidden p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted" title="Kembali">
+          <button onClick={onClose} className="md:hidden min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted" title="Kembali" aria-label="Kembali">
             <ArrowLeft size={18} />
           </button>
           <button
@@ -354,25 +354,29 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, folder] });
               queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
             }).catch(() => {})}
-            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
+            className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
             title="Tandai belum dibaca (U)"
+            aria-label="Tandai belum dibaca"
           >
             <Mail size={18} />
           </button>
           <button
             onClick={() => flagMutation.mutate(!(msg.isFlagged))}
-            className={`p-2 rounded-xl transition-colors ${
-              msg.isFlagged ? 'text-amber-500 hover:bg-amber-500/10' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            className={`min-w-11 min-h-11 flex items-center justify-center rounded-xl transition-colors ${
+              msg.isFlagged ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
             title="Beri/Tandai bintang (S)"
+            aria-label="Tandai berbintang"
+            aria-pressed={!!msg.isFlagged}
           >
-            <Star size={18} className={msg.isFlagged ? 'fill-amber-500' : ''} />
+            <Star size={18} className={msg.isFlagged ? 'fill-amber-600 dark:fill-amber-400' : ''} />
           </button>
           <button
             onClick={() => deleteMutation.mutate()}
             disabled={deleteMutation.isPending}
-            className="p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             title="Hapus (Del)"
+            aria-label="Hapus pesan"
           >
             {deleteMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
           </button>
@@ -380,8 +384,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             <button
               onClick={() => moveMutation.mutate('folderJunk')}
               disabled={moveMutation.isPending}
-              className="p-2 rounded-xl text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10"
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/10"
               title="Laporkan Spam"
+              aria-label="Laporkan spam"
             >
               <AlertTriangle size={18} />
             </button>
@@ -390,8 +395,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           <div className="relative">
             <button
               onClick={() => setMoveOpen(!moveOpen)}
-              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
               title="Pindahkan"
+              aria-label="Pindahkan ke folder lain"
+              aria-expanded={moveOpen}
             >
               <FolderOpen size={18} />
             </button>
@@ -416,16 +423,16 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               </>
             )}
           </div>
-          <button onClick={handlePrint} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted" title="Cetak">
+          <button onClick={handlePrint} className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted" title="Cetak" aria-label="Cetak">
             <Printer size={18} />
           </button>
         </div>
 
         <div className="flex items-center gap-1">
-          <button data-shortcut="reply" onClick={handleReply} className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-muted-foreground hover:bg-muted text-sm font-medium" title="Balas (R)">
+          <button data-shortcut="reply" onClick={handleReply} className="flex items-center gap-2 px-3 min-h-11 rounded-xl text-muted-foreground hover:bg-muted text-sm font-medium" title="Balas (R)">
             <Reply size={16} /> Balas
           </button>
-          <button data-shortcut="forward" onClick={handleForward} className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-muted-foreground hover:bg-muted text-sm font-medium" title="Teruskan (F)">
+          <button data-shortcut="forward" onClick={handleForward} className="flex items-center gap-2 px-3 min-h-11 rounded-xl text-muted-foreground hover:bg-muted text-sm font-medium" title="Teruskan (F)">
             <Forward size={16} /> Teruskan
           </button>
         </div>
