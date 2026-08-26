@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T02:16:57Z
+Generated At: 2026-08-26T02:23:56Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Snooze di-migrasi ke schema v3 folder-scoped {[folderId]:{[uid]:wake}} — UID SOGo per-folder membuat entri snooze flat (v2) yatim saat pesan di-archive (false-positive sembunyikan pesan baru dgn UID reuse). executeRules terima isExcluded(msg) utk skip pesan tersnooze (deferral eksplisit user). unsnoozeMessages membersihkan entri saat move/delete/junk/archive + bump tick. Migrasi versi per-domain via readStorage(base, scope, 3) tanpa ubah STORAGE_VERSION global. 49/49 test PASS, deploy live terverifikasi hash.
+## 1. [MEDIUM] Follow up on discovered knowledge: Konflik sorting MailPage: sortedMessages kini urut by TANGGAL (sortMessagesByDate — uid SOGo tidak dijamin sekuensial dgn waktu). sortAsc hanya membalik urutan GRUP (reorderDateGroups utk date-group, groupMessages asc utk conversation thread), isi grup tetap date-descending. Keyboard j/k + range-select visibleOrderUids pakai sumber urutan sama dengan render; fallback saat conversation view tanpa grup. 49/49 test PASS, deploy live hash terverifikasi.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
