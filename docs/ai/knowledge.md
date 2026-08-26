@@ -718,3 +718,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   claim (sessionStorage) + skip + release setelah sukses/gagal.
 - **Notification API `tag`** — browser mengganti notifikasi dengan tag sama;
   cukup utk dedup notifikasi lintas tab (tidak perlu koordinasi manual).
+
+## 2026-08-26T02:29:57Z
+- Task: 
+- Status: COMPLETED
+- Finding: Race multi-tab diperbaiki: (1) snooze sync via storage event listener (key pcp_snooze_v3/v2 + clear) → bump snoozeTick — event 'storage' hanya fire di tab lain; (2) auto-archive double-move dicegah via claimAutoArchiveUids (sessionStorage per-tab, TTL 5 mnt) + releaseAutoArchiveClaims; rulesProcessed hanya utk pesan yang benar-benar dipindah; (3) notifikasi sudah dedup via Notification tag. Pelajaran: sessionStorage utk klaim lintas tab (auto-clean saat tab tutup), storage event utk sync UI. 50/50 test PASS, deploy live hash terverifikasi.
