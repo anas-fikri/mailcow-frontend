@@ -1005,3 +1005,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Fitur lib bisa mati diam-diam walau unit test hijau: proxyExternalImages (imageProxy.js) lengkap + test 68 assertion tapi tidak pernah di-wire ke MessageReader → gambar eksternal bocor langsung ke pengirim (IP + read-receipt). Wajib assertion statis wiring di komponen untuk fitur yang berdampak keamanan/privacy. Juga: labelField 'to' utk folder Terkirim/Draf di header percakapan (konsisten dgn renderMessageRow); SOGo viewPart kirim X-Frame-Options SAMEORIGIN → iframe lightbox PDF aman.
+
+## 2026-08-26T10:04:26Z
+- Task: 
+- Status: COMPLETED
+- Finding: Race autosave vs tutup modal: guard harus memakai ref flag (closedRef/sentRef) karena promise in-flight tidak bisa dibatalkan — cleanup harus terjadi di sisi async setelah await selesai, bukan hanya di handler sinkron. Juga: payload onReply antar komponen harus membawa composeMode agar konsumen (ComposeModal) bisa pilih signature per mode.
