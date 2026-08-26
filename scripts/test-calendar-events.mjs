@@ -24,7 +24,7 @@ const eq = (actual, expected, name) => {
 };
 
 // ── Helper: bangun raw eventsblocks ──────────────────────────────────────────
-const FIELDS = ['c_name', 'c_title', 'c_startdate', 'c_enddate', 'c_isallday', 'c_iscycle', 'c_partmails', 'c_classification', 'calendarName', 'c_location', 'c_description', 'c_folder', 'c_owner', 'c_status', 'startHour'];
+const FIELDS = ['c_name', 'c_title', 'c_startdate', 'c_enddate', 'c_isallday', 'c_iscycle', 'c_recurrence_id', 'c_partmails', 'c_classification', 'calendarName', 'c_location', 'c_description', 'c_folder', 'c_owner', 'c_status', 'startHour'];
 
 function cal(rows, calendarName = 'personal') {
   return [{
@@ -53,6 +53,32 @@ evs = parseCalendarEvents(cal([
   { c_name: 'evt-r', c_title: 'Mingguan', c_startdate: 1701209600, c_iscycle: true },
 ]));
 assert.equal(evs.length, 3, 'recurring (start berbeda) tidak di-dedup — 3 occurrence');
+pass++;
+
+// ── c_recurrence_id → occurrenceId (identitas SATU occurrence utk
+//    edit/hapus via segmen occurence{ts}; SOGo isi per baris recurring) ──────
+evs = parseCalendarEvents(cal([
+  { c_name: 'evt-r', c_title: 'Mingguan', c_startdate: 1700000000, c_iscycle: true, c_recurrence_id: 1700000000 },
+  { c_name: 'evt-r', c_title: 'Mingguan', c_startdate: 1700604800, c_iscycle: true, c_recurrence_id: 1700604800 },
+  { c_name: 'evt-plain', c_title: 'Biasa', c_startdate: 1700000000 },
+]));
+assert.equal(evs[0].occurrenceId, 1700000000, 'occurrence #1 memakai c_recurrence_id');
+pass++;
+assert.equal(evs[1].occurrenceId, 1700604800, 'occurrence #2 memakai c_recurrence_id');
+pass++;
+assert.equal(evs[2].occurrenceId, null, 'event non-berulang tanpa c_recurrence_id → null');
+pass++;
+// Toleran string numerik (SOGo bisa kirim "1700000000")
+evs = parseCalendarEvents(cal([
+  { c_name: 'evt-s', c_title: 'S', c_startdate: 1700000000, c_iscycle: true, c_recurrence_id: '1700000000' },
+]));
+assert.equal(evs[0].occurrenceId, 1700000000, 'c_recurrence_id string numerik di-coerce ke number');
+pass++;
+// c_recurrence_id 0 / kosong → null (bukan occurrence valid)
+evs = parseCalendarEvents(cal([
+  { c_name: 'evt-z', c_title: 'Z', c_startdate: 1700000000, c_iscycle: true, c_recurrence_id: 0 },
+]));
+assert.equal(evs[0].occurrenceId, null, 'c_recurrence_id 0 → null');
 pass++;
 
 // Cross-calendar: id+start sama tapi kalender beda → tetap 2 (bukan kembar SOGo)

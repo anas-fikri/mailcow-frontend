@@ -102,6 +102,8 @@ export default function CalendarPage() {
   const [current, setCurrent] = useState(new Date());
   const [selected, setSelected] = useState(new Date());
   const [detailEv, setDetailEv] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null); // event yang menunggu pilihan scope hapus
+  const [deletingEv, setDeletingEv] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('create');
   const [modalEvent, setModalEvent] = useState(null);
@@ -193,7 +195,22 @@ export default function CalendarPage() {
 
   async function handleUpdateEvent(eventData, eventId) {
     let payload = eventData;
-    // Safety net recurrence (semua jalur edit): event berulang yang payload-nya
+    // Scope 'single' = edit SATU occurrence: save ke segmen occurence{ts}
+    // (recurrence_id) — server menciptakan exception RECURRENCE-ID, master +
+    // pola seri TIDAK disentuh. repeat WAJIB null di scope ini (mengirim
+    // repeat justru mengubah pola SERI), dan safety net recurrence di bawah
+    // TIDAK berlaku (payload sengaja tanpa repeat).
+    if (eventData?.editScope === 'single' && eventData?.occurrenceId) {
+      await updateCalendarEvent(
+        user?.sogoToken, eventId, { ...payload, repeat: null },
+        'personal', eventData.occurrenceId
+      );
+      queryClient.invalidateQueries({ queryKey: ['calendar', user?.sogoToken] });
+      bumpCalendar();
+      toast.success('Kejadian diperbarui');
+      return;
+    }
+    // Safety net recurrence (semua jalur edit seri): event berulang yang payload-nya
     // TIDAK membawa repeat dan user TIDAK menyentuh kontrol pengulangan →
     // resolve repeat asli via /view sebelum save. SOGo menimpa recurrence saat
     // save tanpa repeat (pola hilang diam-diam) — komentar di handleDrop
@@ -218,12 +235,16 @@ export default function CalendarPage() {
     toast.success('Event diperbarui');
   }
 
-  async function handleDeleteEvent(eventId) {
-    await deleteCalendarEvent(user?.sogoToken, eventId);
+  async function handleDeleteEvent(eventId, opts = {}) {
+    // scope 'single' + occurrenceId → hapus SATU occurrence (EXDATE di master,
+    // via segmen occurence{ts}); tanpa itu → hapus seluruh event/seri.
+    const scopeSingle = opts?.scope === 'single' && !!opts?.occurrenceId;
+    await deleteCalendarEvent(user?.sogoToken, eventId, 'personal', scopeSingle ? opts.occurrenceId : null);
     setDetailEv(null);
+    setDeleteTarget(null);
     queryClient.invalidateQueries({ queryKey: ['calendar', user?.sogoToken] });
     bumpCalendar();
-    toast.success('Event dihapus');
+    toast.success(scopeSingle ? 'Kejadian dihapus' : 'Event dihapus');
   }
 
   // hour = null → klik sel bulan / tombol "Event" (tanggal midnight) — default
@@ -241,21 +262,25 @@ export default function CalendarPage() {
 
   // Ambil detail lengkap via /view (attendees, classification, dll) sebelum
   // membuka editor, agar edit tidak menghapus peserta/detail yang tidak ada di
-  // data ringkas `eventsblocks`.
+  // data ringkas `eventsblocks`. Untuk occurrence recurring, /view memakai
+  // segmen occurence{ts} agar yang diambil detail SATU occurrence (bukan master).
   async function openEditModal(ev) {
     if (!ev?.id) return;
     setEditingId(ev.id);
     try {
-      const detail = await fetchCalendarEventDetail(user?.sogoToken, ev.id);
+      const detail = await fetchCalendarEventDetail(user?.sogoToken, ev.id, 'personal', ev?.occurrenceId || null);
       setModalMode('edit');
       setModalEvent(detail ? { ...ev, ...detail } : ev);
       setModalOpen(true);
     } catch (err) {
-      // Event BERULANG: data grid (eventsblocks) tidak memuat pola repeat.
-      // Kalau editor dibuka dengan repeat=null lalu di-save, SOGo menimpa
-      // recurrence → seluruh pola hilang diam-diam. Blokir edit (bukan
-      // fallback diam-diam) agar pola tidak bisa rusak; user bisa coba lagi.
-      if (ev.isRecurring) {
+      // Event BERULANG MASTER: data grid (eventsblocks) tidak memuat pola
+      // repeat. Kalau editor dibuka dengan repeat=null lalu di-save, SOGo
+      // menimpa recurrence → seluruh pola hilang diam-diam. Blokir edit
+      // (bukan fallback diam-diam) agar pola tidak bisa rusak.
+      // UNTUK SATU OCCURRENCE (occurrenceId): repeat memang TIDAK diperlukan
+      // (save jadi exception RECURRENCE-ID, bukan sentuh seri) → fallback ke
+      // data grid aman.
+      if (ev.isRecurring && !ev.occurrenceId) {
         toast.error('Gagal memuat detail event berulang. Edit dibatalkan agar pola pengulangan tidak rusak — coba lagi.');
         setEditingId(null);
         return;
@@ -489,17 +514,14 @@ export default function CalendarPage() {
                 </button>
                 <button
                   onClick={() => {
-                    // Event berulang: semua occurrence berbagi id — hapus satu
-                    // occurrence = hapus SELURUH seri. Konfirmasi jujur soal scope.
-                    const msg = detailEv.isRecurring
-                      ? 'Hapus SELURUH rangkaian event berulang ini? Semua kejadian akan dihapus.'
-                      : 'Hapus event ini?';
-                    if (!window.confirm(msg)) return;
-                    handleDeleteEvent(detailEv.id).catch((err) => {
-                      toast.error(err.message || 'Gagal menghapus event');
-                    });
+                    // Hapus bisa SATU occurrence (EXDATE) atau SELURUH seri —
+                    // pilih scope dulu (khusus event berulang). Sebelumnya
+                    // window.confirm generik menyesatkan: hapus satu occurrence
+                    // = hapus SELURUH seri diam-diam.
+                    setDeleteTarget(detailEv);
                   }}
-                  className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+                  disabled={deletingEv}
+                  className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
                   title="Hapus"
                 >
                   <Trash2 size={14} />
@@ -536,6 +558,84 @@ export default function CalendarPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Scope chooser hapus (event berulang) ──────────────────────────── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={() => setDeleteTarget(null)}>
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
+            <h4 className="text-sm font-semibold text-foreground mb-1">Hapus event?</h4>
+            <p className="text-xs text-muted-foreground mb-4 truncate">{deleteTarget.title}</p>
+            {deleteTarget.isRecurring && deleteTarget.occurrenceId ? (
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={async () => {
+                    if (deletingEv) return;
+                    setDeletingEv(true);
+                    try {
+                      await handleDeleteEvent(deleteTarget.id, { occurrenceId: deleteTarget.occurrenceId, scope: 'single' });
+                      toast.success('Kejadian ini saja dihapus');
+                    } catch (err) {
+                      toast.error(err.message || 'Gagal menghapus kejadian');
+                    } finally {
+                      setDeletingEv(false);
+                    }
+                  }}
+                  disabled={deletingEv}
+                  className="px-4 py-2.5 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-lg text-sm font-medium transition-colors text-left"
+                >
+                  Hapus kejadian ini saja
+                  <span className="block text-[11px] font-normal opacity-80">Kejadian lain tetap ada</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    if (deletingEv) return;
+                    setDeletingEv(true);
+                    try {
+                      await handleDeleteEvent(deleteTarget.id, { scope: 'all' });
+                      toast.success('Semua kejadian dihapus');
+                    } catch (err) {
+                      toast.error(err.message || 'Gagal menghapus rangkaian');
+                    } finally {
+                      setDeletingEv(false);
+                    }
+                  }}
+                  disabled={deletingEv}
+                  className="px-4 py-2.5 bg-destructive text-white hover:bg-destructive/90 rounded-lg text-sm font-medium transition-colors text-left"
+                >
+                  Hapus semua kejadian
+                  <span className="block text-[11px] font-normal opacity-80">Seluruh rangkaian pengulangan dihapus</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    if (deletingEv) return;
+                    setDeletingEv(true);
+                    try {
+                      await handleDeleteEvent(deleteTarget.id, { scope: 'all' });
+                    } catch (err) {
+                      toast.error(err.message || 'Gagal menghapus event');
+                    } finally {
+                      setDeletingEv(false);
+                    }
+                  }}
+                  disabled={deletingEv}
+                  className="flex-1 px-4 py-2.5 bg-destructive text-white hover:bg-destructive/90 rounded-lg text-sm font-medium transition-colors"
+                >
+                  {deletingEv ? 'Menghapus...' : 'Hapus'}
+                </button>
+                <button
+                  onClick={() => setDeleteTarget(null)}
+                  className="flex-1 px-4 py-2.5 bg-muted text-foreground rounded-lg text-sm font-medium hover:bg-muted/80 transition-colors"
+                >
+                  Batal
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

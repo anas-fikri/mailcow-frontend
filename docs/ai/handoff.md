@@ -2782,3 +2782,16 @@ Test: test-multitab ditulis ulang (ownership + TTL + legacy record + cross-tab),
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-26 edit/hapus SATU occurrence event berulang (recurrence_id SOGo 5)
+Fitur ditutup dari audit sebelumnya (workstream "edit/hapus satu occurrence"). Kontrak recurrence SOGo 5 DIVERSIFIKASI dari source (bukan tebakan):
+- UI SOGo 5.12.10 `Component.service.js`: `c_recurrence_id` (eventsblocks) → occurrenceId → `path.push(occurrenceId)` → URL `Calendar/{cal}/{uid}/{occ}/view|save|delete`.
+- Server `SOGoCalendarComponent.m lookupName:`: resolve segmen berprefix `occurence` (hasPrefix + substringFromIndex:9 = unix detik). `newOccurenceWithID:` = `dateWithTimeIntervalSince1970:[recID intValue]`.
+- `SOGoComponentOccurence.m prepareDelete`: hapus occurrence = buang detached + EXDATE ke master (seri utuh); save occurrence = exception RECURRENCE-ID.
+- `c_recurrence_id` (folder.m `_fetchRecordForCycle`): unix detik start occurrence; all-day = GMT-based start.
+
+Implementasi: parser occurrenceId di calendarEvents.js; api.js helper occurrenceSegment (occurence{ts}) di update/delete/detail; EventModal scope selector "Kejadian ini saja"/"Semua kejadian" (default single saat dibuka dari occurrence, repeat dipaksa null di scope single — mengirim repeat mengubah pola SERI, kontrol pengulangan disabled); CalendarPage routing scope single → save/delete ke occurence{ts}, scope chooser hapus di popup detail (bukan window.confirm generik), openEditModal fetch detail occurrence, fallback edit occurrence aman saat /view gagal (block hanya master).
+
+Catatan penting: TEST RUNTIME (test-calendar-api) memverifikasi URL occurence{ts} + body tanpa repeat — bukan sekadar assertion statis. Drag occurrence masih = pindah seri (scope drag sebagai workstream berikutnya).
+
+Test: test-calendar-api +8 (occurrence save/delete/detail URL + body tanpa repeat), test-calendar-events +5 (parse occurrenceId), test-a11y +9 (146 assertions). 55/55 PASS, build OK.

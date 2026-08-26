@@ -343,13 +343,13 @@ passCount++;
 // menyimpan tanpa pola.
 assert.ok(calendar.includes("!eventData.repeat && !eventData.repeatTouched") && calendar.includes('fetchCalendarEventDetail'), 'Calendar: save-time safety net recurrence (resolve repeat via /view)');
 passCount++;
-assert.ok(calendar.includes("if (ev.isRecurring)") && calendar.includes('Edit dibatalkan agar pola pengulangan tidak rusak'), 'Calendar: edit event berulang diblokir bila detail gagal dimuat');
+assert.ok(calendar.includes("if (ev.isRecurring && !ev.occurrenceId)") && calendar.includes('Edit dibatalkan agar pola pengulangan tidak rusak'), 'Calendar: edit master berulang diblokir bila detail gagal (occurrence fallback aman)');
 passCount++;
-assert.ok(calendar.includes("detailEv.isRecurring ?\n                      ? 'Hapus SELURUH rangkaian event berulang ini?") || calendar.includes("'Hapus SELURUH rangkaian event berulang ini? Semua kejadian akan dihapus.'"), 'Calendar: konfirmasi hapus jujur soal scope (seluruh seri)');
+assert.ok(calendar.includes('setDeleteTarget(detailEv)'), 'Calendar: konfirmasi hapus jujur soal scope (scope chooser, bukan confirm generik)');
 passCount++;
 assert.ok(modal.includes('Hapus SELURUH rangkaian event berulang ini? Semua kejadian (berulang) akan dihapus.'), 'EventModal: konfirmasi hapus event berulang jujur soal scope');
 passCount++;
-assert.ok(modal.includes('repeatTouched: repeatTouchedRef.current') && modal.includes('isRecurring: !!event?.isRecurring'), 'EventModal: payload membawa repeatTouched + isRecurring utk safety net');
+assert.ok(modal.includes('repeatTouched: scopeSingle ? false : repeatTouchedRef.current') && modal.includes('isRecurring: !!event?.isRecurring'), 'EventModal: payload membawa repeatTouched (disabled di scope single) + isRecurring utk safety net');
 passCount++;
 assert.ok(drop.includes('isRecurring: ev.isRecurring || false'), 'calendarDrop: isRecurring diteruskan utk safety net drag');
 passCount++;
@@ -413,6 +413,71 @@ assert.ok(
   rules.includes('claimAutoArchiveUids(user.email, matchedUids)') &&
   rules.includes('releaseAutoArchiveClaims(user.email, claimed)'),
   'RulesPage: run-manual memakai klaim multi-tab + lepas klaim milik sendiri'
+);
+passCount++;
+
+// ── Edit/hapus SATU occurrence event berulang (recurrence_id SOGo 5) ────────
+// Kontrak terverifikasi dari UI SOGo 5.12.10: segmen path `occurence{unixSec}`
+// (SOGoCalendarComponent.lookupName: hasPrefix "occurence" + substring 9 =
+// intValue). c_recurrence_id dari eventsblocks = unix detik start occurrence.
+const apiSrc = read('src/lib/api.js');
+const calendarEventsSrc = read('src/lib/calendarEvents.js');
+// Parser memetakan c_recurrence_id → occurrenceId (identitas occurrence).
+assert.ok(
+  calendarEventsSrc.includes("ev.c_recurrence_id") && calendarEventsSrc.includes('occurrenceId'),
+  'calendarEvents: c_recurrence_id harus dipetakan ke occurrenceId'
+);
+passCount++;
+// API: helper occurence{ts} + dipakai di save/delete/detail occurrence.
+assert.ok(
+  apiSrc.includes("`occurence${n}`") && apiSrc.includes('function occurrenceSegment'),
+  'api: helper occurrenceSegment membangun segmen occurence{ts}'
+);
+passCount++;
+assert.ok(
+  apiSrc.includes("${occ ? '/' + occ : ''}/save") &&
+  apiSrc.includes("${occ ? '/' + occ : ''}/delete") &&
+  apiSrc.includes("${occ ? '/' + occ : ''}/view"),
+  'api: segmen occurence{ts} dipakai di save/delete/view'
+);
+passCount++;
+// EventModal: scope selector "kejadian ini saja" vs "semua kejadian"; scope
+// single memaksa repeat null (mengirim repeat mengubah pola SERI).
+assert.ok(
+  modal.includes("editScope === 'single'") && modal.includes('Kejadian ini saja'),
+  'EventModal: scope selector kejadian ini saja / semua kejadian'
+);
+passCount++;
+assert.ok(
+  modal.includes('repeat: scopeSingle ? null : repeat') &&
+  modal.includes('editScope: scopeSingle ? \'single\' : \'all\''),
+  'EventModal: scope single memaksa repeat null + mengirim editScope'
+);
+passCount++;
+// CalendarPage: route save/hapus occurrence via occurrenceId + scope chooser
+// hapus (bukan window.confirm generik).
+assert.ok(
+  calendar.includes("eventData?.editScope === 'single' && eventData?.occurrenceId") &&
+  calendar.includes("'personal', eventData.occurrenceId"),
+  'CalendarPage: save scope single → updateCalendarEvent dgn occurrenceId'
+);
+passCount++;
+assert.ok(
+  calendar.includes('handleDeleteEvent(eventId, opts = {})') &&
+  calendar.includes("'personal', scopeSingle ? opts.occurrenceId : null"),
+  'CalendarPage: hapus occurrence → deleteCalendarEvent dgn occurrenceId'
+);
+passCount++;
+assert.ok(
+  calendar.includes('setDeleteTarget(detailEv)') &&
+  calendar.includes('Hapus kejadian ini saja') &&
+  calendar.includes('Hapus semua kejadian'),
+  'CalendarPage: scope chooser hapus (kejadian ini / semua) di popup detail'
+);
+passCount++;
+assert.ok(
+  calendar.includes("fetchCalendarEventDetail(user?.sogoToken, ev.id, 'personal', ev?.occurrenceId || null)"),
+  'CalendarPage: detail /view occurrence memakai segmen occurence{ts}'
 );
 passCount++;
 

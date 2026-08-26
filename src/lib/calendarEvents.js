@@ -39,6 +39,14 @@ export function parseCalendarEvents(raw) {
         location: ev.c_location || '',
         isAllDay: !!ev.c_isallday,
         isRecurring: !!ev.c_iscycle,
+        // c_recurrence_id = unix detik start occurrence (SOGo isi per baris
+        // recurring). Dipakai utk edit/hapus SATU occurrence: server meresolve
+        // `occurence{ts}` via SOGoCalendarComponent.lookupName. Tanpa ini,
+        // edit/hapus selalu menyentuh SELURUH seri (semua occurrence berbagi
+        // satu UID). All-day: c_recurrence_id = GMT midnight.
+        occurrenceId: (ev.c_recurrence_id !== null && ev.c_recurrence_id !== undefined && ev.c_recurrence_id !== '' && Number(ev.c_recurrence_id) > 0)
+          ? Number(ev.c_recurrence_id)
+          : null,
         calendar,
         folder: ev.c_folder || '',
         owner: ev.c_owner || '',

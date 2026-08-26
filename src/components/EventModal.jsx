@@ -80,6 +80,14 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
   const repeatTouchedRef = useRef(false);
   const originalRepeatRef = useRef(null);
 
+  // Scope edit utk event berulang: 'single' = SATU occurrence (recurrence_id),
+  // 'all' = seluruh seri. Default 'single' saat dibuka dari satu occurrence di
+  // grid (pola Outlook/Gmail); user bisa pindah ke 'all'.
+  const [editScope, setEditScope] = useState('all');
+  const isSingleOccurrence = isEdit && !!event?.isRecurring && !!event?.occurrenceId;
+  const canEditScope = isSingleOccurrence;
+  const scopeIsSingle = canEditScope && editScope === 'single';
+
   // Terapkan pola pengulangan ke state UI. Pola asli disimpan di ref agar
   // pola kustom/tidak-umum TIDAK hilang saat user hanya mengubah field lain.
   function applyRepeat(repeat) {
@@ -145,6 +153,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         setAttendees('');
         setError('');
         applyRepeat(null);
+        setEditScope('all');
       } else if (event && typeof event === 'object') {
         /* ── Edit / View mode ── */
         setTitle(event.title || '');
@@ -160,6 +169,9 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         setAttendees(event.attendees || '');
         setError('');
         applyRepeat(event.repeat);
+        // Edit dibuka dari SATU occurrence (grid) → default scope kejadian ini
+        // saja; event non-berulang / tanpa occurrenceId → 'all'.
+        setEditScope(!!event?.isRecurring && !!event?.occurrenceId ? 'single' : 'all');
       } else {
         /* ── Fresh create (no pre-fill) ── */
         setTitle('');
@@ -173,6 +185,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         setAttendees('');
         setError('');
         applyRepeat(null);
+        setEditScope('all');
       }
     }
   }, [isOpen, event]);
@@ -209,6 +222,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         repeat = originalRepeatRef.current;
       }
 
+      const scopeSingle = canEditScope && editScope === 'single';
       const eventData = {
         title: title.trim(),
         startDate,
@@ -221,13 +235,19 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         attendees: attendees.trim(),
         // Pertahankan klasifikasi asli saat edit (detail dari /view).
         classification: event?.classification,
-        repeat,
+        // Scope 'single': repeat WAJIB null — save ke occurence{ts} membuat
+        // exception RECURRENCE-ID; mengirim repeat malah mengubah pola SERI.
+        repeat: scopeSingle ? null : repeat,
         // Info tambahan utk CalendarPage: kalau event berulang tapi repeat
         // tidak tersedia di payload dan user TIDAK menyentuh kontrol
         // pengulangan, CalendarPage harus me-resolve repeat asli (via /view)
         // sebelum save — SOGo menimpa recurrence saat save tanpa repeat.
-        repeatTouched: repeatTouchedRef.current,
+        repeatTouched: scopeSingle ? false : repeatTouchedRef.current,
         isRecurring: !!event?.isRecurring,
+        // Scope + identitas occurrence utk routing di CalendarPage
+        // (updateCalendarEvent dengan segmen occurence{ts}).
+        editScope: scopeSingle ? 'single' : 'all',
+        occurrenceId: scopeSingle ? event?.occurrenceId : null,
       };
 
       if (isEdit && event?.id) {
@@ -247,16 +267,19 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
   async function handleDelete() {
     if (!event?.id) return;
     if (savingRef.current) return; // double-click hapus → satu eksekusi
-    // Event berulang: semua occurrence berbagi satu id — menghapus satu
-    // occurrence = menghapus SELURUH seri. Konfirmasi harus jujur soal scope.
-    const msg = event?.isRecurring
-      ? 'Hapus SELURUH rangkaian event berulang ini? Semua kejadian (berulang) akan dihapus.'
-      : 'Hapus event ini?';
+    // Event berulang: semua occurrence berbagi satu id. Scope menentukan
+    // apakah hapus SATU occurrence (EXDATE di master) atau SELURUH seri.
+    const scopeSingle = canEditScope && editScope === 'single';
+    const msg = !event?.isRecurring
+      ? 'Hapus event ini?'
+      : scopeSingle
+        ? 'Hapus kejadian ini saja? Kejadian lain dalam rangkaian tetap ada.'
+        : 'Hapus SELURUH rangkaian event berulang ini? Semua kejadian (berulang) akan dihapus.';
     if (!window.confirm(msg)) return;
     savingRef.current = true;
     setSaving(true);
     try {
-      await onDelete(event.id);
+      await onDelete(event.id, { occurrenceId: scopeSingle ? event?.occurrenceId : null, scope: scopeSingle ? 'single' : 'all' });
       onClose();
     } catch (err) {
       setError(err.message || 'Gagal menghapus event.');
@@ -384,9 +407,49 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                   Sepanjang hari
                 </label>
 
+                {/* Scope edit event berulang: kejadian ini saja / semua */}
+                {canEditScope && (
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <label className="text-sm font-medium text-foreground block">Edit event berulang</label>
+                    <div className="flex flex-col gap-1.5">
+                      <label className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer transition-colors ${editScope === 'single' ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted'}`}>
+                        <input
+                          type="radio"
+                          name="editScope"
+                          checked={editScope === 'single'}
+                          onChange={() => setEditScope('single')}
+                          className="accent-primary"
+                        />
+                        <span>
+                          <span className="font-medium">Kejadian ini saja</span>
+                          <span className="block text-xs text-muted-foreground">Perubahan hanya untuk tanggal {toLocalDateStr(new Date(Number(event?.start) * 1000))}</span>
+                        </span>
+                      </label>
+                      <label className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer transition-colors ${editScope === 'all' ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted'}`}>
+                        <input
+                          type="radio"
+                          name="editScope"
+                          checked={editScope === 'all'}
+                          onChange={() => setEditScope('all')}
+                          className="accent-primary"
+                        />
+                        <span>
+                          <span className="font-medium">Semua kejadian</span>
+                          <span className="block text-xs text-muted-foreground">Ubah seluruh rangkaian pengulangan</span>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
                 {/* Recurrence */}
-                <div className="space-y-2 border-t border-border pt-3">
+                <div className={`space-y-2 border-t border-border pt-3 ${scopeIsSingle ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                   <label className="text-sm font-medium text-foreground block">Pengulangan</label>
+                  {scopeIsSingle && (
+                    <p className="text-xs text-muted-foreground">
+                      Pola pengulangan tidak bisa diubah saat mengedit satu kejadian — pilih "Semua kejadian" untuk mengubah pola.
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <select

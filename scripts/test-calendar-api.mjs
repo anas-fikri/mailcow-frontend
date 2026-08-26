@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createCalendarEvent, updateCalendarEvent, fetchCalendarEventDetail, fetchCalendarEvents } from '../src/lib/api.js';
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, fetchCalendarEventDetail, fetchCalendarEvents } from '../src/lib/api.js';
 
 const calls = [];
 let newguidPayload = { id: 'evt-123' };
@@ -130,6 +130,35 @@ calls.length = 0;
 await createCalendarEvent('user@example.test', { ...event, classification: 'confidential' });
 const classBody = JSON.parse(calls.find((c) => c.url.endsWith('/saveAsAppointment')).options.body);
 assert.equal(classBody.classification, 'confidential');
+
+// ── Edit/hapus SATU occurrence (recurrence_id SOGo 5) ────────────────────────
+// Kontrak (UI SOGo 5.12.10 + SOGoCalendarComponent.lookupName): segmen path
+// `occurence{unixSec}` = c_recurrence_id (unix detik start occurrence).
+// Save/hapus/view ke segmen itu = exception RECURRENCE-ID / EXDATE, seri utuh.
+const OCC_TS = 1754200800;
+calls.length = 0;
+const updOcc = await updateCalendarEvent('user@example.test', 'evt-123', event, 'personal', OCC_TS);
+assert.deepEqual(updOcc, { id: 'evt-123' });
+const updOccCall = calls.find((c) => c.url.endsWith(`/Calendar/personal/evt-123/occurence${OCC_TS}/save`));
+assert.ok(updOccCall, 'update occurrence harus POST ke .../occurence{ts}/save');
+assert.equal(updOccCall.options.method, 'POST');
+const updOccBody = JSON.parse(updOccCall.options.body);
+assert.equal(updOccBody.repeat, undefined, 'save occurrence TIDAK boleh kirim repeat (mengubah pola seri)');
+assert.equal(updOccBody.summary, 'Rapat Tim');
+
+calls.length = 0;
+const updMaster = await updateCalendarEvent('user@example.test', 'evt-123', event);
+assert.ok(calls.some((c) => c.url.endsWith('/Calendar/personal/evt-123/save')), 'update tanpa occurrenceId tetap ke /save biasa');
+
+calls.length = 0;
+const delOcc = await deleteCalendarEvent('user@example.test', 'evt-123', 'personal', OCC_TS);
+assert.equal(delOcc, true);
+assert.ok(calls.some((c) => c.url.endsWith(`/Calendar/personal/evt-123/occurence${OCC_TS}/delete`)), 'hapus occurrence harus GET .../occurence{ts}/delete');
+
+calls.length = 0;
+const detailOcc = await fetchCalendarEventDetail('user@example.test', 'evt-123', 'personal', OCC_TS);
+assert.ok(calls.some((c) => c.url.endsWith(`/Calendar/personal/evt-123/occurence${OCC_TS}/view`)), 'detail occurrence harus GET .../occurence{ts}/view');
+assert.equal(detailOcc.id, 'evt-123');
 
 // ── fetchCalendarEventDetail (/view) ──────────────────────────────────────────
 calls.length = 0;

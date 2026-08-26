@@ -1194,12 +1194,34 @@ export async function createCalendarEvent(sogoToken, event, calendarId = 'person
 }
 
 /**
+ * Segment path occurrence utk event berulang (kontrak SOGo 5, diverifikasi
+ * dari UI SOGo 5.12.10: Component.service.js + SOGoCalendarComponent.m):
+ *
+ *   POST /Calendar/{cal}/{uid}/occurence{unixSec}/save   → edit SATU occurrence
+ *   GET  /Calendar/{cal}/{uid}/occurence{unixSec}/delete → hapus SATU occurrence
+ *   GET  /Calendar/{cal}/{uid}/occurence{unixSec}/view   → detail SATU occurrence
+ *
+ * SOGoCalendarComponent.lookupName me-resolve segmen berprefix `occurence`
+ * (hasPrefix + substringFromIndex:9), lalu [recID intValue] = unix detik
+ * (c_recurrence_id dari eventsblocks). Tanpa segmen ini, save/delete/view
+ * menyentuh SELURUH seri (semua occurrence berbagi satu UID).
+ */
+function occurrenceSegment(occurrenceId) {
+  const n = Number(occurrenceId);
+  return Number.isFinite(n) && n > 0 ? `occurence${n}` : '';
+}
+
+/**
  * Update an existing calendar event.
  * POST /Calendar/{calendarId}/{eventId}/save
+ * (dengan occurrenceId → POST .../{eventId}/occurence{ts}/save = edit SATU
+ * occurrence tanpa mengubah seri: server menciptakan detached occurrence /
+ * exception dengan RECURRENCE-ID, master + RRULE tidak disentuh.)
  */
-export async function updateCalendarEvent(sogoToken, eventId, event, calendarId = 'personal') {
+export async function updateCalendarEvent(sogoToken, eventId, event, calendarId = 'personal', occurrenceId = null) {
+  const occ = occurrenceSegment(occurrenceId);
   const res = await fetch(
-    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}/save`,
+    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}${occ ? '/' + occ : ''}/save`,
     {
       method: 'POST',
       credentials: 'include',
@@ -1215,10 +1237,14 @@ export async function updateCalendarEvent(sogoToken, eventId, event, calendarId 
 /**
  * Delete a calendar event.
  * GET /Calendar/{calendarId}/{eventId}/delete
+ * (dengan occurrenceId → GET .../{eventId}/occurence{ts}/delete = hapus SATU
+ * occurrence: server menambah EXDATE ke master (prepareDelete) — bukan hapus
+ * seluruh seri.)
  */
-export async function deleteCalendarEvent(sogoToken, eventId, calendarId = 'personal') {
+export async function deleteCalendarEvent(sogoToken, eventId, calendarId = 'personal', occurrenceId = null) {
+  const occ = occurrenceSegment(occurrenceId);
   const res = await fetch(
-    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}/delete`,
+    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}${occ ? '/' + occ : ''}/delete`,
     {
       credentials: 'include',
       headers: sogoHeaders(),
@@ -1262,9 +1288,10 @@ export async function fetchCalendarEvents(sogoToken, _calendarId = 'personal', s
  * ISO), isAllDay, dll — lebih lengkap dari `eventsblocks` (yang attendee-nya
  * berupa kolom c_partmails terpisah).
  */
-export async function fetchCalendarEventDetail(sogoToken, eventId, calendarId = 'personal') {
+export async function fetchCalendarEventDetail(sogoToken, eventId, calendarId = 'personal', occurrenceId = null) {
+  const occ = occurrenceSegment(occurrenceId);
   const res = await fetch(
-    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}/view`,
+    `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Calendar/${pathSegment(calendarId, 'calendarId')}/${pathSegment(eventId, 'eventId')}${occ ? '/' + occ : ''}/view`,
     { credentials: 'include', headers: sogoHeaders() }
   );
   throwIfAuthError(res);
