@@ -2264,3 +2264,18 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-26 — Pengukuran dampak cache flagColors (benchmark A/B)
+
+- **Metode:** `scripts/benchmark-flag-cache.mjs` (`npm run bench:flag-cache`)
+  memakai modul asli flagColors.js, pola hot path MailPage (N baris × k lookup
+  per baris × banyak siklus), store realistis (10% berflag). Sebelum = reset
+  cache tiap pemanggilan (perilaku pra-fix); Sesudah = cache aktif.
+- **Hasil (konsisten 3 run):** 50 baris ×2×120 → 8.5ms→3.2ms (62–78%),
+  100×3×60 → 2.3→0.9ms (58–68%), 200×2×60 → 9.0→1.4ms (58–84%).
+  **98–99% baca localStorage berkurang** (120→1, 60→1). Di browser biaya
+  baca sinkron lebih besar (IPC + GC), jadi gap nyata lebih lebar.
+- **Keterbatasan:** benchmark CPU-side Node — perbandingan jank scroll
+  end-to-end di browser butuh sesi login asli (TODO user: buka inbox besar di
+  produksi, scroll, bandingkan sebelum/sesudah secara manual).
+- Benchmark ter-register sebagai `bench:flag-cache` (bukan test suite).

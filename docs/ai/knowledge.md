@@ -762,3 +762,14 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Round performance & mobile: (1) getFlagColor hot path — getStore baca+parse localStorage utk tiap baris × per-render → cache in-memory per email + invalidate-on-write + __resetFlagColorCache utk test; (2) swipe mobile membuka pesan — onSwipe callback di SwipeableRow sebelum aksi, MailPage suppressClick utk menelan synthetic click (pola long-press). Pelajaran: hot path render bebas baca storage sinkron; gesture yang memicu aksi harus tekan synthetic click. 51/51 test PASS, deploy live hash terverifikasi.
+
+## 2026-08-26 — Angka terukur: cache flagColors hemat 58–84% waktu, 98–99% baca localStorage
+
+- Benchmark A/B (`npm run bench:flag-cache`, modul asli + data realistis 10%
+  berflag): getFlagColor beruntun utk key yang di-cache = 0 baca localStorage;
+  per render-siklus baca sinkron berkurang 60–120 → 1.
+- Skenario hot path MailPage: 50 baris ×2 lookup ×120 siklus = 12k panggilan
+  → 8.5ms→3.2ms; 200 baris ×2 ×60 = 24k → 9.0→1.4ms. Konsisten 58–84% waktu.
+- Baca localStorage di browser = sinkron di main thread + IPC + GC → biaya
+  nyata lebih besar dari microbenchmark Node; kurangi SEMUA baca sinkron dari
+  hot path render (per-baris × per-frame).

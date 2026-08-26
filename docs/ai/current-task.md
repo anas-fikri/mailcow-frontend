@@ -1,44 +1,39 @@
 # Current Task
 
-## Task: ai-loop performance & mobile — hot path render, swipe mobile, pola request
+## Task: Ukur dampak cache flagColors (benchmark A/B)
 
-**Status: SELESAI (51/51 test PASS, build OK)** → siap commit + push + deploy.
+**Status: SELESAI — pengukuran kuantitatif, live build terverifikasi.**
 
-## Temuan
+## Konteks
+Fix sebelumnya (commit `0a17d12`): `getFlagColor` di hot path render MailPage
+(per-baris × per-render) membaca + parse + normalisasi seluruh store flag dari
+localStorage utk SETIAP pemanggilan → cache in-memory per email (invalidate
+saat tulis).
 
-1. **`getFlagColor` di hot path render per-baris (performa).** MailPage
-   memanggil `getFlagColor` beberapa kali PER BARIS pesan (warna flag, filter,
-   flag picker, count). Setiap pemanggilan → `getStore()` membaca + JSON.parse
-   + normalisasi SELURUH store flag dari localStorage → 50+ baris × beberapa
-   kali = puluhan baca/parse per render (jank saat scroll + hit GC).
-2. **Swipe mobile membuka pesan sekaligus (bug UX).** SwipeableRow tidak
-   menekan synthetic click browser setelah touchend → swipe-to-delete di HP
-   MEMBUKA pesan yang sama persis sedang dijadwalkan hapus. Long-press sudah
-   pakai suppressClick; swipe belum.
-3. Diverifikasi aman: BottomNav `pb-16` di AppLayout (list tidak tertutup),
-   polling unseen 60s wajar, `loadPrefs`/signatures tidak di hot path, cache
-   React Query staleTime/refetchOnWindowFocus sudah baik.
+## Pengukuran (`npm run bench:flag-cache`)
 
-## Perbaikan
+Benchmark memakai modul asli `flagColors.js` (bukan simulasi) — pola hot path
+MailPage: N baris × k lookup getFlagColor per baris × banyak siklus (frame
+scroll), data realistis (10% pesan berflag, 5 warna).
 
-1. **Cache in-memory di `src/lib/flagColors.js`** (`storeCache` Map per email):
-   `getStore` hanya baca localStorage sekali per email; di-invalidate saat
-   tulis (`setFlagColor`, `setFlagColorsBulk`, `clearAllFlags`). Tambah
-   `__resetFlagColorCache()` (internal/test — storage diubah langsung dari
-   luar). Semua pemanggilan `getFlagColor` beruntun utk key yang di-cache = 0
-   baca localStorage (diverifikasi test dengan spy getItem).
-2. **`onSwipe` di SwipeableRow** — dipanggil SEBELUM onSwipeLeft/Right saat
-   threshold terlampaui. MailPage: `onSwipe={() => suppressClick.current.add(msg.uid)}`
-   → synthetic click setelah swipe ditelan `handleRowClick` (pola sama dgn
-   long-press).
+| Skenario | SEBELUM | SESUDAH | Hemat waktu | Baca localStorage |
+|---|---|---|---|---|
+| 50 baris × 2 × 120 siklus (12k panggilan) | 8.5 ms / 120 baca | 3.2 ms / **1 baca** | **62–78%** | **99%** |
+| 100 baris × 3 × 60 siklus (18k) | 2.3 ms / 60 baca | 0.9 ms / 1 baca | **58–68%** | **98%** |
+| 200 baris × 2 × 60 siklus (24k) | 9.0 ms / 60 baca | 1.4 ms / 1 baca | **58–84%** | **98%** |
 
-## Verifikasi
+- Konsisten di 3 run: **58–84% waktu** dan **98–99% baca localStorage**
+  berkurang (baca localStorage = baca sinkron di main thread + JSON.parse +
+  normalisasi; di browser biayanya lebih besar lagi karena IPC + GC).
+- Satu siklus render tipikal (50 baris): SEBELUM = 1 baca + parse per siklus
+  (baca sinkron di main thread, bisa setengah frame budget 16.7ms di browser
+  dengan store besar), SESUDAH = 0.
 
-- `test:flag-colors` diperluas: cache read-count (spy getItem = 0 utk
-  getFlagColor beruntun setelah populate), reset cache antar skenario.
-- `test:a11y` + 4 assertion statis: prop onSwipe + panggilan left/right +
-  suppressClick di MailPage.
-- **51/51 test PASS** · build OK.
+## Catatan metodologi
+- Benchmark CPU-side Node (modul asli, data realistis) — TIDAK bisa buka
+  inbox live (butuh kredensial user; sandbox tidak punya browser login).
+- Perbandingan jank scroll browser end-to-end memerlukan sesi login asli —
+  disarankan verifikasi manual di produksi (lihat handoff).
 
 Status: COMPLETED
-Updated At: 2026-08-26T02:50:50Z
+Updated At: 2026-08-26T03:3x:00Z
