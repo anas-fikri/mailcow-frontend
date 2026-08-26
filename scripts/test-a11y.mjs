@@ -103,6 +103,7 @@ const swipe = read('src/components/SwipeableRow.jsx');
 const calendar = read('src/pages/CalendarPage.jsx');
 const contacts = read('src/pages/ContactsPage.jsx');
 const stats = read('src/pages/StatsPage.jsx');
+const prefs = read('src/pages/PreferencesPage.jsx');
 
 console.log('\n— Target sentuh 44px (min-w-11/min-h-11) —');
 const countOcc = (hay, needle) => hay.split(needle).length - 1;
@@ -236,6 +237,14 @@ passCount++;
 assert.ok(stats.includes('min-w-0"') && stats.includes('truncate min-w-0'), 'StatsPage: badge user tidak truncate (bisa timpa error)');
 passCount++;
 assert.ok(stats.includes('ml-auto shrink-0 text-destructive/70'), 'StatsPage: error badge harus shrink-0 (tidak terjepit)');
+passCount++;
+
+// Preferences: import signature SOGo harus TUNGGU prefs dimuat (race fix)
+// migratedRef tidak boleh di-set sebelum prefs ada — kalau prefs lambat,
+// signature SOGo tidak pernah diimport ke daftar lokal.
+assert.ok(prefs.includes('if (!prefs) return;'), 'Preferences: import signature tidak menunggu prefs dimuat (race)');
+passCount++;
+assert.ok(prefs.includes('migratedRef.current = true;') && prefs.includes('if (!prefs) return;\n    migratedRef.current = true;'), 'Preferences: migratedRef di-set sebelum prefs siap');
 passCount++;
 
 // Star/spam kontras perbaikan

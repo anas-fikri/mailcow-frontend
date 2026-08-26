@@ -2619,3 +2619,29 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Ai-loop: PreferencesPage & signatures (rotasi audit)
+
+**Commit** (setelah a11y assertions): fix race import signature SOGo satu-kali.
+
+### Temuan & fix
+- **Bug (race):** `migratedRef.current = true` di-set SEBELUM `fetchPreferences` selesai.
+  Bila query lambat, effect pertama jalan dengan `prefs=undefined` → skip import → ref
+  sudah true → signature SOGo **tidak pernah diimport** (migrasi diam-diam gagal).
+  **Fix:** set `migratedRef` HANYA setelah `prefs` ada (guard `if (!prefs) return;` dipindah
+  sebelum set ref). Deps `[email, prefs]` → effect jalan ulang saat prefs datang.
+- **Signature sanitize** — diverifikasi aman (bukan bug): HTML signature selalu lewat
+  `DOMPurify.sanitize(value, PURIFY_CONFIG)` saat inject ke editor (RichEditor useEffect)
+  + `hardenAnchorNode` (rel=noopener, blokir data: link) + chokepoint send `sendMessage`.
+- **syncToSogo** — aksi manual (klik tombol), idempotent, tidak menimpa editan lokal;
+  legacy placeholder signature tidak ikut ter-sync. Aman.
+- **Vacation + form password** — sudah di-guard (disabled saat pending). Aman.
+
+### Test
+- `test-a11y` **+2** (guard migratedRef setelah prefs; syncToSogo placeholder tidak ter-sync)
+  → **119 assertions** · **55/55 PASS** · build OK
+
+### Pelajaran (knowledge)
+Race "one-time migration" yang bergantung data async harus menunggu data, bukan cuma
+menunggu mount — kalau guard ref di-set sebelum data datang, migrasi bisa skipped
+selamanya. Pola: `if (!data) return;` SEBELUM `ref.current = true`.

@@ -279,6 +279,11 @@ function SignatureSection() {
   const migratedRef = useRef(false);
   useEffect(() => {
     if (!email || migratedRef.current) return;
+    // Race fix: prefs belum dimuat (undefined saat loading) — TUNGGU sampai
+    // fetchPreferences selesai. Sebelumnya migratedRef di-set duluan, jadi
+    // kalau prefs lambat, SOGo signature TIDAK PERNAH diimport (effect tidak
+    // dijalankan ulang walau prefs akhirnya datang).
+    if (!prefs) return;
     migratedRef.current = true;
     const savedSogo = prefs?.defaults?.SOGoMailSignature || '';
     if (savedSogo.trim()) {
