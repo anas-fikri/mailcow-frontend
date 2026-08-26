@@ -2153,3 +2153,26 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-26 — ai-loop sorting: sortAsc vs conversation vs date-group (FIXED)
+
+- **Bug 1 — Sort by UID bukan tanggal:** `sortedMessages` by uid membuat
+  urutan tampil menyimpang dari tanggal (uid SOGo per-folder tidak dijamin
+  sekuensial) + saat sortAsc urutan baris terbalik → date-group header terbalik
+  (Lebih Lama di atas) + sticky header salah. **Fix:** helper murni
+  `sortMessagesByDate` (date-desc, tiebreak uid, unparseable bawah) — sortedMessages
+  selalu date-desc; `sortAsc` hanya membalik urutan GRUP via
+  `reorderDateGroups` (flat) / `groupMessages(messages, asc)` (conversation).
+- **Bug 2 — Conversation view abaikan sortAsc:** `groupMessages` kini terima
+  `asc` — thread tertua di atas saat asc, pesan dalam thread tetap terbaru-dulu
+  (pola Gmail).
+- **Bug 3 — visibleOrderUids kosong:** saat conversation view aktif tapi semua
+  subjek unik (grup kosong) fallback ke sortedMessages → range-select /
+  auto-advance tidak mati.
+- **Bug 4 — Keyboard focus beda urutan dari render:** j/k/o/scroll/clamp kini
+  pakai `sortedMessages` (urutan tampil) bukan `messages` (uid-sort).
+- **Pelajaran:** urutan RENDER, urutan KEYBOARD, dan urutan RANGE-SELECT harus
+  dari SATU sumber (display order). Sort toggle = urutan grup, bukan urutan
+  baris (baris selalu date-desc dalam grup).
+- Test: `test:date-groups` diperluas (sortMessagesByDate, reorderDateGroups) →
+  **49/49 PASS** + build OK.

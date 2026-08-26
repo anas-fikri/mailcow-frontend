@@ -116,3 +116,46 @@ export function groupMessagesByDate(messages, getDate, now = new Date()) {
   }
   return groups;
 }
+
+/**
+ * Urutkan daftar pesan by DATE (bukan UID). SOGo uid per-folder TIDAK dijamin
+ * sekuensial dengan waktu — mengurutkan by uid membuat urutan tampil bisa
+ * menyimpang dari urutan tanggal (dan membalikkan urutan saat sortAsc).
+ *
+ * Default: date DESCENDING (terbaru dulu) — urutan yang diharapkan date-group
+ * header (Hari Ini → Lebih Lama) dan conversation thread. `asc: true` hanya
+ * membalik urutan GRUP, bukan urutan di dalam grup (pesan dalam satu konversi/
+ * hari tetap terbaru-dulu — pola Gmail: thread terbaru di atas, balasan
+ * terbaru paling atas).
+ *
+ * Tiebreak: uid descending (agar pesan tanpa tanggal yang valid tetap urut
+ * deterministik); unparseable date dianggap paling lama (paling bawah).
+ *
+ * @param {Array}  messages  daftar pesan (dengan .uid dan .date)
+ * @param {object} [opts]    { asc?: boolean, getDate?: (msg) => any }
+ * @returns {Array} pesan tersortir (salinan baru)
+ */
+export function sortMessagesByDate(messages = [], opts = {}) {
+  const { asc = false, getDate, now } = opts;
+  const refNow = now || new Date();
+  const stamped = (Array.isArray(messages) ? messages : []).map((m) => {
+    const d = parseMessageDate(getDate ? getDate(m) : m?.date, refNow);
+    return { m, ts: d ? d.getTime() : Number.NEGATIVE_INFINITY };
+  });
+  // Date DESCENDING selalu — asc hanya dipakai untuk membalik urutan GRUP di
+  // pemanggil (lihat reorderDateGroups / groupMessages asc), bukan baris.
+  stamped.sort((a, b) => {
+    if (b.ts !== a.ts) return b.ts - a.ts;
+    return (Number(b.m?.uid) || 0) - (Number(a.m?.uid) || 0);
+  });
+  return stamped.map((s) => s.m);
+}
+
+/**
+ * Balikkan urutan grup tanggal saat mode 'terlama dulu' (asc) — header jadi
+ * Lebih Lama → … → Hari Ini, sedangkan isi tiap grup tetap date-descending.
+ */
+export function reorderDateGroups(groups = [], asc = false) {
+  if (!asc) return groups;
+  return [...groups].reverse();
+}

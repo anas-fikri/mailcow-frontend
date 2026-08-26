@@ -1,56 +1,50 @@
 # Current Task
 
-## Task: ai-loop flow logic — interaksi auto-archive vs snooze vs filter kategori (pesan di-snooze lalu di-archive)
+## Task: ai-loop sorting — konflik sortAsc + conversation view + group-by-tanggal di MailPage
 
 **Status: SELESAI (49/49 test PASS, build OK)** → siap commit + push + deploy.
 
 ## Temuan
 
-1. **Snooze TIDAK folder-scoped (schema v2 flat `{uid: wakeEpoch}`).** SOGo memberi
-   UID per-folder — pesan yang dipindah (arsip/move) mendapat UID BARU di folder
-   tujuan. Entri snooze berisi uid lama menjadi YATIM: uid lama tidak lagi merujuk
-   pesan itu, dan bila UID dipakai ulang oleh pesan inbox baru, pesan baru ikut
-   tersembunyi (stale false-positive).
-2. **Auto-archive memindah pesan yang sedang di-snooze.** `executeRules` tidak
-   mengecualikan pesan snooze → pesan yang user minta "tunda sampai besok" bisa
-   dipindah diam-diam oleh rule → snooze jadi sia-sia + entri stale.
-3. **Tidak ada pembersihan entri snooze saat move/delete/archive.** Entri yatim
-   menumpuk dan bisa salah sembunyikan pesan baru.
+1. **Sort by UID, bukan tanggal.** `sortedMessages` mengurutkan by `uid`
+   (asc/desc sesuai sortAsc). UID SOGo per-folder TIDAK dijamin sekuensial
+   dengan waktu → urutan tampil bisa menyimpang dari tanggal. Saat `sortAsc`
+   (terlama dulu) urutan baris terbalik total → date-group header muncul
+   TERBALIK (Lebih Lama di atas, Hari Ini di bawah) + sticky header "Lebih
+   Lama" menempel saat scroll melewati pesan baru.
+2. **Conversation view mengabaikan sortAsc.** `groupMessages` selalu urutkan
+   grup by max-UID descending → toggle sort tidak berpengaruh di conversation
+   view (inkonsisten dgn flat view).
+3. **Fallback `visibleOrderUids` kosong** saat conversation view aktif tapi
+   `conversationGroups` kosong (semua subjek unik) → range-select / auto-advance
+   reader / keyboard navigation mati di kondisi tsb.
+4. **Keyboard focus pakai urutan berbeda dari render.** `focusIdx` (j/k)
+   menunjuk `messages` (uid-sort) sedangkan render baris memakai indeks
+   date-group (sortedMessages) → highlight fokus bisa menunjuk pesan yang
+   berbeda dari yang dirender.
 
 ## Perbaikan
 
-1. **Snooze v3 folder-scoped** (`src/lib/snooze.js`): storage
-   `pcp_snooze_v3_<email>` → `{ [folderId]: { [uid]: wakeEpoch } }`. Migrasi
-   sekali-jalan dari v2 flat (dibaca via `readStorage(BASE_KEY, email, 3)` —
-   versi per-domain, TIDAK mengubah `STORAGE_VERSION` global agar key domain
-   lain tidak ikut naik). Semua fungsi terima `folderId`:
-   `snoozeMessage/unsnoozeMessage/isSnoozed(email, folderId, ...)`.
-2. **`executeRules` param baru `isExcluded(msg)`** — pesan yang sedang di-snooze
-   TIDAK dipindah rule (keinginan user "tunda" dihormati; rule jalan utk pesan
-   lain; pesan tidak hilang ke folder lain saat masih snooze).
-3. **Helper `unsnoozeMessages(email, folderId, uids)`** — dipanggil di
-   onSuccess semua mutation pemindah: moveMutation, quickMoveMutation,
-   junkMutation, archiveMutation (MailPage) + deleteMutation/moveMutation
-   (MessageReader). Bump `snoozeTick` (via `clearSnoozesForMoved` /
-   `onSnoozeCleared`) agar memo `snoozedUids` ter-refresh langsung (tanpa
-   menunggu interval 60 detik).
+- **`sortMessagesByDate(messages, {asc, getDate, now})`** di `src/lib/dateGroups.js`
+  — urut by DATE (parseMessageDate toleran), tiebreak uid desc, unparseable
+  paling bawah. `asc` TIDAK membalik baris — hanya urutan GRUP (dipanggil
+  `reorderDateGroups` / `groupMessages` asc).
+- **`reorderDateGroups(groups, asc)`** — balik urutan grup tanggal saat asc
+  (header Lebih Lama → Hari Ini), isi tiap grup tetap date-descending.
+- **MailPage:** `sortedMessages` = `sortMessagesByDate(displayMessages)`
+  (selalu date-desc); flat view render `reorderDateGroups(groupMessagesByDate(...), sortAsc)`;
+  `groupMessages(messages, sortAsc)` — asc membalik urutan THREAD, pesan dalam
+  thread tetap terbaru-dulu (pola Gmail).
+- **Keyboard focus** (j/k/o/enter/targetUids/scroll-into-view/clamp) kini pakai
+  `sortedMessages` — konsisten dengan urutan render. Deps handler + `sortedMessages`.
+- `visibleOrderUids` fallback ke `sortedMessages` bila conversationGroups kosong.
 
-## Verifikasi aman (tidak diubah)
+## Verifikasi
 
-- Filter kategori (`classifyEmail`) tetap berbasis folderId+from+subject —
-  independen dari snooze/archive; tab count tetap hitung semua pesan (termasuk
-  snooze) — pola Gmail.
-- Auto-advance reader memakai `visibleOrderUids` yang sudah filter snooze.
-- `pruneExpired` sekarang membersihkan per-folder + hapus folder kosong.
-
-## Test
-
-- `test:snooze` diperluas: folder-scope (uid sama di folder beda tidak ikut
-  tersembunyi), `unsnoozeMessages` (hanya uid target), migrasi v2→v3, bentuk
-  rusak v3.
-- `test:autoarchive` + kasus interaksi: tanpa isExcluded semua dipindah; dengan
-  isExcluded hanya pesan non-snooze; semua snooze → tanpa aksi.
+- `test:date-groups` diperluas: sortMessagesByDate (date-desc + tiebreak +
+  unparseable), asc tidak membalik baris, getDate custom, reorderDateGroups
+  (asc → header terbalik, isi grup tetap), semua-invalid → uid-desc.
 - **49/49 test PASS** · build OK.
 
 Status: COMPLETED
-Updated At: 2026-08-26T02:16:57Z
+Updated At: 2026-08-26T02:5x:00Z

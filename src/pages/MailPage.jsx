@@ -21,7 +21,7 @@ import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor } from '../lib
 import { getRuleSummary, executeRules } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
-import { groupMessagesByDate, parseMessageDate } from '../lib/dateGroups';
+import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate } from '../lib/dateGroups';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 const MESSAGE_WINDOW_MONTHS = 5;
@@ -142,7 +142,7 @@ function normalizeSubject(subject) {
   return s.trim().toLowerCase() || '(tanpa subjek)';
 }
 
-function groupMessages(messages) {
+function groupMessages(messages, asc = false) {
   const groups = [];
   const map = new Map();
   for (const msg of messages) {
@@ -155,11 +155,13 @@ function groupMessages(messages) {
       groups.push(group);
     }
   }
-  groups.sort((a, b) => {
-    const lastA = a.messages.reduce((max, m) => Math.max(max, m.uid), 0);
-    const lastB = b.messages.reduce((max, m) => Math.max(max, m.uid), 0);
-    return lastB - lastA;
-  });
+  // Urutkan grup by tanggal pesan TERBARU di dalamnya (date-descending).
+  // `asc` = 'terlama dulu' → balik urutan GRUP (thread tertua di atas),
+  // sedangkan pesan di dalam tiap grup tetap terbaru-dulu (pola Gmail).
+  const latestTs = (g) =>
+    g.messages.reduce((max, m) => Math.max(max, parseMessageDate(m.date)?.getTime() || 0), 0);
+  groups.sort((a, b) => { const d = latestTs(b) - latestTs(a); return d !== 0 ? d : 0; });
+  if (asc) groups.reverse();
   return groups;
 }
 
@@ -495,18 +497,22 @@ export default function MailPage() {
     return () => clearInterval(iv);
   }, [user?.email]);
 
-  // Sort by date (client-side)
+  // Sort by DATE (client-side), selalu date-descending untuk semua view.
+  // Sebelumnya sort by UID: (1) uid SOGo per-folder tidak dijamin sekuensial
+  // dgn waktu → urutan tampil bisa menyimpang dari tanggal; (2) saat sortAsc
+  // (terlama dulu) urutan baris terbalik → header date-group muncul terbalik
+  // (Lebih Lama di atas, Hari Ini di bawah) + sticky header salah menempel.
+  // Sekarang sortAsc hanya membalik urutan GRUP (date-group header / thread
+  // conversation), isi tiap grup tetap terbaru-dulu — konsisten dua view.
   const sortedMessages = useMemo(() => {
-    return [...displayMessages].sort((a, b) =>
-      sortAsc ? a.uid - b.uid : b.uid - a.uid
-    );
-  }, [displayMessages, sortAsc]);
+    return sortMessagesByDate(displayMessages);
+  }, [displayMessages]);
 
   // Conversation grouping
   const conversationGroups = useMemo(() => {
     if (!conversationView) return [];
-    return groupMessages(sortedMessages);
-  }, [sortedMessages, conversationView]);
+    return groupMessages(sortedMessages, sortAsc);
+  }, [sortedMessages, conversationView, sortAsc]);
 
   // Reset expanded set when conversation view toggles
   useEffect(() => {
@@ -520,12 +526,14 @@ export default function MailPage() {
 
   // Bug fix: clamp focusIdx saat jumlah messages berubah (cegah out-of-bounds)
   // Catatan: jangan masukkan focusIdx di deps — bisa create loop dgn reset effect
+  // focusIdx mengikuti URUTAN TAMPIL (sortedMessages date-desc), bukan messages
+  // (uid-sort) — keduanya berbeda sejak sort by date diterapkan.
   useEffect(() => {
-    if (focusIdx >= messages.length) {
-      setFocusIdx(Math.max(0, messages.length - 1));
+    if (focusIdx >= sortedMessages.length) {
+      setFocusIdx(Math.max(0, sortedMessages.length - 1));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length]);
+  }, [sortedMessages.length]);
 
   const toggleConversation = useCallback((key) => {
     setExpandedConversations(prev => {
@@ -796,7 +804,11 @@ export default function MailPage() {
     );
   };
 
-  // Urutan baris yang TAMPIL (flat atau conversation) — dipakai utk range select
+  // Urutan baris yang TAMPIL (flat atau conversation) — dipakai utk range
+  // select, auto-advance reader, dan navigasi keyboard. Fallback ke
+  // sortedMessages bila conversation view TIDAK menghasilkan grup (semua
+  // subjek unik → tiap pesan grup sendiri; sebelumnya fallback ini kosong →
+  // range select / auto-advance mati di kondisi tsb).
   const visibleOrderUids = useMemo(() => {
     if (conversationView && conversationGroups.length > 0) {
       return conversationGroups.flatMap((g) => g.messages.map((m) => m.uid));
@@ -969,11 +981,13 @@ export default function MailPage() {
         return;
       }
 
-      // Navigasi j/k hanya jika ada pesan dan bukan conversation view
-      if (!conversationView && messages.length > 0) {
+      // Navigasi j/k hanya jika ada pesan dan bukan conversation view.
+      // Urutan = sortedMessages (urutan tampil date-desc) — konsisten dgn
+      // indeks yang dipakai renderMessageRow utk highlight focus.
+      if (!conversationView && sortedMessages.length > 0) {
         if (key === 'j') {
           e.preventDefault();
-          const next = Math.min(focusIdx + 1, messages.length - 1);
+          const next = Math.min(focusIdx + 1, sortedMessages.length - 1);
           setFocusIdx(next);
           // Scroll ke view
           return;
@@ -986,7 +1000,7 @@ export default function MailPage() {
         }
         if ((key === 'o' || key === 'enter') && focusIdx >= 0) {
           e.preventDefault();
-          const msg = messages[focusIdx];
+          const msg = sortedMessages[focusIdx];
           if (msg) setSelectedMsgId(msg.uid);
           return;
         }
@@ -1016,7 +1030,7 @@ export default function MailPage() {
       }
 
       // Aksi pada pesan terpilih atau yang di-focus
-      const targetUids = selectedUids.length > 0 ? selectedUids : (focusIdx >= 0 ? [messages[focusIdx]?.uid] : []);
+      const targetUids = selectedUids.length > 0 ? selectedUids : (focusIdx >= 0 ? [sortedMessages[focusIdx]?.uid] : []);
       if (targetUids.length === 0) return;
 
       if (key === 's') {
@@ -1081,7 +1095,7 @@ export default function MailPage() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [
-    messages, focusIdx, selectedMsgId, selectedUids, selectionMode, composeOpen, keyboardHelpOpen,
+    messages, sortedMessages, focusIdx, selectedMsgId, selectedUids, selectionMode, composeOpen, keyboardHelpOpen,
     bulkFlagMutation, bulkMarkReadMutation, bulkDeleteMutation,
   ]);
 
@@ -1094,13 +1108,13 @@ export default function MailPage() {
   const msgRefs = useRef({});
   useEffect(() => {
     if (focusIdx >= 0) {
-      const msg = messages[focusIdx];
+      const msg = sortedMessages[focusIdx];
       if (msg) {
         const el = msgRefs.current[msg.uid];
         if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
     }
-  }, [focusIdx, messages]);
+  }, [focusIdx, sortedMessages]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   const selectedFolderMeta = folders.find((f) => f.id === selectedFolder) || {
@@ -1894,7 +1908,15 @@ export default function MailPage() {
                     if (conversationView) {
                       return sortedMessages.map((msg, idx) => renderMessageRow(msg, idx));
                     }
-                    const dateGroups = groupMessagesByDate(sortedMessages, (m) => m.date);
+                    // sortedMessages selalu date-descending (Hari Ini → Lebih
+                    // Lama). Saat sortAsc (terlama dulu), urutan GRUP dibalik
+                    // (Lebih Lama → Hari Ini) — isi tiap grup tetap
+                    // date-descending. Sebelumnya urutan baris dibalik apa
+                    // adanya → header grup terbalik + sticky salah menempel.
+                    const dateGroups = reorderDateGroups(
+                      groupMessagesByDate(sortedMessages, (m) => m.date),
+                      sortAsc
+                    );
                     let flatIdx = 0;
                     return dateGroups.map((group) => (
                       <div key={group.key}>

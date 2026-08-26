@@ -682,3 +682,19 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Snooze di-migrasi ke schema v3 folder-scoped {[folderId]:{[uid]:wake}} — UID SOGo per-folder membuat entri snooze flat (v2) yatim saat pesan di-archive (false-positive sembunyikan pesan baru dgn UID reuse). executeRules terima isExcluded(msg) utk skip pesan tersnooze (deferral eksplisit user). unsnoozeMessages membersihkan entri saat move/delete/junk/archive + bump tick. Migrasi versi per-domain via readStorage(base, scope, 3) tanpa ubah STORAGE_VERSION global. 49/49 test PASS, deploy live terverifikasi hash.
+
+## 2026-08-26 — Urutan tampil = SATU sumber (date-sort); sort toggle = urutan grup
+
+- **UID SOGo per-folder tidak dijamin sekuensial dengan waktu** — jangan
+  mengurutkan daftar pesan by uid bila urutan tanggal yang diharapkan (date
+  group, thread conversation). Gunakan `sortMessagesByDate` (parseMessageDate
+  toleran, tiebreak uid desc, unparseable paling bawah).
+- **Sort toggle (terlama dulu) sebaiknya membalik urutan GRUP, bukan baris** —
+  baris dalam satu grup (hari / thread) tetap date-descending (pola Gmail).
+  Flat: `reorderDateGroups`. Conversation: `groupMessages(messages, asc)`.
+- **Urutan RENDER, KEYBOARD (j/k), dan RANGE-SELECT (visibleOrderUids) harus
+  dari sumber yang SAMA** — kalau tidak, highlight fokus menunjuk pesan beda
+  dari yang dirender, dan range-select salah memilih.
+- **Fallback visibleOrderUids** wajib ada saat conversation view aktif tapi
+  tidak menghasilkan grup (semua subjek unik) — kalau tidak, auto-advance
+  reader & range-select mati diam-diam.
