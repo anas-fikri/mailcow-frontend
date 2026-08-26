@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T08:12:44Z
+Generated At: 2026-08-26T08:27:10Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Hardening error produksi: fetchWithTimeout (connectSogo 20s, registerSmtpSession 15s); friendlyLoginError petakan Failed to fetch/NetworkError/AbortError ke pesan Indonesia; lazyWithReload reload sekali saat chunk 404 pasca deploy (sessionStorage flag anti-loop). Root cause akun-spesifik masih butuh pcp_last_error dari user. 54/54 PASS, live terverifikasi hash (index-CFA4jfth, LoginPage-BZQgrSvg).
+## 1. [MEDIUM] Follow up on discovered knowledge: Kontak SOGo: fetchContacts sekarang pakai parseContactRow murni (contactUtils.js) — field c_cn/c_mail/emails bisa object, wajib dinormalisasi string; emails bisa array string ATAU array object. ContactsPage tambah savingRef anti double-submit create. 54/54 PASS, live terverifikasi hash (index-CHLCPQI3, ContactsPage-DdssLPt0).
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

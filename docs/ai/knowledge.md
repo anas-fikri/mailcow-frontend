@@ -923,3 +923,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   contactUtils.js; field `emails` bisa array string ATAU array object {email,address,value}.
 - Duplikat GAL TIDAK diblokir (read-only, sah menambah salinan personal);
   duplikat personal diblokir (findDuplicateKind prioritas 'personal').
+
+## 2026-08-26T08:27:10Z
+- Task: 
+- Status: COMPLETED
+- Finding: Kontak SOGo: fetchContacts sekarang pakai parseContactRow murni (contactUtils.js) — field c_cn/c_mail/emails bisa object, wajib dinormalisasi string; emails bisa array string ATAU array object. ContactsPage tambah savingRef anti double-submit create. 54/54 PASS, live terverifikasi hash (index-CHLCPQI3, ContactsPage-DdssLPt0).
