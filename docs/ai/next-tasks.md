@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T03:32:20Z
+Generated At: 2026-08-26T07:29:38Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Posisi ikon di layout dinamis (Tailwind): (1) tombol overlay di input butuh padding kanan >= lebar tombol (36px → pr-10); (2) header judul+badge+cluster tombol: wrapper kiri min-w-0 flex-1 + label truncate + kanan shrink-0 agar judul menyusut duluan; (3) items-baseline dengan tombol ikon tanpa teks bikin ikon mengambang — pakai items-center.
+## 1. [MEDIUM] Follow up on discovered knowledge: Kalender: helper tanggal lokal baru src/lib/dateFormat.js — jangan pernah pakai toISOString() utk tanggal input (UTC; WIB +7 jam 00:00-06:59 = hari sebelumnya → klik sel/event 02:00/drag dini hari pindah sehari). eventsOnDay overlap utk multi-day (end eksklusif). Drag recurring harus fetch /view utk pola repeat (grid eventsblocks tidak memuat repeat, hanya c_iscycle); keterbatasan: edit occurrence tunggal = edit seluruh seri. 54/54 PASS, live terverifikasi hash.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

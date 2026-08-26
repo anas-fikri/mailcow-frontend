@@ -32,3 +32,5 @@ undefined → `buildDroppedEventData` set repeat null → SOGo simpan tanpa pola
 - `test-calendar-drop` +4 (drag 02:00/00:00 WIB — regresi UTC)
 - `test-calendar-events` +12 (multi-day span, all-day eksklusif, static drag-recurring)
 - **54/54 PASS** · build OK · deploy live terverifikasi hash
+Status: COMPLETED
+Updated At: 2026-08-26T07:29:38Z

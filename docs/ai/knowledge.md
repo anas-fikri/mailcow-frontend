@@ -896,3 +896,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   (drag/edit) agar SOGo tidak menghapus recurrence.
 - End event bersifat eksklusif (all-day end = tengah malam berikutnya) →
   overlap check `s <= dayEnd && e > dayStart`.
+
+## 2026-08-26T07:29:38Z
+- Task: 
+- Status: COMPLETED
+- Finding: Kalender: helper tanggal lokal baru src/lib/dateFormat.js — jangan pernah pakai toISOString() utk tanggal input (UTC; WIB +7 jam 00:00-06:59 = hari sebelumnya → klik sel/event 02:00/drag dini hari pindah sehari). eventsOnDay overlap utk multi-day (end eksklusif). Drag recurring harus fetch /view utk pola repeat (grid eventsblocks tidak memuat repeat, hanya c_iscycle); keterbatasan: edit occurrence tunggal = edit seluruh seri. 54/54 PASS, live terverifikasi hash.
