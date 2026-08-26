@@ -104,6 +104,8 @@ const calendar = read('src/pages/CalendarPage.jsx');
 const contacts = read('src/pages/ContactsPage.jsx');
 const stats = read('src/pages/StatsPage.jsx');
 const prefs = read('src/pages/PreferencesPage.jsx');
+const app = read('src/App.jsx');
+const login = read('src/pages/LoginPage.jsx');
 
 console.log('\n— Target sentuh 44px (min-w-11/min-h-11) —');
 const countOcc = (hay, needle) => hay.split(needle).length - 1;
@@ -317,5 +319,18 @@ assert.ok(reader.includes('async function handleDownloadAll()'), 'Unduh semua la
 assert.ok(reader.includes('totalAttachmentSize(attachments)'), 'Total ukuran lampiran ditampilkan');
 assert.ok(reader.includes('e.key === \'Escape\') { e.preventDefault(); if (lightbox) setLightbox(null); else onClose(); }'), 'Esc tutup lightbox dulu, baru reader');
 passCount += 8;
+
+// ── Keamanan: 429 tidak boleh di-retry + cache bersih saat logout ────────────
+// OWASP rate-limit: react-query me-retry 429 = memperparah beban server yang
+// sedang minta pelan-pelan. Harus masuk daftar no-retry seperti 401/403/404.
+assert.ok(app.includes('status === 429') && app.includes('status === 401 || status === 403 || status === 404 || status === 429'), 'App: 429 harus masuk daftar no-retry react-query');
+passCount++;
+// Data leak antar role di memori: logout manual (Sidebar) & sebelum login baru
+// (LoginPage) wajib queryClient.clear() — cache akun A tidak boleh tersisa
+// saat akun B login di perangkat yang sama (jalur session-expired sudah benar).
+assert.ok(sidebar.includes('queryClient.clear()') && sidebar.includes('useQueryClient'), 'Sidebar: logout manual harus membersihkan queryClient');
+passCount++;
+assert.ok(login.includes('queryClient.clear()') && login.includes('useQueryClient'), 'LoginPage: sebelum login baru harus membersihkan queryClient');
+passCount++;
 
 console.log(`\nA11y audit: ${passCount} assertions PASS ✅`);

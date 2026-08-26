@@ -2666,3 +2666,36 @@ selamanya. Pola: `if (!data) return;` SEBELUM `ref.current = true`.
   tetap menunggu prefs dengan guard `migratedRef` setelah data tiba.
 - Test: test-a11y +1 (list lokal tak bergantung prefs) → **120 assertions**,
   55/55 PASS, build OK.
+
+## Ai-loop: OWASP refresh — rate-limit client + data leak antar role
+
+**Komit:** 429 no-retry + cache clear saat logout manual.
+
+### Diverifikasi aman (backend, tidak diubah)
+- **Rate-limit**: /api/send 10/mnt **per akun** (key session.user, fallback IP utk
+  NAT), /api/preferences 30/mnt/IP, /api/auth/smtp 5/mnt/IP (anti brute-force),
+  /api/image-proxy 120/mnt/IP. Bucket per-route (tidak berbagi lintas endpoint).
+  X-Real-IP hanya dipercaya dari proxy terpercaya (TRUSTED_PROXY_IPS / docker bridge).
+- **Data leak antar role**: /api/preferences?email=X → 403 bila ≠ session.user;
+  /api/send memaksa `from = session.user` (403 kalau payload from ≠ akun login);
+  token SOGo di path URL → divalidasi SOGo per-sesi.
+- **CSRF**: cookie SMTP HttpOnly + SameSite=Strict + Path=/api + JSON content-type
+  (preflight wajib lintas-origin) + nginx tanpa ACAO. Tertutup.
+
+### Fix 1 — react-query me-retry 429 (kontraproduktif)
+`retry` hanya mengecualikan 401/403/404 → 429 di-retry 2x dengan backoff,
+menambah beban saat server justru minta pelan-pelan. `status === 429` kini
+masuk daftar no-retry (App.jsx).
+
+### Fix 2 — data leak antar role di memori (cache tidak dibersihkan saat logout manual)
+Jalur session-expired (SessionWatcher) sudah `queryClient.clear()`, TAPI logout
+manual (Sidebar.handleLogout) dan login baru (LoginPage.handleSubmit) hanya
+`clearUser()` — cache react-query akun A (daftar folder, pesan, kontak,
+kalender, prefs) tetap hidup di memori saat akun B login di perangkat sama.
+Query key memuat sogoToken → tidak tampil langsung, tapi data sensitif masih
+berada di memori (hygiene buruk di shared device). Kedua jalur kini
+`queryClient.clear()` sebelum clearUser.
+
+### Test
+- test-a11y **+3** (429 no-retry; Sidebar clear; LoginPage clear) → **123 assertions**
+- **55/55 PASS** · build OK

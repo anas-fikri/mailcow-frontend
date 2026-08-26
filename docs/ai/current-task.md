@@ -1,16 +1,14 @@
-# Current Task — ai-loop rotasi: PreferencesPage & signatures
+# Current Task — Audit OWASP refresh: rate-limit + data leak antar role
 
 ## Status
-- **Fix race `migratedRef`** di SignatureSection (PreferencesPage): import SOGo signature
-  satu-kali sekarang TUNGGU sampai `fetchPreferences` selesai. Sebelumnya `migratedRef`
-  di-set duluan → kalau prefs lambat, signature SOGo tidak pernah diimport.
-- **Signature sanitize** diverifikasi: HTML signature di-sanitize di chokepoint
-  (RichEditor inject + send chokepoint, PURIFY_CONFIG + hardenAnchorNode) — tidak ada XSS.
-- **syncToSogo** = aksi manual (tombol) → tidak ada race overwrite antar perangkat.
-- Test: test-a11y +2 (119 assertions), 55/55 PASS, build OK.
+- **Backend (server.js) diverifikasi solid**: rate-limit per-route/per-akun
+  (send 10/mnt/akun, prefs 30/mnt/IP, auth 5/mnt/IP, image-proxy 120/mnt/IP),
+  X-Real-IP trusted-proxy, ownership /api/preferences (403 bila email ≠ sesi),
+  from dipaksa session.user (anti-spoof), cookie SMTP SameSite=Strict+HttpOnly.
+- **Fix 1**: react-query tidak lagi me-retry 429 (sebelumnya retry 2x → perparah).
+- **Fix 2**: queryClient.clear() saat logout manual (Sidebar) + sebelum login baru
+  (LoginPage) — cegah data sensitif akun A tersisa di memori saat akun B login.
+- Test: test-a11y +3 → 123 assertions, 55/55 PASS, build OK.
 
 ## Next
-- Commit + push + deploy (SERVER=deploy-mail ./deploy.sh)
-- ai-close dengan knowledge
-Status: COMPLETED
-Updated At: 2026-08-26T10:29:37Z
+- Commit + push + deploy + ai-close

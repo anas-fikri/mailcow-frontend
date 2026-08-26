@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Mail, LogOut, ChevronRight, HelpCircle, Timer } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { logout, fetchSmtpSessionStatus } from '../../lib/api'
 import { Sun, Moon, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
@@ -11,6 +11,7 @@ import { formatRemaining, sessionWarningLevel, SHOW_BELOW_MINUTES } from '../../
 export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
   const { user, clearUser, theme, toggleTheme } = useAuthStore()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   // ── Countdown sesi SMTP proxy ───────────────────────────────────────────────
   // Poll /api/auth/smtp/status setiap 60 dtk (rate-limit server 30/menit cukup)
@@ -43,6 +44,10 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
 
   async function handleLogout() {
     await logout().catch(() => {})
+    // Bersihkan cache react-query (pesan, kontak, kalender, prefs) — data
+    // sensitif akun ini tidak boleh tersisa di memori saat akun lain login
+    // di perangkat yang sama (data leak antar role di memori).
+    queryClient.clear()
     clearUser()
     navigate('/login')
   }

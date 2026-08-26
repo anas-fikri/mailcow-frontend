@@ -55,7 +55,9 @@ const queryClient = new QueryClient({
     queries: {
       retry: (failCount, error) => {
         const status = error?.status || error?.cause?.status
-        if (status === 401 || status === 403 || status === 404) return false
+        // 429 = server sedang rate-limiting — jangan retry (retry malah
+        // memperparah: menambah beban saat server minta pelan-pelan).
+        if (status === 401 || status === 403 || status === 404 || status === 429) return false
         return failCount < 2
       },
       retryDelay: attempt => Math.min(1000 * 2 ** attempt, 10000),

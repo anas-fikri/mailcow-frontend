@@ -5,6 +5,7 @@ import { login, logout, resetSessionExpiredFlag, registerSmtpSession, revokeSmtp
 import { friendlyLoginError } from '../lib/loginDiagnostics';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '../lib/toast';
 
 export default function LoginPage() {
@@ -16,6 +17,7 @@ export default function LoginPage() {
   
   const { isLoggedIn, setUser, clearUser, theme, toggleTheme } = useAuthStore();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const emailRef = useRef(null);
 
   useEffect(() => {
@@ -49,6 +51,10 @@ export default function LoginPage() {
     try {
       // Clear stale persisted user sebelum login baru
       revokeSmtpSession();
+      // Bersihkan cache react-query akun sebelumnya — data sensitif (pesan,
+      // kontak, kalender) tidak boleh tersisa saat akun lain login di perangkat
+      // yang sama (data leak antar role di memori).
+      queryClient.clear();
       clearUser();
       resetSessionExpiredFlag();
       const data = await login(userName, password);
