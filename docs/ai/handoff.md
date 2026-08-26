@@ -2823,3 +2823,10 @@ Test: test-a11y +3 (drag scope wiring). 149 a11y assertions, 55/55 PASS, build O
 - **deleteContact salah method** → POST → `POSTAction` WebDAV-only → 500. Fix: `GET {pid}/{uid}/delete` (Resource.remove UI SOGo).
 - Test: test-a11y +3 → 148 assertions · 55/55 PASS · build OK · live ter-push.
 - Pelajaran: jangan pernah asumsi endpoint SOGo — verifikasi kontrak dari source server `lookupName` + UI live (resource service) sebelum integrasi; UI SOGo live bisa di-download langsung dari server produksi.
+
+## 2026-08-26T16:06:47Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+- No local changes detected

@@ -1055,3 +1055,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Drag scope occurrence kalender: drag SATU kejadian event berulang kini memindahkan hanya kejadian itu (exception RECURRENCE-ID via segmen occurence{ts}), bukan seluruh seri — konsisten dengan fitur edit/hapus occurrence. Implementasi: handleDragStart menyimpan { ev, series: !!e.shiftKey } (semua view meneruskan native event drag), handleDrop mengirim payload editScope 'single' + occurrenceId + repeat null + repeatTouched false saat occurrence && !series; Shift+drag mempertahankan jalur lama (pindah seri, repeat master di-resolve via /view). Pelajaran: konsistensi scope (edit/hapus/drag) pada recurring event penting — semua gesture harus default scope single utk occurrence, dengan jalur eksplisit (Shift) utk seluruh seri. 149 a11y assertions, 55/55 PASS.
+
+## 2026-08-26T16:06:47Z
+- Task: 
+- Status: COMPLETED
+- Finding: Kontrak SOGo kontak (diverifikasi source 5.12.10 + UI live): (1) create kontak = POST {pid}/_new_/saveAsContact + body c_component:'vcard' — server lookupName di SOGoContactGCSFolder hanya membuat objek baru bila URL berakhiran AsContact/AsList, jadi POST .../new → 404; (2) delete kontak = GET {pid}/{uid}/delete (Resource.remove UI SOGo), POST → POSTAction WebDAV-only → 500. Pola: jangan asumsi endpoint SOGo — unduh UI SOGo live dari server produksi (mail.pcpexpress.co.id/SOGo/WebServerResources/js/...) + source server lookupName untuk verifikasi kontrak. 

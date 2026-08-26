@@ -15,4 +15,4 @@ Selesai ✅ — create kontak diperbaiki ke kontrak SOGo yang benar (`POST .../_
 - Verifikasi browser: buat kontak baru (cek 201 + muncul di daftar), hapus kontak (cek hilang dari daftar).
 - GAL tab: pertimbangkan dukungan fetch GAL (kontrak berbeda — `/GAL` sumber) bila dibutuhkan.
 Status: COMPLETED
-Updated At: 2026-08-26T16:45:00Z
+Updated At: 2026-08-26T16:06:47Z
