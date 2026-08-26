@@ -162,6 +162,19 @@ for (const label of ['Buat aturan otomatis untuk pengirim ini', 'Tunda pesan', '
 assert.ok(mail.includes('aria-label="Hapus flag"'), 'Flag remove aria hilang');
 passCount++;
 
+// Anti tracking-pixel: proxyExternalImages ter-wire di path RENDER reader
+// (bukan hanya ada di lib). Quote balasan/forward tetap URL asli.
+assert.ok(reader.includes("import { proxyExternalImages } from '../../lib/imageProxy'"), 'Reader: proxyExternalImages tidak di-import');
+passCount++;
+assert.ok(reader.includes('const renderHtml = rawHtml ? proxyExternalImages(cleanHtml) : cleanHtml;'), 'Reader: renderHtml tanpa proxyExternalImages (IP bocor via tracking pixel)');
+passCount++;
+assert.ok(reader.includes('dangerouslySetInnerHTML={{ __html: renderHtml }}'), 'Reader: body render tidak memakai renderHtml (proxy)');
+passCount++;
+assert.ok(reader.includes('${renderHtml}') && reader.includes('win.print()'), 'Reader: print tidak memakai renderHtml (proxy)');
+passCount++;
+assert.ok(reader.includes('<br><br>${cleanHtml}</blockquote>'), 'Reader: quote balasan memakai cleanHtml (URL asli, bukan proxy)');
+passCount++;
+
 // Auto-advance reader: setelah hapus/pindah/spam buka pesan berikutnya
 // (siblingUids/onNavigateTo harus tetap dikonsumsi — regresi commit 6c1485f).
 assert.ok(reader.includes('siblingUids = []') && reader.includes('onNavigateTo }'), 'Reader: siblingUids/onNavigateTo props hilang');
@@ -193,6 +206,8 @@ passCount++;
 assert.ok(mail.includes('group.latest'), 'Conversation header memakai latest');
 passCount++;
 assert.ok(mail.includes("import { groupConversations } from '../lib/conversations'"), 'Conversation lib import hilang');
+passCount++;
+assert.ok(mail.includes("labelField: isSentOrDraft ? 'to' : 'from'"), 'Conversation header: labelField (to utk Terkirim/Draf) hilang');
 passCount++;
 
 // Star/spam kontras perbaikan

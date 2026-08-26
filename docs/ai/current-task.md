@@ -1,30 +1,25 @@
-# Current Task — Conversation View Outlook-like + Anti-Overlap
+# Current Task — Ai-loop: render email (tracking-pixel proxy) + header percakapan Terkirim/Draf
 
 ## Status: Selesai (menunggu commit/push/deploy)
 
-## Objektif
-1. **Pastikan tidak ada item yang bertumpuk** di daftar pesan (khususnya mode conversation).
-2. **Mode conversation semirip Outlook**: header grup kaya info (avatar stack, subjek tebal bila unread, peserta, waktu terbaru, count) + baris ter-expand compact dengan thread line bersih.
+## Temuan & Perbaikan
 
-## Perubahan
-- **Baru `src/lib/conversations.js`** (pure, testable):
-  - `normalizeSubject` (strip Re:/Fwd:/AW:/… rekursif) — dipindah dari MailPage
-  - `senderDisplayName` (nama dari `"Nama <email>"`)
-  - `messageParticipants(msg, selfEmail)` — alamat akun sendiri dikecualikan
-  - `groupConversations(messages, asc, selfEmail)` — cluster berbasis **subjek ternormalisasi + partisipan overlap** (Outlook-like): thread A↔B menyatu walau from bergantian; dua "Invoice" dari vendor berbeda tetap terpisah. Menghitung `senders`/`hasUnread`/`latest` per grup.
-- **MailPage.jsx**:
-  - Import `groupConversations` dari lib; helper lokal dihapus.
-  - Header grup Outlook-like: avatar stack (maks 3, ring-background), subjek tebal bila ada unread + dot indikator, peserta (truncate, `+N` bila >2), waktu pesan terbaru, count badge, chevron, `aria-expanded` + `aria-label`.
-  - Baris ter-expand compact: thread line `ml-4 border-l-2 border-primary/15` sebagai SATU-satunya border kiri; `renderMessageRow(msg, -1, nested=true)` **tidak memakai `border-l-4`** lagi (cegah garis ganda bertumpuk), aktif = bg highlight.
-  - Pemisah antar grup via `divide-y` parent saja (border-b dihapus → tak ada garis ganda).
+### 1. (KRITIS) `proxyExternalImages` tidak pernah dipanggil — tracking pixel bocor
+- `src/lib/imageProxy.js` punya `proxyExternalImages` lengkap (img/srcset/picture/CSS url) + test, tapi **tidak di-wire di mana pun** → gambar eksternal di body email dimuat browser langsung dari domain pengirim → **IP user bocor** + read-receipt.
+- **Fix (MessageReader):** `renderHtml = rawHtml ? proxyExternalImages(cleanHtml) : cleanHtml` dipakai di `dangerouslySetInnerHTML` body + jendela print. Quote balasan/forward TETAP memakai `cleanHtml` (URL asli — konten dikirim sebagai email harus valid utk penerima; sesuai catatan desain di imageProxy.js).
+
+### 2. Header percakapan salah di folder Terkirim/Draf
+- `group.senders` selalu ambil `m.from` → di Terkirim/Draf header menampilkan alamat akun sendiri, padahal baris menampilkan penerima (`m.to`).
+- **Fix:** `groupConversations(..., { labelField })` — MailPage meneruskan `isSentOrDraft ? 'to' : 'from'`; `isSentOrDraft` dinaikkan ke atas (dipakai 2 tempat).
+
+### 3. Audit lain (aman)
+- `resolveCidImages` regex global + `.test()` lalu `.replace()` — aman (`replace` reset lastIndex).
+- PDF lightbox iframe — SOGo kirim `X-Frame-Options: SAMEORIGIN` → iframe di origin sama aman.
 
 ## Test
-- **Baru `scripts/test-conversations.mjs`** (30 assertion): normalizeSubject, senderDisplayName, participants + selfEmail, thread A↔B satu grup, Invoice beda vendor dua grup, urutan grup date-desc + asc, key unik, fallback tanpa subjek.
-- `test-a11y.mjs` +8 assertion statis (aria-expanded, aria-label percakapan, `leftBorderCls nested`, thread line, pakai `group.senders`/`hasUnread`/`latest`, import lib).
-- **55/55 test PASS** · build OK.
+- `test-conversations` +2 (labelField to/from) → 32 assertion
+- `test-a11y` +6 (import proxy, renderHtml, body pakai renderHtml, print pakai renderHtml, quote pakai cleanHtml, labelField) → **107 assertions**
+- **55/55 PASS** · build OK
 
 ## Next
-- Push (via SOCKS tunnel bila gitlab unreachable) + deploy `SERVER=deploy-mail ./deploy.sh`.
-- Verifikasi visual di browser: mode conversation lebar list sempit & lebar, thread dengan banyak peserta.
-Status: COMPLETED
-Updated At: 2026-08-26T09:40:03Z
+- Commit + push (tunnel SOCKS5) + deploy.

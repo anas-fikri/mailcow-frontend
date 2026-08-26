@@ -76,9 +76,16 @@ export function messageParticipants(msg, selfEmail = '') {
  * @param {Array} messages pesan (sorted date-desc by caller)
  * @param {boolean} asc  true = urutkan grup 'terlama dulu' (grup dibalik);
  *                       isi tiap grup tetap terbaru-dulu (pola Gmail/Outlook)
+ * @param {string} selfEmail alamat akun sendiri (dikecualikan dari peserta)
+ * @param {Object} [opts]
+ * @param {'from'|'to'} [opts.labelField='from'] field utk nama tampilan di
+ *                       header avatar stack. Folder Terkirim/Draf memakai 'to'
+ *                       (penerima), folder lain 'from' (pengirim) — konsisten
+ *                       dgn label baris renderMessageRow.
  * @returns {Array<{key, subject, messages, senders, hasUnread, latest}>}
  */
-export function groupConversations(messages = [], asc = false, selfEmail = '') {
+export function groupConversations(messages = [], asc = false, selfEmail = '', opts = {}) {
+  const { labelField = 'from' } = opts;
   const groups = [];
 
   for (const msg of messages) {
@@ -116,8 +123,9 @@ export function groupConversations(messages = [], asc = false, selfEmail = '') {
   }
 
   // Metadata per grup — dipakai header Outlook-like tanpa hitung ulang di JSX.
+  // labelField 'to' utk folder Terkirim/Draf (penerima), 'from' utk lainnya.
   for (const g of groups) {
-    g.senders = [...new Set(g.messages.map((m) => senderDisplayName(m.from)))];
+    g.senders = [...new Set(g.messages.map((m) => senderDisplayName(m[labelField])))];
     g.hasUnread = g.messages.some((m) => !m.isRead);
     // Pesan masuk date-desc (caller menyortir) → messages[0] = terbaru.
     g.latest = g.messages[0] || null;

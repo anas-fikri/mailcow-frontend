@@ -115,4 +115,16 @@ eq(t6.length, 2, 'subjek berbeda → dua grup');
 eq(t1[0].messages.map((x) => x.uid), ['3', '2', '1'], 'isi grup terbaru-dulu');
 eq(t1[0].latest.uid, '3', 'latest = input pertama (terbaru)');
 
+// 8) labelField 'to' (folder Terkirim/Draf): header menampilkan PENERIMA
+//    (bukan from = alamat akun sendiri), konsisten dgn label baris.
+const t8 = groupConversations([
+  m('1', 'akun@mail.com', 'Laporan', '2026-08-20 08:00', true, 'Budi <budi@x.com>'),
+  m('2', 'akun@mail.com', 'Re: Laporan', '2026-08-21 08:00', true, 'Budi <budi@x.com>'),
+], false, 'akun@mail.com', { labelField: 'to' });
+eq(t8[0].senders, ['Budi'], 'labelField=to → senders = penerima (thread ke Budi satu grup)');
+const t8b = groupConversations([
+  m('1', 'akun@mail.com', 'Laporan', '2026-08-20 08:00', true, 'Budi <budi@x.com>'),
+], false, 'akun@mail.com', { labelField: 'from' });
+eq(t8b[0].senders, ['akun@mail.com'], 'labelField default from → senders = pengirim');
+
 console.log(`test-conversations: ${pass} assertion PASS`);

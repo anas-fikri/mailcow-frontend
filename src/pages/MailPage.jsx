@@ -497,13 +497,21 @@ export default function MailPage() {
     return sortMessagesByDate(displayMessages);
   }, [displayMessages]);
 
+  // Folder Terkirim/Draf menampilkan penerima (to) sebagai label baris;
+  // dipakai juga utk header avatar stack percakapan (konsisten).
+  const isSentOrDraft = isSentOrDraftFolder(selectedFolder, folders);
+
   // Conversation grouping
   const conversationGroups = useMemo(() => {
     if (!conversationView) return [];
     // selfEmail = alamat akun sendiri; dikecualikan dari partisipan supaya dua
     // thread beda vendor dengan subjek sama (mis. "Invoice") tidak menyatu.
-    return groupConversations(sortedMessages, sortAsc, user?.email || '');
-  }, [sortedMessages, conversationView, sortAsc, user?.email]);
+    // labelField: folder Terkirim/Draf memakai penerima (to) utk header,
+    // konsisten dgn label baris (renderMessageRow memakai to saat isSentOrDraft).
+    return groupConversations(sortedMessages, sortAsc, user?.email || '', {
+      labelField: isSentOrDraft ? 'to' : 'from',
+    });
+  }, [sortedMessages, conversationView, sortAsc, user?.email, isSentOrDraft]);
 
   // Reset expanded set when conversation view toggles
   useEffect(() => {
@@ -818,7 +826,7 @@ export default function MailPage() {
   });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  const isSentOrDraft = isSentOrDraftFolder(selectedFolder, folders);
+  // (isSentOrDraft dideklarasikan di atas — dipakai juga oleh conversationGroups)
   // Folder Draf (default maupun custom) — utk tombol hapus cepat per-baris.
   const isDraftFolder = selectedFolder === 'folderDrafts' ||
     folders.some((f) => f.id === selectedFolder && (f.type === 'draft' || f.type === 'drafts'));

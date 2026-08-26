@@ -14,6 +14,7 @@ import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
 import { formatAddresses } from '../../lib/format';
 import { extractHtml, extractAttachments } from '../../lib/messageHtml';
+import { proxyExternalImages } from '../../lib/imageProxy';
 import { getFileKind, totalAttachmentSize } from '../../lib/attachments';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
@@ -308,7 +309,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         <p><strong>Tanggal:</strong> ${safeDate}</p>
       </div>
       <hr>
-      ${cleanHtml}
+      ${renderHtml}
     </body></html>`);
     win.document.close();
     win.print();
@@ -341,6 +342,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const cleanHtml = rawHtml
     ? prepareHtmlContent(rawHtml, inlineImages)
     : '<p style="color:var(--muted-foreground);font-size:.875rem;margin:0">Tidak ada konten.</p>';
+  // Anti tracking-pixel (pola Gmail): gambar eksternal hanya di-proxy pada
+  // path RENDER. Quote balasan/forward & editor compose tetap memakai URL
+  // asli — konten itu dikirim sebagai email dan harus punya URL valid utk
+  // penerima (lihat catatan di src/lib/imageProxy.js).
+  const renderHtml = rawHtml ? proxyExternalImages(cleanHtml) : cleanHtml;
 
   function handleReply() {
     // Semua header email (from/to/date/subject) adalah input dari pengirim dan
@@ -580,7 +586,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
 
       {/* Message body */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="email-body" dangerouslySetInnerHTML={{ __html: cleanHtml }} />
+        <div className="email-body" dangerouslySetInnerHTML={{ __html: renderHtml }} />
 
         {/* Inline images preview */}
         {inlineImages.length > 0 && (

@@ -2526,3 +2526,19 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Ai-loop: tracking-pixel proxy ter-wire + labelField Terkirim/Draf (2026-08-26)
+
+**Temuan penting:** `proxyExternalImages` (lib imageProxy.js) sudah lengkap + test (test-tracking-pixel 68 assertion) tapi TIDAK dipanggil dari komponen mana pun → gambar eksternal di body email bocor langsung ke domain pengirim (IP user + read-receipt). Ini bug silent — lib + test hijau tapi fitur mati. Pelajaran: fitur lib harus punya assertion STATIS yang memverifikasi wiring di komponen (bukan hanya unit test lib).
+
+**Fix:**
+- MessageReader: `renderHtml = proxyExternalImages(cleanHtml)` dipakai di body render + print. Quote balasan/forward pakai `cleanHtml` (URL asli — harus valid utk penerima).
+- `groupConversations` + opsi `labelField` — Terkirim/Draf pakai `to`, lainnya `from` (header percakapan konsisten dgn label baris).
+- `isSentOrDraft` dinaikkan ke atas MailPage (TDZ: dipakai memo conversationGroups sebelum deklarasi lama).
+
+**Verifikasi:**
+- SOGo kirim `X-Frame-Options: SAMEORIGIN` utk viewPart → lightbox PDF iframe aman.
+- `resolveCidImages`: regex global `.test()` lalu `.replace()` aman (replace reset lastIndex).
+
+**Test:** test-conversations +2, test-a11y +6 → **107 assertions** · **55/55 PASS** · build OK.
+**Belum:** commit + push + deploy.
