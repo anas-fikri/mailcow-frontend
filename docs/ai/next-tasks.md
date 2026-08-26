@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T02:41:56Z
+Generated At: 2026-08-26T02:50:50Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Sync cache React Query lintas tab utk Calendar/Contacts: helper crossTab.js — bumpDomainVersion (monotonik Math.max(Date.now(), prev+1), key pcp_<domain>_v_<email>) + watchDomainVersion (storage event listener, invalidate saat versi naik; e.key null = clear). Dipasang di CalendarPage (create/update/delete+drag) dan ContactsPage (create/delete). Bug ditemukan test: bump berbasis Date.now() bisa sama dalam ms sama → wajib monotonik. 51/51 test PASS, deploy live hash terverifikasi.
+## 1. [MEDIUM] Follow up on discovered knowledge: Round performance & mobile: (1) getFlagColor hot path — getStore baca+parse localStorage utk tiap baris × per-render → cache in-memory per email + invalidate-on-write + __resetFlagColorCache utk test; (2) swipe mobile membuka pesan — onSwipe callback di SwipeableRow sebelum aksi, MailPage suppressClick utk menelan synthetic click (pola long-press). Pelajaran: hot path render bebas baca storage sinkron; gesture yang memicu aksi harus tekan synthetic click. 51/51 test PASS, deploy live hash terverifikasi.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

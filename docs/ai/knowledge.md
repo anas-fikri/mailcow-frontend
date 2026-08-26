@@ -757,3 +757,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Storage yang diubah LANGSUNG (localStorage.setItem dari luar / tab lain)
   tidak terlihat oleh cache in-memory — sediakan reset eksplisit utk test dan
   terima trade-off (sama dgn perilaku pra-cache yang baca per-render).
+
+## 2026-08-26T02:50:50Z
+- Task: 
+- Status: COMPLETED
+- Finding: Round performance & mobile: (1) getFlagColor hot path — getStore baca+parse localStorage utk tiap baris × per-render → cache in-memory per email + invalidate-on-write + __resetFlagColorCache utk test; (2) swipe mobile membuka pesan — onSwipe callback di SwipeableRow sebelum aksi, MailPage suppressClick utk menelan synthetic click (pola long-press). Pelajaran: hot path render bebas baca storage sinkron; gesture yang memicu aksi harus tekan synthetic click. 51/51 test PASS, deploy live hash terverifikasi.
