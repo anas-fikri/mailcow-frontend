@@ -2810,3 +2810,10 @@ Menutup workstream drag dari fitur occurrence sebelumnya. Perubahan:
 - Konsisten dengan fitur occurrence sebelumnya (edit/hapus satu kejadian via recurrence_id): drag kini behavior-nya sama dengan edit — default scope single, seri hanya via Shift.
 
 Test: test-a11y +3 (drag scope wiring). 149 a11y assertions, 55/55 PASS, build OK.
+
+## 2026-08-26T14:18:09Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+- No local changes detected

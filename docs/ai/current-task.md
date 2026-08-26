@@ -11,3 +11,5 @@ Selesai ✅ — drag occurrence kini memindahkan SATU kejadian (exception RECURR
 ## Next
 - Verifikasi browser: drag occurrence → hanya kejadian itu pindah; Shift+drag → seluruh seri pindah.
 - Pertimbangkan hint visual saat drag (scope yang sedang aktif).
+Status: COMPLETED
+Updated At: 2026-08-26T14:18:09Z

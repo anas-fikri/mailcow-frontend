@@ -1,12 +1,12 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T14:06:36Z
+Generated At: 2026-08-26T14:18:10Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Fitur edit/hapus SATU occurrence event berulang (SOGo 5) selesai — kontrak recurrence DIVERSIFIKASI dari source, bukan tebakan: (1) eventsblocks mengirim c_recurrence_id per baris occurrence = unix detik start (all-day: GMT midnight); (2) path occurrence SOGo 5 = Calendar/{cal}/{uid}/occurence{unixSec}/view
-- Why: save|delete — server resolve via SOGoCalendarComponent.lookupName (hasPrefix 'occurence' + substringFromIndex:9 = intValue), bukan field recurrence_id di body; (3) save occurrence = exception RECURRENCE-ID (repeat WAJIB null di payload — mengirim repeat justru mengubah pola SERI); (4) delete occurrence = EXDATE di master (SOGoComponentOccurence.prepareDelete); (5) tanpa segmen occurrence, save/delete menyentuh SELURUH seri. Pelajaran: kontrak API pihak ketiga harus diverifikasi dari source client+server (UI SOGo 5.12.10 Component.service.js/Resource.service.js + file .m server) + diuji runtime (mock fetch memverifikasi URL occurence{ts} dan body tanpa repeat), bukan hanya assertion statis string. 146 a11y assertions, 55/55 PASS.|Latest completed-task finding may imply documentation, validation, or follow-up work.
+## 1. [MEDIUM] Follow up on discovered knowledge: Drag scope occurrence kalender: drag SATU kejadian event berulang kini memindahkan hanya kejadian itu (exception RECURRENCE-ID via segmen occurence{ts}), bukan seluruh seri — konsisten dengan fitur edit/hapus occurrence. Implementasi: handleDragStart menyimpan { ev, series: !!e.shiftKey } (semua view meneruskan native event drag), handleDrop mengirim payload editScope 'single' + occurrenceId + repeat null + repeatTouched false saat occurrence && !series; Shift+drag mempertahankan jalur lama (pindah seri, repeat master di-resolve via /view). Pelajaran: konsistensi scope (edit/hapus/drag) pada recurring event penting — semua gesture harus default scope single utk occurrence, dengan jalur eksplisit (Shift) utk seluruh seri. 149 a11y assertions, 55/55 PASS.
+- Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
 ## 2. [LOW] Review and commit current changes
