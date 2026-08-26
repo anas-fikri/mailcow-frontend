@@ -2123,3 +2123,26 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-26 — ai-loop flow logic: snooze vs auto-archive (FIXED)
+
+- **Bug 1 — Snooze tidak folder-scoped:** schema v2 flat `{uid: wakeEpoch}`
+  membuat entri YATIM saat pesan di-archive (UID per-folder SOGo → UID baru di
+  folder tujuan). UID lama yang dipakai ulang pesan inbox baru → pesan baru
+  tersembunyi salah. **Fix:** schema v3 `{[folderId]: {[uid]: wakeEpoch}}` di
+  `src/lib/snooze.js`, migrasi sekali-jalan via `readStorage(BASE_KEY, email, 3)`
+  (versi per-domain — STORAGE_VERSION global TIDAK diubah agar key domain lain
+  tidak ikut migrasi). Semua fungsi terima folderId.
+- **Bug 2 — Auto-archive memindah pesan tersnooze:** `executeRules` kini terima
+  `isExcluded(msg)` (MailPage kirim `(m) => snoozedUids.has(String(m.uid))`).
+  Pesan yang di-snooze TIDAK dipindah rule — keinginan user "tunda" dihormati.
+- **Bug 3 — Entri yatim tidak dibersihkan:** helper baru `unsnoozeMessages`
+  dipanggil di onSuccess moveMutation/quickMoveMutation/junkMutation/
+  archiveMutation (MailPage) + delete/move (MessageReader); bump `snoozeTick`
+  (`clearSnoozesForMoved` / `onSnoozeCleared`) agar memo `snoozedUids`
+  ter-refresh langsung (tanpa nunggu interval 60s).
+- **Pelajaran:** snooze = deferral eksplisit → RULES HARUS SKIP pesan snooze
+  (rules di-proses ulang saat wake via rulesProcessed reset per folder). UID
+  SOGo per-folder → storage client yang keyed by uid WAJIB folder-scoped.
+- Test: `test:snooze` + `test:autoarchive` diperluas (folder-scope,
+  unsnoozeMessages, isExcluded) → **49/49 PASS** + build OK.

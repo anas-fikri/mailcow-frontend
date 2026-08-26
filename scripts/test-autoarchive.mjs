@@ -8,7 +8,7 @@ globalThis.localStorage = {
   removeItem: (k) => storage.delete(k),
 };
 
-const { getRules, addRule, matchRules } = await import('../src/lib/autoArchive.js');
+const { getRules, addRule, matchRules, executeRules } = await import('../src/lib/autoArchive.js');
 
 const EMAIL = 'u@example.com';
 const KEY = `auto_archive_rules_v2_${EMAIL}`;  // key v2 (sekarang)
@@ -113,5 +113,44 @@ assert.deepEqual(reloaded[0], {
   runCount: 0,
   lastRunAt: null,
 });
+
+// ── INTERAKSI: pesan yang di-snooze TIDAK dipindah oleh executeRules ────────
+// Rule r2 match subject 'promo' → ke folderINBOX%2FProyek. Bila pesan sedang
+// di-snooze (user minta tunda), rule TIDAK boleh memindahkannya — memindahnya
+// membuat snooze yatim (uid berubah) + mengabaikan keinginan user.
+storage.clear();
+addRule(EMAIL, {
+  name: 'Promo → Proyek',
+  conditions: [{ field: 'subject', operator: 'contains', value: 'promo' }],
+  actionFolder: 'folderINBOX%2FProyek',
+});
+
+const snoozedMsg = { uid: 101, from: 'boss@corp.test', to: 'u@example.com', subject: 'promo besar', date: 'x' };
+const normalMsg  = { uid: 102, from: 'boss@corp.test', to: 'u@example.com', subject: 'promo jumbo', date: 'x' };
+const movedByRules = [];
+
+// Tanpa isExcluded → kedua pesan dipindah (perilaku lama).
+let actions = await executeRules(EMAIL, 'token', 'folderINBOX', [snoozedMsg, normalMsg],
+  (uids) => { movedByRules.push(...uids); return Promise.resolve(); });
+assert.equal(actions.length, 1);
+assert.deepEqual(movedByRules.sort((a, b) => a - b), [101, 102]);
+
+// Dengan isExcluded (snoozedUids) → pesan snooze TIDAK ikut dipindah.
+movedByRules.length = 0;
+actions = await executeRules(EMAIL, 'token', 'folderINBOX', [snoozedMsg, normalMsg],
+  (uids) => { movedByRules.push(...uids); return Promise.resolve(); },
+  (m) => m.uid === 101 // uid 101 sedang di-snooze
+);
+assert.equal(actions.length, 1, 'rule tetap jalan utk pesan lain');
+assert.deepEqual(movedByRules, [102], 'hanya pesan non-snooze yang dipindah');
+
+// Semua pesan di-snooze → tidak ada aksi sama sekali.
+movedByRules.length = 0;
+actions = await executeRules(EMAIL, 'token', 'folderINBOX', [snoozedMsg, normalMsg],
+  (uids) => { movedByRules.push(...uids); return Promise.resolve(); },
+  () => true
+);
+assert.equal(actions.length, 0);
+assert.deepEqual(movedByRules, []);
 
 console.log('autoArchive assertions passed');

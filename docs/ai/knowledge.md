@@ -659,3 +659,21 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: verify_health ditambahkan ke deploy.sh verify() — cek /api/health end-to-end via nginx + API key (sebelumnya hanya preflight backend langsung). /api/health di-enforce requireApiKey di server.js (app level), nginx passthrough; konsisten dgn preflight. Deploy terverifikasi live: webmail 200, image-proxy 200, health 200.
+
+## 2026-08-26 — Snooze harus folder-scoped + rules skip pesan snooze
+
+- **UID SOGo adalah PER-FOLDER:** pesan yang dipindah (arsip/move/junk) mendapat
+  UID BARU di folder tujuan. Storage client yang keyed by uid (snooze, flag
+  colors) WAJIB folder-scoped bila pesan bisa pindah folder — schema flat
+  `{uid: wake}` membuat entri yatim yang bisa salah sembunyikan pesan inbox
+  baru yang memakai ulang UID lama.
+- **Pola migrasi versi per-domain:** `readStorage(baseKey, scope, maxVersion)`
+  menerima argumen versi — gunakan `readStorage(BASE_KEY, email, 3)` utk domain
+  tertentu TANPA menaikkan `STORAGE_VERSION` global (yang akan mengubah key
+  SEMUA domain lain).
+- **Snooze = deferral eksplisit → auto-archive rules HARUS SKIP pesan snooze**
+  (`executeRules` terima `isExcluded(msg)`). Rules di-proses ulang saat wake
+  (rulesProcessed di-reset per ganti folder).
+- **Pembersihan entri yatim:** hapus snooze utk uids yang dipindah di onSuccess
+  mutation (move/delete/junk/archive) + bump tick/memo agar UI langsung
+  ter-refresh (jangan nunggu interval prune 60s).

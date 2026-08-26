@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages } from '../../lib/api';
+import { unsnoozeMessages } from '../../lib/snooze';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
@@ -166,7 +167,7 @@ function isImageType(ct) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, shortcutsEnabled = true }) {
+export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, onSnoozeCleared, shortcutsEnabled = true }) {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [moveOpen, setMoveOpen] = React.useState(false);
@@ -194,6 +195,12 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       }
     },
     onSuccess: () => {
+      // Pesan pindah/hapus → UID di folder asal tidak berlaku lagi → entri
+      // snooze di folder tsb menjadi yatim; hapus agar tidak menyembunyikan
+      // pesan baru yang memakai ulang UID yang sama.
+      if (user?.email && unsnoozeMessages(user.email, folder, [msgId]) > 0) {
+        onSnoozeCleared?.();
+      }
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
       onClose();
@@ -212,6 +219,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const moveMutation = useMutation({
     mutationFn: (targetFolder) => moveMessages(user.sogoToken, folder, [msgId], targetFolder),
     onSuccess: () => {
+      if (user?.email && unsnoozeMessages(user.email, folder, [msgId]) > 0) {
+        onSnoozeCleared?.();
+      }
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
       onClose();

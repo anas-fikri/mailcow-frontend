@@ -220,15 +220,29 @@ export function matchRules(email, message) {
  * @param {string}  sourceFolder  folder asal message
  * @param {Array}   messages      daftar message (dari server)
  * @param {function} moveFn       fungsi untuk move messages: (uids, targetFolder) => Promise
+ * @param {function} [isExcluded] opsional: (msg) => boolean — pesan yang
+ *   mengembalikan true TIDAK dipindah rule (mis. pesan yang sedang di-snooze:
+ *   user meminta tunda, jadi aturan otomatis tidak boleh memindahkannya).
  * @returns {Promise<Array>}      daftar { ruleId, ruleName, uids, targetFolder }
  */
-export async function executeRules(email, sogoToken, sourceFolder, messages, moveFn) {
+export async function executeRules(email, sogoToken, sourceFolder, messages, moveFn, isExcluded) {
   const rules = getRules(email);
   const actions = [];
+
+  // Pesan yang di-exclude (mis. sedang di-snooze) tidak boleh ikut dipindah —
+  // memindahnya membuat snooze yatim (uid berubah di folder tujuan) dan
+  // mengabaikan keinginan user untuk menunda pesan tsb.
+  const excludeUids = new Set();
+  if (typeof isExcluded === 'function') {
+    for (const msg of messages) {
+      if (isExcluded(msg)) excludeUids.add(String(msg?.uid));
+    }
+  }
 
   // Pre-compute per-message matched rule IDs to avoid redundant matchRules() calls
   const msgMatches = new Map();
   for (const msg of messages) {
+    if (excludeUids.has(String(msg?.uid))) continue;
     msgMatches.set(msg.uid, matchRules(email, msg));
   }
 
@@ -237,6 +251,7 @@ export async function executeRules(email, sogoToken, sourceFolder, messages, mov
 
     const matchedUids = [];
     for (const msg of messages) {
+      if (excludeUids.has(String(msg?.uid))) continue;
       if (msgMatches.get(msg.uid)?.includes(rule.id)) {
         matchedUids.push(msg.uid);
       }

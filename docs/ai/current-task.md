@@ -1,42 +1,56 @@
 # Current Task
 
-## Task: Cek /api/health butuh API key di nginx — konsisten dengan deploy.sh verify
+## Task: ai-loop flow logic — interaksi auto-archive vs snooze vs filter kategori (pesan di-snooze lalu di-archive)
 
-**Status: SELESAI (49/49 test PASS, live)** → commit + push + deploy.
+**Status: SELESAI (49/49 test PASS, build OK)** → siap commit + push + deploy.
 
 ## Temuan
-1. **`/api/health` BUTUH API key** — di-enforce di **app level** (server.js
-   `app.use('/api', requireApiKey)` SEBELUM route health; live terverifikasi:
-   403 tanpa key, 200 dengan key). Nginx hanya passthrough (key dicek di
-   upstream) — konsisten dengan semua lokasi `/api/*`.
-2. **deploy.sh preflight** sudah cek `/api/health` DENGAN key (langsung ke
-   backend port 3005) ✓ — konsisten.
-3. **GAP: deploy.sh `verify()` tidak cek `/api/health`** — hanya webmail +
-   image-proxy. Routing nginx → backend untuk health tidak tervalidasi
-   pasca-deploy.
+
+1. **Snooze TIDAK folder-scoped (schema v2 flat `{uid: wakeEpoch}`).** SOGo memberi
+   UID per-folder — pesan yang dipindah (arsip/move) mendapat UID BARU di folder
+   tujuan. Entri snooze berisi uid lama menjadi YATIM: uid lama tidak lagi merujuk
+   pesan itu, dan bila UID dipakai ulang oleh pesan inbox baru, pesan baru ikut
+   tersembunyi (stale false-positive).
+2. **Auto-archive memindah pesan yang sedang di-snooze.** `executeRules` tidak
+   mengecualikan pesan snooze → pesan yang user minta "tunda sampai besok" bisa
+   dipindah diam-diam oleh rule → snooze jadi sia-sia + entri stale.
+3. **Tidak ada pembersihan entri snooze saat move/delete/archive.** Entri yatim
+   menumpuk dan bisa salah sembunyikan pesan baru.
 
 ## Perbaikan
-Tambahkan `verify_health()` di deploy.sh, dipanggil dari `verify()`:
-- Cek **end-to-end via nginx** (`--resolve host:443:127.0.0.1`) dengan
-  `X-Api-Key` diambil dari .env server (pola awk sama seperti preflight,
-  via heredoc — anti-escaping).
-- Sukses bila 200; selain itu `err` (deploy tetap dilaporkan gagal).
-- Konsisten: preflight (backend langsung) + verify (via nginx) memakai key
-  yang sama dan mengharapkan 200.
 
-## Keputusan
-- `/api/health` TETAP di belakang API key (bukan public) — konsisten dengan
-  seluruh `/api/*`; key tidak melindungi apa pun yang sensitif (health cuma
-  `{ok:true}`), tapi menjaga pola seragam dan mencegah probing tanpa identitas.
-- Catatan: `VITE_API_KEY` ada di bundle frontend → key adalah soft gate;
-  auth sebenarnya utk /api/send & co adalah cookie SMTP httpOnly.
+1. **Snooze v3 folder-scoped** (`src/lib/snooze.js`): storage
+   `pcp_snooze_v3_<email>` → `{ [folderId]: { [uid]: wakeEpoch } }`. Migrasi
+   sekali-jalan dari v2 flat (dibaca via `readStorage(BASE_KEY, email, 3)` —
+   versi per-domain, TIDAK mengubah `STORAGE_VERSION` global agar key domain
+   lain tidak ikut naik). Semua fungsi terima `folderId`:
+   `snoozeMessage/unsnoozeMessage/isSnoozed(email, folderId, ...)`.
+2. **`executeRules` param baru `isExcluded(msg)`** — pesan yang sedang di-snooze
+   TIDAK dipindah rule (keinginan user "tunda" dihormati; rule jalan utk pesan
+   lain; pesan tidak hilang ke folder lain saat masih snooze).
+3. **Helper `unsnoozeMessages(email, folderId, uids)`** — dipanggil di
+   onSuccess semua mutation pemindah: moveMutation, quickMoveMutation,
+   junkMutation, archiveMutation (MailPage) + deleteMutation/moveMutation
+   (MessageReader). Bump `snoozeTick` (via `clearSnoozesForMoved` /
+   `onSnoozeCleared`) agar memo `snoozedUids` ter-refresh langsung (tanpa
+   menunggu interval 60 detik).
+
+## Verifikasi aman (tidak diubah)
+
+- Filter kategori (`classifyEmail`) tetap berbasis folderId+from+subject —
+  independen dari snooze/archive; tab count tetap hitung semua pesan (termasuk
+  snooze) — pola Gmail.
+- Auto-advance reader memakai `visibleOrderUids` yang sudah filter snooze.
+- `pruneExpired` sekarang membersihkan per-folder + hapus folder kosong.
 
 ## Test
-- `test:security-hardening` diperluas (21 assertions): `/api/health`
-  didefinisikan SETELAH requireApiKey (butuh key); deploy.sh punya
-  verify_health + dipanggil verify() + pakai X-Api-Key; preflight juga cek
-  health. `bash -n deploy.sh` OK.
-- **49/49 test PASS**
+
+- `test:snooze` diperluas: folder-scope (uid sama di folder beda tidak ikut
+  tersembunyi), `unsnoozeMessages` (hanya uid target), migrasi v2→v3, bentuk
+  rusak v3.
+- `test:autoarchive` + kasus interaksi: tanpa isExcluded semua dipindah; dengan
+  isExcluded hanya pesan non-snooze; semua snooze → tanpa aksi.
+- **49/49 test PASS** · build OK.
 
 Status: COMPLETED
-Updated At: 2026-08-26T02:06:03Z
+Updated At: 2026-08-26T02:4x:00Z

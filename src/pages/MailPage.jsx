@@ -20,7 +20,7 @@ import Avatar from '../components/Avatar';
 import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor } from '../lib/flagColors';
 import { getRuleSummary, executeRules } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
-import { SNOOZE_PRESETS, loadSnoozes, isSnoozed, snoozeMessage, unsnoozeMessage, pruneExpired } from '../lib/snooze';
+import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
 import { groupMessagesByDate, parseMessageDate } from '../lib/dateGroups';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
@@ -439,10 +439,15 @@ export default function MailPage() {
   useEffect(() => {
     if (user?.email) pruneExpired(user.email);
   }, [user?.email, snoozeTick]);
+  // Snooze adalah FOLDER-SCOPED (schema v3): entri hanya berlaku di folder
+  // asal. Pesan yang dipindah (arsip/move) tidak lagi disembunyikan di folder
+  // asal — entri yatim dihapus via unsnoozeMessages saat move/delete sukses,
+  // sehingga UID yang dipakai ulang oleh pesan baru tidak ikut tersembunyi.
   const snoozedUids = useMemo(() => {
     if (!user?.email) return new Set();
-    return new Set(Object.keys(loadSnoozes(user.email)));
-  }, [user?.email, snoozeTick]);
+    const folderMap = loadSnoozes(user.email)[selectedFolder];
+    return new Set(Object.keys(folderMap || {}));
+  }, [user?.email, selectedFolder, snoozeTick]);
 
   // Folder Arsip — SOGo/Dovecot punya folder root "Archive" (diverifikasi).
   const archiveFolder = (Array.isArray(folders) ? folders : [])
@@ -464,7 +469,7 @@ export default function MailPage() {
 
   function handleSnooze(uid, hours) {
     if (!user?.email) return;
-    snoozeMessage(user.email, uid, Math.floor(Date.now() / 1000) + hours * 3600);
+    snoozeMessage(user.email, selectedFolder, uid, Math.floor(Date.now() / 1000) + hours * 3600);
     setSnoozePicker(null);
     setSnoozeTick((t) => t + 1);
     toast.success(hours >= 24 ? 'Email di-snooze. Akan kembali lagi nanti.' : 'Email di-snooze sementara.');
@@ -472,7 +477,7 @@ export default function MailPage() {
 
   function handleUnsnooze(uid) {
     if (!user?.email) return;
-    unsnoozeMessage(user.email, uid);
+    unsnoozeMessage(user.email, selectedFolder, uid);
     setSnoozeTick((t) => t + 1);
   }
 
@@ -547,7 +552,11 @@ export default function MailPage() {
       user.sogoToken,
       selectedFolder,
       unprocessed,
-      (uids, targetFolder) => moveMessages(user.sogoToken, selectedFolder, uids, targetFolder)
+      (uids, targetFolder) => moveMessages(user.sogoToken, selectedFolder, uids, targetFolder),
+      // Pesan yang sedang di-snooze TIDAK boleh dipindah rule otomatis —
+      // user meminta tunda; memindahnya membuat snooze yatim (uid berubah)
+      // dan mengabaikan keinginan user. Rules diproses ulang saat wake.
+      (m) => snoozedUids.has(String(m?.uid))
     ).then((actions) => {
       unprocessed.forEach((m) => { rulesProcessed.current[m.uid] = true; });
 
@@ -561,7 +570,7 @@ export default function MailPage() {
       // Bug fix: tampilkan toast error ke user (bukan hanya console.warn)
       toast.warning('Sebagian aturan gagal dijalankan — coba lagi nanti.');
     });
-  }, [messages.length, selectedFolder, user?.email, user?.sogoToken]);
+  }, [messages.length, selectedFolder, user?.email, user?.sogoToken, enabledRules, snoozedUids]);
 
   // loadMore dua tahap:
   // 1) reveal header yang SUDAH ada (client-side, instant);
@@ -646,10 +655,22 @@ export default function MailPage() {
   }
 
   // ── Mutations ─────────────────────────────────────────────────────────────
+  // Bersihkan entri snooze untuk pesan yang dipindah/hapus dari folder asal:
+  // pesan pindah folder → UID baru di folder tujuan, entri di folder asal jadi
+  // yatim dan bisa menyembunyikan pesan baru yang memakai ulang UID tsb.
+  // Bump snoozeTick saat ada yang terhapus agar memo snoozedUids ter-refresh
+  // (tanpa itu pesan tetap tersembunyi sampai interval 60 detik berikutnya).
+  const clearSnoozesForMoved = (uids) => {
+    if (!user?.email || !Array.isArray(uids) || uids.length === 0) return;
+    const removed = unsnoozeMessages(user.email, selectedFolder, uids);
+    if (removed > 0) setSnoozeTick((t) => t + 1);
+  };
+
   const moveMutation = useMutation({
     mutationFn: ({ uids, targetFolder }) =>
       moveMessages(user.sogoToken, selectedFolder, uids, targetFolder),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
+      clearSnoozesForMoved(vars?.uids || []);
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
       setSelectedUids([]);
     },
@@ -683,6 +704,7 @@ export default function MailPage() {
     mutationFn: ({ targetFolder }) =>
       moveMessages(user.sogoToken, selectedFolder, selectedUids, targetFolder),
     onSuccess: () => {
+      clearSnoozesForMoved(selectedUids);
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       setSelectedUids([]);
       toast.success('Pesan dipindahkan');
@@ -692,7 +714,8 @@ export default function MailPage() {
   // Laporkan Spam — native SOGo markMessagesAsJunk (set flag + pindah ke Junk).
   const junkMutation = useMutation({
     mutationFn: ({ uids }) => markMessagesAsJunk(user.sogoToken, selectedFolder, uids),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
+      clearSnoozesForMoved(vars?.uids || []);
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
       setSelectedUids([]);
@@ -744,6 +767,10 @@ export default function MailPage() {
       return moveMessages(user.sogoToken, selectedFolder, messages.map((m) => m.uid), archiveFolder);
     },
     onSuccess: () => {
+      // Arsip mengubah UID pesan (UID per-folder SOGo) → entri snooze di
+      // folder asal menjadi yatim; hapus agar tidak menyembunyikan pesan
+      // inbox baru yang kebetulan memakai ulang UID yang sama.
+      clearSnoozesForMoved(messages.map((m) => m.uid));
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
       toast.success('Pesan dipindahkan ke Arsip.');
@@ -1923,6 +1950,7 @@ export default function MailPage() {
             onReply={(data) => { setComposeData(data); setComposeOpen(true); }}
             folders={folders}
             shortcutsEnabled={!composeOpen}
+            onSnoozeCleared={() => setSnoozeTick((t) => t + 1)}
             onMoveComplete={() => {
               setSelectedMsgId(null);
               queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] });
