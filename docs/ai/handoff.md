@@ -2487,3 +2487,18 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Conversation view Outlook-like + anti-overlap (2026-08-26)
+
+**Tujuan user:** 1) pastikan tidak ada item bertumpuk, 2) mode conversation semirip Outlook.
+
+**Yang dikerjakan:**
+- Logika conversation dipindah ke lib murni `src/lib/conversations.js` (normalizeSubject, senderDisplayName, messageParticipants, groupConversations) → testable.
+- **Fix overlap:** baris di dalam percakapan tidak lagi memakai `border-l-4` (sebelumnya bertumpuk dengan thread line `border-l-2`); aktif = bg highlight. Pemisah grup via divide-y parent, border-b dihapus.
+- **Outlook-like:** header grup = avatar stack (maks 3), subjek tebal bila unread + dot, peserta (truncate, +N bila >2), waktu terbaru, count badge, chevron, aria-expanded/aria-label.
+- **Clustering partisipan:** `groupConversations(messages, asc, selfEmail)` — thread A↔B menyatu walau from bergantian; "Invoice" dari dua vendor berbeda terpisah (selfEmail dikecualikan dari peserta supaya alamat akun sendiri tidak jadi titik temu palsu).
+- Test: `scripts/test-conversations.mjs` (30 assertion) + test-a11y +8 → **55/55 PASS**, build OK.
+
+**Catatan:** urutan pesan dalam grup = urutan input (caller sudah date-desc) → `latest = messages[0]`. Jangan beri makan groupConversations dengan array tak tersortir.
+
+**Belum:** commit + push + deploy. Push pakai tunnel SOCKS5 bila gitlab unreachable (`ssh -f -N -D 1080 deploy-mail` lalu `git -c http.proxy=socks5h://127.0.0.1:1080 push origin main`).

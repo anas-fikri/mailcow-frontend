@@ -983,3 +983,10 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Regresi overwrite: commit 6c1485f 'fix(nginx)' menimpa MessageReader.jsx dengan versi lama — 5 fitur hilang (lightbox preview gambar/PDF, tambah-kontak, markMessagesAsJunk, unduh-semua, viewURL). Restored + guard test-a11y statis. Pelajaran: git log -S simbol utk cari commit penghapus; commit nginx jangan campur code. 55/55 PASS, live (index-C98uu0QO, MailPage-BR9Zl6lN).
+
+## Conversation grouping (Outlook-like) — pelajaran 2026-08-26
+
+- Grouping by subject saja gagal untuk: (a) thread A↔B (from bergantian tapi satu percakapan), (b) dua thread beda vendor dengan subjek sama ("Invoice" dari X dan Y → harus dua percakapan).
+- Solusi: cluster = subjek ternormalisasi + **partisipan overlap** (from+to, alamat akun sendiri DICUALIKAN via `selfEmail`). Tanpa pengecualian self, semua pesan ke akun yang sama jadi satu titik temu → salah menyatu.
+- Baris di dalam percakapan tidak boleh punya border kiri sendiri (border-l-4) bila wrapper sudah memberi thread line — hasilnya garis ganda bertumpuk. Gunakan satu sumber border.
+- Urutan grup = by pesan terbaru; pesan dalam grup = urutan input (pastikan caller menyortir date-desc dulu).

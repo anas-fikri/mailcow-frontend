@@ -162,6 +162,26 @@ for (const label of ['Buat aturan otomatis untuk pengirim ini', 'Tunda pesan', '
 assert.ok(mail.includes('aria-label="Hapus flag"'), 'Flag remove aria hilang');
 passCount++;
 
+// Conversation group header: aria-expanded + tidak ada border ganda bertumpuk
+assert.ok(mail.includes('aria-expanded={isExpanded}'), 'Conversation group header: aria-expanded hilang');
+passCount++;
+assert.ok(mail.includes('aria-label={`${isExpanded ? \'Ciutkan\' : \'Perluas\'} percakapan ${group.subject}`}'), 'Conversation group header: aria-label hilang');
+passCount++;
+// Thread line berasal dari SATU sumber (wrapper) — baris di dalamnya tanpa
+// border-l-4 sendiri (mencegah dua garis kiri bertumpuk).
+assert.ok(mail.includes('const leftBorderCls = nested ? \'\' : \'border-l-4 \''), 'Conversation row: border ganda (border-l-4) masih dipakai di nested');
+passCount++;
+assert.ok(mail.includes('ml-4 border-l-2 border-primary/15'), 'Conversation thread line hilang');
+passCount++;
+assert.ok(mail.includes('group.senders'), 'Conversation header memakai senders dari lib (bukan hitung ulang)');
+passCount++;
+assert.ok(mail.includes('group.hasUnread'), 'Conversation header memakai hasUnread');
+passCount++;
+assert.ok(mail.includes('group.latest'), 'Conversation header memakai latest');
+passCount++;
+assert.ok(mail.includes("import { groupConversations } from '../lib/conversations'"), 'Conversation lib import hilang');
+passCount++;
+
 // Star/spam kontras perbaikan
 assert.ok(mail.includes('text-amber-600 fill-amber-600 dark:text-amber-400 dark:fill-amber-400'), 'Star amber-600 dark split hilang');
 assert.ok(mail.includes('text-orange-600 dark:text-orange-500'), 'Spam orange-600 hilang');

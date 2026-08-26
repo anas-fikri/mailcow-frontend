@@ -25,6 +25,7 @@ import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveC
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
 import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate, applyMessageWindow } from '../lib/dateGroups';
+import { groupConversations } from '../lib/conversations';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 const MESSAGE_WINDOW_MONTHS = 5;
@@ -127,46 +128,8 @@ const SEARCH_CRITERIA = [
 ];
 
 // ─── Conversation helpers ────────────────────────────────────────────────────
-function normalizeSubject(subject) {
-  if (!subject || typeof subject !== 'string') return '';
-  const prefixes = [
-    /^Re:\s*/i, /^Fwd:\s*/i, /^Fw:\s*/i, /^AW:\s*/i, /^WG:\s*/i, /^Antw:\s*/i,
-    /^[\[\(]?RE[\]\)]?[:\-]\s*/i, /^[\[\(]?FWD[\]\)]?[:\-]\s*/i,
-    /^Vs:\s*/i, /^Enc:\s*/i, /^RIF:\s*/i, /^TR:\s*/i,
-  ];
-  let s = subject.trim();
-  let prev;
-  do {
-    prev = s;
-    for (const re of prefixes) {
-      s = s.replace(re, '');
-    }
-  } while (s !== prev);
-  return s.trim().toLowerCase() || '(tanpa subjek)';
-}
-
-function groupMessages(messages, asc = false) {
-  const groups = [];
-  const map = new Map();
-  for (const msg of messages) {
-    const key = normalizeSubject(msg.subject) || '(tanpa subjek)';
-    if (map.has(key)) {
-      map.get(key).messages.push(msg);
-    } else {
-      const group = { key, subject: String(msg.subject || '') || '(Tanpa Subjek)', messages: [msg] };
-      map.set(key, group);
-      groups.push(group);
-    }
-  }
-  // Urutkan grup by tanggal pesan TERBARU di dalamnya (date-descending).
-  // `asc` = 'terlama dulu' → balik urutan GRUP (thread tertua di atas),
-  // sedangkan pesan di dalam tiap grup tetap terbaru-dulu (pola Gmail).
-  const latestTs = (g) =>
-    g.messages.reduce((max, m) => Math.max(max, parseMessageDate(m.date)?.getTime() || 0), 0);
-  groups.sort((a, b) => { const d = latestTs(b) - latestTs(a); return d !== 0 ? d : 0; });
-  if (asc) groups.reverse();
-  return groups;
-}
+// normalizeSubject / groupConversations dipindah ke src/lib/conversations.js
+// (pure + testable).
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function MailPage() {
@@ -537,8 +500,10 @@ export default function MailPage() {
   // Conversation grouping
   const conversationGroups = useMemo(() => {
     if (!conversationView) return [];
-    return groupMessages(sortedMessages, sortAsc);
-  }, [sortedMessages, conversationView, sortAsc]);
+    // selfEmail = alamat akun sendiri; dikecualikan dari partisipan supaya dua
+    // thread beda vendor dengan subjek sama (mis. "Invoice") tidak menyatu.
+    return groupConversations(sortedMessages, sortAsc, user?.email || '');
+  }, [sortedMessages, conversationView, sortAsc, user?.email]);
 
   // Reset expanded set when conversation view toggles
   useEffect(() => {
@@ -1242,10 +1207,17 @@ export default function MailPage() {
   };
 
   // Message row renderer (shared by flat list & conversation groups)
-  const renderMessageRow = (msg, idx = -1) => {
+  const renderMessageRow = (msg, idx = -1, nested = false) => {
     const isActive = selectedMsgId === msg.uid;
     const isSelected = selectedUids.includes(msg.uid);
     const isFocused = !conversationView && focusIdx === idx;
+    // Di dalam percakapan, garis kiri berasal dari thread line wrapper
+    // (border-l-2). Baris tidak memakai border-l-4 sendiri → tidak ada
+    // dua garis kiri yang bertumpuk; aktif cukup ditandai bg + teks.
+    const leftBorderCls = nested ? '' : 'border-l-4 ';
+    const activeCls = nested
+      ? (isActive ? 'bg-muted/80' : isFocused ? 'bg-muted/30' : '')
+      : (isActive ? 'bg-muted border-primary' : isFocused ? 'border-primary/40 bg-muted/30' : 'border-transparent');
     // Nama yang ditampilkan — dipakai juga untuk inisial avatar
     const senderLabel = isSentOrDraft ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender');
     const colorKey = getFlagColor(user?.email, msg.uid);
@@ -1274,9 +1246,7 @@ export default function MailPage() {
           onTouchMove={(e) => handleRowTouchMove(e, msg.uid)}
           onTouchEnd={() => handleRowTouchEnd(msg.uid)}
           onTouchCancel={() => handleRowTouchEnd(msg.uid)}
-          className={`group w-full flex items-start text-left p-3 hover:bg-muted/50 transition-colors cursor-pointer border-l-4 select-none [-webkit-touch-callout:none] ${
-            isActive ? 'bg-muted border-primary' : isFocused ? 'border-primary/40 bg-muted/30' : 'border-transparent'
-          } ${isSelected ? 'bg-primary/5' : ''}`}
+          className={`group w-full flex items-start text-left p-3 hover:bg-muted/50 transition-colors cursor-pointer ${leftBorderCls}select-none [-webkit-touch-callout:none] ${activeCls} ${isSelected ? 'bg-primary/5' : ''}`}
         >
           {/* Avatar — saat hover/seleksi diganti checkbox (pola Gmail, tidak menumpuk) */}
           <div className="relative w-8 h-8 shrink-0 mr-2 mt-0.5">
@@ -1990,40 +1960,70 @@ export default function MailPage() {
               {conversationView && conversationGroups.length > 0
                 ? conversationGroups.map((group) => {
                     const isExpanded = expandedConversations.has(group.key);
-                    const senders = [...new Set(group.messages.map(m => {
-                      const from = m.from || '';
-                      const name = from.split('<')[0].trim();
-                      return name || from || 'Unknown Sender';
-                    }))];
+                    const senders = group.senders;
+                    const latest = group.latest;
                     return (
-                      <div key={group.key} className="border-b border-border last:border-b-0">
-                        {/* Group header */}
+                      // Parent list pakai divide-y → pemisah antar grup cukup
+                      // dari situ; border-b di sini bikin garis ganda.
+                      <div key={group.key} className="relative">
+                        {/* Group header (Outlook-like): avatar stack + subjek
+                            (tebal bila ada belum dibaca) + peserta + waktu
+                            terbaru + count + chevron. Semua line min-w-0/
+                            truncate/shrink-0 supaya tidak saling menimpa. */}
                         <button
                           onClick={() => toggleConversation(group.key)}
-                          className="w-full flex items-center gap-3 p-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+                          aria-expanded={isExpanded}
+                          aria-label={`${isExpanded ? 'Ciutkan' : 'Perluas'} percakapan ${group.subject}`}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
                         >
-                          <MessagesSquare size={16} className="text-muted-foreground shrink-0" />
-                          {/* Avatar inisial pengirim pertama */}
-                          <Avatar name={senders[0]} size="sm" className="shrink-0" />
+                          {/* Avatar stack (maks 3, overlap tipis ala Outlook) */}
+                          <div className="flex -space-x-1.5 shrink-0">
+                            {senders.slice(0, 3).map((s, i) => (
+                              <Avatar
+                                key={i}
+                                name={s}
+                                size="sm"
+                                className={`ring-2 ring-background ${i > 0 ? 'relative' : ''}`}
+                              />
+                            ))}
+                          </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-foreground truncate">{group.subject}</span>
-                              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
-                                {group.messages.length}
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`text-sm truncate ${group.hasUnread ? 'font-bold text-foreground' : 'font-medium text-foreground'}`}>
+                                {group.subject}
                               </span>
+                              {group.hasUnread && (
+                                <span className="w-2 h-2 rounded-full bg-primary shrink-0" aria-hidden />
+                              )}
                             </div>
-                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                              {senders.join(', ')}
+                            <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                              {senders.length > 2
+                                ? `${senders.slice(0, 2).join(', ')} +${senders.length - 2}`
+                                : senders.join(', ')}
+                              {group.messages.length > 1 && ` · ${group.messages.length} pesan`}
                             </div>
                           </div>
+                          {latest?.date && (
+                            <span className="text-xs text-muted-foreground shrink-0">{latest.date}</span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
+                            {group.messages.length}
+                          </span>
                           <ChevronDown size={14} className={`text-muted-foreground shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
                         </button>
-                        {/* Group messages */}
-                        {isExpanded && group.messages.map((msg, idx) => (
-                          <div key={msg.uid} className="ml-5 pl-3 border-l-2 border-primary/20 border-t border-border/50">
-                            {renderMessageRow(msg, -1)}
+                        {/* Pesan dalam percakapan — compact, thread line tipis.
+                            Border kiri berasal dari SATU sumber (wrapper), baris
+                            di dalamnya TIDAK memakai border-l lagi → tidak ada
+                            garis ganda yang bertumpuk. */}
+                        {isExpanded && (
+                          <div className="ml-4 border-l-2 border-primary/15">
+                            {group.messages.map((msg) => (
+                              <div key={msg.uid} className="border-t border-border/40 first:border-t-0">
+                                {renderMessageRow(msg, -1, true)}
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
                     );
                   })
