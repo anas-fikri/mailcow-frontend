@@ -737,3 +737,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   invalidate via listener; tidak ada double-invalidate di tab yang sama.
 - `e.key === null` = `localStorage.clear()` — perlakukan sebagai semua domain
   berubah.
+
+## 2026-08-26T02:41:56Z
+- Task: 
+- Status: COMPLETED
+- Finding: Sync cache React Query lintas tab utk Calendar/Contacts: helper crossTab.js — bumpDomainVersion (monotonik Math.max(Date.now(), prev+1), key pcp_<domain>_v_<email>) + watchDomainVersion (storage event listener, invalidate saat versi naik; e.key null = clear). Dipasang di CalendarPage (create/update/delete+drag) dan ContactsPage (create/delete). Bug ditemukan test: bump berbasis Date.now() bisa sama dalam ms sama → wajib monotonik. 51/51 test PASS, deploy live hash terverifikasi.
