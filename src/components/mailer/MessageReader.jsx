@@ -356,6 +356,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     const safeDate    = escapeHtml(date);
     const safeSubject = escapeHtml(subject);
     onReply?.({
+      // composeMode 'reply' penting: ComposeModal memilih signature reply
+      // (getSignatureFor(email, 'reply')) — tanpa ini balasan memakai
+      // signature mode 'new'.
+      composeMode: 'reply',
       to: replyTo || from,
       subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
       body: `<br><br><blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:0;color:#666">
@@ -372,6 +376,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     const safeDate    = escapeHtml(date);
     const safeSubject = escapeHtml(subject);
     onReply?.({
+      composeMode: 'reply', // sama seperti reply — signature reply dipakai
       subject: subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`,
       body: `<br><br><blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:0;color:#666">
         <b>---------- Pesan Diteruskan ----------</b><br>

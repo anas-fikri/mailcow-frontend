@@ -2549,3 +2549,14 @@ Menerapkan pola `min-w-0`/`truncate`/`shrink-0` yang sama seperti MailPage ke he
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## Ai-loop: ComposeModal/send flow (2026-08-26)
+
+**Bug 1 (race):** autosave in-flight saat tutup mode edit-draft → copy yatim di Draf. handleClose hanya hapus copy yang SUDAH ada; saveDraft yang selesai setelah tutup membuat copy baru. Fix: guard `closedRef` (set di handleClose, cek di runAutosave pasca-save, reset saat buka). Compose baru tetap pertahankan draft (fitur lanjutkan dari Draf).
+
+**Bug 2:** reply/forward tidak kirim `composeMode: 'reply'` → ComposeModal memakai signature 'new' utk balasan. Fix: kedua handler onReply kirim `composeMode: 'reply'`.
+
+**Aman:** attachment validation (10/4MB), send chokepoint sanitize ganda, draft cleanup pasca-kirim, RichEditor sanitize input/paste/tab, modal tanpa backdrop-close (sengaja).
+
+**Test:** test-draft-compose +8 → 44 assertions · **55/55 PASS** · build OK.
+**Belum:** commit + push + deploy.

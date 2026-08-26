@@ -44,6 +44,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   const editingDraftUidRef = useRef(null); // uid draft asli (mode edit draft) — hapus saat kirim
   const autosaveBusy  = useRef(false);     // autosave sedang berjalan — cegah tumpukan/stale overwrite
   const sentRef       = useRef(false);     // email sudah terkirim — autosave in-flight harus bersihkan draft
+  const closedRef     = useRef(false);     // modal ditutup — autosave in-flight di mode edit-draft harus bersihkan copy
   const userEditedRef = useRef(false);     // user sudah mengubah apa pun — gerbang autosave
 
   const [showToSugg, setShowToSugg]  = useState(false);
@@ -100,6 +101,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       editingDraftUidRef.current = initialData?.draftUid || null;
       autosaveBusy.current = false;
       sentRef.current = false;
+      closedRef.current = false;
       userEditedRef.current = false;
       // Restorasi lampiran draft yang dibuka utk diedit (base64 sudah diunduh
       // MailPage). Bukan "user edit" — tidak memicu autosave sendiri.
@@ -152,6 +154,20 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         // bersihkan draft (asli + autosave) supaya tidak yatim di folder Draf.
         autosaveDirty.current = false;
         const staleUids = [editingDraftUidRef.current, uid || draftUidRef.current].filter(Boolean);
+        staleUids.forEach((dUid) => deleteDraft(token, dUid));
+        draftUidRef.current = null;
+        draftIdRef.current = null;
+        editingDraftUidRef.current = null;
+        return;
+      }
+      if (closedRef.current && editingDraftUidRef.current) {
+        // Modal ditutup selama autosave berjalan. handleClose hanya membersihkan
+        // copy yang SUDAH ada saat ditutup — saveDraft ini baru saja membuat
+        // copy baru yang harus dibersihkan juga, kalau tidak jadi yatim di Draf.
+        // Compose baru: draft autosave sengaja dipertahankan (dilanjutkan dari
+        // folder Draf), jadi hanya mode edit-draft yang dibersihkan.
+        autosaveDirty.current = false;
+        const staleUids = [uid, draftUidRef.current].filter(Boolean);
         staleUids.forEach((dUid) => deleteDraft(token, dUid));
         draftUidRef.current = null;
         draftIdRef.current = null;
@@ -379,6 +395,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   // agar tidak menumpuk duplikat. Compose baru dibiarkan (draft autosave-nya
   // berguna utk dilanjutkan dari folder Draf).
   function handleClose() {
+    closedRef.current = true; // autosave in-flight harus tahu modal sudah ditutup
     if (editingDraftUidRef.current && token) {
       const copyUid = draftUidRef.current;
       if (copyUid && copyUid !== editingDraftUidRef.current) {

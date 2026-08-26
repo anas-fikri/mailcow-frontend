@@ -82,4 +82,24 @@ ok(compose.includes("if (copyUid && copyUid !== editingDraftUidRef.current)"), '
 ok(compose.includes('deleteDraft(token, copyUid)'), 'copy dihapus via deleteDraft');
 ok(compose.includes('onClick={handleClose}'), 'tombol X memakai handleClose');
 
+// ── Race 3: autosave in-flight saat TUTUP edit-draft → copy tidak boleh yatim ──
+// handleClose hanya membersihkan copy yang SUDAH ada; saveDraft yang masih
+// berjalan selesai SETELAH tutup → membuat copy baru yang tak pernah dihapus.
+// Guard closedRef membuat autosave pasca-tutup ikut membersihkan copy barunya.
+ok(/closedRef\s+= useRef\(false\)/.test(compose), 'guard closedRef harus ada');
+ok(compose.includes('closedRef.current = true; // autosave in-flight harus tahu modal sudah ditutup'),
+  'handleClose harus set closedRef');
+ok(compose.includes('if (closedRef.current && editingDraftUidRef.current) {'),
+  'runAutosave harus cek closedRef + mode edit-draft setelah save');
+ok(compose.includes('const staleUids = [uid, draftUidRef.current].filter(Boolean);'),
+  'autosave pasca-tutup harus hapus copy baru (uid hasil save) + copy lama');
+ok(compose.includes('closedRef.current = false;'), 'reset modal harus reset closedRef');
+
+// ── Reply/forward harus membawa composeMode 'reply' (signature reply) ────────
+// Tanpa ini ComposeModal memakai signature 'new' untuk balasan — salah.
+ok(reader.includes("composeMode: 'reply',"), 'handleReply harus kirim composeMode reply');
+ok(compose.includes("const composeMode = initialData?.composeMode === 'reply' ? 'reply' : 'new';"),
+  'ComposeModal harus memetakan composeMode reply');
+ok(compose.includes("getSignatureFor(user.email, composeMode)"), 'ComposeModal harus pilih signature per mode');
+
 console.log('\nDraft/compose audit: ' + passCount + ' assertions PASS ✅');
