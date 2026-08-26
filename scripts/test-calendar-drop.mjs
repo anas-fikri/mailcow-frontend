@@ -67,6 +67,16 @@ assert.equal(dawn.endTime, '03:00', 'durasi 1 jam dipertahankan');
 const mid = buildDroppedEventData(ev, new Date('2026-08-28T00:00:00'), 0);
 assert.equal(mid.startDate, '2026-08-28', 'drag ke 00:00 → tanggal 28 (bukan 27)'); 
 
+// ── REGRESI: isRecurring diteruskan (safety net recurrence di CalendarPage) ─
+// handleUpdateEvent me-resolve repeat via /view saat event berulang tapi
+// payload tidak membawa repeat — kalau isRecurring tidak diteruskan, drag
+// event berulang bisa menyimpan tanpa repeat → pola hilang diam-diam.
+const rec = buildDroppedEventData({ ...ev, isRecurring: true }, target, 9);
+assert.equal(rec.isRecurring, true, 'isRecurring diteruskan utk safety net');
+assert.equal(rec.repeatTouched, false, 'drag tidak menyentuh kontrol repeat');
+const nonRec = buildDroppedEventData({ ...ev, isRecurring: false }, target, 9);
+assert.equal(nonRec.isRecurring, false, 'non-recurring → false');
+
 // ── Guard input ─────────────────────────────────────────────────────────────
 assert.equal(buildDroppedEventData(null, target, 9), null, 'ev null → null'); 
 assert.equal(buildDroppedEventData(ev, new Date('invalid'), 9), null, 'tanggal invalid → null'); 

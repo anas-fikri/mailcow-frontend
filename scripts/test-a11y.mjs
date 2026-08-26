@@ -106,6 +106,8 @@ const stats = read('src/pages/StatsPage.jsx');
 const prefs = read('src/pages/PreferencesPage.jsx');
 const app = read('src/App.jsx');
 const login = read('src/pages/LoginPage.jsx');
+const modal = read('src/components/EventModal.jsx');
+const drop = read('src/lib/calendarDrop.js');
 
 console.log('\n— Target sentuh 44px (min-w-11/min-h-11) —');
 const countOcc = (hay, needle) => hay.split(needle).length - 1;
@@ -331,6 +333,23 @@ passCount++;
 assert.ok(sidebar.includes('queryClient.clear()') && sidebar.includes('useQueryClient'), 'Sidebar: logout manual harus membersihkan queryClient');
 passCount++;
 assert.ok(login.includes('queryClient.clear()') && login.includes('useQueryClient'), 'LoginPage: sebelum login baru harus membersihkan queryClient');
+passCount++;
+
+// ── Recurring event: proteksi pola recurrence + konfirmasi hapus seri ───────
+// SOGo menimpa recurrence saat save tanpa repeat — edit/drag event berulang
+// wajib me-resolve repeat asli sebelum save (semua jalur), bukan diam-diam
+// menyimpan tanpa pola.
+assert.ok(calendar.includes("!eventData.repeat && !eventData.repeatTouched") && calendar.includes('fetchCalendarEventDetail'), 'Calendar: save-time safety net recurrence (resolve repeat via /view)');
+passCount++;
+assert.ok(calendar.includes("if (ev.isRecurring)") && calendar.includes('Edit dibatalkan agar pola pengulangan tidak rusak'), 'Calendar: edit event berulang diblokir bila detail gagal dimuat');
+passCount++;
+assert.ok(calendar.includes("detailEv.isRecurring ?\n                      ? 'Hapus SELURUH rangkaian event berulang ini?") || calendar.includes("'Hapus SELURUH rangkaian event berulang ini? Semua kejadian akan dihapus.'"), 'Calendar: konfirmasi hapus jujur soal scope (seluruh seri)');
+passCount++;
+assert.ok(modal.includes('Hapus SELURUH rangkaian event berulang ini? Semua kejadian (berulang) akan dihapus.'), 'EventModal: konfirmasi hapus event berulang jujur soal scope');
+passCount++;
+assert.ok(modal.includes('repeatTouched: repeatTouchedRef.current') && modal.includes('isRecurring: !!event?.isRecurring'), 'EventModal: payload membawa repeatTouched + isRecurring utk safety net');
+passCount++;
+assert.ok(drop.includes('isRecurring: ev.isRecurring || false'), 'calendarDrop: isRecurring diteruskan utk safety net drag');
 passCount++;
 
 console.log(`\nA11y audit: ${passCount} assertions PASS ✅`);

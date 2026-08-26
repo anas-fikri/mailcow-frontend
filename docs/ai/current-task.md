@@ -1,14 +1,16 @@
-# Current Task — Audit OWASP refresh: rate-limit + data leak antar role
+# Current Task — Ai-loop: CalendarPage event store + recurring logic
 
 ## Status
-- **Backend (server.js) diverifikasi solid**: rate-limit per-route/per-akun
-  (send 10/mnt/akun, prefs 30/mnt/IP, auth 5/mnt/IP, image-proxy 120/mnt/IP),
-  X-Real-IP trusted-proxy, ownership /api/preferences (403 bila email ≠ sesi),
-  from dipaksa session.user (anti-spoof), cookie SMTP SameSite=Strict+HttpOnly.
-- **Fix 1**: react-query tidak lagi me-retry 429 (sebelumnya retry 2x → perparah).
-- **Fix 2**: queryClient.clear() saat logout manual (Sidebar) + sebelum login baru
-  (LoginPage) — cegah data sensitif akun A tersisa di memori saat akun B login.
-- Test: test-a11y +3 → 123 assertions, 55/55 PASS, build OK.
+- **Bug 1 (data loss):** edit/drag event BERULANG bisa menghancurkan pola
+  recurrence diam-diam — save tanpa `repeat` → SOGo menimpa recurrence.
+  Jalur: detail /view gagal (fallback grid tanpa repeat) & /view tanpa field repeat.
+  **Fix:** safety net di handleUpdateEvent — event berulang + repeat null +
+  repeatTouched false → resolve repeat via /view; gagal → THROW (jangan save).
+  Edit event berulang diblokir bila detail gagal dimuat (bukan fallback diam-diam).
+- **Bug 2:** hapus event berulang tanpa peringatan scope — konfirmasi kini
+  jujur ("Hapus SELURUH rangkaian...") di EventModal + popup detail.
+- EventModal kirim repeatTouched/isRecurring; calendarDrop terusan isRecurring.
+- Test: test-a11y +6 (129), test-calendar-drop +3, 55/55 PASS, build OK.
 
 ## Next
 - Commit + push + deploy + ai-close

@@ -192,7 +192,27 @@ export default function CalendarPage() {
   }
 
   async function handleUpdateEvent(eventData, eventId) {
-    await updateCalendarEvent(user?.sogoToken, eventId, eventData);
+    let payload = eventData;
+    // Safety net recurrence (semua jalur edit): event berulang yang payload-nya
+    // TIDAK membawa repeat dan user TIDAK menyentuh kontrol pengulangan →
+    // resolve repeat asli via /view sebelum save. SOGo menimpa recurrence saat
+    // save tanpa repeat (pola hilang diam-diam) — komentar di handleDrop
+    // mengonfirmasi perilaku ini. Menutup celah: detail /view gagal saat
+    // openEditModal (dulu fallback ke grid tanpa repeat), dan /view yang tidak
+    // mengembalikan field repeat.
+    if (eventData.isRecurring && !eventData.repeat && !eventData.repeatTouched) {
+      let resolvedRepeat = null;
+      try {
+        const detail = await fetchCalendarEventDetail(user?.sogoToken, eventId);
+        resolvedRepeat = detail?.repeat && typeof detail.repeat === 'object' ? detail.repeat : null;
+      } catch { /* ditangani di bawah */ }
+      if (!resolvedRepeat) {
+        // Repeat tidak bisa di-resolve → JANGAN save (menghancurkan pola).
+        throw new Error('Tidak dapat memuat pola pengulangan event. Perubahan dibatalkan agar recurrence tidak rusak — coba lagi.');
+      }
+      payload = { ...eventData, repeat: resolvedRepeat };
+    }
+    await updateCalendarEvent(user?.sogoToken, eventId, payload);
     queryClient.invalidateQueries({ queryKey: ['calendar', user?.sogoToken] });
     bumpCalendar();
     toast.success('Event diperbarui');
@@ -231,6 +251,15 @@ export default function CalendarPage() {
       setModalEvent(detail ? { ...ev, ...detail } : ev);
       setModalOpen(true);
     } catch (err) {
+      // Event BERULANG: data grid (eventsblocks) tidak memuat pola repeat.
+      // Kalau editor dibuka dengan repeat=null lalu di-save, SOGo menimpa
+      // recurrence → seluruh pola hilang diam-diam. Blokir edit (bukan
+      // fallback diam-diam) agar pola tidak bisa rusak; user bisa coba lagi.
+      if (ev.isRecurring) {
+        toast.error('Gagal memuat detail event berulang. Edit dibatalkan agar pola pengulangan tidak rusak — coba lagi.');
+        setEditingId(null);
+        return;
+      }
       // Fallback ke data ringkas (attendees sudah ada dari c_partmails).
       toast.error(err.message || 'Gagal memuat detail event.');
       setModalMode('edit');
@@ -460,7 +489,12 @@ export default function CalendarPage() {
                 </button>
                 <button
                   onClick={() => {
-                    if (!window.confirm('Hapus event ini?')) return;
+                    // Event berulang: semua occurrence berbagi id — hapus satu
+                    // occurrence = hapus SELURUH seri. Konfirmasi jujur soal scope.
+                    const msg = detailEv.isRecurring
+                      ? 'Hapus SELURUH rangkaian event berulang ini? Semua kejadian akan dihapus.'
+                      : 'Hapus event ini?';
+                    if (!window.confirm(msg)) return;
                     handleDeleteEvent(detailEv.id).catch((err) => {
                       toast.error(err.message || 'Gagal menghapus event');
                     });

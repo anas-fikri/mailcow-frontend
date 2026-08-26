@@ -47,5 +47,10 @@ export function buildDroppedEventData(ev, targetDate, hour = null) {
     attendees: ev.attendees || '',
     repeat: ev.repeat || null,
     classification: ev.classification,
+    // Safety net recurrence (dipakai handleUpdateEvent): kalau event berulang
+    // tapi repeat tidak tersedia di payload, CalendarPage me-resolve pola asli
+    // via /view sebelum save — SOGo menimpa recurrence saat save tanpa repeat.
+    isRecurring: ev.isRecurring || false,
+    repeatTouched: false,
   };
 }

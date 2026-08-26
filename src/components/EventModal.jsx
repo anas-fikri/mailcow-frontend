@@ -222,6 +222,12 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
         // Pertahankan klasifikasi asli saat edit (detail dari /view).
         classification: event?.classification,
         repeat,
+        // Info tambahan utk CalendarPage: kalau event berulang tapi repeat
+        // tidak tersedia di payload dan user TIDAK menyentuh kontrol
+        // pengulangan, CalendarPage harus me-resolve repeat asli (via /view)
+        // sebelum save — SOGo menimpa recurrence saat save tanpa repeat.
+        repeatTouched: repeatTouchedRef.current,
+        isRecurring: !!event?.isRecurring,
       };
 
       if (isEdit && event?.id) {
@@ -241,6 +247,12 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
   async function handleDelete() {
     if (!event?.id) return;
     if (savingRef.current) return; // double-click hapus → satu eksekusi
+    // Event berulang: semua occurrence berbagi satu id — menghapus satu
+    // occurrence = menghapus SELURUH seri. Konfirmasi harus jujur soal scope.
+    const msg = event?.isRecurring
+      ? 'Hapus SELURUH rangkaian event berulang ini? Semua kejadian (berulang) akan dihapus.'
+      : 'Hapus event ini?';
+    if (!window.confirm(msg)) return;
     savingRef.current = true;
     setSaving(true);
     try {

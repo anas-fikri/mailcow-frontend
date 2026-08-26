@@ -2699,3 +2699,60 @@ berada di memori (hygiene buruk di shared device). Kedua jalur kini
 ### Test
 - test-a11y **+3** (429 no-retry; Sidebar clear; LoginPage clear) → **123 assertions**
 - **55/55 PASS** · build OK
+
+## 2026-08-26T10:43:06Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+- No local changes detected
+
+## Ai-loop: CalendarPage event store + recurring logic
+
+**Komit:** safety net recurrence (edit/drag) + konfirmasi hapus seri.
+
+### Audit yang diverifikasi aman (tidak diubah)
+- **Event store**: fetch per rentang tanggal (month ±20/10, week ±1/8, day ±1/2),
+  staleTime 5 mnt, multi-tab via bumpDomainVersion + watchDomainVersion,
+  dedup eventsblocks (id|start|calendar) di parseCalendarEvents.
+- **Timezone**: dayCodeFromDate & buildDroppedEventData pakai komponen lokal
+  (bukan toISOString/UTC) — drag 02:00 WIB tidak mendarat di hari sebelumnya.
+- **Recurring create**: objek repeat (frequency/interval/days/count/until),
+  pola custom dipertahankan via originalRepeatRef, double-submit guard.
+- **EventModal validasi**: end-before-start ditolak, interval/count di-clamp.
+
+### Bug 1 (data loss) — edit/drag event berulang menghancurkan pola recurrence
+Semua occurrence berbagi satu UID; save tanpa `repeat` → SOGo menimpa
+recurrence (dikonfirmasi komentar di handleDrop). Jalur yang memicu:
+- Detail `/view` gagal di openEditModal → fallback ke data grid (eventsblocks)
+  yang TIDAK memuat `repeat` → applyRepeat(null) → save tanpa repeat → **pola
+  hilang diam-diam**.
+- `/view` sukses tapi tidak mengembalikan field `repeat` → sama.
+- Drag event berulang saat fetch detail repeat gagal (dulu "dibiarkan").
+
+**Fix (semua jalur):**
+- `handleUpdateEvent` safety net: `isRecurring && !repeat && !repeatTouched` →
+  resolve repeat via `/view`; bila tetap tidak dapat → **THROW** (jangan save,
+  pesan jelas). EventModal kirim `repeatTouched` + `isRecurring` di payload;
+  calendarDrop meneruskan `isRecurring` (drag ikut terlindungi).
+- `openEditModal`: event berulang + detail gagal → **blokir edit** (bukan
+  fallback diam-diam) dengan toast; pola tidak bisa rusak.
+
+### Bug 2 — hapus event berulang tanpa peringatan scope
+EventModal `handleDelete` TANPA konfirmasi sama sekali; popup detail pakai
+"Hapus event ini?" generik — padahal menghapus satu occurrence = menghapus
+SELURUH seri (satu UID). Konfirmasi kini jujur soal scope di kedua tempat.
+
+### Test
+- test-a11y **+6** (safety net, blokir edit, konfirmasi seri ×2, payload
+  repeatTouched/isRecurring, drop isRecurring) → **129 assertions**
+- test-calendar-drop **+3** (isRecurring passthrough, repeatTouched=false,
+  non-recurring false) · **55/55 PASS** · build OK
+
+### Pelajaran (knowledge)
+Operasi "satu occurrence" pada event recurring tidak bisa diimplementasikan
+sebagai CRUD biasa — occurrence bukan entitas terpisah. Menghindari data loss
+wajib dua lapis: (1) jangan pernah save payload yang kehilangan `repeat`
+pada event berulang — resolve dulu atau tolak; (2) konfirmasi delete harus
+menyebut scope (seluruh seri). Fitur "edit/hapus satu occurrence" (recurrence_id
+/ EXDATE) adalah workstream terpisah — lihat next-tasks.
