@@ -1,41 +1,41 @@
 # Current Task
 
-## Task: ai-loop multi-tab — dua tab webmail akun sama: polling unseen, snooze prune, auto-archive race
+## Task: ai-loop multi-tab — cache React Query di CalendarPage & ContactsPage
 
-**Status: SELESAI (50/50 test PASS, build OK)** → siap commit + push + deploy.
+**Status: SELESAI (51/51 test PASS, build OK)** → siap commit + push + deploy.
 
 ## Temuan
 
-1. **Snooze tidak sinkron antar-tab.** localStorage dibagi antar tab, tapi event
-   `storage` hanya ter-fire di tab LAIN (bukan yang menulis). Tab B tidak tahu
-   tab A menynooze/unsnooze → daftar pesan tab B basi sampai interval 60 detik
-   (atau tanpa batas bila tidak ada perubahan local).
-2. **Auto-archive double-move antar-tab.** Dua tab akun sama menjalankan rule
-   engine independen (query cache + rulesProcessed per-tab). Keduanya bisa
-   memindahkan pesan yang SAMA bersamaan → double-move / double-toast.
-3. **Notifikasi email baru** — dua tab polling unseen sama-sama memunculkan
-   notifikasi; `tag: 'sogo-new-mail'` membuat browser mengganti notifikasi
-   (tidak menumpuk) → aman, tidak perlu diubah.
+Cache React Query **per-tab** + `staleTime: 5 menit` (calendar & contacts):
+- Tab A create/update/delete event atau kontak → invalidate HANYA di tab A.
+- Tab B masih menampilkan data basi sampai stale (≤5 menit) atau reload manual.
+- Tidak ada mekanisme sinkronisasi antar-tab untuk domain ini (MailPage sudah
+  dapat storage-event utk snooze; calendar/contacts belum).
 
 ## Perbaikan
 
-1. **Storage event listener utk snooze** (MailPage): watch key
-   `pcp_snooze_v3_<email>` / `pcp_snooze_v2_<email>` / `clear()` → bump
-   `snoozeTick` saat tab lain menulis. UI langsung ter-refresh.
-2. **Klaim auto-archive antar-tab** (`src/lib/autoArchive.js`):
-   `claimAutoArchiveUids(email, uids)` — klaim uid di sessionStorage (per-tab,
-   hilang saat tab ditutup) dengan TTL 5 menit; tab pertama menang, tab lain
-   SKIP uid tsb. `releaseAutoArchiveClaims(email, uids)` — lepas klaim setelah
-   move selesai/gagal. MailPage: claim sebelum executeRules, lepas utk pesan
-   yang tidak jadi dipindah; `rulesProcessed` hanya di-set utk pesan yang
-   BENAR-BENAR dipindah (yang di-skip karena klaim tab lain tetap bisa dicoba
-   lagi saat klaim kedaluwarsa).
+**Helper bersama `src/lib/crossTab.js` — "domain version bump":**
+- `bumpDomainVersion(domain, email)` — tulis timestamp **monotonik**
+  (`Math.max(Date.now(), prev+1)` — dua bump dalam ms sama tidak boleh
+  menghasilkan versi sama, kalau tidak tab lain tidak mendeteksi perubahan) ke
+  `pcp_<domain>_v_<email>`. Tanpa email → 0 (no-op).
+- `watchDomainVersion(domain, email, cb)` — listener `storage` (event hanya
+  fire di tab LAIN), invalidate saat versi naik; `e.key === null` (clear)
+  dianggap semua berubah; cleanup otomatis.
+- `readDomainVersion` / `pruneDomainVersions` (TTL 24 jam).
 
-## Verifikasi aman
+**CalendarPage:** bump `calendar` di handleCreate/Update/DeleteEvent (drag
+reuse handleUpdateEvent → otomatis) + watch → invalidate `['calendar', token]`.
+**ContactsPage:** bump `contacts` di create/deleteMutation onSuccess + watch →
+invalidate `['contacts', token]`.
 
-- `test:multitab` baru: claim pertama, claim tab kedua skip, scoped per email,
-  release, TTL kedaluwarsa, input invalid, regresi snooze v3.
-- **50/50 test PASS** · build OK.
+## Verifikasi
+
+- `test:cross-tab` baru: read 0 awal, bump > 0, scoped email/domain, watch
+  invalidate saat versi naik, abaikan key domain lain, abaikan event tanpa
+  perubahan, clear() memicu, cleanup listener, **bump monotonik** (bug asli
+  ditemukan oleh test), key rusak → 0, email kosong → 0.
+- **51/51 test PASS** · build OK.
 
 Status: COMPLETED
-Updated At: 2026-08-26T02:29:57Z
+Updated At: 2026-08-26T03:1x:00Z

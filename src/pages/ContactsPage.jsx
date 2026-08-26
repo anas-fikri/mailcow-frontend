@@ -7,6 +7,7 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { fetchContacts, createContact, deleteContact } from '../lib/api';
 import { findDuplicateKind } from '../lib/contactUtils';
+import { bumpDomainVersion, watchDomainVersion } from '../lib/crossTab';
 import { toast } from '../lib/toast';
 import { ContactsListSkeleton } from '../components/Skeleton';
 import Avatar from '../components/Avatar';
@@ -140,10 +141,21 @@ export default function ContactsPage() {
     staleTime: 5 * 60_000,
   });
 
+  // Multi-tab: selain invalidate lokal, bump versi domain 'contacts' agar tab
+  // lain (mendengar event 'storage') ikut invalidate → refetch. Tanpa ini tab
+  // B menampilkan daftar kontak basi sampai staleTime 5 menit.
+  React.useEffect(() => {
+    if (!user?.email) return;
+    return watchDomainVersion('contacts', user?.email, () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts', user?.sogoToken] });
+    });
+  }, [user?.email, user?.sogoToken, queryClient]);
+
   const createMutation = useMutation({
     mutationFn: (data) => createContact(user.sogoToken, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts', user?.sogoToken] });
+      bumpDomainVersion('contacts', user?.email);
       setShowModal(false);
       setModalError('');
     },
@@ -154,6 +166,7 @@ export default function ContactsPage() {
     mutationFn: (id) => deleteContact(user.sogoToken, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts', user?.sogoToken] });
+      bumpDomainVersion('contacts', user?.email);
       setSelected(null);
     },
     onError: (err) => toast.error(err.message || 'Gagal menghapus kontak.'),

@@ -723,3 +723,17 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - Task: 
 - Status: COMPLETED
 - Finding: Race multi-tab diperbaiki: (1) snooze sync via storage event listener (key pcp_snooze_v3/v2 + clear) → bump snoozeTick — event 'storage' hanya fire di tab lain; (2) auto-archive double-move dicegah via claimAutoArchiveUids (sessionStorage per-tab, TTL 5 mnt) + releaseAutoArchiveClaims; rulesProcessed hanya utk pesan yang benar-benar dipindah; (3) notifikasi sudah dedup via Notification tag. Pelajaran: sessionStorage utk klaim lintas tab (auto-clean saat tab tutup), storage event utk sync UI. 50/50 test PASS, deploy live hash terverifikasi.
+
+## 2026-08-26 — Sync cache React Query lintas tab: domain version bump (monotonik)
+
+- **Cache React Query per-tab** — invalidate di satu tab tidak mempengaruhi tab
+  lain. Untuk data server-side yang diubah user (kalender, kontak), gunakan
+  pola: penulis `bumpDomainVersion` (localStorage `pcp_<domain>_v_<email>`),
+  tab lain `watchDomainVersion` (listener storage event) → invalidate query.
+- **Versi WAJIB monotonik:** `Math.max(Date.now(), prev + 1)` — dua mutasi
+  dalam milidetik yang sama menghasilkan timestamp sama, dan tab lain tidak
+  mendeteksi perubahan. (Bug ini ditemukan test: `test:cross-tab`.)
+- Event `storage` hanya fire di tab LAIN — penulis invalidate lokal, tab lain
+  invalidate via listener; tidak ada double-invalidate di tab yang sama.
+- `e.key === null` = `localStorage.clear()` — perlakukan sebagai semua domain
+  berubah.

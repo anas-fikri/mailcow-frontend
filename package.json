@@ -58,7 +58,8 @@
     "test:calendar-events": "node scripts/test-calendar-events.mjs",
     "test:security-hardening": "node scripts/test-security-hardening.mjs",
     "test:contact-signature-edge": "node scripts/test-contact-signature-edge.mjs",
-    "test:multitab": "node scripts/test-multitab.mjs"
+    "test:multitab": "node scripts/test-multitab.mjs",
+    "test:cross-tab": "node scripts/test-cross-tab.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, fetchCalendarEventDetail } from '../lib/api';
+import { bumpDomainVersion, watchDomainVersion } from '../lib/crossTab';
 import { CalendarGridSkeleton } from '../components/Skeleton';
 import { MONTHS_ID, DAYS_ID, CAL_COLORS } from '../lib/constants';
 import { toast } from '../lib/toast';
@@ -188,15 +189,30 @@ export default function CalendarPage() {
   }
 
   // ── Event CRUD ─────────────────────────────────────────────────────────────
+  // Multi-tab: selain invalidate lokal, bump versi domain 'calendar' agar tab
+  // lain (yang mendengar event 'storage') ikut invalidate → refetch. Tanpa ini
+  // tab B menampilkan event basi sampai staleTime 5 menit.
+  const bumpCalendar = () => bumpDomainVersion('calendar', user?.email);
+
+  // Tab lain melakukan mutasi kalender → invalidate query kalender tab ini.
+  React.useEffect(() => {
+    if (!user?.email) return;
+    return watchDomainVersion('calendar', user?.email, () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar', user?.sogoToken] });
+    });
+  }, [user?.email, user?.sogoToken, queryClient]);
+
   async function handleCreateEvent(eventData) {
     await createCalendarEvent(user?.sogoToken, eventData);
     queryClient.invalidateQueries({ queryKey: ['calendar', user?.sogoToken] });
+    bumpCalendar();
     toast.success('Event berhasil dibuat');
   }
 
   async function handleUpdateEvent(eventData, eventId) {
     await updateCalendarEvent(user?.sogoToken, eventId, eventData);
     queryClient.invalidateQueries({ queryKey: ['calendar', user?.sogoToken] });
+    bumpCalendar();
     toast.success('Event diperbarui');
   }
 
@@ -204,6 +220,7 @@ export default function CalendarPage() {
     await deleteCalendarEvent(user?.sogoToken, eventId);
     setDetailEv(null);
     queryClient.invalidateQueries({ queryKey: ['calendar', user?.sogoToken] });
+    bumpCalendar();
     toast.success('Event dihapus');
   }
 

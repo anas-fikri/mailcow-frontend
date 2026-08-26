@@ -2210,3 +2210,23 @@ Test security-hardening 21 assertions + bash -n OK. 49/49 PASS.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-26 — ai-loop multi-tab: cache React Query Calendar/Contacts (FIXED)
+
+- **Bug — Cache React Query per-tab, staleTime 5 mnt:** tab A create/delete
+  event/kontak → invalidate hanya di tab A; tab B tampil data basi sampai
+  stale. **Fix:** helper `src/lib/crossTab.js` (domain version bump) —
+  `bumpDomainVersion(domain, email)` menulis timestamp MONOTONIK ke
+  `pcp_<domain>_v_<email>`; `watchDomainVersion` pasang listener `storage`
+  (fire di tab lain) → invalidate query saat versi naik. Dipasang di
+  CalendarPage (create/update/delete + drag via handleUpdateEvent) dan
+  ContactsPage (create/delete).
+- **Bug yang ditemukan test:** bump pertama pakai `Date.now()` — dua bump
+  dalam milidetik sama menghasilkan versi SAMA → tab lain tidak mendeteksi.
+  Fix: `Math.max(Date.now(), prev + 1)` (monotonik).
+- **Pelajaran:** pola sinkronisasi lintas-tab utk data server-side (React
+  Query): penulis bump versi (localStorage) → tab lain invalidate via storage
+  event. Versi WAJIB monotonik (bukan murni timestamp). TTL dibersihkan saat
+  bump (ringan).
+- Test: `test:cross-tab` baru (monotonik, scoped, clear, cleanup) →
+  **51/51 PASS** + build OK.
