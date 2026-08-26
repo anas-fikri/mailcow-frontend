@@ -1015,3 +1015,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Overlap elemen UI: (1) event kalender di slot jam sama wajib side-by-side via kolom layout (greedy: width=100/maxCols) — full-width = saling timpa; (2) baris form dengan label+input+tombol di lebar sempit harus flex-wrap (hitung lebar min: label 64 + input min + tombol ≈ >280px inner modal 320px); (3) footer dengan cluster kiri + tombol aksi perlu flex-wrap + flex-1 min-w-0 + shrink-0.
+
+## 2026-08-26T10:18:07Z
+- Task: 
+- Status: COMPLETED
+- Finding: Audit overlap UI menyeluruh putaran 2: pattern yang wajib — container flex dengan min-w-0, teks truncate, elemen kanan shrink-0; badge dengan ml-auto perlu shrink-0 + truncate agar tidak saling dorong di layar sempit. Semua halaman (mail, kalender, kontak, stats, rules, login, modal) sudah diverifikasi.
