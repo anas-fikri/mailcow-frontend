@@ -1922,3 +1922,29 @@ assertions). 44/44 PASS. Known limitations terdokumentasi: border token
 -  M src/index.css
 -  M src/pages/MailPage.jsx
 - ?? scripts/test-a11y.mjs
+
+## [2026-08-26] Bug hunt kombinasi (multi-akun + konflik antar UI) — SELESAI & LIVE
+
+Pass 6+ kombinasi: 2 bug. (1) queryKey ['smtp-session-status'] di Sidebar
+tanpa scope user → cache React Query global menampilkan countdown sesi akun
+sebelumnya sejenak saat ganti akun; fix scope per sogoToken. (2) MessageReader
+terus ter-mount di belakang ComposeModal (flow reply) dan handler keyboard
+tidak tahu compose terbuka → 'r' reset compose, 'Delete' hapus pesan yang
+dibalas, Escape tutup reader; fix prop shortcutsEnabled={!composeOpen} +
+guard di handler + deps. Verifikasi aman: localStorage semua *_v2_<email>
+scoped, LoginPage revoke+clear sebelum login, server send terikat session.user
++ anti-spoof, visibleOrderUids sudah filter snooze, semua timer unmount-clean.
+Test baru test:state-combination (7 assertions). 45/45 PASS.
+
+## 2026-08-26T01:15:42Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M package.json
+-  M src/components/layout/Sidebar.jsx
+-  M src/components/mailer/MessageReader.jsx
+-  M src/pages/MailPage.jsx
+- ?? scripts/test-state-combination.mjs

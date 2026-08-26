@@ -166,7 +166,7 @@ function isImageType(ct) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete }) {
+export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, shortcutsEnabled = true }) {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [moveOpen, setMoveOpen] = React.useState(false);
@@ -224,6 +224,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   React.useEffect(() => {
     if (!msg) return;
     const handler = (e) => {
+      // Mati saat modal lain terbuka di atas reader (mis. ComposeModal reply
+      // yang menimpa reader). Tanpa ini 'r' membuka ulang compose / 'Delete'
+      // menghapus pesan yang sedang dibalas / Escape menutup reader di balik
+      // modal — konflik state antar UI.
+      if (!shortcutsEnabled) return;
       // Skip saat user mengetik di input/textarea ATAU contentEditable
       // (RichEditor compose — tagName DIV tidak tertangkap guard INPUT/TEXTAREA).
       // Tanpa ini, menekan 'r'/'f'/'s'/Delete saat mengetik di editor compose
@@ -237,7 +242,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [msg, deleteMutation.isPending]);
+  }, [msg, deleteMutation.isPending, shortcutsEnabled]);
 
   function escapeHtml(str) {
     return String(str).replace(/[<>&"']/g, c => {

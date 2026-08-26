@@ -1921,6 +1921,7 @@ export default function MailPage() {
             onClose={() => setSelectedMsgId(null)}
             onReply={(data) => { setComposeData(data); setComposeOpen(true); }}
             folders={folders}
+            shortcutsEnabled={!composeOpen}
             onMoveComplete={() => {
               setSelectedMsgId(null);
               queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] });

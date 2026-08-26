@@ -18,7 +18,10 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
   // diam-diam (SmtpHeartbeat terpisah menyegarkan lastUsed saat tab aktif).
   // Hanya render badge saat sisa sesi < SHOW_BELOW_MINUTES menit.
   const { data: sessionStatus } = useQuery({
-    queryKey: ['smtp-session-status'],
+    // Scope per akun: cache React Query bersifat global di tab, dan key tanpa
+    // identitas user membuat countdown sesi akun SEBELUMNYA tampil sejenak
+    // untuk akun baru (staleTime 30s) saat ganti akun / logout-login.
+    queryKey: ['smtp-session-status', user?.sogoToken],
     queryFn: () => fetchSmtpSessionStatus(),
     refetchInterval: () => (
       typeof document !== 'undefined' && document.visibilityState === 'visible'
