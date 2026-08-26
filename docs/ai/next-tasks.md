@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T02:58:08Z
+Generated At: 2026-08-26T03:04:32Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Pengukuran dampak cache flagColors: benchmark A/B scripts/benchmark-flag-cache.mjs (npm run bench:flag-cache) memakai modul asli + data realistis. Hasil konsisten: 58-84% waktu lebih cepat & 98-99% baca localStorage berkurang (60-120 baca per siklus render → 1). Keterbatasan: CPU-side Node; verifikasi jank scroll browser butuh sesi login asli. 51/51 test PASS.
+## 1. [MEDIUM] Follow up on discovered knowledge: Pola cache in-memory per-email untuk storage yang dibaca di hot path (getFlagColor → getRules/getRuleSummary): cache miss = ≤2 baca localStorage (fallback v2+v1), hit = 0. Invalidate di SEMUA jalur tulis modul (audit via grep localStorage.setItem/removeItem; executeRules bump runCount lewat updateRule ikut invalidate). Trap test: storage.setItem/clear() mentah tidak invalidate cache → wajib __reset*Cache. ReadStorage 1 call = 1-2 getItem, assertion read-count pertama harus toleran.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

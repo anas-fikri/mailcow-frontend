@@ -795,3 +795,8 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - **Verifikasi jalur tulis tersembunyi:** executeRules bump runCount lewat updateRule →
   ikut invalidate. Selalu audit mutasi in-place terhadap array hasil cache (updateRule/
   toggleRule memutasi elemen cached lalu saveRules delete cache — aman).
+
+## 2026-08-26T03:04:31Z
+- Task: 
+- Status: COMPLETED
+- Finding: Pola cache in-memory per-email untuk storage yang dibaca di hot path (getFlagColor → getRules/getRuleSummary): cache miss = ≤2 baca localStorage (fallback v2+v1), hit = 0. Invalidate di SEMUA jalur tulis modul (audit via grep localStorage.setItem/removeItem; executeRules bump runCount lewat updateRule ikut invalidate). Trap test: storage.setItem/clear() mentah tidak invalidate cache → wajib __reset*Cache. ReadStorage 1 call = 1-2 getItem, assertion read-count pertama harus toleran.
