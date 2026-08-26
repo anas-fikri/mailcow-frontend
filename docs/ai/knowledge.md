@@ -910,3 +910,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Chunk lazy-load 404 setelah deploy: `rsync --delete` menghapus chunk lama;
   tab yang masih buka memegang nama lama → import() gagal → error. Fix:
   `lazyWithReload` → reload sekali, sessionStorage flag anti-loop.
+
+## 2026-08-26T08:12:44Z
+- Task: 
+- Status: COMPLETED
+- Finding: Hardening error produksi: fetchWithTimeout (connectSogo 20s, registerSmtpSession 15s); friendlyLoginError petakan Failed to fetch/NetworkError/AbortError ke pesan Indonesia; lazyWithReload reload sekali saat chunk 404 pasca deploy (sessionStorage flag anti-loop). Root cause akun-spesifik masih butuh pcp_last_error dari user. 54/54 PASS, live terverifikasi hash (index-CFA4jfth, LoginPage-BZQgrSvg).
