@@ -1,13 +1,20 @@
 # Current Task
 
-## 2026-08-27 — Bug Hunt Round 5
+## 2026-08-27 — Conversation View Expand/Collapse All
 
-### Temuan:
-1. **Auto-load folder Sent/Drafts/Junk** — sudah bekerja! Kode auto-load (line 762+) berlaku untuk SEMUA folder. INBOX punya batas 5 bulan; folder lain auto-load sampai habis. Tidak perlu perubahan.
+### Fitur baru:
+Tombol expand/collapse all di header (hanya muncul di conversation view).
 
-2. **Flag color picker duplikat kode** — if/else punya logic identical (markFlagged + invalidateQueries). 
-   - Fix: deduplicate jadi satu jalur, komentar penjelasan.
+### Implementasi:
+- `expandAllConversations()` — expand max 50 thread (limit utk cegah lag)
+- `collapseAllConversations()` — collapse semua
+- Tombol di header: ChevronDown (expand all) / ChevronRight (collapse all)
+- Toggle otomatis: kalau semua sudah expand → klik jadi collapse, sebaliknya
+- Reset expanded set saat toggle conversation view on/off
 
-3. **SuggestionList email chip** — sudah benar: `onMouseDown` + `preventDefault` mencegah blur race. Tidak ada duplikat email.
+### Edge cases verified:
+- Hapus pesan dalam conversation → query invalidates → conversationGroups re-render
+- Conversation shrink ke 1 pesan → render sebagai baris biasa (bukan group)
+- Stale keys di expandedConversations → harmless (tidak match group manapun)
 
 ### Status: 58/58 PASS, build OK, deployed.

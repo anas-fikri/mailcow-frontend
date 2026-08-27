@@ -688,6 +688,17 @@ export default function MailPage() {
     });
   }, []);
 
+  // Expand/collapse ALL conversation threads sekaligus.
+  // Limit 50 thread saat expand-all utk cegah lag di inbox besar.
+  const expandAllConversations = useCallback(() => {
+    const keys = conversationGroups.slice(0, 50).map((g) => g.key);
+    setExpandedConversations(new Set(keys));
+  }, [conversationGroups]);
+
+  const collapseAllConversations = useCallback(() => {
+    setExpandedConversations(new Set());
+  }, []);
+
   // Masih ada yang bisa ditampilkan/dimuat: reveal client-side ATAU fetch server-side.
   const hasMore = visibleCount < messagesInWindow.length ||
     (remainingUids.length > 0 && !stopFetchingRef.current);
@@ -1975,6 +1986,24 @@ export default function MailPage() {
               >
                 <MessagesSquare size={16} />
               </button>
+              {/* Expand/Collapse all — hanya di conversation view */}
+              {conversationView && conversationGroups.length > 0 && (
+                <button
+                  type="button"
+                  onClick={expandedConversations.size === conversationGroups.length
+                    ? collapseAllConversations
+                    : expandAllConversations}
+                  className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground transition-colors"
+                  title={expandedConversations.size === conversationGroups.length ? 'Ciutkan semua' : 'Perluas semua'}
+                  aria-label={expandedConversations.size === conversationGroups.length ? 'Ciutkan semua percakapan' : 'Perluas semua percakapan'}
+                >
+                  {expandedConversations.size === conversationGroups.length ? (
+                    <ChevronRight size={16} />
+                  ) : (
+                    <ChevronDown size={16} />
+                  )}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setSortAsc(!sortAsc)}

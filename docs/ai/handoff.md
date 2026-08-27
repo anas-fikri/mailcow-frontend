@@ -83,3 +83,19 @@
 - Conversation view: expand/collapse all thread sekaligus
 - Preferences: export/import settings
 - Quick reply mobile: tambah tombol reply visible di touch mode
+
+## 2026-08-27 — Conversation View Expand/Collapse All
+
+### Selesai:
+1. **expandAllConversations** — expand max 50 thread (limit utk cegah lag di inbox besar)
+2. **collapseAllConversations** — collapse semua thread sekaligus
+3. **Tombol header** — ChevronDown/ChevronRight, toggle otomatis (kalau semua sudah expand → collapse, sebaliknya)
+4. **Edge cases verified** — hapus pesan dalam conversation, shrink ke 1 pesan, stale keys
+
+### Deploy: ✅ Live
+### Git push: ⏳ perlu push manual
+
+### Next tasks:
+- Preferences: export/import settings ke file JSON
+- Quick reply mobile: tambah tombol reply visible di touch mode
+- Keyboard shortcut '?' → help modal (sudah ada, verifikasi)
