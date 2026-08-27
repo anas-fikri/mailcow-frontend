@@ -1,27 +1,31 @@
-# Current Task: Fix compose crash (React error #310)
+# Current Task: Fix React #310 duplicate-React-runtime
 
-## Status: ✅ DEPLOYED
+## Status: ✅ DEPLOYED (commit a0d8a50)
 
-## Root Causes Found & Fixed
+## ROOT CAUSE (final, terbukti via sourcemap + repro test)
+zustand@4 → use-sync-external-store/shim/with-selector.js (CJS) melakukan
+require('react') yang di pipeline rolldown-vite menghasilkan MODULE INSTANCE
+REACT KEDUA: seluruh react/cjs/react.production.js ter-bundle ke chunk api.
+Komponen dirender dengan copy-A; store hooks lewat copy-B → dispatcher
+mismatch → "Minified React error #310 — Rendered fewer hooks than expected"
+saat membuka /webmail/mail.
 
-### Bug 1: React error #310 — "Rendered fewer hooks than expected"
-- `renderMessageRow` is a plain function (not a React component) called via `.map()` in JSX
-- Had `React.useMemo` inside it → counts as hooks of parent MailPage component
-- Changing message count = changing hook count = React #310 crash
-- **Fix**: Replace `useMemo` with lightweight inline computation
+## FIX
+1. vite.config: plugin `useSesShimPlugin` (resolveId) — semua specifier
+   use-sync-external-store* → src/lib/useSyncExternalStoreShim.js
+   (ESM, memakai React instance utama aplikasi).
+2. Shim export bentuk sesuai upstream: NAMED fn + DEFAULT OBJECT
+   (zustand/esm/index.mjs melakukan destructuring dari default import).
 
-### Bug 2: nginx MIME type — sw.js served as application/octet-stream
-- `types{application/manifest+json webmanifest} + default_type application/octet-stream`
-- Applied to sw.js AND theme-init.js → browsers refuse to register service worker
-- Old cached JS (MailPage-DVvbjdE0.js) never cleared → `r.substring is not a function`
-- **Fix**: Split into separate location blocks; .js files get auto-detected `application/javascript`
+## GATING BARU
+- scripts/test-single-react.mjs: assert tepat SATU runtime React di dist
+  (signature 'useState=function' ≤ 2 kemunculan total). Regression-proof.
+- Repro test test-settings-signature kini PASS ('oe is not a function' hilang).
+- scripts/tools/find-hook-violations.mjs + scripts/lib/jsscan.mjs:
+  scanner statis Rules-of-Hooks (diagnostik manual, bukan gating — masih
+  memiliki blindspot regex-literal; dokumentasi di file).
 
-### Bug 3: Defensive .substring guards
-- `phishingDetection.js` had `raw.substring(0, 60)` without `String()` wrapper
-- **Fix**: `String(raw || '').substring(0, 60)`
-
-## Deployed
-- Commit: `ec0fce3`
-- SW v4 active
-- All nginx config updated
-- 59/60 tests pass
+## VALIDASI
+- 61/61 test PASS (0 fail)
+- Served bundle live: react runtime tunggal (api x1, index x0)
+- SW v5 aktif → cache lama terhapus otomatis di browser user

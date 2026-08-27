@@ -99,3 +99,13 @@
 - Preferences: export/import settings ke file JSON
 - Quick reply mobile: tambah tombol reply visible di touch mode
 - Keyboard shortcut '?' → help modal (sudah ada, verifikasi)
+
+## 2026-08-27 — Fix #310 akar-masalah sebenarnya: duplikat runtime React
+
+Rangkaian investigasi panjang menemukan bahwa error "r.substring"/"oe is not a
+function"/React #310 semuanya berakar pada DUPLIKASI RUNTIME REACT via
+use-sync-external-store CJS shim (dipakai zustand@4). Diperbaiki permanen
+dengan resolveId-plugin shim lokal + test gating test-single-react.mjs.
+Catatan durabel: ketika menambah dependency npm baru yang melakukan require
+CJS 'react', verifikasi bundle tetap single-react (jalankan
+node scripts/test-single-react.mjs setelah build).
