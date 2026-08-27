@@ -2912,3 +2912,19 @@ immutable. 56/56 PASS, build OK, deploy via SERVER=deploy-mail sukses.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-27 — Audit keamanan lanjutan (pass 2): duplikat Cache-Control index.html
+
+**Audit pass 2** (headers CSP/HSTS + hardening nginx) — kondisi baseline sudah
+kuat dari pass 1 (HSTS 1th, CSP ketat, XFO DENY konsisten, /api headers satu
+nilai). Verifikasi tambahan: cookie smtp_session HttpOnly+SameSite=Strict+
+Path=/api+Secure ✅, TLS v1.2/1.3 terkunci ✅, sertifikat valid ✅.
+
+**Temuan 1 cacat kecil:** index.html punya DUPLIKAT Cache-Control — `expires -1`
+di blok html menghasilkan `Cache-Control: no-cache` + header `Expires` terpisah,
+bertumpuk dgn add_header `Cache-Control: no-store, no-cache, must-revalidate`.
+Dua nilai berbeda membingungkan parser header browser/proxy.
+
+**Fix:** hapus `expires -1` dari blok `.html$` di configs/site.webmail.custom —
+add_header Cache-Control no-store sudah cukup (SPA no-store). Verifikasi live:
+index.html kini SATU cache-control (no-store) tanpa Expires; webmail 200.
