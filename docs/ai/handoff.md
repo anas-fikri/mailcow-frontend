@@ -3034,3 +3034,9 @@ parent ber-tinggi (AppLayout main flex-1 + wrapper h-full) — tidak disentuh.
 - LoginPage: tambah tombol "Hubungi administrator" (mailto) + hint untuk password-change/inactive error.
 - SOGo: `SOGoPasswordChangeEnabled = YES` di `/data/docker-data/mailcow/data/conf/sogo/sogo.conf` (persistent) + restart. Agar user bisa ganti password dari SOGo native.
 - Audit global: 708 aktif, 4 inactive (anas.fikri .co.id, 2 alim.fatkhurrohman, mohammad.qori), password scheme 100% BLF-CRYPT, sync 0 mismatch.
+
+## 2026-08-27 — Bug hunt: toast memory leak + eml filename escaping + login diagnostics
+
+- Toast countdown interval leak: `setInterval` never cleaned when toast dismissed via X button. Fix: `hasToast()` store method + interval checks before each update.
+- buildEml: filename with `"` breaks Content-Disposition header. Fix: `escapeFilename()` escapes `"` and `\`.
+- Login diagnostics: detect `LDAPPasswordPolicyError` field directly from response data (not just `message`). Tombol "Hubungi administrator" (mailto admin) di LoginPage.

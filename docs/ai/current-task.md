@@ -1,12 +1,21 @@
 # Current Task
 
-## 2026-08-27 — Fix login diagnostics + harden LDAPPasswordPolicyError detection
+## 2026-08-27 — Bug hunt round: fix toast leak + eml filename/encoding + login diagnostics
 
-**Root cause bug:** SOGo mengembalikan `{"LDAPPasswordPolicyError": 65535}` (tanpa field `message`), tapi `extractLoginErrorMessage` hanya mengecek field `message/error/reason` → fallback ke "Login ditolak SOGo" yang tidak informatif.
+### Bugs ditemukan & diperbaiki:
 
-**Fix:**
-- `loginDiagnostics.js`: deteksi field `LDAPPasswordPolicyError` langsung dari response data (sebelum cek text). + `loginErrorAction()` → return action CTA untuk error type (password-change, inactive).
-- `LoginPage.jsx`: simpan `errorObj`, render hint + tombol "Hubungi administrator" (mailto admin).
-- SOGo: `SOGoPasswordChangeEnabled = YES` di host sogo.conf (persistent) + restart.
+1. **Toast countdown interval memory leak** (ComposeModal `showSendToast`)
+   - Interval `setInterval` tidak pernah di-cleanup saat toast di-dismiss via tombol X atau auto-remove.
+   - Fix: tambah `hasToast(id)` di toast store; interval cek `hasToast` sebelum update → clear interval jika toast sudah hilang.
 
-**Status:** 59/59 PASS, build OK, deploy live.
+2. **buildEml: filename dengan `"` memecah Content-Disposition header** (emlUtils.js)
+   - `filename="file"name.txt"` → malformed header → email client gagal parse lampiran.
+   - Fix: `escapeFilename()` escape `"` dan `\` sebelum disisipkan ke header.
+
+3. **buildEml: unused variable `fnRaw`** (emlUtils.js) — dihapus.
+
+### Login diagnostics (tahap sebelumnya):
+- Deteksi `LDAPPasswordPolicyError` field langsung dari response data (bukan hanya `message`).
+- Tombol "Hubungi administrator" + hint di LoginPage.
+
+### Status: 59/59 PASS, build OK, deploy live.

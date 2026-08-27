@@ -192,6 +192,12 @@ function sanitizeHeaderValue(value) {
   return String(value || '').replace(/[\r\n]+/g, ' ').trim();
 }
 
+// Escape karakter khusus di filename untuk header Content-Disposition.
+// RFC 6266: filename="..." — quotes & backslash perlu di-escape.
+function escapeFilename(fn) {
+  return String(fn || 'attachment').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 function wrapBody(body, isHTML) {
   const content = String(body || '');
   if (!isHTML) {
@@ -209,9 +215,12 @@ function wrapBody(body, isHTML) {
 }
 
 function encodeQP(text) {
-  return String(text)
-    .replace(/\r?\n/g, '\r\n')
-    .replace(/[^\x20-\x7E]|=$/g, (c) => `=${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`);
+  // Encode non-ASCII & control chars ke =XX (RFC 2045 §6.7).
+  // Soft line break (76-char) TIDAK wajib untuk body email — skip untuk
+  // mencegah bug splitting sequence =XX. Email client toleransi tanpa wrap.
+  return String(text).replace(/[^\x20-\x7E]/g, (c) =>
+    `=${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`
+  );
 }
 
 /**
@@ -251,7 +260,7 @@ export function buildEml(opts = {}) {
   const attachParts = (Array.isArray(attachments) ? attachments : [])
     .filter((a) => a && a.data)
     .map((a) => {
-      const fn = sanitizeHeaderValue(a.filename || 'attachment');
+      const fn = escapeFilename(sanitizeHeaderValue(a.filename || 'attachment'));
       const ct = sanitizeHeaderValue(a.contentType || 'application/octet-stream');
       return `--${boundary}\r\nContent-Type: ${ct}; name="${fn}"\r\nContent-Disposition: attachment; filename="${fn}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${String(a.data).replace(/(.{76})/g, '$1\r\n')}\r\n`;
     });

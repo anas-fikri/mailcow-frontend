@@ -521,6 +521,11 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
 
     const toastId = toast.info(messageFor(), Math.max(remaining(), 4000));
     const interval = setInterval(() => {
+      // Hentikan interval jika toast sudah di-dismiss (tombol X / auto-remove).
+      if (!useToastStore.getState().hasToast(toastId)) {
+        clearInterval(interval);
+        return;
+      }
       if (remaining() <= 0) {
         clearInterval(interval);
         useToastStore.getState().updateToast(toastId, { message: scheduled ? 'Email terkirim sesuai jadwal.' : 'Email terkirim.' });

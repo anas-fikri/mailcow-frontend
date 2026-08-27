@@ -31,6 +31,10 @@ export const useToastStore = create((set) => ({
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
   },
 
+  // Cek apakah toast dengan id tertentu masih aktif — dipakai interval countdown
+  // utk berhenti saat toast di-dismiss via tombol X atau auto-remove.
+  hasToast: (id) => useToastStore.getState().toasts.some((t) => t.id === id),
+
   // Perbarui isi toast yang masih tampil (dipakai countdown undo send —
   // message di-refresh tiap detik tanpa membuat toast baru).
   updateToast: (id, patch) => {
