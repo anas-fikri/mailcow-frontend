@@ -227,6 +227,12 @@ assert.ok(mail.includes("import { groupConversations } from '../lib/conversation
 passCount++;
 assert.ok(mail.includes("labelField: isSentOrDraft ? 'to' : 'from'"), 'Conversation header: labelField (to utk Terkirim/Draf) hilang');
 passCount++;
+// Email tunggal (1 pesan) tidak boleh dirender sebagai header percakapan
+// (thread palsu) — baris biasa, hanya grup >=2 pesan yang dapat header.
+assert.ok(mail.includes('if (group.messages.length === 1)'), 'Conversation: email tunggal harus baris biasa (bukan header percakapan)');
+passCount++;
+assert.ok(mail.includes('return renderMessageRow(group.messages[0], -1, false);'), 'Conversation: email tunggal tidak dirender via renderMessageRow');
+passCount++;
 
 // Calendar: event overlap di slot jam sama harus side-by-side (bukan timpa)
 assert.ok(calendar.includes("layoutOverlappingEvents"), 'Calendar: layoutOverlappingEvents tidak dipakai');

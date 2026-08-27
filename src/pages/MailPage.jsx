@@ -2061,6 +2061,14 @@ export default function MailPage() {
             <div className="divide-y divide-border">
               {conversationView && conversationGroups.length > 0
                 ? conversationGroups.map((group) => {
+                    // Email tunggal (1 pesan, bukan thread sungguhan) — tampil
+                    // sebagai baris biasa, tanpa header percakapan (pola
+                    // Gmail/Outlook: hanya thread yang diberi penanda
+                    // percakapan; header + badge "1" utk email tunggal hanya
+                    // membuat daftar terlihat seperti thread palsu).
+                    if (group.messages.length === 1) {
+                      return renderMessageRow(group.messages[0], -1, false);
+                    }
                     const isExpanded = expandedConversations.has(group.key);
                     const senders = group.senders;
                     const latest = group.latest;

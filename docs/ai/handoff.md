@@ -2856,3 +2856,20 @@ Test: test-a11y +3 (drag scope wiring). 149 a11y assertions, 55/55 PASS, build O
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-27 — Conversation view: email tunggal tidak lagi tampil sebagai thread palsu
+
+**Permintaan user:** "cek fitur conversation, analisa dulu. mungkin baiknya kalo 1 email gaperlu dibuat seolah ada conversation."
+
+**Analisis:** di mode conversation, `groupConversations` mengelompokkan SEMUA pesan
+termasuk yang sendirian → tiap email tunggal dirender dengan header percakapan
+(avatar stack, badge count "1", chevron, subjek tebal). Ini membuat daftar terlihat
+penuh thread palsu, beda dengan Gmail/Outlook yang hanya menandai thread sungguhan.
+
+**Fix:** MailPage render — grup dengan `messages.length === 1` dirender sebagai
+baris biasa (`renderMessageRow(msg, -1, false)`); header percakapan + chevron hanya
+untuk grup >=2 pesan. `visibleOrderUids`, range-select, auto-advance tidak terpengaruh
+(key di SwipeableRow = msg.uid). Lib murni `conversations.js` tidak diubah.
+
+**Test:** test-a11y +2 (assert email tunggal = baris biasa) → 169 assertions ·
+56/56 PASS · build OK.
