@@ -9,7 +9,7 @@
  *   diambil setiap kali user membuka webmail → aset lama otomatis tergantikan
  *   tanpa perlu bump cache version secara manual.
  */
-const CACHE_NAME = 'pcp-webmail-v3';
+const CACHE_NAME = 'pcp-webmail-v4';
 
 self.addEventListener('install', (event) => {
   // Jangan tahan SW aktif sampai shell siap — instal langsung.

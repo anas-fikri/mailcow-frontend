@@ -148,7 +148,7 @@ function analyzeUrls(urls) {
       // @ in URL (common phishing trick)
       if (raw.includes('@')) {
         score += 40;
-        findings.push(`URL mengandung @ (technique phishing): ${raw.substring(0, 60)}`);
+        findings.push(`URL mengandung @ (technique phishing): ${String(raw || '').substring(0, 60)}`);
       }
 
       // Punycode / IDN homograph (mengandung xn--)
@@ -231,7 +231,7 @@ function analyzeContent(text) {
     for (const re of patterns) {
       if (re.test(text)) {
         score += label === 'urgency' ? 15 : 20;
-        findings.push(`Terdeteksi pola ${label}: ${re.source.substring(0, 40)}`);
+        findings.push(`Terdeteksi pola ${label}: ${String(re?.source || '').substring(0, 40)}`);
         break; // satu per kategori cukup
       }
     }
