@@ -1,15 +1,13 @@
 # Current Task
 
-## 2026-08-27 — Fix PageLoader: spinner "Memuat..." tidak center vertikal
+## 2026-08-27 — Fix: PageLoader "Memuat..." tidak center (muncul di atas)
 
-**Masalah:** PageLoader (Suspense fallback) pakai `h-full w-full`, tapi parent-nya
-(Suspense/Routes) TIDAK punya tinggi sendiri → h-full collapse ke tinggi konten →
-spinner + "Memuat..." tampil di div kecil yang menempel ke ATAS viewport (center
-horizontal, bukan center penuh).
+**Masalah:** Saat berpindah halaman, animasi loading "Memuat..." tampil di bagian atas, bukan di tengah viewport.
 
-**Fix:** `h-full` → `min-h-screen` di src/App.jsx PageLoader — memaksa setinggi
-viewport sehingga spinner benar-benar di tengah layar. Skeleton lain (MailPage/
-MessageReader/Calendar) aman — berada dalam parent ber-tinggi (AppLayout flex-1
-+ wrapper h-full).
+**Akar masalah:** `PageLoader` memakai `h-full`, tapi parent-nya (Suspense/Routes di `App.jsx`) **tidak memiliki tinggi** → `h-full` collapse ke tinggi konten → spinner & teks tampil di tengah div kecil yang menempel di atas.
 
-**Test:** 57/57 PASS · build OK.
+**Fix (`src/App.jsx`):**
+- `PageLoader` diubah dari `h-full` → `min-h-screen` agar selalu setinggi viewport, jadi spinner + teks benar-benar di tengah layar.
+- Diperiksa loading state lain (MailPage skeleton, MessageReader, Calendar) — semuanya berada dalam parent ber-tinggi (`AppLayout flex-1` + wrapper `h-full`), jadi aman, tidak diubah.
+
+**Status:** ✅ selesai, build OK, 57/57 PASS. Commit + push + deploy menyusul.

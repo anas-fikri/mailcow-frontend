@@ -2983,3 +2983,10 @@ FoldersListSkeleton, empty-state MailPage, reader) aman karena berada dalam
 parent ber-tinggi (AppLayout main flex-1 + wrapper h-full) — tidak disentuh.
 
 **Test:** 57/57 PASS · build OK.
+
+## 2026-08-27 — Fix PageLoader center
+
+- **Masalah:** "Memuat..." tampil di atas, bukan center viewport saat pindah halaman.
+- **Akar:** `PageLoader` pakai `h-full` tapi parent Suspense/Routes tak punya tinggi → collapse ke atas.
+- **Fix:** `src/App.jsx` → `min-h-screen` agar selalu setinggi viewport. Loading lain aman (parent ber-tinggi).
+- **Verifikasi:** build OK · 57/57 PASS · deploy live.
