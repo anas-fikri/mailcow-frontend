@@ -1090,3 +1090,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Pola bug: textarea plain mode yang menampilkan value dgn regex strip-tag (body.replace(/<[^>]*>?/gm,'')) di SETIAP render akan memakan karakter '<' milik user (mis. 'a < b', kode) — regex tidak bisa membedakan tag asli vs teks polos. Fix: deteksi tag HTML LENGKAP (/<[a-z][^>]*>/i) dulu; hanya strip bila body benar-benar HTML, teks polos dibiarkan. Pola race paste: e.preventDefault() di handler async WAJIB dipanggil synchron SEBELUM await apapun — kalau ditunda browser sudah menjalankan paste default → konten ganda. Untuk fallback Clipboard API cek dt.types (Files / image/*) utk tahu ada gambar tanpa await.
+
+## 2026-08-27T03:05:57Z
+- Task: 
+- Status: COMPLETED
+- Finding: PageLoader 'Memuat...' tampil di atas karena h-full collapse di parent Suspense tanpa tinggi; fix min-h-screen di App.jsx. Deploy.sh build ulang saat deploy (npm run build) sehingga hash bundle live bisa berbeda dari build lokal (index-DEndK4RE.js vs index-Agks9UF6.js) — verifikasi fix via grep string di bundle, bukan hanya cek hash.
