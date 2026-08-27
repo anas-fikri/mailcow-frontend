@@ -1467,18 +1467,18 @@ export default function MailPage() {
     const colorKey = getFlagColor(user?.email, msg.uid);
     const hasFlag = !!msg.isFlagged || !!colorKey;
     // Lightweight phishing check: From/Reply-To domain mismatch (hanya header, tanpa body)
-    const phishingCheck = React.useMemo(() => {
-      if (isSentOrDraft) return null;
+    // NOTE: sengaja TANPA useMemo — renderMessageRow bukan React component,
+    // useMemo di sini melanggar Rules of Hooks (causes React #310).
+    let phishingCheck = null;
+    if (!isSentOrDraft && msg['reply-to']) {
       const fromStr = formatAddresses(msg.from || '');
-      const replyToStr = formatAddresses(msg['reply-to'] || '');
-      if (!replyToStr) return null;
+      const replyToStr = formatAddresses(msg['reply-to']);
       const fromDomain = (fromStr.match(/@([a-zA-Z0-9.-]+)/) || [])[1] || '';
       const replyDomain = (replyToStr.match(/@([a-zA-Z0-9.-]+)/) || [])[1] || '';
       if (fromDomain && replyDomain && fromDomain.toLowerCase() !== replyDomain.toLowerCase()) {
-        return { level: 'low', finding: `From/Reply-To berbeda: ${fromDomain} vs ${replyDomain}` };
+        phishingCheck = { level: 'low', finding: `From/Reply-To berbeda: ${fromDomain} vs ${replyDomain}` };
       }
-      return null;
-    }, [msg.from, msg['reply-to'], isSentOrDraft]);
+    }
     // Kontrol floating (checkbox + star) menimpa avatar — tidak makan ruang baris.
     // Desktop: muncul saat hover. Layar sentuh: star selalu tampil, checkbox saat mode seleksi.
     const checkboxVisible = isSelected || (isTouch && selectionMode);
