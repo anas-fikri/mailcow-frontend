@@ -1,0 +1,168 @@
+/**
+ * sendQueue — Delayed/scheduled SMTP send queue (server-side).
+ *
+ * Mengapa server-side: undo window 2-3 menit (atau jadwal besok) TIDAK aman
+ * ditangani frontend — tab bisa ditutup, browser di-refresh, dll. Email yang
+ * "sudah dikirim" harus benar-benar menunggu di server sampai due.
+ *
+ * Design:
+ * - Entry disimpan di file JSON (atomic write: tmp + rename) agar survive
+ *   restart. Kredensial SMTP user dienkripsi AES-256-GCM (kunci turunan dari
+ *   secret) — tidak pernah disimpan plaintext di disk.
+ * - flush() mengirim semua entry due (sendAt <= now), dengan retry terbatas.
+ * - cancel() hanya bekerja untuk entry yang belum due (status pending).
+ *
+ * Modul PURE (file + crypto di-inject) agar bisa diuji tanpa server nyata.
+ */
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+
+export const SEND_QUEUE_STATUS = {
+  PENDING: 'pending',
+  FAILED: 'failed',
+};
+
+const MAX_ATTEMPTS = 3;
+
+function deriveKey(secret) {
+  return crypto.createHash('sha256').update(String(secret)).digest();
+}
+
+export function encryptCredentials(secret, { user, pass }) {
+  const key = deriveKey(secret);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const plain = Buffer.from(JSON.stringify({ user, pass }), 'utf8');
+  const data = Buffer.concat([cipher.update(plain), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return {
+    v: 1,
+    iv: iv.toString('base64'),
+    tag: tag.toString('base64'),
+    data: data.toString('base64'),
+  };
+}
+
+export function decryptCredentials(secret, cred) {
+  if (!cred || cred.v !== 1) throw new Error('Format kredensial tidak dikenal.');
+  const key = deriveKey(secret);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(cred.iv, 'base64'));
+  decipher.setAuthTag(Buffer.from(cred.tag, 'base64'));
+  const plain = Buffer.concat([
+    decipher.update(Buffer.from(cred.data, 'base64')),
+    decipher.final(),
+  ]);
+  return JSON.parse(plain.toString('utf8'));
+}
+
+// ── Queue store (file-backed) ─────────────────────────────────────────────────
+export function createSendQueue({ filePath, readFile = null, writeFile = null }) {
+  const readImpl = readFile || ((p) => {
+    try { return fs.readFileSync(p, 'utf8'); } catch { return null; }
+  });
+  const writeImpl = writeFile || ((p, data) => {
+    const dir = path.dirname(p);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const tmp = `${p}.tmp`;
+    fs.writeFileSync(tmp, data, 'utf8');
+    fs.renameSync(tmp, p);
+  });
+
+  function load() {
+    const raw = readImpl(filePath);
+    if (!raw) return [];
+    try {
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch { return []; }
+  }
+
+  function save(entries) {
+    writeImpl(filePath, JSON.stringify(entries, null, 2));
+  }
+
+  return {
+    list() { return load(); },
+
+    find(id) { return load().find((e) => e.id === id) || null; },
+
+    add(entry) {
+      const entries = load();
+      entries.push(entry);
+      save(entries);
+      return entry;
+    },
+
+    remove(id) {
+      save(load().filter((e) => e.id !== id));
+    },
+
+    markFailed(id, error) {
+      save(load().map((e) => (e.id === id ? {
+        ...e,
+        status: SEND_QUEUE_STATUS.FAILED,
+        lastError: String(error).slice(0, 300),
+      } : e)));
+    },
+
+    touchAttempt(id, attempt) {
+      save(load().map((e) => (e.id === id ? { ...e, attempts: attempt } : e)));
+    },
+
+    // Hapus entry failed yang sudah lama (>= staleMs) agar file tidak membengkak.
+    pruneStale(staleMs) {
+      const cutoff = Date.now() - staleMs;
+      save(load().filter((e) => !(e.status === SEND_QUEUE_STATUS.FAILED && e.createdAt < cutoff)));
+    },
+  };
+}
+
+// ── Logika murni (bisa diuji tanpa file) ──────────────────────────────────────
+export function dueEntries(entries, now = Date.now()) {
+  return entries.filter((e) => e.status === SEND_QUEUE_STATUS.PENDING && e.sendAt <= now);
+}
+
+export function pendingForUser(entries, user, now = Date.now()) {
+  return entries
+    .filter((e) => e.user === user && e.status === SEND_QUEUE_STATUS.PENDING)
+    .map((e) => ({
+      id: e.id,
+      to: e.payload?.to || '',
+      subject: e.payload?.subject || '',
+      sendAt: e.sendAt,
+      dueSoon: e.sendAt - now <= 60 * 1000, // due dalam <1 mnt → "segera"
+    }));
+}
+
+export function canCancel(entry, now = Date.now()) {
+  return !!entry && entry.status === SEND_QUEUE_STATUS.PENDING && entry.sendAt > now;
+}
+
+export function buildQueueEntry({ user, sendAt, payload, cred, id }) {
+  return {
+    id: id || crypto.randomUUID(),
+    user,
+    sendAt,
+    createdAt: Date.now(),
+    status: SEND_QUEUE_STATUS.PENDING,
+    attempts: 0,
+    cred,
+    payload: {
+      to: payload.to || '',
+      cc: payload.cc || '',
+      bcc: payload.bcc || '',
+      subject: payload.subject || '',
+      body: payload.body || '',
+      isHTML: payload.isHTML !== false,
+      from: payload.from || '',
+      attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
+    },
+  };
+}
+
+// Batas horizon jadwal (default 7 hari ke depan).
+export function maxScheduleMs(envValue) {
+  const parsed = parseInt(envValue || '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 7 * 24 * 60 * 60 * 1000;
+}

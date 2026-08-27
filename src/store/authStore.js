@@ -16,7 +16,7 @@ export const useAuthStore = create(
       return {
         user: null,        // { email, sogoToken, cn } — dipersist
         isLoggedIn: false, // dipersist
-        theme: 'dark',     // preferensi per-akun (fallback global saat belum login)
+        theme: 'dark',     // preferensi per-akun (fallback global saat belum login) — 'dark' | 'light' | 'auto'
         themeColor: 'blue', // preferensi per-akun — primary accent hue
         sortAsc: false,    // preferensi per-akun — urutan sortir kotak masuk
         conversationView: false, // preferensi per-akun — tampilan percakapan
@@ -37,6 +37,13 @@ export const useAuthStore = create(
         clearUser: () => set({ user: null, isLoggedIn: false }),
         setTheme: (theme) => { set({ theme }); persistPrefs(); },
         toggleTheme: () => { set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })); persistPrefs(); },
+        // Siklus tema utk tombol cepat di sidebar: dark → light → auto → dark.
+        cycleTheme: () => {
+          const order = ['dark', 'light', 'auto'];
+          const next = order[(order.indexOf(get().theme) + 1) % order.length];
+          set({ theme: next });
+          persistPrefs();
+        },
         setThemeColor: (themeColor) => { set({ themeColor }); persistPrefs(); },
         setSortAsc: (sortAsc) => { set({ sortAsc }); persistPrefs(); },
         setConversationView: (conversationView) => { set({ conversationView }); persistPrefs(); },

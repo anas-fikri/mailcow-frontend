@@ -19,6 +19,7 @@ const SHORTCUT_GROUPS = [
       { keys: ['f'], desc: 'Teruskan pesan' },
       { keys: ['s'], desc: 'Tandai berbintang / batal' },
       { keys: ['u'], desc: 'Tandai belum dibaca' },
+      { keys: ['e'], desc: 'Arsipkan (pindah ke Arsip)' },
       { keys: ['d', '#'], desc: 'Hapus / pindah ke sampah' },
       { keys: ['m'], desc: 'Pindahkan ke folder' },
     ],

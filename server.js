@@ -25,6 +25,10 @@ import { isSafeRecipient, recipientAddress, validateRecipientList, hasControlCha
 import { parseCookies, buildSmtpSessionCookie, clearSmtpSessionCookie, SMTP_SESSION_COOKIE } from './src/lib/smtpCookie.js';
 import { fetchRemoteImage } from './src/lib/remoteImage.js';
 import { validateAttachments, MAX_ATTACHMENTS } from './src/lib/attachmentValidation.js';
+import {
+  createSendQueue, buildQueueEntry, dueEntries, pendingForUser, canCancel,
+  encryptCredentials, decryptCredentials, maxScheduleMs, SEND_QUEUE_STATUS,
+} from './src/lib/sendQueue.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -81,6 +85,77 @@ const SESSION_MAX_PER_USER = parseInt(process.env.SMTP_SESSION_MAX_PER_USER || '
 // Cookie sesi SMTP bersifat Secure (HTTPS-only) secara default. Bisa dimatikan
 // via env COOKIE_SECURE=false utk pengujian server.js lokal via http.
 const COOKIE_SECURE = process.env.COOKIE_SECURE !== 'false';
+
+// ── Delayed/scheduled send queue ──────────────────────────────────────────────
+// Undo send (default 3 menit) & Kirim Terjadwal di-server-side: kirim ditahan
+// di queue persist (file) sampai due. Kredensial SMTP dienkripsi AES-256-GCM
+// dengan kunci turunan dari QUEUE_SECRET (fallback API_KEY — wajib ada).
+const SEND_UNDO_SECONDS = parseInt(process.env.SMTP_SEND_UNDO_SECONDS || '180', 10) || 0;
+const SEND_QUEUE_FILE  = process.env.SEND_QUEUE_FILE || '';
+const QUEUE_SECRET     = process.env.SEND_QUEUE_SECRET || API_KEY;
+const SEND_MAX_HORIZON = maxScheduleMs(process.env.SMTP_SEND_MAX_HORIZON_MS);
+const SEND_FLUSH_MS    = parseInt(process.env.SMTP_SEND_FLUSH_MS || '5000', 10) || 5000;
+
+const __dirname = new URL('.', import.meta.url).pathname;
+const sendQueue = createSendQueue({ filePath: SEND_QUEUE_FILE || `${__dirname}data/pending-sends.json` });
+
+// Bersihkan entry failed lama (>= 24 jam) sekali per jam agar file tidak membengkak.
+setInterval(() => sendQueue.pruneStale(24 * 60 * 60 * 1000), 60 * 60 * 1000);
+
+function createSmtpTransporter(user, pass) {
+  const tlsOpts = { rejectUnauthorized: true };
+  if (SMTP_TLS_CA) {
+    tlsOpts.ca = readFileSync(SMTP_TLS_CA);
+  }
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: { user, pass },
+    tls: tlsOpts,
+  });
+}
+
+function buildMailOptions(sessionUser, payload) {
+  const att = payload.attachments && payload.attachments.length > 0
+    ? payload.attachments.map((a) => ({
+        filename: a.filename,
+        contentType: a.contentType,
+        content: Buffer.from(a.data || '', 'base64'),
+      }))
+    : undefined;
+  return {
+    from: sessionUser,
+    to: payload.to,
+    cc: payload.cc || undefined,
+    bcc: payload.bcc || undefined,
+    subject: payload.subject,
+    [payload.isHTML ? 'html' : 'text']: payload.body,
+    attachments: att,
+  };
+}
+
+// Flush queue: kirim entry yang sudah due. Retry maks 3x lalu tandai failed.
+async function flushDueSends() {
+  const entries = dueEntries(sendQueue.list());
+  for (const entry of entries) {
+    try {
+      const cred = decryptCredentials(QUEUE_SECRET, entry.cred);
+      const transporter = createSmtpTransporter(cred.user, cred.pass);
+      const info = await transporter.sendMail(buildMailOptions(cred.user, entry.payload));
+      console.log(`[send] flushed ${entry.id}: ${info.messageId}`);
+      sendQueue.remove(entry.id);
+    } catch (err) {
+      const next = (entry.attempts || 0) + 1;
+      console.error(`[send] flush ${entry.id} percobaan ${next} gagal: ${err.message}`);
+      if (next >= 3) {
+        sendQueue.markFailed(entry.id, err.message);
+      } else {
+        sendQueue.touchAttempt(entry.id, next);
+      }
+    }
+  }
+}
 
 function getSmtpSession(token) {
   const session = smtpSessions.get(token);
@@ -417,6 +492,9 @@ const sendEmailSchema = z.object({
   subject: z.string().max(998).default(''),
   body: z.string().max(10_000_000).default(''),
   isHTML: z.boolean().default(true),
+  // Kirim Terjadwal: ISO timestamp (opsional). Tanpa ini, kirim langsung
+  // (atau ditahan SEND_UNDO_SECONDS bila > 0 utk fitur undo send).
+  sendAt: z.string().max(40).optional(),
   // UI dapat mengirim display-name: "Nama <user@example.com>".
   // Format dan alamat akhirnya divalidasi setelah parsing, sebelum Nodemailer.
   from: z.string().max(998).optional().default(''),
@@ -472,39 +550,54 @@ app.post('/api/send', resolveSmtpSession, rateLimit({ max: 10, windowMs: 60000, 
     return res.status(401).json({ message: 'Sesi SMTP sudah berakhir. Silakan login ulang.' });
   }
 
-  try {
-    const tlsOpts = { rejectUnauthorized: true };
-    if (SMTP_TLS_CA) {
-      tlsOpts.ca = readFileSync(SMTP_TLS_CA);
+  if (from && recipientAddress(from) !== session.user.toLowerCase()) {
+    return res.status(403).json({ message: 'Alamat pengirim harus sesuai dengan akun yang login.' });
+  }
+
+  // ── Kirim Terjadwal / Undo Send: tahan di queue sampai due ────────────────
+  // sendAt eksplisit (jadwal) ATAU window undo default (semua kirim ditahan
+  // SEND_UNDO_SECONDS detik agar user bisa batal — pola Gmail).
+  const now = Date.now();
+  let effectiveSendAt = 0;
+  if (parsed.data.sendAt) {
+    const t = new Date(parsed.data.sendAt).getTime();
+    if (!Number.isFinite(t)) {
+      return res.status(400).json({ message: 'Waktu terjadwal tidak valid.' });
     }
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_SECURE,
-      auth: { user: session.user, pass: session.pass },
-      tls: tlsOpts,
+    effectiveSendAt = t;
+  } else if (SEND_UNDO_SECONDS > 0) {
+    effectiveSendAt = now + SEND_UNDO_SECONDS * 1000;
+  }
+
+  if (effectiveSendAt > now) {
+    if (effectiveSendAt - now > SEND_MAX_HORIZON) {
+      return res.status(400).json({ message: 'Jadwal kirim terlalu jauh ke depan (maks 7 hari).' });
+    }
+    if (!QUEUE_SECRET) {
+      return res.status(500).json({ message: 'Queue send tidak dikonfigurasi (SEND_QUEUE_SECRET).' });
+    }
+    const cred = encryptCredentials(QUEUE_SECRET, { user: session.user, pass: session.pass });
+    const entry = buildQueueEntry({
+      user: session.user,
+      sendAt: effectiveSendAt,
+      payload: {
+        to, cc, bcc, subject, body, isHTML,
+        from,
+        attachments: att.sanitized,
+      },
+      cred,
     });
+    sendQueue.add(entry);
+    console.log(`[send] queued ${entry.id} utk ${session.user} → ${new Date(effectiveSendAt).toISOString()}`);
+    return res.json({ ok: true, queued: true, id: entry.id, sendAt: entry.sendAt });
+  }
 
-    if (from && recipientAddress(from) !== session.user.toLowerCase()) {
-      return res.status(403).json({ message: 'Alamat pengirim harus sesuai dengan akun yang login.' });
-    }
-
-    const mailOptions = {
-      // Never allow the browser to spoof the SMTP account in the From header.
-      from: session.user,
-      to,
-      cc: cc || undefined,
-      bcc: bcc || undefined,
-      subject,
-      [isHTML ? 'html' : 'text']: body,
-      attachments: att.sanitized.length > 0
-        ? att.sanitized.map(a => ({
-            filename: a.filename,
-            contentType: a.contentType,
-            content: Buffer.from(a.data, 'base64'),
-          }))
-        : undefined,
-    };
+  try {
+    const transporter = createSmtpTransporter(session.user, session.pass);
+    const mailOptions = buildMailOptions(session.user, {
+      to, cc, bcc, subject, body, isHTML, from,
+      attachments: att.sanitized,
+    });
 
     const info = await transporter.sendMail(mailOptions);
     console.log(`[send] OK: ${info.messageId}`);
@@ -514,6 +607,30 @@ app.post('/api/send', resolveSmtpSession, rateLimit({ max: 10, windowMs: 60000, 
     console.error('[send] ERROR:', err.message);
     return res.status(500).json({ message: 'Gagal mengirim email via SMTP.' });
   }
+});
+
+// ── Batal kirim yang masih di queue (undo send / batalkan jadwal) ────────────
+app.post('/api/send/undo', requireSmtpSession, rateLimit({ max: 30, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) }), (req, res) => {
+  const id = typeof req.body?.id === 'string' ? req.body.id.trim() : '';
+  if (!id || id.length > 100) {
+    return res.status(400).json({ message: 'ID tidak valid.' });
+  }
+  const entry = sendQueue.find(id);
+  if (!entry || entry.user !== req.smtpSession.user) {
+    return res.status(404).json({ message: 'Kiriman tidak ditemukan.' });
+  }
+  if (!canCancel(entry)) {
+    return res.status(409).json({ message: 'Kiriman sudah terkirim atau tidak bisa dibatalkan.' });
+  }
+  sendQueue.remove(id);
+  console.log(`[send] dibatalkan: ${id}`);
+  return res.json({ ok: true });
+});
+
+// ── Daftar kiriman terjadwal milik user (untuk UI badge + cancel) ────────────
+app.get('/api/send/pending', requireSmtpSession, rateLimit({ max: 30, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) }), (req, res) => {
+  const items = pendingForUser(sendQueue.list(), req.smtpSession.user);
+  return res.json({ items });
 });
 
 // ── Error boundary ─────────────────────────────────────────────────────────────
@@ -546,12 +663,18 @@ async function start() {
     process.exit(1);
   }
 
+  // Flush queue kirim terjadwal/undo-send berkala (mulai setelah server jalan).
+  // Interval pendek (5 dtk) agar email yang due tidak tertunda lama; entry yang
+  // gagal tetap di-queue (retry 3x) supaya tidak hilang saat crash/restart.
+  setInterval(() => { flushDueSends().catch((err) => console.error('[send] flush loop error:', err.message)); }, SEND_FLUSH_MS);
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Backend proxy running at http://127.0.0.1:${PORT}`);
     console.log(`SMTP: ${SMTP_HOST}:${SMTP_PORT} (secure=${SMTP_SECURE})`);
     console.log(`CORS origins: ${CORS_ORIGINS.join(', ')}`);
     console.log('API Key auth: ENABLED');
     console.log(`Rate limit: /api/send=10/min, /api/preferences=30/min`);
+    console.log(`Send queue: undo=${SEND_UNDO_SECONDS}s, horizon=${SEND_MAX_HORIZON / 3600000}h, file=${SEND_QUEUE_FILE || (__dirname + 'data/pending-sends.json')}`);
   });
 }
 

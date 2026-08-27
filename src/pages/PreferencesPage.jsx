@@ -694,7 +694,7 @@ const COLOR_PRESETS = [
 // ─── Display Preferences ─────────────────────────────────────────────────────
 function DisplaySection() {
   const queryClient = useQueryClient();
-  const { user, themeColor, setThemeColor } = useAuthStore();
+  const { user, themeColor, setThemeColor, theme, setTheme } = useAuthStore();
   const [timezone, setTimezone] = useState('Asia/Jakarta');
   const [language, setLanguage] = useState('Indonesian');
   const [dateFormat, setDateFormat] = useState('%d/%m/%Y');
@@ -811,6 +811,36 @@ function DisplaySection() {
             <option value="0">Minggu</option>
             <option value="1">Senin</option>
           </select>
+        </div>
+
+        {/* ── Theme Mode ── */}
+        <hr className="border-border my-2" />
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Palette size={15} className="text-primary" />
+            Mode Tampilan
+          </div>
+          <div className="flex gap-2">
+            {[
+              { id: 'dark', label: 'Gelap', desc: 'Selalu gelap' },
+              { id: 'light', label: 'Terang', desc: 'Selalu terang' },
+              { id: 'auto', label: 'Otomatis', desc: 'Ikuti perangkat' },
+            ].map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setTheme(m.id)}
+                className={`flex-1 flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                  theme === m.id
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border hover:bg-muted'
+                }`}
+              >
+                <span className="text-sm font-medium">{m.label}</span>
+                <span className="text-[11px] text-muted-foreground">{m.desc}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Theme Color ── */}

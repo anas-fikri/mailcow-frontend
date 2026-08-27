@@ -4,9 +4,10 @@ import {
   X, Send, Paperclip, ChevronDown, ChevronUp,
   Loader2, AlertCircle, Bold, Italic, Underline,
   List, ListOrdered, Heading1, Indent, IndentDecrease,
-  ImagePlus, AlertTriangle, Maximize2, Minimize2, FileSignature
+  ImagePlus, AlertTriangle, Maximize2, Minimize2, FileSignature, CalendarClock
 } from 'lucide-react';
-import { sendMessage, createDraft, saveDraft, deleteDraft, fetchContacts, fetchPreferences } from '../../lib/api';
+import { sendMessage, createDraft, saveDraft, deleteDraft, fetchContacts, fetchPreferences, undoScheduledSend } from '../../lib/api';
+import { toast, useToastStore, TOAST_TYPES } from '../../lib/toast';
 import { useAuthStore } from '../../store/authStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
@@ -15,6 +16,7 @@ import { loadSignatures, getSignatureFor } from '../../lib/signatures';
 import { formatFileSize, totalAttachmentSize } from '../../lib/attachments';
 import { firstInvalidRecipient } from '../../lib/emailValidation';
 import { recordSentRecipients, getEmailSuggestions } from '../../lib/emailHistory';
+import { parseEmlContent } from '../../lib/emlUtils';
 
 // Batas lampiran (sama dengan validasi backend — lihat attachmentValidation.js).
 const MAX_ATTACHMENTS = 10;
@@ -37,6 +39,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   const [sending, setSending] = useState(false);
   const [error, setError]     = useState('');
   const [success, setSuccess] = useState(false);
+  const [scheduleMenuOpen, setScheduleMenuOpen] = useState(false);   // dropdown jadwal
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false); // input datetime-local
+  const [schedulePick, setSchedulePick] = useState('');               // ISO string jadwal terpilih
   const [draftState, setDraftState] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
   const draftIdRef   = useRef(null); // draftId SOGo utk autosave (sekali per bukaan)
   const draftUidRef  = useRef(null); // uid terakhir hasil save (utk hapus setelah kirim)
@@ -114,6 +119,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       setError('');
       setSuccess(false);
       setSending(false);
+      setScheduleMenuOpen(false);
+      setShowSchedulePicker(false);
+      setSchedulePick('');
       setDraftState('idle');
       draftIdRef.current = null;
       draftUidRef.current = null;
@@ -345,6 +353,30 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
     e.target.value = '';
   }, [addFiles]);
 
+  // Drag & drop file .eml ke compose → parse field & isi form. Body HTML
+  // dibiarkan apa adanya (editor rich menampilkan), mode editor set ke rich
+  // bila sumbernya HTML, plain bila teks polos.
+  const handleEmlDrop = useCallback(async (file) => {
+    try {
+      const text = await file.text();
+      const parsed = parseEmlContent(text);
+      markUserEdited();
+      if (parsed.to) setTo(parsed.to);
+      if (parsed.cc) setCc(parsed.cc);
+      if (parsed.bcc) setBcc(parsed.bcc);
+      if (parsed.subject) setSubject(parsed.subject);
+      if (parsed.body) {
+        setBody(parsed.isHTML
+          ? DOMPurify.sanitize(parsed.body, PURIFY_CONFIG)
+          : parsed.body.replace(/\n/g, '<br>'));
+        setEditorMode(parsed.isHTML ? 'rich' : 'plain');
+      }
+      toast.success('Email .eml dimuat — periksa & lengkapi sebelum kirim.');
+    } catch {
+      toast.error('Gagal membaca file .eml.');
+    }
+  }, [markUserEdited]);
+
   const removeAttachment = useCallback((id) => {
     markUserEdited();
     setAttachments(prev => prev.filter(a => a.id !== id));
@@ -374,7 +406,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
     setError('');
     setSuccess(false);
     try {
-      await sendMessage(token, {
+      const res = await sendMessage(token, {
         to: to.trim(),
         cc: cc.trim(),
         bcc: bcc.trim(),
@@ -385,7 +417,32 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         attachments: attachments
           .filter(a => a.data)
           .map(a => ({ filename: a.name, contentType: a.type, data: a.data })),
+        ...(schedulePick ? { sendAt: schedulePick } : {}),
       });
+
+      // Kiriman masuk queue server (undo send default / jadwal): tampilkan
+      // toast dengan countdown + tombol batal, tutup modal tanpa state success
+      // (email BELUM terkirim — tombol ✓ Terkirim hanya utk kirim langsung).
+      if (res?.queued && res?.id) {
+        const isScheduled = !!schedulePick;
+        showSendToast({
+          id: res.id,
+          sendAt: res.sendAt,
+          scheduled: isScheduled,
+        });
+        recordSentRecipients(user?.email, to, cc, bcc);
+        sentRef.current = true; // autosave tidak boleh menimpa draft yang sudah dikirim/dijadwalkan
+        const uidsToDelete = [editingDraftUidRef.current, draftUidRef.current].filter(Boolean);
+        if (uidsToDelete.length > 0) {
+          uidsToDelete.forEach((dUid) => deleteDraft(token, dUid));
+          draftUidRef.current = null;
+          draftIdRef.current = null;
+          editingDraftUidRef.current = null;
+        }
+        setTimeout(() => onClose(), 400);
+        return;
+      }
+
       setSuccess(true);
       sentRef.current = true;
       // Simpan riwayat alamat yang pernah dikirim (autocomplete berikutnya).
@@ -412,6 +469,51 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
     } finally {
       setSending(false);
     }
+  }
+
+  // Toast undo/cancel utk kiriman yang masuk queue server (undo send default
+  // 3 mnt / jadwal). Countdown di-refresh tiap detik via updateToast.
+  function showSendToast({ id, sendAt, scheduled }) {
+    const fmtTime = (ms) => {
+      const s = Math.max(0, Math.ceil(ms / 1000));
+      const m = Math.floor(s / 60);
+      const sec = String(s % 60).padStart(2, '0');
+      return `${m}:${sec}`;
+    };
+    const fmtClock = (iso) => {
+      try {
+        return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      } catch { return ''; }
+    };
+    const deadline = sendAt || Date.now() + 180_000;
+    const startedAt = Date.now();
+    const remaining = () => Math.max(0, deadline - Date.now());
+    const messageFor = () => scheduled
+      ? `Email akan terkirim ${fmtClock(deadline) ? 'pukul ' + fmtClock(deadline) : ''} · batal dalam ${fmtTime(remaining())}`
+      : `Mengirim email… batal dalam ${fmtTime(remaining())}`;
+
+    const toastId = toast.info(messageFor(), Math.max(remaining(), 4000));
+    const interval = setInterval(() => {
+      if (remaining() <= 0) {
+        clearInterval(interval);
+        useToastStore.getState().updateToast(toastId, { message: scheduled ? 'Email terkirim sesuai jadwal.' : 'Email terkirim.' });
+        return;
+      }
+      useToastStore.getState().updateToast(toastId, { message: messageFor() });
+    }, 1000);
+
+    // Tombol batal — dibungkus agar dapat membatalkan interval saat diklik
+    useToastStore.getState().updateToast(toastId, {
+      action: {
+        label: scheduled ? 'Batalkan' : 'Urungkan',
+        onClick: () => {
+          clearInterval(interval);
+          undoScheduledSend(id)
+            .then(() => toast.success(scheduled ? 'Jadwal kirim dibatalkan.' : 'Pengiriman dibatalkan.'))
+            .catch((err) => toast.error(err.message || 'Gagal membatalkan kiriman.'));
+        },
+      },
+    });
   }
 
   // Tutup tanpa kirim. Mode EDIT DRAFT: autosave menyimpan ke draft BARU
@@ -566,6 +668,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     value={body}
                     onChange={(v) => { markUserEdited(); setBody(v); }}
                     onAttachFiles={addFiles}
+                    onEmlDropped={handleEmlDrop}
                     // Preferensi "Posisi Balasan": 'below' → caret di bawah
                     // quote (quote selalu di akhir body), 'above' → di atas.
                     initialCaret={
@@ -693,6 +796,68 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     </span>
                   )}
                 </div>
+
+                {/* Jadwalkan Kirim */}
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleMenuOpen(o => !o)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                      schedulePick
+                        ? 'border-primary/40 bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+                    }`}
+                    title="Jadwalkan pengiriman"
+                  >
+                    <CalendarClock size={16} />
+                    {schedulePick
+                      ? `Kirim ${new Date(schedulePick).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`
+                      : 'Jadwalkan'}
+                    <ChevronDown size={14} />
+                  </button>
+                  {scheduleMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setScheduleMenuOpen(false)} />
+                      <div className="absolute bottom-full mb-2 right-0 w-64 rounded-xl border bg-popover text-popover-foreground shadow-xl z-50 p-1.5">
+                        <button
+                          type="button"
+                          onClick={() => { setSchedulePick(''); setScheduleMenuOpen(false); }}
+                          className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors"
+                        >
+                          Kirim sekarang
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setSchedulePick(nextScheduleDate(18, 0)); setScheduleMenuOpen(false); }}
+                          className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors"
+                        >
+                          Nanti hari ini · 18:00
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setSchedulePick(nextScheduleDate(8, 0, 1)); setScheduleMenuOpen(false); }}
+                          className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors"
+                        >
+                          Besok pagi · 08:00
+                        </button>
+                        <div className="px-3 py-2 mt-1 border-t border-border/60">
+                          <label className="block text-[11px] font-medium text-muted-foreground mb-1">Waktu khusus</label>
+                          <input
+                            type="datetime-local"
+                            min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                            value={schedulePick ? new Date(schedulePick).toISOString().slice(0, 16) : ''}
+                            onChange={(e) => {
+                              if (e.target.value) setSchedulePick(new Date(e.target.value).toISOString());
+                              else setSchedulePick('');
+                            }}
+                            className="w-full text-xs px-2 py-1.5 rounded-md border border-input bg-background text-foreground"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <button
                   type="submit"
                   disabled={sending || success}
@@ -702,7 +867,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     ? <><Loader2 size={16} className="animate-spin" /> Mengirim...</>
                     : success
                       ? '✓ Terkirim'
-                      : <><Send size={16} /> Kirim</>}
+                      : <><Send size={16} /> {schedulePick ? 'Jadwalkan' : 'Kirim'}</>}
                 </button>
               </div>
             </form>
@@ -721,6 +886,18 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
 // strip-tag akan memakannya setiap re-render → user tidak bisa mengetik '<'.
 // Deteksi "body masih HTML" = ada tag lengkap <tagname ...>. Teks biasa tanpa
 // tag tidak diubah sama sekali.
+// Jadwal kirim preset: jam:menit + offset hari. Bila jam sudah lewat hari ini,
+// otomatis geser ke hari berikutnya (server tolak masa lalu).
+function nextScheduleDate(hour, minute, dayOffset = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + dayOffset);
+  d.setHours(hour, minute, 0, 0);
+  if (dayOffset === 0 && d.getTime() <= Date.now() + 60_000) {
+    d.setDate(d.getDate() + 1);
+  }
+  return d.toISOString();
+}
+
 const HTML_TAG_RE = /<[a-z][^>]*>/i;
 function htmlToPlainText(html) {
   return String(html || '')
@@ -786,7 +963,7 @@ function SignaturePicker({ email, onInsert }) {
 
 // ── Rich Editor ────────────────────────────────────────────────────────────────
 
-function RichEditor({ value, onChange, onAttachFiles, initialCaret }) {
+function RichEditor({ value, onChange, onAttachFiles, initialCaret, onEmlDropped }) {
   const editorRef    = useRef(null);
   const fileInputRef = useRef(null);
   const [isMounted, setIsMounted]     = useState(false);
@@ -860,13 +1037,19 @@ function RichEditor({ value, onChange, onAttachFiles, initialCaret }) {
     e.preventDefault(); setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files || []);
     if (files.length === 0) return;
+    // File .eml → parse & isi form compose (to/cc/subject/body).
+    const eml = files.find(f => /^message\/rfc822$/i.test(f.type) || /\.eml$/i.test(f.name || ''));
+    if (eml && onEmlDropped) {
+      onEmlDropped(eml);
+      return;
+    }
     // Gambar → inline (pola lama); file lain → lampiran.
     const image = files.find(f => f.type.startsWith('image/'));
     const rest = files.filter(f => !f.type.startsWith('image/'));
     if (image) await insertImageFile(image, editorRef, onChange);
     if (rest.length > 0 && onAttachFiles) onAttachFiles(rest);
     markDirty();
-  }, [onChange, markDirty, onAttachFiles]);
+  }, [onChange, markDirty, onAttachFiles, onEmlDropped]);
 
   const onFileSelected = useCallback(async (e) => {
     const file = e.target.files?.[0];

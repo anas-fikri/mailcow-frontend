@@ -31,6 +31,14 @@ export const useToastStore = create((set) => ({
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
   },
 
+  // Perbarui isi toast yang masih tampil (dipakai countdown undo send —
+  // message di-refresh tiap detik tanpa membuat toast baru).
+  updateToast: (id, patch) => {
+    set((s) => ({
+      toasts: s.toasts.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    }));
+  },
+
   clearToasts: () => set({ toasts: [] }),
 }));
 

@@ -59,6 +59,7 @@
     "test:date-format": "node scripts/test-date-format.mjs",
     "test:undo-delete": "node scripts/test-undo-delete.mjs",
     "test:conversations": "node scripts/test-conversations.mjs",
+    "test:eml-sendqueue": "node scripts/test-eml-sendqueue.mjs",
     "test:security-hardening": "node scripts/test-security-hardening.mjs",
     "test:contact-signature-edge": "node scripts/test-contact-signature-edge.mjs",
     "test:multitab": "node scripts/test-multitab.mjs",

@@ -225,7 +225,7 @@ deploy() {
 # systemd user service `sogo-smtp-proxy` di $REMOTE_BACKEND_DIR. deploy.sh
 # sebelumnya TIDAK men-sync ini — backend bisa kedaluwarsa meski frontend live.
 REMOTE_BACKEND_DIR="${REMOTE_BACKEND_DIR:-/home/anas.fikri/sogo-proxy}"
-BACKEND_LIB_FILES="src/lib/ssrfGuard.js src/lib/emailValidation.js src/lib/smtpCookie.js src/lib/remoteImage.js src/lib/attachmentValidation.js"
+BACKEND_LIB_FILES="src/lib/ssrfGuard.js src/lib/emailValidation.js src/lib/smtpCookie.js src/lib/remoteImage.js src/lib/attachmentValidation.js src/lib/sendQueue.js"
 
 # Pastikan KEY=VALUE (atau KEY="value") ada di $env_path pada server.
 # Idempotent: jika sudah sama, no-op; jika hilang → append; jika beda → ganti.
@@ -258,6 +258,10 @@ deploy_backend() {
     # Tidak restart service — restart hanya bila kode backend berubah (di bawah).
     ensure_runtime_env "$SERVER" "SMTP_SESSION_IDLE_MIN" \
         "$EXPECTED_SMTP_SESSION_IDLE_MIN" "$REMOTE_BACKEND_DIR/.env"
+    # Undo send window (detik). 180 = 3 menit (permintaan user: 2-3 mnt).
+    # 0 = matikan undo (kirim langsung). Override via EXPECTED_SEND_UNDO_SECONDS.
+    ensure_runtime_env "$SERVER" "SMTP_SEND_UNDO_SECONDS" \
+        "${EXPECTED_SEND_UNDO_SECONDS:-180}" "$REMOTE_BACKEND_DIR/.env"
 
     # Deteksi perubahan: hanya sync+restart kalau file backend benar-benar beda.
     # Restart sogo-smtp-proxy menjatuhkan sesi SMTP in-memory (smtpToken), jadi

@@ -22,8 +22,24 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = React.useState(false); // Mobile sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false); // Desktop sidebar state
   
+  // Resolve tema aktual: 'auto' mengikuti prefers-color-scheme sistem, dengan
+  // listener perubahan skema agar UI ikut berubah tanpa reload.
+  const [systemDark, setSystemDark] = React.useState(
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : false
+  );
   useEffect(() => {
-    if (theme === 'dark') {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = (e) => setSystemDark(e.matches);
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, []);
+
+  const effectiveDark = theme === 'dark' || (theme === 'auto' && systemDark);
+  useEffect(() => {
+    if (effectiveDark) {
       document.documentElement.classList.add('dark');
       document.documentElement.classList.remove('light');
       document.documentElement.setAttribute('data-theme', 'dark');
@@ -32,7 +48,7 @@ export default function AppLayout() {
       document.documentElement.classList.remove('dark');
       document.documentElement.setAttribute('data-theme', 'light');
     }
-  }, [theme]);
+  }, [effectiveDark]);
 
   useEffect(() => {
     const hue = THEME_HUES[themeColor] ?? 221;

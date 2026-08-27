@@ -1,11 +1,11 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, Paperclip,
+  Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, FileDown, Paperclip,
   Flag, Printer, FolderOpen, Star, AlertTriangle, UserPlus, ExternalLink, Eye, X,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, createContact } from '../../lib/api';
+import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, createContact, fetchAttachmentData } from '../../lib/api';
 import { unsnoozeMessages } from '../../lib/snooze';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
@@ -16,6 +16,7 @@ import { formatAddresses } from '../../lib/format';
 import { extractHtml, extractAttachments } from '../../lib/messageHtml';
 import { proxyExternalImages } from '../../lib/imageProxy';
 import { getFileKind, totalAttachmentSize } from '../../lib/attachments';
+import { buildEml, htmlToText } from '../../lib/emlUtils';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
@@ -283,6 +284,42 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     });
   }
 
+  // Unduh pesan sebagai file .eml (rekonstruksi dari data yang sudah dimuat:
+  // header + body + lampiran base64). Valid utk dibuka Outlook/Thunderbird.
+  async function handleDownloadEml() {
+    try {
+      const plainBody = htmlToText(rawHtml || '');
+      const htmlBody = rawHtml || '';
+      const atts = [];
+      for (const a of attachments) {
+        if (!a.downloadURL) continue;
+        try {
+          const data = await fetchAttachmentData(a.downloadURL);
+          if (data) atts.push({ filename: a.name, contentType: a.contentType, data });
+        } catch { /* lampiran gagal diunduh — lewati, .eml tetap terunduh */ }
+      }
+      const eml = buildEml({
+        from, to, cc,
+        subject: msg.subject || '',
+        date,
+        textBody: plainBody,
+        htmlBody,
+        attachments: atts,
+      });
+      const blob = new Blob([eml], { type: 'message/rfc822' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(msg.subject || 'email').replace(/[^a-z0-9_-]+/gi, '_').slice(0, 80)}.eml`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch {
+      toast.error('Gagal membuat file .eml.');
+    }
+  }
+
   function handlePrint() {
     if (!msg) return;
     const win = window.open('', '_blank');
@@ -538,6 +575,14 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               </>
             )}
           </div>
+          <button
+            onClick={handleDownloadEml}
+            className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
+            title="Unduh sebagai file .eml"
+            aria-label="Unduh sebagai file .eml"
+          >
+            <FileDown size={18} />
+          </button>
           <button onClick={handlePrint} className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted" title="Cetak" aria-label="Cetak">
             <Printer size={18} />
           </button>

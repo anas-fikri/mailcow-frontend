@@ -4,10 +4,10 @@ import {
   Inbox, Send, Trash2, FileText, Loader2, Edit3, Mail, Menu, X,
   AlertCircle, Search, Trash, CheckSquare, Square, MailOpen, RefreshCw,
   Folder, FolderPlus, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown, ChevronRight,
-  Archive, BellRing, CheckCheck, Clock, Paperclip,
+  Archive, BellRing, CheckCheck, Clock, Paperclip, CalendarClock,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder, fetchPreferences } from '../lib/api';
+import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, undoScheduledSend } from '../lib/api';
 import { formatAddresses } from '../lib/format';
 import { extractHtml, extractAttachments } from '../lib/messageHtml';
 import { parseSizeToBytes } from '../lib/attachments';
@@ -159,6 +159,8 @@ export default function MailPage() {
   const [selectedMsgId, setSelectedMsgId] = useState(null);
   const [folderPanelOpen, setFolderPanelOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [pendingSends, setPendingSends] = useState([]);       // kiriman terjadwal/undo dari queue server
+  const [pendingOpen, setPendingOpen] = useState(false);       // panel daftar kiriman terjadwal
   const [composeData, setComposeData] = useState(null);
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -398,6 +400,22 @@ export default function MailPage() {
       } catch { /* Safari/older — abaikan */ }
     }
   }, [unseenCount, selectedFolder]);
+
+  // ── Kiriman terjadwal (badge + panel) ────────────────────────────────────
+  // Poll queue server tiap 60 dtk; badge merah muncul saat ada kiriman yang
+  // sudah due namun belum sempat di-refresh (mis. tab lain yang menjadwalkan).
+  useEffect(() => {
+    if (!user?.sogoToken) return;
+    let cancelled = false;
+    const load = () => {
+      getPendingSends()
+        .then((items) => { if (!cancelled) setPendingSends(items); })
+        .catch(() => { /* polling gagal — jangan ganggu UI */ });
+    };
+    load();
+    const iv = setInterval(load, 60 * 1000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [user?.sogoToken]);
 
   // Minta izin notifikasi sekali saat pertama kali (setelah ada unseen > 0)
   useEffect(() => {
@@ -1218,6 +1236,16 @@ export default function MailPage() {
         return;
       }
 
+      if (key === 'e') {
+        e.preventDefault();
+        if (!archiveFolder) {
+          toast.info('Folder Arsip tidak ditemukan.');
+          return;
+        }
+        moveMutation.mutate({ uids: targetUids, sourceFolder: selectedFolder, targetFolder: archiveFolder });
+        return;
+      }
+
       if (key === 'u') {
         e.preventDefault();
         bulkMarkReadMutation.mutate(false);
@@ -1858,6 +1886,16 @@ export default function MailPage() {
                   Arsip
                 </button>
               )}
+              {pendingSends.length > 0 && (
+                <button
+                  onClick={() => setPendingOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-lg text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+                  title={`${pendingSends.length} kiriman terjadwal — klik untuk kelola`}
+                >
+                  <CalendarClock size={14} />
+                  Terjadwal ({pendingSends.length})
+                </button>
+              )}
             </div>
           )}
 
@@ -2329,6 +2367,58 @@ export default function MailPage() {
         isOpen={keyboardHelpOpen}
         onClose={() => setKeyboardHelpOpen(false)}
       />
+
+      {/* ── Panel Kiriman Terjadwal ────────────────────────────────────────── */}
+      {pendingOpen && (
+        <div
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setPendingOpen(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <CalendarClock size={16} className="text-primary" />
+                <h2 className="text-base font-semibold">Kiriman Terjadwal</h2>
+              </div>
+              <button onClick={() => setPendingOpen(false)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4 space-y-2 max-h-[55vh] overflow-y-auto">
+              {pendingSends.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">Tidak ada kiriman terjadwal.</p>
+              )}
+              {pendingSends.map((p) => (
+                <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{p.subject || '(Tanpa Subjek)'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{p.to}</p>
+                    <p className="text-xs text-primary mt-0.5">
+                      {p.dueSoon ? 'Akan terkirim sebentar lagi' : `Terjadwal ${new Date(p.sendAt).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      undoScheduledSend(p.id)
+                        .then(() => {
+                          toast.success('Jadwal kirim dibatalkan.');
+                          setPendingSends((prev) => prev.filter((x) => x.id !== p.id));
+                        })
+                        .catch((err) => toast.error(err.message || 'Gagal membatalkan.'));
+                    }}
+                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    Batalkan
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

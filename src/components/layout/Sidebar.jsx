@@ -4,12 +4,12 @@ import { NavLink, useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { logout, fetchSmtpSessionStatus } from '../../lib/api'
-import { Sun, Moon, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
+import { Sun, Moon, Monitor, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
 import { NAV_ITEMS } from '../../constants/navigation'
 import { formatRemaining, sessionWarningLevel, SHOW_BELOW_MINUTES } from '../../lib/sessionCountdown'
 
 export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
-  const { user, clearUser, theme, toggleTheme } = useAuthStore()
+  const { user, clearUser, theme, cycleTheme } = useAuthStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -115,13 +115,15 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
       {/* User / Logout */}
       <div className="p-3 border-t border-border flex flex-col gap-2">
         <button
-          onClick={toggleTheme}
+          onClick={cycleTheme}
           className={`flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all ${collapsed ? 'justify-center' : ''}`}
-          title="Ganti Tema"
+          title="Ganti tema (klik untuk siklus: Gelap → Terang → Otomatis)"
           aria-label="Ganti tema"
         >
-          {theme === 'dark' ? <Sun size={15} className="shrink-0" /> : <Moon size={15} className="shrink-0" />}
-          {!collapsed && <span>Tema {theme === 'dark' ? 'Terang' : 'Gelap'}</span>}
+          {theme === 'dark' && <Sun size={15} className="shrink-0" />}
+          {theme === 'light' && <Moon size={15} className="shrink-0" />}
+          {theme === 'auto' && <Monitor size={15} className="shrink-0" />}
+          {!collapsed && <span>Tema {theme === 'dark' ? 'Terang' : theme === 'light' ? 'Gelap' : 'Otomatis'}</span>}
         </button>
 
         <a

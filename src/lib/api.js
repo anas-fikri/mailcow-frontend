@@ -926,7 +926,7 @@ export async function deleteDraft(sogoToken, uid) {
 }
 
 export async function sendMessage(sogoToken, payload) {
-  const { to, cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '', attachments = [] } = payload;
+  const { to, cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '', attachments = [], sendAt } = payload;
 
   // Defense-in-depth sanitasi: body HTML SELALU melewati DOMPurify sebelum
   // dikirim — terlepas dari apa pun yang dipanggil (ComposeModal memang sudah
@@ -938,17 +938,19 @@ export async function sendMessage(sogoToken, payload) {
   // sendMessage dipakai) sanitize selalu aktif.
   const safeBody = isHTML && DOMPurify?.isSupported ? DOMPurify.sanitize(body, PURIFY_CONFIG) : body;
 
-  // Bila ada lampiran, kirim LANGSUNG via proxy SMTP (/api/send) — SOGo
-  // /send di lingkungan ini 501 (tidak diimplementasikan) sehingga semua
-  // pengiriman nyata sudah lewat SMTP; mem-bypass draft SOGo menjamin
-  // lampiran tidak pernah hilang diam-diam dari payload JSON draft.
-  if (Array.isArray(attachments) && attachments.length > 0) {
+  // Kirim Terjadwal / Undo Send TIDAK bisa lewat draft SOGo (SOGo tidak punya
+  // konsep send-at; jalur draft → /send SOGo 501). Semua kirim dengan sendAt
+  // (jadwal) WAJIB lewat proxy SMTP /api/send — server menahan di queue sampai
+  // due (kredensial terenkripsi), jadi aman walau tab ditutup.
+  const viaSmtp = (Array.isArray(attachments) && attachments.length > 0) || !!sendAt;
+  if (viaSmtp) {
     const smtpRes = await fetch('/api/send', {
       method: 'POST',
       credentials: 'include',
       headers: withApiKey({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         to, cc, bcc, subject, body: safeBody, isHTML, from,
+        ...(sendAt ? { sendAt: new Date(sendAt).toISOString() } : {}),
         attachments: attachments.map(a => ({
           filename: a.filename || a.name || 'attachment',
           contentType: a.contentType || a.type || 'application/octet-stream',
@@ -1023,6 +1025,33 @@ export async function sendMessage(sogoToken, payload) {
     throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
   }
   return smtpRes.json();
+}
+
+// ─── Scheduled/undo send ──────────────────────────────────────────────────────
+// Batal kirim yang masih ditahan di queue server (undo send / batalkan jadwal).
+export async function undoScheduledSend(id) {
+  if (!id) return;
+  const res = await fetch('/api/send/undo', {
+    method: 'POST',
+    credentials: 'include',
+    headers: withApiKey({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ id }),
+  });
+  if (res.status === 401) throwIfAuthError(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Gagal membatalkan kiriman (${res.status}).`);
+  }
+  return res.json();
+}
+
+// Daftar kiriman terjadwal milik user (badge toolbar + panel cancel).
+export async function getPendingSends() {
+  const res = await fetch('/api/send/pending', { credentials: 'include', headers: withApiKey() });
+  if (res.status === 401) throwIfAuthError(res);
+  if (!res.ok) throw new Error(`Gagal memuat kiriman terjadwal (${res.status}).`);
+  const data = await safeJson(res);
+  return data?.items || [];
 }
 
 // ─── Contacts ─────────────────────────────────────────────────────────────────
