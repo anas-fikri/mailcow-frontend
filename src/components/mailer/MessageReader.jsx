@@ -17,6 +17,7 @@ import { extractHtml, extractAttachments } from '../../lib/messageHtml';
 import { proxyExternalImages } from '../../lib/imageProxy';
 import { getFileKind, totalAttachmentSize } from '../../lib/attachments';
 import { buildEml, htmlToText } from '../../lib/emlUtils';
+import { analyzePhishing, RISK_LEVELS } from '../../lib/phishingDetection';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
@@ -492,6 +493,18 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     }
   }
 
+  // ── Phishing detection ──────────────────────────────────────────────────────
+  const phishingResult = React.useMemo(() => {
+    if (!msg) return null;
+    return analyzePhishing({
+      from: formatAddresses(msg.from),
+      replyTo: formatAddresses(msg['reply-to']),
+      subject: msg.subject || '',
+      bodyHtml: rawHtml || '',
+      bodyPlain: '',
+    });
+  }, [msg, rawHtml]);
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-background w-full">
@@ -607,6 +620,34 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           </button>
         </div>
       </div>
+
+      {/* Phishing warning banner */}
+      {phishingResult && phishingResult.level !== 'safe' && (() => {
+        const risk = RISK_LEVELS[phishingResult.level];
+        return (
+          <div className={`mx-4 mt-3 px-4 py-3 rounded-xl border ${risk.border} ${risk.bg} flex items-start gap-3`}>  
+            <AlertTriangle size={18} className={`${risk.color} shrink-0 mt-0.5`} />
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-semibold ${risk.color}`}>  
+                {phishingResult.level === 'high' ? '⚠️ Peringatan Keamanan' : '⚡ Indikasi Phishing'}  
+              </p>  
+              <ul className="mt-1 text-xs text-muted-foreground space-y-0.5">  
+                {phishingResult.findings.slice(0, 5).map((f, i) => (  
+                  <li key={i} className="flex gap-1.5">  
+                    <span className="text-foreground/40">•</span>  
+                    <span>{f}</span>  
+                  </li>  
+                ))}  
+              </ul>  
+              {phishingResult.findings.length > 5 && (  
+                <p className="text-[11px] text-muted-foreground mt-1">  
+                  +{phishingResult.findings.length - 5} indikasi lainnya  
+                </p>  
+              )}  
+            </div>  
+          </div>  
+        );
+      })()}
 
       {/* Message header */}
       <div className="px-6 py-5 border-b border-border">

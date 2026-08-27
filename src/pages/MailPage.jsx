@@ -10,6 +10,7 @@ import { useAuthStore } from '../store/authStore';
 import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, undoScheduledSend } from '../lib/api';
 import { formatAddresses } from '../lib/format';
 import { extractHtml, extractAttachments } from '../lib/messageHtml';
+import { analyzePhishing, RISK_LEVELS } from '../lib/phishingDetection';
 import { parseSizeToBytes } from '../lib/attachments';
 import MessageReader from '../components/mailer/MessageReader';
 import ComposeModal from '../components/mailer/ComposeModal';
@@ -1454,6 +1455,19 @@ export default function MailPage() {
     const senderLabel = isSentOrDraft ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender');
     const colorKey = getFlagColor(user?.email, msg.uid);
     const hasFlag = !!msg.isFlagged || !!colorKey;
+    // Lightweight phishing check: From/Reply-To domain mismatch (hanya header, tanpa body)
+    const phishingCheck = React.useMemo(() => {
+      if (isSentOrDraft) return null;
+      const fromStr = formatAddresses(msg.from || '');
+      const replyToStr = formatAddresses(msg['reply-to'] || '');
+      if (!replyToStr) return null;
+      const fromDomain = (fromStr.match(/@([a-zA-Z0-9.-]+)/) || [])[1] || '';
+      const replyDomain = (replyToStr.match(/@([a-zA-Z0-9.-]+)/) || [])[1] || '';
+      if (fromDomain && replyDomain && fromDomain.toLowerCase() !== replyDomain.toLowerCase()) {
+        return { level: 'low', finding: `From/Reply-To berbeda: ${fromDomain} vs ${replyDomain}` };
+      }
+      return null;
+    }, [msg.from, msg['reply-to'], isSentOrDraft]);
     // Kontrol floating (checkbox + star) menimpa avatar — tidak makan ruang baris.
     // Desktop: muncul saat hover. Layar sentuh: star selalu tampil, checkbox saat mode seleksi.
     const checkboxVisible = isSelected || (isTouch && selectionMode);
@@ -1587,14 +1601,21 @@ export default function MailPage() {
             {/* items-center: cluster ikon (snooze/arsip/star/date) tetap sejajar
                 vertikal dengan baris pengirim walau lebar list berubah-ubah */}
             <div className="flex justify-between items-center mb-1 gap-2">
-              <button
-                type="button"
-                onClick={(e) => searchBySender(senderLabel, e)}
-                title={`Cari semua email dari pengirim ini`}
-                className={`text-sm truncate text-left hover:underline ${msg.isRead ? 'text-muted-foreground font-medium' : 'text-foreground font-bold'}`}
-              >
-                {senderLabel}
-              </button>
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={(e) => searchBySender(senderLabel, e)}
+                  title={`Cari semua email dari pengirim ini`}
+                  className={`text-sm truncate text-left hover:underline ${msg.isRead ? 'text-muted-foreground font-medium' : 'text-foreground font-bold'}`}
+                >
+                  {senderLabel}
+                </button>
+                {phishingCheck && (
+                  <span className="shrink-0 text-amber-500 dark:text-amber-400" title={`⚠️ ${phishingCheck.finding}`}>
+                    <AlertTriangle size={13} />
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 {/* Aksi hover (Gmail-like): HANYA tampil saat hover, menggantikan
                     tanggal (date group-hover:hidden). Sebelumnya tombol ini

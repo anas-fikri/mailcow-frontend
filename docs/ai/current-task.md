@@ -1,22 +1,24 @@
 # Current Task
 
-## 2026-08-27 — Bug Hunt Round 4: Dark Mode Safari + Keyboard Shortcuts
+## 2026-08-27 — Local Phishing Detection (tanpa AI)
 
-### Bugs ditemukan & diperbaiki:
+### Fitur baru:
+Modul `src/lib/phishingDetection.js` — deteksi phishing 100% di browser, tidak ada data yang dikirim ke server/PII.
 
-1. **Safari dark mode `addEventListener` tidak support** — Safari <14 tidak punya `addEventListener` di MediaQueryList
-   - Fix: fallback ke `addListener`/`removeListener` (deprecated tapi masih work)
+### Analisis yang dilakukan:
+1. **URL analysis** — domain blacklist (paypa1.com, g00gle.com, dll), IP langsung, URL shortener, punycode/homograph, TLD mencurigakan, @ in URL
+2. **Header analysis** — From/Reply-To domain mismatch, display name spoofing (brand terkenal + domain berbeda)
+3. **Content analysis** — urgency keywords (ID+EN), scam hadiah, credential harvesting, CEO fraud
 
-2. **Theme switch tanpa transition** — `<html>` element tidak punya `transition-colors`, flash putih/hitam saat ganti tema
-   - Fix: `document.documentElement.style.transition = 'background-color 0.2s, color 0.2s'`
+### Scoring:
+- 0-19: safe (hijau)
+- 20-49: low/waspada (kuning)
+- 50-79: medium/mencurigakan (oranye)
+- 80+: high/sangat mencurigakan (merah)
 
-3. **`a` shortcut select-all pakai `messages` bukan `sortedMessages`** — konsisten dengan `toggleSelectAll` button
-   - Fix: `a` sekarang pakai `sortedMessages` (hanya pilih yang TAMPIL)
+### Integrasi:
+- **MessageReader**: banner peringatan di atas email (warna sesuai risk level + daftar findings)
+- **MailPage**: icon ⚠️ kecil di baris email jika From/Reply-To domain mismatch
+- **Test**: 31 assertions, semua PASS
 
-4. **Dead code `r`/`f` handler di MailPage** — tidak pernah tercapai karena `isReaderOwnedShortcut` return early
-   - Fix: hapus dead code, ganti dengan komentar penjelasan
-
-5. **Send button ComposeModal kurang dari 44px touch target** — `py-2` = ~36px total
-   - Fix: tambah `min-h-11 py-2.5` = 44px minimum
-
-### Status: 57/57 PASS, build OK, deployed.
+### Status: 58/58 PASS, build OK, deployed.

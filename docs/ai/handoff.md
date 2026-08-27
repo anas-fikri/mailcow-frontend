@@ -51,3 +51,20 @@
 - Conversation view: expand/collapse all thread
 - Auto-load untuk folder Sent/Drafts/Junk (sudah di inbox)
 - Preferences: export/import settings
+
+## 2026-08-27 — Local Phishing Detection (tanpa AI)
+
+### Selesai:
+1. **phishingDetection.js** — modul baru: URL analysis (blacklist, IP, shortener, punycode, TLD), header analysis (From/Reply-To mismatch, display name spoofing), content analysis (urgency, scam, credential harvest, CEO fraud). Scoring 0-100 → safe/low/medium/high.
+2. **MessageReader banner** — warning di atas email dengan warna sesuai risk level + daftar findings (max 5).
+3. **MailPage indicator** — icon ⚠️ kecil di baris email jika From/Reply-To domain mismatch (lightweight, tanpa body analysis).
+4. **Test** — 31 assertions, semua PASS.
+
+### Deploy: ✅ Live
+### Git push: ⏳ perlu push manual
+
+### Next tasks:
+- Auto-load untuk folder Sent/Drafts/Junk
+- Conversation view: expand/collapse all thread
+- Preferences: export/import settings
+- Expand blacklist phishing dari URL dataset publik
