@@ -3006,3 +3006,10 @@ parent ber-tinggi (AppLayout main flex-1 + wrapper h-full) — tidak disentuh.
 - **Shortcut `e`** arsipkan (baru); sisanya sudah ada. **Drag .eml** ke compose (parse RFC5322/MIME) + **Unduh .eml** di MessageReader (buildEml).
 - **PENTING — lesson nginx**: route baru /api harus DITAMBAHKAN ke `configs/site.webmail.custom` (location = exact) — tanpanya request jatuh ke SPA fallback (200 index.html) / 405. Gejala: `curl /webmail/api/x` ≠ `curl /api/x` — route API di ROOT domain, bukan di /webmail.
 - Test: 59/59 PASS (test-eml-sendqueue 51 assertion). Live: webmail 200, manifest mime benar, /api/send/pending+undo 401 tanpa sesi ✅. Hash live = `index-BjTCdjnB.js`.
+
+## 2026-08-27T03:30:48Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+- No local changes detected

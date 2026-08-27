@@ -44,3 +44,5 @@
 ## Test
 - `scripts/test-eml-sendqueue.mjs` (baru, 51 assertion: crypto roundtrip, queue lifecycle, route/UI wiring, parse/build .eml).
 - **59/59 PASS** · build OK · deploy.sh `BACKEND_LIB_FILES` + `SMTP_SEND_UNDO_SECONDS=180` idempotent.
+Status: COMPLETED
+Updated At: 2026-08-27T03:30:48Z
