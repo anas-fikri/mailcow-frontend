@@ -117,3 +117,11 @@ list 'absolute inset-0 overflow-y-auto'. Gating: test-list-scroll-layout.mjs.
 Pelajaran durabel: menyisipkan WRAPPER di kolom flex-col WAJIB cek ulang
 kontrak tinggi anak-anaknya; gunakan absolute-inset untuk scroll-container
 yang harus selalu punya definite height.
+
+## 2026-08-27 — Audit kontrak scroll lintas halaman
+Selaras dgn pelajaran inbox (#310 flex), audit wrapper layout Manual:
+Calendar/Contacts/MessageReader ditemukan sudah benar, HANYA lemah di
+min-h-0 (flex-child bisa menolak shrink walau flex-col). Ditambahkan
+min-h-0 di Calendar main + Contacts main. Gate baru test-scroll-contract.mjs
+memaksa pola aman (absolute-inset ATAU flex-col + min-h-0) dan melarang
+wrapper 'relative h-full'.
