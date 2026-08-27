@@ -1080,3 +1080,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Nginx mailcow sites-default.conf.j2 level-server meng-inherit X-Frame-Options SAMEORIGIN + HSTS 15768000 ke SEMUA location tanpa add_header sendiri — termasuk location /api proxy milik kita → konflik dgn header server.js (DENY/31536000), browser lihat 2 nilai XFO beda. Fix pola: di tiap location /api gunakan proxy_hide_header (buang header upstream server.js utk nama yg sama) + add_header konsisten (nilai identik dgn server.js) — hasil SATU header bersih. Server.js juga harus set HSTS sendiri (jangan andalkan nginx) + Cache-Control no-store utk data email sensitif; image-proxy tetap public immutable (cacheable). Verifikasi duplikat header: curl -D - | grep -c 'header-name:' harus 1.
+
+## 2026-08-27T02:48:30Z
+- Task: 
+- Status: COMPLETED
+- Finding: Nginx: expires -1 menghasilkan Cache-Control: no-cache + header Expires terpisah — bila blok lokasi JUGAA punya add_header Cache-Control sendiri, hasilnya DUA header Cache-Control dgn nilai berbeda (no-cache + no-store) yg membingungkan parser header. Utk SPA no-store cukup satu add_header Cache-Control; jangan kombinasikan dgn expires -1. Validasi: curl -sI index.html | grep -c cache-control harus 1.
