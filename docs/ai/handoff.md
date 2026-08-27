@@ -2997,3 +2997,12 @@ parent ber-tinggi (AppLayout main flex-1 + wrapper h-full) — tidak disentuh.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-27 — Batch fitur besar: Undo Send 3mnt + Jadwal Kirim + Dark auto + PWA + shortcut e + .eml
+
+- **Undo Send (server-side, 180s default via SMTP_SEND_UNDO_SECONDS)** + **Kirim Terjadwal** (sendAt): queue persist `data/pending-sends.json`, kredensial AES-256-GCM, `/api/send/undo` + `/api/send/pending`, flush loop 5 dtk, retry 3x. Toast undo countdown dinamis (updateToast di toast.js). Jadwal lewat SMTP proxy (bukan draft SOGo).
+- **Dark mode auto**: `cycleTheme` (dark→light→auto), listener prefers-color-scheme, anti-FOUC via `public/theme-init.js` EKSTERNAL (CSP blokir inline), pilihan di Pengaturan.
+- **PWA**: manifest.webmanifest + sw.js (network-first nav, SWR asset, TAK pernah cache /api), nginx: file non-hash (sw/theme-init/manifest) di-no-cache + manifest mime `application/manifest+json`.
+- **Shortcut `e`** arsipkan (baru); sisanya sudah ada. **Drag .eml** ke compose (parse RFC5322/MIME) + **Unduh .eml** di MessageReader (buildEml).
+- **PENTING — lesson nginx**: route baru /api harus DITAMBAHKAN ke `configs/site.webmail.custom` (location = exact) — tanpanya request jatuh ke SPA fallback (200 index.html) / 405. Gejala: `curl /webmail/api/x` ≠ `curl /api/x` — route API di ROOT domain, bukan di /webmail.
+- Test: 59/59 PASS (test-eml-sendqueue 51 assertion). Live: webmail 200, manifest mime benar, /api/send/pending+undo 401 tanpa sesi ✅. Hash live = `index-BjTCdjnB.js`.
