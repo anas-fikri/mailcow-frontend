@@ -1,15 +1,19 @@
 /* PCP Express Webmail — Service Worker minimal & aman.
  *
- * Kebijakan:
- * - API (/api/*) TIDAK PERNAH di-cache (data email sensitif + token sesi).
- * - Navigasi (index.html) → network-first, fallback cache (offline shell).
- * - Assets ber-hash (index-*.js, *.css) → stale-while-revalidate: cepat dari
- *   cache, lalu refresh cache dari jaringan.
- * - Navigasi network-first MEMASTIKAN index.html baru (dengan hash aset baru)
- *   diambil setiap kali user membuka webmail → aset lama otomatis tergantikan
- *   tanpa perlu bump cache version secara manual.
+ * Kebijakan (REVISI v6 — memperbaiki campuran chunk antar-build yang
+ * memicu React #310 / duplikat runtime):
+ * - API (/api/*) & SOGo TIDAK PERNAH di-cache (data email sensitif + token).
+ * - Navigasi (index.html) → network-first, fallback cache offline.
+ * - SEMUA asset ber-hash (index-*.js, *.css, dst.):
+ *     NETWORK-FIRST. Alasan: asset ber-hash SELALU menunjuk konten tetap,
+ *     jadi jaringan memberi build konsisten dari HEAD. Sebelumnya pakai
+ *     stale-while-revalidate yang bisa menyajikan CHUNK CAMPURAN antar-build
+ *     (mis. index lama + api baru) dalam satu render → duplikat salinan React
+ *     → Minified React error #310. Cache hanya dipakai sebagai cadangan saat
+ *     offline, dan di-overwrite setiap berhasil fetch.
  */
-const CACHE_NAME = 'pcp-webmail-v5';
+
+const CACHE_NAME = 'pcp-webmail-v6';
 
 self.addEventListener('install', (event) => {
   // Jangan tahan SW aktif sampai shell siap — instal langsung.
@@ -32,36 +36,19 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
   if (!url.pathname.startsWith('/webmail/')) return;
 
-  // Jangan pernah cache endpoint API / SOGo.
+  // Jangan pernah cache API / SOGo.
   if (url.pathname.startsWith('/webmail/api/') || url.pathname.includes('/SOGo/')) return;
 
-  // Navigasi → network-first.
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
+  // Navigasi & ASSET SAMA-SAMA network-first (konsistensi bundle).
+  event.respondWith(
+    fetch(request)
+      .then((res) => {
+        if (res && (res.ok || res.type === 'opaqueredirect')) {
           const copy = res.clone();
           caches.open(CACHE_NAME).then((c) => c.put(request, copy)).catch(() => {});
-          return res;
-        })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match('/webmail/')))
-    );
-    return;
-  }
-
-  // Asset ber-hash → stale-while-revalidate.
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((res) => {
-          if (res && res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE_NAME).then((c) => c.put(request, copy)).catch(() => {});
-          }
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+        }
+        return res;
+      })
+      .catch(() => caches.match(request))
   );
 });
