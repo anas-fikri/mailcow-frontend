@@ -2964,3 +2964,22 @@ runtime htmlToPlainText (draft HTML → teks; 'a < b'; kode tetap utuh).
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-27 — Fix PageLoader center vertikal (loading "Memuat...")
+
+**Keluhan user:** "animasi loading 'Memuat...' ada di tengah tapi paling atas, mestinya bener-bener center."
+
+**Akar masalah:** PageLoader (fallback `<Suspense>` di App.jsx) memakai
+`className="flex items-center justify-center h-full w-full"`. Parent-nya adalah
+Suspense/Routes yang TIDAK punya tinggi sendiri (bukan flex/h-screen) → `h-full`
+collapse ke tinggi konten (spinner+teks) → items-center justify-center hanya
+memusatkan di dalam div kecil yang menempel ke atas viewport. Hasil: center
+horizontal tapi tidak center vertikal.
+
+**Fix:** ganti `h-full` → `min-h-screen`. min-h-screen memaksa setinggi viewport
+→ spinner + teks benar-benar center layar (termasuk saat lazy-load halaman di
+dalam AppLayout yang h-screen). Komponen loading lain (MessageListSkeleton,
+FoldersListSkeleton, empty-state MailPage, reader) aman karena berada dalam
+parent ber-tinggi (AppLayout main flex-1 + wrapper h-full) — tidak disentuh.
+
+**Test:** 57/57 PASS · build OK.

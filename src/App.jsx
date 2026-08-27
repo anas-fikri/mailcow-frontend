@@ -40,7 +40,11 @@ const RulesPage = lazyWithReload(() => import('./pages/RulesPage'))
 // ─── Page Loading Fallback ───────────────────────────────────────────────────
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center h-full w-full bg-background">
+    // h-full TIDAK cukup: parent-nya (Suspense/Routes) tidak punya tinggi
+    // sendiri, jadi h-full collapse → spinner & teks tampil di div kecil yang
+    // menempel ke atas (tengah horizontal, bukan center viewport). min-h-screen
+    // memaksa setinggi viewport → benar-benar center.
+    <div className="flex items-center justify-center min-h-screen w-full bg-background">
       <div className="flex flex-col items-center gap-3">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         <span className="text-sm text-muted-foreground">Memuat...</span>
