@@ -5,11 +5,11 @@
  * - Navigasi (index.html) → network-first, fallback cache (offline shell).
  * - Assets ber-hash (index-*.js, *.css) → stale-while-revalidate: cepat dari
  *   cache, lalu refresh cache dari jaringan.
- * - Version bump setiap deploy agar cache lama tidak menahan bundle usang
- *   (rsync --delete menghapus chunk lama → tanpa version bump, cache lama
- *   akan 404). Cache lama dihapus saat aktivasi.
+ * - Navigasi network-first MEMASTIKAN index.html baru (dengan hash aset baru)
+ *   diambil setiap kali user membuka webmail → aset lama otomatis tergantikan
+ *   tanpa perlu bump cache version secara manual.
  */
-const CACHE_NAME = 'pcp-webmail-v2';  // Bump setiap deploy utk clear cache lama
+const CACHE_NAME = 'pcp-webmail-v3';
 
 self.addEventListener('install', (event) => {
   // Jangan tahan SW aktif sampai shell siap — instal langsung.
