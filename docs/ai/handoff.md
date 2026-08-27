@@ -125,3 +125,12 @@ min-h-0 (flex-child bisa menolak shrink walau flex-col). Ditambahkan
 min-h-0 di Calendar main + Contacts main. Gate baru test-scroll-contract.mjs
 memaksa pola aman (absolute-inset ATAU flex-col + min-h-0) dan melarang
 wrapper 'relative h-full'.
+
+## 2026-08-27 — #310 akibat SW campuran chunk (bukan duplikat React murni)
+Investig lebih dalam: stack user = index-OLD + api-NEW → stale-while-revalidate
+SW menyajikan CHUNK CAMPURAN antar-build dlm satu render → dua salinan React
+runtime (dispatcher mismatch) → React error #310. FIX: SW v6 network-first utk
+SEMUA asset ber-hash (cache hanya fallback offline, di-overwrite saat sukses) +
+registration db?1 sw.js?v=6. Test gating test-sw-cache-consistency.mjs. Pelajaran
+durabel: SW stale-while-revalidate JANGAN dipakai utk bundle antar-build;
+selalu network-first utk asset ber-hash.
