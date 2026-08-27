@@ -16,3 +16,5 @@ penanda percakapan.
 `src/lib/conversations.js` TIDAK berubah (pure lib tetap).
 
 **Test:** test-a11y +2 → 169 assertions · 56/56 PASS · build OK.
+Status: COMPLETED
+Updated At: 2026-08-27T01:16:42Z

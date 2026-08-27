@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-26T16:24:35Z
+Generated At: 2026-08-27T01:16:42Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Audit PreferencesPage: preferensi tampilan SOGo (SOGoMailComposeMessageType, SOGoMailReplyPlacement, SOGoFirstDayOfWeek, SOGoConfirmDelete) sebelumnya disimpan tapi TIDAK dikonsumsi webmail — pola 'setting tanpa efek'. Pola wiring: cek konsumen dgn grep sebelum menganggap setting berfungsi; query preferences pakai key ['preferences', token] (cache react-query shared antar halaman). SOGoFirstDayOfWeek: 0=Minggu,1=Senin; rotasi label hari = DAYS_ID.slice(1)+DAYS_ID[0]. SOGoConfirmDelete '0' = hapus langsung, '1' = konfirmasi (webmail pakai undo toast 6dtk sbg konfirmasi). SOGoDateFormat strftime tidak dipetakan — webmail punya format id-ID sendiri (renderDate).
+## 1. [MEDIUM] Follow up on discovered knowledge: Conversation view: grup dengan 1 pesan (email tunggal) jangan dirender sebagai header percakapan ala Outlook (avatar stack + badge count '1' + chevron) — render sebagai baris biasa via renderMessageRow(msg, -1, false); hanya grup >=2 pesan yang dapat header + thread line. Pola Gmail/Outlook: penanda percakapan hanya utk thread sungguhan. Logika grouping di lib murni conversations.js tidak perlu diubah — keputusan render cukup di MailPage (group.messages.length === 1). visibleOrderUids/range-select/auto-advance tidak terpengaruh karena key di SwipeableRow = msg.uid.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
