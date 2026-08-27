@@ -242,6 +242,13 @@ app.use('/api', (req, res, next) => {
   res.setHeader('X-XSS-Protection', '0');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  // HSTS 1 tahun — konsisten dgn nginx /webmail (header nginx level-server mailcow
+  // memakai 15768000/6 bln; server.js override supaya /api/* seragam + menang
+  // atas duplikat saat keduanya muncul).
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+  // API mengembalikan data email sensitif (header/body/prefs) — jangan di-cache
+  // browser/shared cache (pola OWASP: Cache-Control no-store utk data sensitif).
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   // Strict CSP: only allow resources from same origin + inline styles (Tailwind)
   res.setHeader(
     'Content-Security-Policy',

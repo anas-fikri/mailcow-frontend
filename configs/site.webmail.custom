@@ -51,8 +51,13 @@ location /webmail {
 
 # SMTP proxy backend (server.js di host; port khusus SOGo, bukan Control Tower).
 # Exact locations must win over Control Tower's broader /api regex routes.
-# Header keamanan utk respon /api/* sudah di-set oleh server.js (CSP, XFO,
-# nosniff, Referrer-Policy, Permissions-Policy) — tidak diulang di sini.
+# ── Konflik header level-server mailcow (sites-default.conf.j2) ──
+# Level-server meng-inherit X-Frame-Options SAMEORIGIN + HSTS 15768000 (6 bln)
+# ke semua location TANPA add_header sendiri → konflik dgn server.js (DENY/1th).
+# Solusi: (1) proxy_hide_header menghapus header dari upstream server.js supaya
+# tidak duplikat; (2) add_header di sini menetapkan SATU nilai konsisten.
+# Cache-Control TIDAK di-set ulang — server.js sudah set no-store utk data
+# sensitif & public immutable utk image-proxy.
 location = /api/health {
     proxy_pass http://172.25.1.1:3005;
     proxy_set_header Host $host;
@@ -60,6 +65,16 @@ location = /api/health {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 120s;
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Permissions-Policy;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
 }
 location = /api/auth/smtp {
     proxy_pass http://172.25.1.1:3005;
@@ -68,6 +83,16 @@ location = /api/auth/smtp {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 120s;
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Permissions-Policy;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
 }
 location = /api/auth/smtp/status {
     proxy_pass http://172.25.1.1:3005;
@@ -76,6 +101,16 @@ location = /api/auth/smtp/status {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 120s;
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Permissions-Policy;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
 }
 location = /api/preferences {
     proxy_pass http://172.25.1.1:3005;
@@ -84,6 +119,16 @@ location = /api/preferences {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 120s;
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Permissions-Policy;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
 }
 location = /api/send {
     proxy_pass http://172.25.1.1:3005;
@@ -92,8 +137,20 @@ location = /api/send {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 120s;
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Permissions-Policy;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
 }
 # Remote image proxy (anti tracking-pixel) — SSRF-guarded di server.js.
+# Cache-Control image-proxy = public immutable (server.js) — gambar cacheable,
+# jangan di-override ke no-store. Header lain tetap konsisten dgn lokasi lain.
 location = /api/image-proxy {
     proxy_pass http://172.25.1.1:3005;
     proxy_set_header Host $host;
@@ -101,4 +158,14 @@ location = /api/image-proxy {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 30s;
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Permissions-Policy;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
 }

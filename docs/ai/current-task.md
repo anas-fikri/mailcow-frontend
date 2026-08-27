@@ -1,20 +1,22 @@
 # Current Task
 
-## 2026-08-27 — Conversation view: email tunggal = baris biasa (bukan thread palsu)
+## 2026-08-27 — Audit keamanan: headers CSP/HSTS + hardening nginx produksi
 
-**Status:** implementasi selesai, 56/56 test PASS, build OK — commit/push/deploy menyusul.
+**Status:** selesai, live terverifikasi.
 
-**Masalah:** di mode conversation, SETIAP pesan dikelompokkan jadi grup — termasuk
-email tunggal. Akibatnya 1 email tampil dengan header percakapan ala Outlook
-(avatar stack, badge count "1", chevron, subjek tebal) → terlihat seperti thread
-padahal bukan. Pola Gmail/Outlook: hanya thread sungguhan (>=2 pesan) yang diberi
-penanda percakapan.
+**Temuan (sudah baik):** /webmail + assets punya CSP ketat, HSTS 1th, nosniff, XFO
+DENY, Referrer-Policy, Permissions-Policy, COOP/CORP. TLS TLSv1.2/1.3 + ciphers
+modern. server.js middleware semua /api. /SOGo tanpa auth = login page.
 
-**Fix (MailPage render):** grup dengan `messages.length === 1` dirender via
-`renderMessageRow(msg, -1, false)` (baris biasa, border-l-4 normal); hanya grup
->=2 pesan yang mendapat header percakapan + thread line. Logika grouping di
-`src/lib/conversations.js` TIDAK berubah (pure lib tetap).
+**Gap diperbaiki:**
+1. Duplikat/konflik header /api/* — nginx level-server mailcow (sites-default)
+   meng-inherit XFO SAMEORIGIN + HSTS 6bln ke location /api yang tanpa add_header
+   → konflik dgn server.js (DENY/1th). Fix: proxy_hide_header (buang upstream
+   duplicate) + add_header konsisten di 6 location /api (HSTS 31536000, XFO DENY,
+   nosniff, Referrer-Policy, Permissions-Policy).
+2. server.js: tambah HSTS max-age=31536000 + Cache-Control no-store utk semua
+   /api (data email sensitif; image-proxy tetap public immutable).
 
-**Test:** test-a11y +2 → 169 assertions · 56/56 PASS · build OK.
-Status: COMPLETED
-Updated At: 2026-08-27T01:16:42Z
+**Verifikasi live:** /api/health 200 — tiap header SATU nilai (HSTS 1th, XFO DENY,
+nosniff, Referrer, Permissions, CSP, no-store). image-proxy 200 image + immutable.
+Test 56/56 PASS, build OK, deploy sukses.

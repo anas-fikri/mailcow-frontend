@@ -2880,3 +2880,28 @@ untuk grup >=2 pesan. `visibleOrderUids`, range-select, auto-advance tidak terpe
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-27 — Audit keamanan headers CSP/HSTS + nginx hardening
+
+**Permintaan user:** "Audit ulang keamanan: cek headers CSP/HSTS + hardening nginx produksi webmail."
+
+**Audit (OWASP minimal):** sudah baik — /webmail CSP ketat + HSTS 1th + nosniff +
+XFO DENY + Referrer + Permissions-Policy + COOP/CORP; TLS v1.2/1.3, ciphers modern,
+server_tokens off; server.js middleware semua /api + API key + rate limit + SSRF
+guard + anti-hotlink; /SOGo tanpa auth hanya login page (bukan leak).
+
+**2 gap ditemukan & diperbaiki:**
+1. **Konflik header /api/*** — location /api tanpa add_header sendiri → nginx
+   level-server mailcow meng-inherit XFO SAMEORIGIN + HSTS 15768000 → bertabrakan
+   dgn server.js (DENY / 31536000). Browser lihat 2 nilai XFO beda. Fix di
+   configs/site.webmail.custom: proxy_hide_header (buang duplikat upstream) +
+   add_header konsisten (HSTS 1th, XFO DENY, nosniff, Referrer, Permissions) di
+   SEMUA 6 location /api (health/auth/status/prefs/send/image-proxy).
+2. **server.js** — HSTS belum di-set utk /api (baru dari nginx, nilai beda 6bln)
+   + tidak ada Cache-Control (data email sensitif bisa di-cache browser). Fix:
+   HSTS max-age=31536000 + Cache-Control no-store di middleware /api; image-proxy
+   tetap public immutable (cacheable by design).
+
+**Verifikasi live:** /api/health → 200, tiap header SATU nilai (grep -c = 1), HSTS
+31536000, XFO DENY, Cache-Control no-store. image-proxy 200 image/x-icon +
+immutable. 56/56 PASS, build OK, deploy via SERVER=deploy-mail sukses.
