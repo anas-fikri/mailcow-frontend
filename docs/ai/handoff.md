@@ -109,3 +109,11 @@ dengan resolveId-plugin shim lokal + test gating test-single-react.mjs.
 Catatan durabel: ketika menambah dependency npm baru yang melakukan require
 CJS 'react', verifikasi bundle tetap single-react (jalankan
 node scripts/test-single-react.mjs setelah build).
+
+## 2026-08-27 — Fix inbox tak bisa discroll (regresi PullToRefresh)
+PullToRefresh wrapper 'relative h-full' memecah flex-sizing inner list →
+overflow-y-auto mati. Kontrak layout baru: wrapper 'relative flex-1 min-h-0',
+list 'absolute inset-0 overflow-y-auto'. Gating: test-list-scroll-layout.mjs.
+Pelajaran durabel: menyisipkan WRAPPER di kolom flex-col WAJIB cek ulang
+kontrak tinggi anak-anaknya; gunakan absolute-inset untuk scroll-container
+yang harus selalu punya definite height.
