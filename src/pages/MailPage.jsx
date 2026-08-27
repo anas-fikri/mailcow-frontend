@@ -137,6 +137,80 @@ function DragHandle({ onMouseDown }) {
   );
 }
 
+// ─── Pull-to-Refresh (mobile) ────────────────────────────────────────────────
+const PULL_THRESHOLD = 80;
+function PullToRefresh({ onRefresh, children }) {
+  const [pullY, setPullY] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const startY = useRef(0);
+  const pulling = useRef(false);
+
+  const onTouchStart = useCallback((e) => {
+    const el = e.currentTarget;
+    // Hanya aktif saat scroll di atas (scrollTop 0)
+    if (el.scrollTop === 0 && !refreshing) {
+      startY.current = e.touches[0].clientY;
+      pulling.current = true;
+    }
+  }, [refreshing]);
+
+  const onTouchMove = useCallback((e) => {
+    if (!pulling.current) return;
+    const delta = e.touches[0].clientY - startY.current;
+    if (delta > 0) {
+      // Rubber-band: kurangi resistance makin jauh ditarik
+      setPullY(Math.min(PULL_THRESHOLD * 1.5, delta * 0.5));
+    }
+  }, []);
+
+  const onTouchEnd = useCallback(() => {
+    if (!pulling.current) return;
+    pulling.current = false;
+    if (pullY >= PULL_THRESHOLD && !refreshing) {
+      setRefreshing(true);
+      setPullY(PULL_THRESHOLD * 0.6);
+      Promise.resolve(onRefresh?.()).finally(() => {
+        setRefreshing(false);
+        setPullY(0);
+      });
+    } else {
+      setPullY(0);
+    }
+  }, [pullY, refreshing, onRefresh]);
+
+  const showIndicator = pullY > 10 || refreshing;
+
+  return (
+    <div
+      className="relative h-full"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Pull indicator */}
+      {showIndicator && (
+        <div
+          className="absolute top-0 left-0 right-0 flex items-center justify-center z-20 transition-all"
+          style={{ height: `${pullY}px`, opacity: Math.min(1, pullY / PULL_THRESHOLD) }}
+        >
+          <RefreshCw
+            size={18}
+            className={`text-primary ${refreshing ? 'animate-spin' : ''}`}
+            style={{ transform: refreshing ? undefined : `rotate(${pullY * 3}deg)` }}
+          />
+          <span className="ml-2 text-xs text-muted-foreground">
+            {refreshing ? 'Memperbarui…' : pullY >= PULL_THRESHOLD ? 'Lepas untuk memperbarui' : 'Tarik ke bawah'}
+          </span>
+        </div>
+      )}
+      {/* Content */}
+      <div style={{ transform: showIndicator && !refreshing ? `translateY(${pullY}px)` : undefined }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ─── Search Filter Dropdown ───────────────────────────────────────────────────
 const SEARCH_CRITERIA = [
   { id: 'all',     label: 'Semua' },
@@ -416,6 +490,14 @@ export default function MailPage() {
     const iv = setInterval(load, 60 * 1000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [user?.sogoToken]);
+
+  // Re-fetch pending sends saat panel dibuka (selain polling 60 detik)
+  useEffect(() => {
+    if (!pendingOpen || !user?.sogoToken) return;
+    getPendingSends()
+      .then((items) => setPendingSends(items))
+      .catch(() => {});
+  }, [pendingOpen, user?.sogoToken]);
 
   // Minta izin notifikasi sekali saat pertama kali (setelah ada unseen > 0)
   useEffect(() => {
@@ -1392,13 +1474,22 @@ export default function MailPage() {
       <SwipeableRow
         key={msg.uid}
         onSwipe={() => suppressClick.current.add(msg.uid)}
-        onSwipeLeft={() => scheduleDelete([msg.uid])}
+        onSwipeLeft={() => {
+          // Inbox: swipe kiri = reply. Folder lain: swipe kiri = hapus.
+          if (selectedFolder === 'folderINBOX') {
+            quickReply(msg.uid);
+          } else {
+            scheduleDelete([msg.uid]);
+          }
+        }}
         onSwipeRight={() => {
           markRead(user.sogoToken, selectedFolder, msg.uid, true).then(() => {
             queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
             queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
           }).catch(() => {});
         }}
+        labelLeft={selectedFolder === 'folderINBOX' ? 'Balas' : 'Hapus'}
+        iconLeft={selectedFolder === 'folderINBOX' ? Reply : Trash}
       >
         <div
           onClick={() => handleRowClick(msg.uid)}
@@ -2111,6 +2202,7 @@ export default function MailPage() {
         )}
 
         {/* Message list */}
+        <PullToRefresh onRefresh={() => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] })}>
         <div ref={listRef} className="flex-1 overflow-y-auto">
           {loadingMessages ? (
             <MessageListSkeleton count={8} />
@@ -2281,6 +2373,7 @@ export default function MailPage() {
             </div>
           )}
         </div>
+        </PullToRefresh>
       </div>
 
       {/* Drag handle */}

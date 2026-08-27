@@ -3,7 +3,11 @@ import { Trash2, MailOpen } from 'lucide-react';
 
 const SWIPE_THRESHOLD = 80;
 const MAX_SWIPE = 150;
-const isMobile = typeof window !== 'undefined' && 'ontouchstart' in window;
+// Deteksi mobile via matchMedia (lebih akurat daripada ontouchstart —
+// laptop sentuh punya ontouchstart tapi bukan device mobile).
+const isMobile = typeof window !== 'undefined'
+  && (window.matchMedia?.('(pointer: coarse)').matches
+      || window.matchMedia?.('(hover: none)').matches);
 
 /**
  * SwipeableRow — membungkus child dengan gesture swipe untuk mobile.

@@ -16,3 +16,20 @@
 - AI-loop bug hunt round 3: edge case auto-archive vs snooze, multi-tab race, dark mode auto switching di Safari
 - Quick reply di mobile (tambahan tombol di baris email sentuh)
 - Pull-to-refresh untuk inbox mobile
+
+## 2026-08-27 — Bug Hunt Round 3 + Mobile UX
+
+### Selesai:
+1. **isMobile detection** — ganti `ontouchstart` → `matchMedia('(pointer: coarse)')` + `(hover: none)`. Laptop sentuh tidak lagi ter-deteksi sebagai mobile.
+2. **Swipe kiri inbox = Reply** — bukan hapus. Pattern Gmail: swipe right = mark read, swipe left = reply. Folder lain tetap hapus.
+3. **Pull-to-refresh** — komponen `PullToRefresh` dengan rubber-band effect, RefreshCw indicator, auto-spin saat refresh. Hanya aktif di mobile (scrollTop=0).
+4. **Pending sends re-fetch** — useEffect re-fetch saat panel dibuka, di samping polling 60 detik existing.
+
+### Deploy: ✅ Live
+### Git push: ⏳ perlu push manual
+
+### Next tasks:
+- Quick reply mobile: tambah tombol reply visible di touch mode (bukan hanya hover)
+- Dark mode auto-switch: cek Safari matchMedia quirks
+- Keyboard shortcut 'e' untuk arsipkan (sudah ada di backlog)
+- Fitur #5: local phishing detection (regex-based, tanpa AI)
