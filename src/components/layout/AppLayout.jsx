@@ -42,12 +42,20 @@ export default function AppLayout() {
     if (!window.matchMedia) return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const onChange = (e) => setSystemDark(e.matches);
-    mq.addEventListener?.('change', onChange);
-    return () => mq.removeEventListener?.('change', onChange);
+    // Safari <14 tidak support addEventListener di MediaQueryList —
+    // pakai addListener/removeListener (deprecated tapi masih.working).
+    if (mq.addEventListener) {
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    }
+    mq.addListener(onChange);
+    return () => mq.removeListener(onChange);
   }, []);
 
   const effectiveDark = theme === 'dark' || (theme === 'auto' && systemDark);
   useEffect(() => {
+    // Tambah transition sekali agar theme switch tidak flash.
+    document.documentElement.style.transition = 'background-color 0.2s, color 0.2s';
     if (effectiveDark) {
       document.documentElement.classList.add('dark');
       document.documentElement.classList.remove('light');

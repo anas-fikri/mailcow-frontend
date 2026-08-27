@@ -33,3 +33,21 @@
 - Dark mode auto-switch: cek Safari matchMedia quirks
 - Keyboard shortcut 'e' untuk arsipkan (sudah ada di backlog)
 - Fitur #5: local phishing detection (regex-based, tanpa AI)
+
+## 2026-08-27 — Bug Hunt Round 4: Dark Mode Safari + Keyboard Shortcuts
+
+### Selesai:
+1. **Safari dark mode** — `mq.addEventListener?.('change')` diganti dengan fallback `addListener`/`removeListener` untuk Safari <14.
+2. **Theme transition** — `document.documentElement.style.transition` ditambahkan agar switch tema tidak flash.
+3. **`a` shortcut** — select-all sekarang pakai `sortedMessages` (konsisten dengan toggleSelectAll button).
+4. **Dead code cleanup** — handler `r`/`f` di MailPage dihapus (sudah dimiliki MessageReader via isReaderOwnedShortcut).
+5. **Touch target** — send button ComposeModal dinaikkan ke min-h-11 (44px).
+
+### Deploy: ✅ Live
+### Git push: ⏳ perlu push manual
+
+### Next tasks:
+- Fitur #5: local phishing detection (regex-based, tanpa AI)
+- Conversation view: expand/collapse all thread
+- Auto-load untuk folder Sent/Drafts/Junk (sudah di inbox)
+- Preferences: export/import settings

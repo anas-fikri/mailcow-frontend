@@ -206,6 +206,27 @@ export default function LoginPage() {
           </form>
         </div>
         
+        {/* Dev quick-login — hanya muncul di mode development (Vite dev server) */}
+        {import.meta.env.DEV && (
+          <div className="mt-4 p-3 rounded-lg border border-dashed border-amber-400/60 bg-amber-500/5">
+            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mb-2 flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
+              DEV MODE
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setUserName('admin.ict@pcpexpress.com');
+                setPassword('');
+                if (emailRef.current) emailRef.current.focus();
+              }}
+              className="w-full text-left px-2.5 py-1.5 rounded-md text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 transition-colors"
+            >
+              ⚡ Quick fill: admin.ict@pcpexpress.com
+            </button>
+          </div>
+        )}
+
         <p className="text-center text-xs text-muted-foreground mt-6">
           <a
             href="/webmail/help/email-settings.html"

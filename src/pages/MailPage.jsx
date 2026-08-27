@@ -1338,10 +1338,12 @@ export default function MailPage() {
 
       if (key === 'a') {
         e.preventDefault();
-        if (selectedUids.length === messages.length) {
+        // Pakai sortedMessages (bukan messages) supaya konsisten dgn
+        // toggleSelectAll — 'Pilih Semua' hanya pilih yang TAMPIL.
+        if (selectedUids.length === sortedMessages.length) {
           setSelectedUids([]);
         } else {
-          setSelectedUids(messages.map((m) => m.uid));
+          setSelectedUids(sortedMessages.map((m) => m.uid));
         }
         return;
       }
@@ -1402,21 +1404,8 @@ export default function MailPage() {
         return;
       }
 
-      if (key === 'r' && selectedMsgId) {
-        // Reply — handled oleh MessageReader, trigger klik tombol reply
-        e.preventDefault();
-        // Focus reply button
-        const replyBtn = document.querySelector('[data-shortcut="reply"]');
-        replyBtn?.click();
-        return;
-      }
-
-      if (key === 'f' && selectedMsgId) {
-        e.preventDefault();
-        const fwdBtn = document.querySelector('[data-shortcut="forward"]');
-        fwdBtn?.click();
-        return;
-      }
+      // r/f/d/s saat reader terbuka DIMILIKI MessageReader (isReaderOwnedShortcut)
+      // — tidak perlu handler duplikat di sini.
     };
 
     window.addEventListener('keydown', handler);

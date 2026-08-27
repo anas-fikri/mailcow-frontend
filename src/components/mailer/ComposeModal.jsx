@@ -893,7 +893,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                 <button
                   type="submit"
                   disabled={sending || success}
-                  className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 font-medium transition-colors disabled:opacity-60 text-sm shrink-0"
+                  className="flex items-center gap-2 px-6 min-h-11 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 font-medium transition-colors disabled:opacity-60 text-sm shrink-0"
                 >
                   {sending
                     ? <><Loader2 size={16} className="animate-spin" /> Mengirim...</>
