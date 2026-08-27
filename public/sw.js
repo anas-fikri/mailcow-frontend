@@ -9,7 +9,7 @@
  *   (rsync --delete menghapus chunk lama → tanpa version bump, cache lama
  *   akan 404). Cache lama dihapus saat aktivasi.
  */
-const CACHE_NAME = 'pcp-webmail-v1';
+const CACHE_NAME = 'pcp-webmail-v2';  // Bump setiap deploy utk clear cache lama
 
 self.addEventListener('install', (event) => {
   // Jangan tahan SW aktif sampai shell siap — instal langsung.
