@@ -1085,3 +1085,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 
 - Status: COMPLETED
 - Finding: Nginx: expires -1 menghasilkan Cache-Control: no-cache + header Expires terpisah — bila blok lokasi JUGAA punya add_header Cache-Control sendiri, hasilnya DUA header Cache-Control dgn nilai berbeda (no-cache + no-store) yg membingungkan parser header. Utk SPA no-store cukup satu add_header Cache-Control; jangan kombinasikan dgn expires -1. Validasi: curl -sI index.html | grep -c cache-control harus 1.
+
+## 2026-08-27T02:55:27Z
+- Task: 
+- Status: COMPLETED
+- Finding: Pola bug: textarea plain mode yang menampilkan value dgn regex strip-tag (body.replace(/<[^>]*>?/gm,'')) di SETIAP render akan memakan karakter '<' milik user (mis. 'a < b', kode) — regex tidak bisa membedakan tag asli vs teks polos. Fix: deteksi tag HTML LENGKAP (/<[a-z][^>]*>/i) dulu; hanya strip bila body benar-benar HTML, teks polos dibiarkan. Pola race paste: e.preventDefault() di handler async WAJIB dipanggil synchron SEBELUM await apapun — kalau ditunda browser sudah menjalankan paste default → konten ganda. Untuk fallback Clipboard API cek dt.types (Files / image/*) utk tahu ada gambar tanpa await.
