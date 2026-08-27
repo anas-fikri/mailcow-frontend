@@ -373,7 +373,7 @@ export default function CalendarPage() {
   return (
     <div className="flex h-full w-full overflow-hidden">
       {/* ── Main Area ──────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto">
         {/* Header */}
         <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between sticky top-0 z-10 flex-wrap gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
