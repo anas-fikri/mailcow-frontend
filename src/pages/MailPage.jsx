@@ -1540,12 +1540,15 @@ export default function MailPage() {
                       onClick={(e) => {
                         e.stopPropagation();
                         const currentColor = getFlagColor(user?.email, msg.uid);
-                        if (currentColor === key) {
-                          setFlagColor(user?.email, msg.uid, null);
-                          if (!msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, true).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] })).catch(() => {});
-                        } else {
-                          setFlagColor(user?.email, msg.uid, key);
-                          if (!msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, true).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] })).catch(() => {});
+                        const nextColor = currentColor === key ? null : key;
+                        setFlagColor(user?.email, msg.uid, nextColor);
+                        // Set warna → tandai sebagai flagged (star aktif).
+                        // Kalau set warna NULL, flag tetap aktif (user bisa punya
+                        // star tanpa warna — sama seperti Outlook).
+                        if (!msg.isFlagged) {
+                          markFlagged(user.sogoToken, selectedFolder, msg.uid, true)
+                            .then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] }))
+                            .catch(() => {});
                         }
                         setFlagPickerOpen(null);
                       }}

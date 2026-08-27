@@ -68,3 +68,18 @@
 - Conversation view: expand/collapse all thread
 - Preferences: export/import settings
 - Expand blacklist phishing dari URL dataset publik
+
+## 2026-08-27 — Bug Hunt Round 5
+
+### Selesai:
+1. **Auto-load verified** — semua folder (Sent/Drafts/Junk) sudah auto-load sampai habis. INBOX dibatasi 5 bulan via `applyMessageWindow`. Tidak ada bug.
+2. **Flag color picker dedup** — if/else identical → satu jalur. Komentar penjelasan: set warna selalu star aktif.
+3. **SuggestionList verified** — `onMouseDown` + `preventDefault` mencegah blur race. Tidak ada duplikat email.
+
+### Deploy: ✅ Live
+### Git push: ⏳ perlu push manual
+
+### Next tasks:
+- Conversation view: expand/collapse all thread sekaligus
+- Preferences: export/import settings
+- Quick reply mobile: tambah tombol reply visible di touch mode
