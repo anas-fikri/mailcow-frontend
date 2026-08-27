@@ -8,7 +8,12 @@
     var dark = theme === 'dark'
       || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
       || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    if (dark) document.documentElement.classList.add('dark');
-    else document.documentElement.classList.add('light');
+    if (dark) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.classList.add('light');
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
   } catch (e) { /* abaikan */ }
 })();

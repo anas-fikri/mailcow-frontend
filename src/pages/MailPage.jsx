@@ -4,7 +4,7 @@ import {
   Inbox, Send, Trash2, FileText, Loader2, Edit3, Mail, Menu, X,
   AlertCircle, Search, Trash, CheckSquare, Square, MailOpen, RefreshCw,
   Folder, FolderPlus, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown, ChevronRight,
-  Archive, BellRing, CheckCheck, Clock, Paperclip, CalendarClock,
+  Archive, BellRing, CheckCheck, Clock, Paperclip, CalendarClock, Reply,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, undoScheduledSend } from '../lib/api';
@@ -935,9 +935,15 @@ export default function MailPage() {
   const isDraftFolder = selectedFolder === 'folderDrafts' ||
     folders.some((f) => f.id === selectedFolder && (f.type === 'draft' || f.type === 'drafts'));
 
+  // Select-all hanya memilih pesan YANG TAMPIL di daftar (sudah difilter
+  // oleh flag/category/unread/attachment/snooze + dipaginasi visibleCount).
+  // Sebelumnya pakai `messages` (SEMUA pesan di folder) — saat user filter
+  // "belum dibaca" lalu klik "Pilih Semua", SEMUA pesan terpilih termasuk
+  // yang sudah dibaca → aksi bulk (tandai baca/hapus) berdampak tak terduga.
   const toggleSelectAll = () => {
+    const visible = sortedMessages;
     setSelectedUids((prev) =>
-      prev.length === messages.length && messages.length > 0 ? [] : messages.map((m) => m.uid)
+      prev.length === visible.length && visible.length > 0 ? [] : visible.map((m) => m.uid)
     );
   };
 
@@ -1092,6 +1098,39 @@ export default function MailPage() {
       return;
     }
     setSelectedMsgId(uid);
+  }
+
+  // Quick reply — ambil detail pesan & langsung buka compose (pola Gmail:
+  // klik Reply di baris email tanpa buka reader). Fetch detail perlu utk
+  // memperoleh body, from, dan reply-to (header /view hanya punya ringkasan).
+  function escapeHtmlStr(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  async function quickReply(uid) {
+    try {
+      const detail = await fetchMessage(user?.sogoToken, selectedFolder, uid);
+      const from    = formatAddresses(detail.from);
+      const to      = formatAddresses(detail.to);
+      const cc      = formatAddresses(detail.cc);
+      const subject = detail.subject || '';
+      const date    = detail.date || '';
+      const replyTo = formatAddresses(detail['reply-to']);
+      const body    = extractHtml(detail.parts);
+      setComposeData({
+        composeMode: 'reply',
+        to: replyTo || from,
+        subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
+        body: `<br><br><blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:0;color:#666">
+          <b>Dari:</b> ${escapeHtmlStr(from)}<br>
+          <b>Tanggal:</b> ${escapeHtmlStr(date)}<br>
+          <b>Kepada:</b> ${escapeHtmlStr(to)}<br>
+          <b>Subjek:</b> ${escapeHtmlStr(subject)}<br><br>${body}</blockquote>`,
+      });
+      setComposeOpen(true);
+    } catch (err) {
+      console.warn('[QuickReply] Gagal memuat pesan:', err?.message || err);
+      toast.error('Gagal membuka balasan cepat.');
+    }
   }
 
   // Search submit handler — pake server-side search
@@ -1482,6 +1521,21 @@ export default function MailPage() {
                     opacity-0 tapi TETAP reserve ruang → di lebar list 240px
                     pengirim terpotong jadi ~13px oleh 4 tombol invisible. */}
                 <div className="hidden group-hover:flex items-center gap-1.5">
+                  {/* Quick reply — hover desktop, fetch detail & buka compose */}
+                  {!isTouch && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        quickReply(msg.uid);
+                      }}
+                      tabIndex={-1}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors"
+                      title="Balas cepat"
+                      aria-label="Balas cepat"
+                    >
+                      <Reply size={14} />
+                    </button>
+                  )}
                   {/* Buat aturan utk pengirim ini — hover desktop */}
                   {!isTouch && (
                     <button

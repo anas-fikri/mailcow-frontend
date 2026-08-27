@@ -4,7 +4,7 @@ import { NAV_ITEMS } from '../../constants/navigation'
 
 export default function BottomNav() {
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 bg-card border-t border-border flex z-50">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 bg-card border-t border-border flex z-50" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
         <NavLink
           key={to}

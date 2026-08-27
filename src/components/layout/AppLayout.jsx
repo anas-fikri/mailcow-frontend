@@ -20,7 +20,16 @@ const THEME_HUES = {
 export default function AppLayout() {
   const { isLoggedIn, theme, themeColor } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = React.useState(false); // Mobile sidebar state
-  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false); // Desktop sidebar state
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
+    try { return localStorage.getItem('pcp_sidebar_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleSidebarCollapse = React.useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try { localStorage.setItem('pcp_sidebar_collapsed', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  }, []);
   
   // Resolve tema aktual: 'auto' mengikuti prefers-color-scheme sistem, dengan
   // listener perubahan skema agar UI ikut berubah tanpa reload.
@@ -69,7 +78,7 @@ export default function AppLayout() {
 
       {/* Main Sidebar */}
       <div className={`fixed inset-y-0 left-0 z-50 transform md:relative md:translate-x-0 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${sidebarCollapsed ? 'md:w-16' : 'md:w-56'} flex shrink-0`}>
-        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)} onClose={() => setSidebarOpen(false)} />
+        <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} onClose={() => setSidebarOpen(false)} />
       </div>
 
       <main className="flex-1 overflow-hidden relative pb-16 md:pb-0 flex flex-col min-w-0">

@@ -753,7 +753,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
               )}
 
               {/* Footer */}
-              <div className="px-5 py-3 border-t border-border flex items-center justify-between bg-card flex-wrap gap-y-2">
+              <div className="px-5 py-3 border-t border-border flex items-center justify-between bg-card flex-wrap gap-y-2" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))' }}>
                 <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
                   <button
                     type="button"
@@ -876,7 +876,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                           <label className="block text-[11px] font-medium text-muted-foreground mb-1">Waktu khusus</label>
                           <input
                             type="datetime-local"
-                            min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                            min={(function() { const d = new Date(Date.now() + 60_000); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}
                             value={schedulePick ? new Date(schedulePick).toISOString().slice(0, 16) : ''}
                             onChange={(e) => {
                               if (e.target.value) setSchedulePick(new Date(e.target.value).toISOString());
