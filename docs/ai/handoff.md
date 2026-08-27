@@ -3013,3 +3013,17 @@ parent ber-tinggi (AppLayout main flex-1 + wrapper h-full) — tidak disentuh.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-27 — Batas lampiran 4→20MB + konfigurasi Control Tower
+
+- Webmail: attachmentValidation 20MB/file, 60MB total, 10 file; env SMTP_MAX_ATTACHMENT_MB/TOTAL/ATTACHMENTS; GET /api/send/config (frontend sync); nginx location baru.
+- Control-tower: GET/POST /api/webmail/send-config baca/tulis /home/anas.fikri/sogo-proxy/.env + restart sogo-smtp-proxy (exec child butuh XDG_RUNTIME_DIR=/run/user/$(id -u)). Tab Webmail di Settings.
+- Live terverifikasi: config 20/60/10/180; 21MB→400; 19MB lolos; POST control-tower → restarted:true.
+- Repo control-tower: commit 8b20367 (deploy via DEPLOY_SSH_HOST=deploy-mail ./deploy.sh). Webmail: 81f5193.
+
+## 2026-08-27T03:41:48Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M docs/ai/handoff.md
