@@ -46,6 +46,12 @@ export function friendlyLoginError(err) {
 }
 
 export function extractLoginErrorMessage(data, status) {
+  // SOGo mengembalikan body seperti { LDAPPasswordPolicyError: 65535 }
+  // TANPA field `message` — deteksi field khusus ini langsung dari data.
+  if (data && (data.LDAPPasswordPolicyError != null || data.ldapPasswordPolicyError != null)) {
+    return 'Akun diwajibkan mengganti password sebelum dapat login.';
+  }
+
   const raw = normalizeMessage(
     data?.message || data?.error || data?.reason || data?.localizedError
   );
@@ -65,6 +71,23 @@ export function extractLoginErrorMessage(data, status) {
   }
 
   return LOGIN_ERROR_MESSAGES[status] || `Login gagal (HTTP ${status}).`;
+}
+
+/**
+ * Pesan error ditampilkan dengan context tambahan — misalnya tombol hubungi
+ * admin saat password harus diganti (LDAPPasswordPolicyError).
+ * Dipanggil dari LoginPage untuk menambah CTA di bawah pesan error.
+ */
+export function loginErrorAction(err) {
+  if (!err?.message) return null;
+  const msg = err.message.toLowerCase();
+  if (msg.includes('diwajibkan mengganti password') || msg.includes('diwajibkan mengganti')) {
+    return { type: 'password-change', label: 'Hubungi administrator', hint: 'Password akun ini perlu direset oleh admin.' };
+  }
+  if (msg.includes('mailbox tidak aktif')) {
+    return { type: 'inactive', label: 'Hubungi administrator', hint: 'Akun ini telah dinonaktifkan.' };
+  }
+  return null;
 }
 
 export function isUnsupportedLoginFormat(status, data) {

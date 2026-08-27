@@ -3027,3 +3027,10 @@ parent ber-tinggi (AppLayout main flex-1 + wrapper h-full) — tidak disentuh.
 - Branch: main
 - Changed Files:
 -  M docs/ai/handoff.md
+
+## 2026-08-27 — Fix login LDAPPasswordPolicyError + SOGoPasswordChangeEnabled
+
+- Root cause: SOGo kirim `{"LDAPPasswordPolicyError": 65535}` tanpa field `message` → extractLoginErrorMessage tidak mendeteksi → pesan "Login ditolak SOGo" (generic). Fix: deteksi field `LDAPPasswordPolicyError` langsung dari data.
+- LoginPage: tambah tombol "Hubungi administrator" (mailto) + hint untuk password-change/inactive error.
+- SOGo: `SOGoPasswordChangeEnabled = YES` di `/data/docker-data/mailcow/data/conf/sogo/sogo.conf` (persistent) + restart. Agar user bisa ganti password dari SOGo native.
+- Audit global: 708 aktif, 4 inactive (anas.fikri .co.id, 2 alim.fatkhurrohman, mohammad.qori), password scheme 100% BLF-CRYPT, sync 0 mismatch.

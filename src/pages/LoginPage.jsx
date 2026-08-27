@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Eye, EyeOff, Loader2, AlertCircle, Sun, Moon } from 'lucide-react';
 import { login, logout, resetSessionExpiredFlag, registerSmtpSession, revokeSmtpSession } from '../lib/api';
-import { friendlyLoginError } from '../lib/loginDiagnostics';
+import { friendlyLoginError, loginErrorAction } from '../lib/loginDiagnostics';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+  const [errorAction, setErrorAction] = useState(null);
   const { isLoggedIn, setUser, clearUser, theme, toggleTheme } = useAuthStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -47,6 +47,7 @@ export default function LoginPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setErrorAction(null);
     setLoading(true);
     try {
       // Clear stale persisted user sebelum login baru
@@ -76,6 +77,7 @@ export default function LoginPage() {
       navigate('/mail');
     } catch (err) {
       setError(friendlyLoginError(err));
+      setErrorAction(loginErrorAction(err));
     } finally {
       setLoading(false);
     }
@@ -165,10 +167,23 @@ export default function LoginPage() {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm font-medium border border-destructive/20 overflow-hidden"
+                  className="p-3 bg-destructive/10 text-destructive rounded-md text-sm font-medium border border-destructive/20 overflow-hidden space-y-2"
                 >
-                  <AlertCircle size={16} className="shrink-0" />
-                  <span>{error}</span>
+                  <div className="flex items-center gap-2">
+                    <AlertCircle size={16} className="shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                  {errorAction && (
+                    <div className="flex items-center gap-2 pl-6">
+                      <p className="text-xs text-muted-foreground">{errorAction.hint}</p>
+                      <a
+                        href={`mailto:anas.fikri@pcpexpress.com?subject=${encodeURIComponent('Reset Password Webmail — ' + userName)}&body=${encodeURIComponent('Mohon reset password untuk akun: ' + userName)}`}
+                        className="text-xs underline text-primary hover:text-primary/80 font-medium whitespace-nowrap"
+                      >
+                        {errorAction.label}
+                      </a>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
