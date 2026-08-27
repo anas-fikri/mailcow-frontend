@@ -183,7 +183,9 @@ function PullToRefresh({ onRefresh, children }) {
 
   return (
     <div
-      className="relative h-full"
+      // flex-1 + min-h-0: filler sisa space pada parent flex-col; min-h-0
+      // WAJIB agar inner absolute-inset + overflow-y-auto bisa scroll.
+      className="relative flex-1 min-h-0"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -2245,7 +2247,10 @@ export default function MailPage() {
 
         {/* Message list */}
         <PullToRefresh onRefresh={() => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] })}>
-        <div ref={listRef} className="flex-1 overflow-y-auto">
+        {/* absolute inset-0: tinggi definitif mengikuti wrapper (relative +
+            flex-1 min-h-0) sehingga overflow-y-auto SELALU aktif walau
+            struktur flex di atasnya berubah — regresi "inbox tak bisa discroll". */}
+        <div ref={listRef} className="absolute inset-0 overflow-y-auto">
           {loadingMessages ? (
             <MessageListSkeleton count={8} />
           ) : msgError ? (
