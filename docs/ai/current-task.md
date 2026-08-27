@@ -1,20 +1,27 @@
-# Current Task
+# Current Task: Fix compose crash (React error #310)
 
-## 2026-08-27 — Conversation View Expand/Collapse All
+## Status: ✅ DEPLOYED
 
-### Fitur baru:
-Tombol expand/collapse all di header (hanya muncul di conversation view).
+## Root Causes Found & Fixed
 
-### Implementasi:
-- `expandAllConversations()` — expand max 50 thread (limit utk cegah lag)
-- `collapseAllConversations()` — collapse semua
-- Tombol di header: ChevronDown (expand all) / ChevronRight (collapse all)
-- Toggle otomatis: kalau semua sudah expand → klik jadi collapse, sebaliknya
-- Reset expanded set saat toggle conversation view on/off
+### Bug 1: React error #310 — "Rendered fewer hooks than expected"
+- `renderMessageRow` is a plain function (not a React component) called via `.map()` in JSX
+- Had `React.useMemo` inside it → counts as hooks of parent MailPage component
+- Changing message count = changing hook count = React #310 crash
+- **Fix**: Replace `useMemo` with lightweight inline computation
 
-### Edge cases verified:
-- Hapus pesan dalam conversation → query invalidates → conversationGroups re-render
-- Conversation shrink ke 1 pesan → render sebagai baris biasa (bukan group)
-- Stale keys di expandedConversations → harmless (tidak match group manapun)
+### Bug 2: nginx MIME type — sw.js served as application/octet-stream
+- `types{application/manifest+json webmanifest} + default_type application/octet-stream`
+- Applied to sw.js AND theme-init.js → browsers refuse to register service worker
+- Old cached JS (MailPage-DVvbjdE0.js) never cleared → `r.substring is not a function`
+- **Fix**: Split into separate location blocks; .js files get auto-detected `application/javascript`
 
-### Status: 58/58 PASS, build OK, deployed.
+### Bug 3: Defensive .substring guards
+- `phishingDetection.js` had `raw.substring(0, 60)` without `String()` wrapper
+- **Fix**: `String(raw || '').substring(0, 60)`
+
+## Deployed
+- Commit: `ec0fce3`
+- SW v4 active
+- All nginx config updated
+- 59/60 tests pass

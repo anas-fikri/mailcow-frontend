@@ -2,13 +2,40 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import https from 'https'
+import { fileURLToPath } from 'node:url'
+
+// ── Anti-duplicate-React ────────────────────────────────────────────────────
+// PELANGGARAN #310: api-chunk membawa SALINAN React kedua (via zustand@4 →
+// use-sync-external-store shim yang meng-bundle CJS-react interop). Komponen
+// dirender pakai React-copy index-chunk; store-hook dipanggil lewat copy lain
+// → dispatcher mismatch → "Rendered fewer hooks than expected".
+// Fix: paksa SEMUA specifier react/react-dom ke FILE FISIK YANG SAMA + dedupe.
+const NODE_MODULES = fileURLToPath(new URL('./node_modules/', import.meta.url))
+const shimPath = fileURLToPath(new URL('./src/lib/useSyncExternalStoreShim.js', import.meta.url))
+
+// ── Plugin: arahkan SELURUH subpath use-sync-external-store → shim lokal ────
+// Consumer CJS-react terakhir hilang dari graph → hanya SATU salinan React.
+const useSesShimPlugin = {
+  name: 'use-sync-external-store-shim',
+  enforce: 'pre',
+  resolveId(id) {
+    if (id === 'use-sync-external-store' || id.startsWith('use-sync-external-store/')) {
+      return shimPath;
+    }
+    return null;
+  },
+}
 
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    useSesShimPlugin,
   ],
   base: '/webmail/',
+  resolve: {
+    dedupe: ['react', 'react-dom', 'use-sync-external-store'],
+  },
   build: {
     outDir: 'dist',
   },
