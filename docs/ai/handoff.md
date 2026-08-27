@@ -2935,3 +2935,25 @@ index.html kini SATU cache-control (no-store) tanpa Expires; webmail 200.
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-08-27 — Ai-loop rotasi ComposeModal rich-text + paste edge cases
+
+**Temuan 1 (bug nyata UX):** plain-mode textarea memakai
+`value={body.replace(/<[^>]*>?/gm, '')}` pada SETIAP render → teks polos user
+yang mengandung '<' (mis. "a < b" atau kode) di-strip tag palsu → user tidak
+bisa mengetik karakter '<' di mode Teks Biasa. Fix: komponen PlainBodyTextarea
+— HTML_TAG_RE (/<[a-z][^>]*>/i) membedakan "body masih HTML" (draft/reply →
+strip via htmlToPlainText: br→\n + buang tag) vs teks polos (dibiarkan apa
+adanya). Regresi kunci: jangan pernah strip teks polos.
+
+**Temuan 2 (race paste):** di handleEditorPaste jalur fallback
+tryReadClipboardImages, e.preventDefault() dipanggil SETELAH `await` → browser
+sudah menjalankan paste default (teks) sebelum gambar di-insert → konten
+ganda/duplikat. Fix: cek `dt.types` dulu (Files / image/*) — clipboard teks
+biasa dikembalikan null (browser paste default); kalau berpotensi gambar,
+preventDefault() dipanggil SYNCHRON sebelum await. Regresi: paste teks biasa
+tidak boleh dibatalkan oleh jalur gambar.
+
+**Test:** scripts/test-paste-editor.mjs (9 assertion statis) + verifikasi
+runtime htmlToPlainText (draft HTML → teks; 'a < b'; kode tetap utuh).
+57/57 PASS · build OK.

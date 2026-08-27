@@ -236,15 +236,26 @@ export async function handleEditorPaste(e, { editorRef, onChange, setIsPasting, 
     return 'ok';
   }
 
+  // Fallback: baca gambar langsung dari Clipboard API (browser yg tidak
+  // mengekspos file di dt.items). Hanya coba kalau clipboard MENYATAKAN ada
+  // file/gambar (dt.types mengandung 'Files' atau tipe image/) — tanpa itu
+  // clipboard hanya teks biasa dan browser harus dibiarkan paste default.
+  const hasFileType = Array.from(dt.types || []).some(
+    (t) => t === 'Files' || t.startsWith('image/')
+  );
+  if (!hasFileType) return null;
+
+  // e.preventDefault() WAJIB dipanggil SYNCHRON SEBELUM await — kalau ditunda,
+  // browser sudah menjalankan paste default (teks) → gambar di-insert di atas
+  // teks ganda (duplikat konten).
+  e.preventDefault();
   setIsPasting?.(true);
   const clipboardImages = await tryReadClipboardImages();
   if (clipboardImages.length > 0) {
-    e.preventDefault();
     await insertImageFile(clipboardImages[0], editorRef, onChange);
     setIsPasting?.(false);
     return 'ok';
   }
   setIsPasting?.(false);
-
   return null;
 }

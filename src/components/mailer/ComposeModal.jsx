@@ -582,11 +582,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     placeholder="<p>Tulis kode HTML di sini...</p>"
                   />
                 ) : (
-                  <textarea
-                    value={body.replace(/<[^>]*>?/gm, '')}
-                    onChange={(e) => { markUserEdited(); setBody(e.target.value); }}
-                    className="flex-1 w-full min-h-[200px] p-5 bg-transparent border-t border-border/40 focus:outline-none focus:ring-0 text-sm resize-none"
-                    placeholder="Tulis pesan Anda di sini..."
+                  <PlainBodyTextarea
+                    body={body}
+                    onBodyChange={(v) => { markUserEdited(); setBody(v); }}
                   />
                 )}
               </div>
@@ -712,6 +710,32 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+// ── Plain Body Textarea ───────────────────────────────────────────────────────
+// Mode Teks Biasa: textarea menampilkan body sebagai teks polos.
+// Draft/balasan yang dibawa sbg HTML (initialData.body) harus di-strip tag
+// (br→\n, sisanya dibuang). TAPI teks polos yang diketik user TIDAK boleh
+// di-strip: body bisa berisi '<' legit (mis. "a < b" atau kode), dan regex
+// strip-tag akan memakannya setiap re-render → user tidak bisa mengetik '<'.
+// Deteksi "body masih HTML" = ada tag lengkap <tagname ...>. Teks biasa tanpa
+// tag tidak diubah sama sekali.
+const HTML_TAG_RE = /<[a-z][^>]*>/i;
+function htmlToPlainText(html) {
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, '');
+}
+function PlainBodyTextarea({ body, onBodyChange }) {
+  const display = HTML_TAG_RE.test(String(body || '')) ? htmlToPlainText(body) : body;
+  return (
+    <textarea
+      value={display}
+      onChange={(e) => { onBodyChange(e.target.value); }}
+      className="flex-1 w-full min-h-[200px] p-5 bg-transparent border-t border-border/40 focus:outline-none focus:ring-0 text-sm resize-none"
+      placeholder="Tulis pesan Anda di sini..."
+    />
   );
 }
 
