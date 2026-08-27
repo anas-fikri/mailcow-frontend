@@ -24,7 +24,7 @@ import { z } from 'zod';
 import { isSafeRecipient, recipientAddress, validateRecipientList, hasControlChars } from './src/lib/emailValidation.js';
 import { parseCookies, buildSmtpSessionCookie, clearSmtpSessionCookie, SMTP_SESSION_COOKIE } from './src/lib/smtpCookie.js';
 import { fetchRemoteImage } from './src/lib/remoteImage.js';
-import { validateAttachments, MAX_ATTACHMENTS } from './src/lib/attachmentValidation.js';
+import { validateAttachments, MAX_ATTACHMENTS, MAX_FILE_MB_DEFAULT, MAX_TOTAL_MB_DEFAULT, MAX_ATTACHMENTS_DEFAULT } from './src/lib/attachmentValidation.js';
 import {
   createSendQueue, buildQueueEntry, dueEntries, pendingForUser, canCancel,
   encryptCredentials, decryptCredentials, maxScheduleMs, SEND_QUEUE_STATUS,
@@ -50,9 +50,17 @@ const SMTP_TLS_CA  = process.env.SMTP_TLS_CA  || ''; // path to custom CA cert (
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8888,http://127.0.0.1:8888')
   .split(',').map(s => s.trim());
 app.use(cors({ origin: CORS_ORIGINS, credentials: true }));
-// Body limit dinaikkan utk lampiran base64 (per-file ≤4 MB, total ≤18 MB biner).
-// Batas akhir tetap divalidasi di validateAttachments() (MAX_TOTAL_BASE64).
-app.use(express.json({ limit: '30mb' }));
+// Body limit utk lampiran base64. Batas akhir tetap divalidasi di
+// validateAttachments(). Nilai env: SMTP_MAX_ATTACHMENT_MB (default 20),
+// SMTP_MAX_TOTAL_MB (default 60) — sama yg dipakai validateAttachments.
+// Body JSON ~ base64 + overhead; alokasikan ~2x total utk aman (JSON escaping,
+// field lain, batch).
+const MAX_ATTACHMENT_MB = parseInt(process.env.SMTP_MAX_ATTACHMENT_MB || String(MAX_FILE_MB_DEFAULT), 10) || MAX_FILE_MB_DEFAULT;
+const MAX_TOTAL_MB     = parseInt(process.env.SMTP_MAX_TOTAL_MB || String(MAX_TOTAL_MB_DEFAULT), 10) || MAX_TOTAL_MB_DEFAULT;
+const MAX_ATT_LIMIT    = parseInt(process.env.SMTP_MAX_ATTACHMENTS || String(MAX_ATTACHMENTS_DEFAULT), 10) || MAX_ATTACHMENTS_DEFAULT;
+const MAX_FILE_B64     = Math.floor(MAX_ATTACHMENT_MB * 1024 * 1024 * 4 / 3) + 1024;
+const MAX_TOTAL_B64    = Math.floor(MAX_TOTAL_MB * 1024 * 1024 * 4 / 3) + 2048;
+app.use(express.json({ limit: `${Math.max(MAX_TOTAL_B64 * 2, 32)}mb` }));
 
 // ── Config DB ──────────────────────────────────────────────────────────────────
 const MYSQL_CONTAINER = process.env.MYSQL_CONTAINER || 'mailcow-mysql-mailcow-1';
@@ -507,6 +515,17 @@ const sendEmailSchema = z.object({
   })).max(MAX_ATTACHMENTS).optional().default([]),
 });
 
+// Konfigurasi kirim (batas lampiran, dll) utk frontend — agar validasi client
+// sinkron dengan nilai env server. Per-route, tanpa sesi SMTP (nilai publik).
+app.get('/api/send/config', rateLimit({ max: 60, windowMs: 60000, keyFn: clientIp }), (_req, res) => {
+  res.json({
+    maxFileMB: MAX_ATTACHMENT_MB,
+    maxTotalMB: MAX_TOTAL_MB,
+    maxAttachments: MAX_ATT_LIMIT,
+    undoSeconds: SEND_UNDO_SECONDS,
+  });
+});
+
 // Rate-limit kirim per AKUN (bukan per IP): kantor/NAT berbagi satu IP
 // publik, key IP membuat 10 kirim/menit tersedot semua user (429 palsu /
 // self-DoS). Key = session.user; request tanpa sesi sah fallback ke IP.
@@ -533,8 +552,15 @@ app.post('/api/send', resolveSmtpSession, rateLimit({ max: 10, windowMs: 60000, 
     return res.status(400).json({ message: 'Alamat pengirim tidak valid.' });
   }
 
-  // Validasi lampiran (ukuran per-file, total, base64, nama file).
-  const att = validateAttachments(parsed.data.attachments);
+  // Validasi lampiran (ukuran per-file, total, base64, nama file). Batas
+  // mengikuti env (SMTP_MAX_ATTACHMENT_MB / SMTP_MAX_TOTAL_MB / SMTP_MAX_ATTACHMENTS).
+  const att = validateAttachments(parsed.data.attachments, {
+    maxAttachments: MAX_ATT_LIMIT,
+    maxFileBase64: MAX_FILE_B64,
+    maxFileMB: MAX_ATTACHMENT_MB,
+    maxTotalBase64: MAX_TOTAL_B64,
+    maxTotalMB: MAX_TOTAL_MB,
+  });
   if (!att.ok) {
     return res.status(400).json({ message: att.error });
   }

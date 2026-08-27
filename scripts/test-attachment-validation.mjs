@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   isBase64, base64Length, validateAttachment, validateAttachments,
-  MAX_ATTACHMENTS, MAX_FILE_BASE64,
+  MAX_ATTACHMENTS, MAX_FILE_BASE64, MAX_FILE_MB_DEFAULT, MAX_TOTAL_MB_DEFAULT,
 } from '../src/lib/attachmentValidation.js';
 
 // ── isBase64 ──────────────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ assert.equal(validateAttachment({ ...good, data: '!!!not-base64!!!' }).ok, false
 // data melebihi batas file (string base64 valid, len % 4 === 0)
 const tooBig = validateAttachment({ ...good, data: 'QUJD'.repeat(Math.ceil((MAX_FILE_BASE64 + 1) / 4)) });
 assert.equal(tooBig.ok, false);
-assert.match(tooBig.error, /4 MB/);
+assert.match(tooBig.error, /20 MB/);
 
 // ── validateAttachments ───────────────────────────────────────────────────────
 assert.deepEqual(validateAttachments([]), { ok: true, sanitized: [] });
@@ -68,7 +68,19 @@ const fat = [
 ];
 const rFat = validateAttachments(fat);
 assert.equal(rFat.ok, false);
-assert.match(rFat.error, /18 MB/);
+assert.match(rFat.error, /60 MB/);
+
+// Batas env override: server.js bisa set nilai berbeda (mis. 25 MB/file).
+const rOverride = validateAttachment(
+  { ...good, data: 'QUJD'.repeat(Math.ceil((26 * 1024 * 1024 * 4 / 3 + 1) / 4)) },
+  0,
+  { maxFileBase64: Math.floor(25 * 1024 * 1024 * 4 / 3) + 1024, maxFileMB: 25 }
+);
+assert.equal(rOverride.ok, false);
+assert.match(rOverride.error, /25 MB/);
+// default ekspor tetap 20 MB per file
+assert.equal(MAX_FILE_MB_DEFAULT, 20);
+assert.equal(MAX_TOTAL_MB_DEFAULT, 60);
 
 // error pertama menunjuk index yang benar
 const mixed = [good, { filename: '', contentType: 'text/plain', data: 'aA==' }];

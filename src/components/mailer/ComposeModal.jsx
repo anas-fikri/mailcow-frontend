@@ -6,7 +6,7 @@ import {
   List, ListOrdered, Heading1, Indent, IndentDecrease,
   ImagePlus, AlertTriangle, Maximize2, Minimize2, FileSignature, CalendarClock
 } from 'lucide-react';
-import { sendMessage, createDraft, saveDraft, deleteDraft, fetchContacts, fetchPreferences, undoScheduledSend } from '../../lib/api';
+import { sendMessage, createDraft, saveDraft, deleteDraft, fetchContacts, fetchPreferences, undoScheduledSend, fetchSendConfig } from '../../lib/api';
 import { toast, useToastStore, TOAST_TYPES } from '../../lib/toast';
 import { useAuthStore } from '../../store/authStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,9 +18,11 @@ import { firstInvalidRecipient } from '../../lib/emailValidation';
 import { recordSentRecipients, getEmailSuggestions } from '../../lib/emailHistory';
 import { parseEmlContent } from '../../lib/emlUtils';
 
-// Batas lampiran (sama dengan validasi backend — lihat attachmentValidation.js).
-const MAX_ATTACHMENTS = 10;
-const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4 MB per file
+// Batas lampiran default (fallback bila config server belum tiba — lihat
+// attachmentValidation.js + server.js env SMTP_MAX_*).
+const MAX_ATTACHMENTS_DEFAULT = 10;
+const MAX_FILE_MB_DEFAULT = 20;
+const MAX_TOTAL_MB_DEFAULT = 60;
 
 export default function ComposeModal({ isOpen, onClose, initialData = null, sogoToken, userFrom = '' }) {
   const { user } = useAuthStore();
@@ -61,6 +63,24 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   const [attachments, setAttachments] = useState([]);
   const attachInputRef = useRef(null);
   const attachIdRef = useRef(0);
+
+  // Batas lampiran dari server (/api/send/config) — sinkron dengan env backend
+  // & konfigurasi dashboard. Fallback default 20MB/file, 60MB total, 10 file.
+  const [sendLimits, setSendLimits] = useState({
+    maxFileMB: MAX_FILE_MB_DEFAULT,
+    maxTotalMB: MAX_TOTAL_MB_DEFAULT,
+    maxAttachments: MAX_ATTACHMENTS_DEFAULT,
+  });
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchSendConfig()
+      .then((c) => setSendLimits({
+        maxFileMB: c?.maxFileMB || MAX_FILE_MB_DEFAULT,
+        maxTotalMB: c?.maxTotalMB || MAX_TOTAL_MB_DEFAULT,
+        maxAttachments: c?.maxAttachments || MAX_ATTACHMENTS_DEFAULT,
+      }))
+      .catch(() => { /* fallback default sudah dipakai */ });
+  }, [isOpen]);
 
   // Ambil kontak untuk autocomplete
   const { data: contacts = [] } = useQuery({
@@ -305,19 +325,26 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
     markUserEdited();
 
     // Validasi jumlah & ukuran di luar updater (deterministik, tanpa double-run).
-    const remaining = MAX_ATTACHMENTS - attachCountRef.current;
+    const maxFileBytes = sendLimits.maxFileMB * 1024 * 1024;
+    const remaining = sendLimits.maxAttachments - attachCountRef.current;
     const accepted = [];
     const errors = [];
+    let totalBytes = attachments.reduce((s, a) => s + (a.size || 0), 0);
     for (const file of files) {
       if (accepted.length >= remaining) {
-        errors.push(`Maksimal ${MAX_ATTACHMENTS} lampiran per email.`);
+        errors.push(`Maksimal ${sendLimits.maxAttachments} lampiran per email.`);
         break;
       }
-      if (file.size > MAX_FILE_BYTES) {
-        errors.push(`"${file.name}" melebihi 4 MB — lampiran maksimal 4 MB per file.`);
+      if (file.size > maxFileBytes) {
+        errors.push(`"${file.name}" melebihi ${sendLimits.maxFileMB} MB — lampiran maksimal ${sendLimits.maxFileMB} MB per file.`);
+        continue;
+      }
+      if (totalBytes + file.size > sendLimits.maxTotalMB * 1024 * 1024) {
+        errors.push(`Total lampiran melebihi ${sendLimits.maxTotalMB} MB.`);
         continue;
       }
       accepted.push(file);
+      totalBytes += file.size;
     }
     if (errors.length > 0) setError(errors.join(' '));
     if (accepted.length === 0) return;
@@ -346,7 +373,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
       };
       reader.readAsDataURL(file);
     }
-  }, [markUserEdited]);
+  }, [markUserEdited, attachments, sendLimits]);
 
   const onAttachFiles = useCallback((e) => {
     addFiles(e.target.files);
@@ -715,7 +742,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                     </span>
                   ))}
                   <span className="text-[10px] text-muted-foreground ml-auto">
-                    {attachments.length}/{MAX_ATTACHMENTS} · {totalAttachmentSize(attachments)}
+                    {attachments.length}/{sendLimits.maxAttachments} · {totalAttachmentSize(attachments)}
                   </span>
                 </div>
               )}

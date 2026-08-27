@@ -1027,6 +1027,23 @@ export async function sendMessage(sogoToken, payload) {
   return smtpRes.json();
 }
 
+// ─── Konfigurasi kirim (batas lampiran) ───────────────────────────────────────
+// Dibaca dari server (env SMTP_MAX_ATTACHMENT_MB dll) agar validasi client
+// sinkron dengan nilai backend & konfigurasi dashboard. Cache singkat per tab.
+let _sendConfigCache = null;
+let _sendConfigAt = 0;
+export async function fetchSendConfig(force = false) {
+  const now = Date.now();
+  if (!force && _sendConfigCache && now - _sendConfigAt < 60_000) return _sendConfigCache;
+  const res = await fetch('/api/send/config', { credentials: 'include', headers: withApiKey() });
+  if (res.status === 401) throwIfAuthError(res);
+  if (!res.ok) throw new Error(`Gagal memuat konfigurasi kirim (${res.status}).`);
+  const data = await safeJson(res);
+  _sendConfigCache = data;
+  _sendConfigAt = now;
+  return data;
+}
+
 // ─── Scheduled/undo send ──────────────────────────────────────────────────────
 // Batal kirim yang masih ditahan di queue server (undo send / batalkan jadwal).
 export async function undoScheduledSend(id) {

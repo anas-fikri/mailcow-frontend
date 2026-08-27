@@ -170,6 +170,25 @@ location = /api/send {
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
 }
 # Undo send / batalkan jadwal (queue server) — POST body { id }.
+# Konfigurasi kirim utk frontend (batas lampiran dari env server) — GET.
+location = /api/send/config {
+    proxy_pass http://172.25.1.1:3005;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 30s;
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Permissions-Policy;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+}
 location = /api/send/undo {
     proxy_pass http://172.25.1.1:3005;
     proxy_set_header Host $host;
