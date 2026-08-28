@@ -1,7 +1,7 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-28T04:33:38Z
+Generated At: 2026-08-28T04:38:24Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
@@ -13,12 +13,12 @@ Suggestions are evidence-based from current task state, goals, validation, risks
 - Why: Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 3. [MEDIUM] Follow up on discovered knowledge: Conversation and toolbar correction deployed successfully. Live webmail returned HTTP 200; image proxy and authenticated health checks passed; lazy MailPage-Bqn0iL9f.js is HTTP 200 and contains the new mailbox toolbar marker.
+## 3. [MEDIUM] Follow up on discovered knowledge: Delivery completed: commit 5ed47dd created, production deploy succeeded via SERVER=deploy-mail ./deploy.sh, webmail HTTP 200, image-proxy checks PASS, authenticated /api/health PASS. git push timed out and remote confirmation was unavailable; do not claim push succeeded.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
 ## 4. [LOW] Review and commit current changes
-- Why: 33 uncommitted file entries remain in the project.
+- Why: 4 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use
