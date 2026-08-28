@@ -468,6 +468,13 @@ Browser interaktif dengan akun nyata tidak tersedia di environment agent; login/
 - Live webmail HTTP 200, `/api/image-proxy` SSRF/external checks PASS, `/api/health` authenticated PASS.
 - Lazy chunk live `MailPage-Bqn0iL9f.js` HTTP 200 dan mengandung marker `data-mailbox-toolbar`.
 
+## 2026-08-28 — Fix production TDZ crash
+
+- Root cause: `conversationPreviewMessages`/`conversationGroups` referenced `isSentOrDraft` before its `const` initialization; minifier exposed it as `Fn` and production threw `Cannot access 'Fn' before initialization`.
+- Fix: move `isSentOrDraft` declaration before conversation memos; add `test-conversation-init-order.mjs`.
+- Commit `1c9d039`; deploy succeeded. Live `MailPage-DsHlNfUG.js` HTTP 200; webmail, image proxy, and authenticated health checks PASS.
+- `git push` timed out and remains unconfirmed.
+
 ## 2026-08-28 — Conversation/toolbar final correction
 
 - Validasi terhadap source terbaru menemukan preview harus berasal dari `group.latest`, bukan dedupe raw `filteredMessages`; `groupConversations` kini sort tiap grup by date sebelum memilih latest.
