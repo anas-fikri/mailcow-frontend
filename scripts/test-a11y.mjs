@@ -223,7 +223,7 @@ assert.ok(mail.includes('group.hasUnread'), 'Conversation header memakai hasUnre
 passCount++;
 assert.ok(mail.includes('group.latest'), 'Conversation header memakai latest');
 passCount++;
-assert.ok(mail.includes("import { groupConversations } from '../lib/conversations'"), 'Conversation lib import hilang');
+assert.ok(mail.includes("groupConversations, normalizeSubject as normalizeConversationSubject } from '../lib/conversations'"), 'Conversation lib import hilang');
 passCount++;
 assert.ok(mail.includes("labelField: isSentOrDraft ? 'to' : 'from'"), 'Conversation header: labelField (to utk Terkirim/Draf) hilang');
 passCount++;
@@ -300,7 +300,7 @@ passCount++;
 assert.ok(mail.includes('className="flex items-center gap-2 min-w-0 flex-1"'), 'Header harus min-w-0 flex-1 utk dynamic sizing');
 assert.ok(mail.includes('<span className="truncate">{selectedFolderMeta.label}</span>'), 'Judul folder harus truncate');
 assert.ok(mail.includes('gap-1.5 tabular-nums shrink-0'), 'Badge hitung harus shrink-0');
-assert.ok(mail.includes('flex items-center gap-1 shrink-0'), 'Cluster tombol header harus shrink-0');
+assert.ok(mail.includes('flex items-center gap-1 flex-wrap') || mail.includes('overflow-x-auto'), 'Cluster tombol header harus wrap/overflow-safe');
 passCount += 4;
 // 3) Baris pesan: cluster ikon (snooze/arsip/star/date) sejajar vertikal dgn
 //    baris pengirim (items-center, bukan items-baseline) di semua lebar list.
