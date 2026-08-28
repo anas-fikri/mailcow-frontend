@@ -52,6 +52,7 @@
     "test:format": "node scripts/test-format.mjs",
     "test:theme-init": "node scripts/test-theme-init.mjs",
     "test:conversation-toolbar": "node scripts/test-conversation-toolbar-regression.mjs",
+    "test:conversation-init-order": "node scripts/test-conversation-init-order.mjs",
     "test:calendar-drop": "node scripts/test-calendar-drop.mjs",
     "test:keyboard-ownership": "node scripts/test-keyboard-ownership.mjs",
     "test:a11y": "node scripts/test-a11y.mjs",

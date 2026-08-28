@@ -555,6 +555,10 @@ export default function MailPage() {
   const folderById = (id) => (Array.isArray(folders) ? folders : []).find((f) => f.id === id) || null;
   const trashFolder = folderById('folderTrash') || { path: 'Trash' };
 
+  // Folder Terkirim/Draf menampilkan penerima (to) sebagai label baris;
+  // dipakai juga untuk header/avatar conversation sebelum memo di bawah.
+  const isSentOrDraft = isSentOrDraftFolder(selectedFolder, folders);
+
   // Filter messages by flag color / kategori / belum dibaca / snooze (client-side)
   const filterMessage = (m) => {
     if (!searchQuery && snoozedUids.has(String(m.uid))) return false;
@@ -680,10 +684,6 @@ export default function MailPage() {
   const sortedMessages = useMemo(() => {
     return sortMessagesByDate(displayMessages);
   }, [displayMessages]);
-
-  // Folder Terkirim/Draf menampilkan penerima (to) sebagai label baris;
-  // dipakai juga utk header avatar stack percakapan (konsisten).
-  const isSentOrDraft = isSentOrDraftFolder(selectedFolder, folders);
 
   // Conversation grouping dibuat setelah displayMessages tersedia di bawah.
   // Jangan grouping seluruh `messages`: pesan yang sedang snooze/filter harus
