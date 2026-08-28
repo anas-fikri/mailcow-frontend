@@ -1,31 +1,40 @@
-# Current Task: Fix React #310 duplicate-React-runtime
+# Current Task
 
-## Status: ✅ DEPLOYED (commit a0d8a50)
+Status: ACTIVE
+Task ID: 20260828-043403-608230
+Started At: 2026-08-28T04:34:03Z
+Updated At: 2026-08-28T04:34:03Z
+Project Root: /home/anas.fikri/mailcow-frontend
 
-## ROOT CAUSE (final, terbukti via sourcemap + repro test)
-zustand@4 → use-sync-external-store/shim/with-selector.js (CJS) melakukan
-require('react') yang di pipeline rolldown-vite menghasilkan MODULE INSTANCE
-REACT KEDUA: seluruh react/cjs/react.production.js ter-bundle ke chunk api.
-Komponen dirender dengan copy-A; store hooks lewat copy-B → dispatcher
-mismatch → "Minified React error #310 — Rendered fewer hooks than expected"
-saat membuka /webmail/mail.
+## Objective
+T-DELIVERY-2026-08-28: update ai-toolkit, commit, push, deploy
 
-## FIX
-1. vite.config: plugin `useSesShimPlugin` (resolveId) — semua specifier
-   use-sync-external-store* → src/lib/useSyncExternalStoreShim.js
-   (ESM, memakai React instance utama aplikasi).
-2. Shim export bentuk sesuai upstream: NAMED fn + DEFAULT OBJECT
-   (zustand/esm/index.mjs melakukan destructuring dari default import).
+## Goal Link
+Goal ID: TBD
+Sub-goal ID: TBD
 
-## GATING BARU
-- scripts/test-single-react.mjs: assert tepat SATU runtime React di dist
-  (signature 'useState=function' ≤ 2 kemunculan total). Regression-proof.
-- Repro test test-settings-signature kini PASS ('oe is not a function' hilang).
-- scripts/tools/find-hook-violations.mjs + scripts/lib/jsscan.mjs:
-  scanner statis Rules-of-Hooks (diagnostik manual, bukan gating — masih
-  memiliki blindspot regex-literal; dokumentasi di file).
+## Files Involved
+- To be determined
 
-## VALIDASI
-- 61/61 test PASS (0 fail)
-- Served bundle live: react runtime tunggal (api x1, index x0)
-- SW v5 aktif → cache lama terhapus otomatis di browser user
+## Next Steps
+- Inspect the current code and context
+- Execute the task
+- Update handoff notes before switching tools
+
+## Risk Analysis
+- Status: REQUIRED BEFORE IMPLEMENTATION
+- Risk level: UNASSESSED
+- Impact surface: Not assessed
+- Security concerns: Not assessed
+- Compatibility concerns: Not assessed
+- Failure modes/edge cases: Not assessed
+- Mitigations: Not assessed
+- Validation plan: Not assessed
+- Open risks/assumptions: Not assessed
+
+## Risks
+- Complete  before changing implementation files.
+
+## Validation
+- Risk analysis: REQUIRED
+- Tests/checks: Not run

@@ -26,7 +26,7 @@ import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveC
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
 import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate, applyMessageWindow } from '../lib/dateGroups';
-import { groupConversations } from '../lib/conversations';
+import { groupConversations, normalizeSubject as normalizeConversationSubject } from '../lib/conversations';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 const MESSAGE_WINDOW_MONTHS = 5;
@@ -556,18 +556,55 @@ export default function MailPage() {
   const trashFolder = folderById('folderTrash') || { path: 'Trash' };
 
   // Filter messages by flag color / kategori / belum dibaca / snooze (client-side)
-  const displayMessages = visibleMessages.filter((m) => {
-    // Di-snooze → sembunyi dari daftar biasa. SAAT MENCARI pesan yang
-    // di-snooze TETAP muncul — search adalah satu-satunya jalan menemukannya
-    // (pola Gmail). Sebelumnya tersembunyi juga di hasil search → tidak bisa
-    // ditemukan sampai waktu wake (bug).
+  const filterMessage = (m) => {
     if (!searchQuery && snoozedUids.has(String(m.uid))) return false;
     if (flagFilter && getFlagColor(user?.email, m.uid) !== flagFilter) return false;
     if (categoryFilter && classifyEmail(m) !== categoryFilter) return false;
     if (unreadOnly && m.isRead) return false;
     if (hasAttachmentOnly && !m.hasAtt) return false;
     return true;
-  });
+  };
+  const displayMessages = visibleMessages.filter(filterMessage);
+
+  // Conversation dibentuk dari semua pesan yang sudah dimuat dan lolos filter,
+  // bukan dari visibleMessages yang hanya berisi page pertama. Ini menjaga
+  // thread tetap stabil saat infinite-scroll menambah data.
+  const filteredMessages = useMemo(
+    () => messages.filter(filterMessage),
+    [messages, searchQuery, snoozedUids, flagFilter, user?.email, categoryFilter, unreadOnly, hasAttachmentOnly]
+  );
+
+  // Conversation mode memakai satu preview terbaru per grup pada halaman awal.
+  // Preview diambil dari hasil grouping yang sudah diurutkan berdasarkan date,
+  // sehingga urutan response SOGo tidak dapat menyembunyikan email baru.
+  const conversationPreviewMessages = useMemo(() => {
+    if (!conversationView) return displayMessages;
+    return groupConversations(filteredMessages, false, user?.email || '', {
+      labelField: isSentOrDraft ? 'to' : 'from',
+    }).map((group) => group.latest).filter(Boolean);
+  }, [conversationView, displayMessages, filteredMessages, user?.email, isSentOrDraft]);
+
+  const conversationGroups = useMemo(() => {
+    if (!conversationView) return [];
+    return groupConversations(filteredMessages, sortAsc, user?.email || '', {
+      labelField: isSentOrDraft ? 'to' : 'from',
+    });
+  }, [filteredMessages, conversationView, sortAsc, user?.email, isSentOrDraft]);
+
+  const visibleConversationUids = useMemo(
+    () => new Set((conversationView ? conversationPreviewMessages : displayMessages).map((message) => String(message.uid))),
+    [conversationView, conversationPreviewMessages, displayMessages]
+  );
+
+  const visibleConversationGroups = useMemo(() => {
+    if (!conversationView) return [];
+    return conversationGroups
+      .map((group) => ({
+        ...group,
+        messages: group.messages.filter((message) => visibleConversationUids.has(String(message.uid))),
+      }))
+      .filter((group) => group.messages.length > 0);
+  }, [conversationView, conversationGroups, visibleConversationUids]);
 
   function handleSnooze(uid, hours) {
     if (!user?.email) return;
@@ -648,17 +685,10 @@ export default function MailPage() {
   // dipakai juga utk header avatar stack percakapan (konsisten).
   const isSentOrDraft = isSentOrDraftFolder(selectedFolder, folders);
 
-  // Conversation grouping
-  const conversationGroups = useMemo(() => {
-    if (!conversationView) return [];
-    // selfEmail = alamat akun sendiri; dikecualikan dari partisipan supaya dua
-    // thread beda vendor dengan subjek sama (mis. "Invoice") tidak menyatu.
-    // labelField: folder Terkirim/Draf memakai penerima (to) utk header,
-    // konsisten dgn label baris (renderMessageRow memakai to saat isSentOrDraft).
-    return groupConversations(sortedMessages, sortAsc, user?.email || '', {
-      labelField: isSentOrDraft ? 'to' : 'from',
-    });
-  }, [sortedMessages, conversationView, sortAsc, user?.email, isSentOrDraft]);
+  // Conversation grouping dibuat setelah displayMessages tersedia di bawah.
+  // Jangan grouping seluruh `messages`: pesan yang sedang snooze/filter harus
+  // mengikuti daftar yang benar-benar terlihat oleh user agar tidak muncul
+  // kembali secara tak terduga saat conversation diaktifkan.
 
   // Reset expanded set when conversation view toggles
   useEffect(() => {
@@ -690,16 +720,25 @@ export default function MailPage() {
     });
   }, []);
 
+  // Hanya thread dengan >1 pesan yang punya panel anak untuk di-expand.
+  // Menghitung singleton membuat tombol expand-all terlihat tidak konsisten.
+  const expandableConversationGroups = useMemo(
+    () => visibleConversationGroups.filter((group) => group.messages.length > 1).slice(0, 50),
+    [visibleConversationGroups]
+  );
+
   // Expand/collapse ALL conversation threads sekaligus.
   // Limit 50 thread saat expand-all utk cegah lag di inbox besar.
   const expandAllConversations = useCallback(() => {
-    const keys = conversationGroups.slice(0, 50).map((g) => g.key);
+    const keys = expandableConversationGroups.map((g) => g.key);
     setExpandedConversations(new Set(keys));
-  }, [conversationGroups]);
+  }, [expandableConversationGroups]);
 
   const collapseAllConversations = useCallback(() => {
     setExpandedConversations(new Set());
   }, []);
+  const allExpandableConversationsOpen = expandableConversationGroups.length > 0 &&
+    expandableConversationGroups.every((group) => expandedConversations.has(group.key));
 
   // Masih ada yang bisa ditampilkan/dimuat: reveal client-side ATAU fetch server-side.
   const hasMore = visibleCount < messagesInWindow.length ||
@@ -1944,8 +1983,7 @@ export default function MailPage() {
         }`}
       >
         {/* Header */}
-        <div className="p-3 border-b border-border flex flex-col gap-3 bg-card sticky top-0 z-10">
-          <div className="flex items-center justify-between gap-2">
+        <div className="p-3 border-b border-border flex flex-col gap-3 bg-card sticky top-0 z-10">            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,auto)] items-start gap-x-3 gap-y-2">
             {/* min-w-0 + truncate: judul folder menyusut duluan saat lebar panel
                 list menyempit (dynamic sizing), tombol aksi di kanan tetap utuh */}
             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -1975,7 +2013,7 @@ export default function MailPage() {
                 <Loader2 size={14} className="animate-spin text-muted-foreground shrink-0" />
               )}
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="col-span-2 flex items-center gap-1 min-w-0 max-w-full overflow-x-auto pb-0.5" data-mailbox-toolbar="actions">
               <button
                 type="button"
                 onClick={() => setConversationView(!conversationView)}
@@ -1987,24 +2025,35 @@ export default function MailPage() {
                 aria-pressed={conversationView}
               >
                 <MessagesSquare size={16} />
+                <span className="sr-only">{conversationView ? 'Conversation aktif' : 'Aktifkan conversation'}</span>
               </button>
+              {conversationView && (
+                <span className="hidden sm:inline-flex items-center max-w-[9rem] truncate rounded-full bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary" title={`${visibleConversationGroups.length} grup percakapan`}>
+                  {visibleConversationGroups.length} percakapan
+                </span>
+              )}
               {/* Expand/Collapse all — hanya di conversation view */}
-              {conversationView && conversationGroups.length > 0 && (
-                <button
+              {conversationView && visibleConversationGroups.length > 0 && (
+                <>
+                  <span className="hidden lg:inline text-[10px] text-muted-foreground whitespace-nowrap">
+                    {expandableConversationGroups.length} thread
+                  </span>
+                  <button
                   type="button"
-                  onClick={expandedConversations.size === conversationGroups.length
+                  onClick={allExpandableConversationsOpen
                     ? collapseAllConversations
                     : expandAllConversations}
                   className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground transition-colors"
-                  title={expandedConversations.size === conversationGroups.length ? 'Ciutkan semua' : 'Perluas semua'}
-                  aria-label={expandedConversations.size === conversationGroups.length ? 'Ciutkan semua percakapan' : 'Perluas semua percakapan'}
+                  title={allExpandableConversationsOpen ? 'Ciutkan semua' : 'Perluas semua'}
+                  aria-label={allExpandableConversationsOpen ? 'Ciutkan semua percakapan' : 'Perluas semua percakapan'}
                 >
-                  {expandedConversations.size === conversationGroups.length ? (
+                  {allExpandableConversationsOpen ? (
                     <ChevronRight size={16} />
                   ) : (
                     <ChevronDown size={16} />
                   )}
-                </button>
+                  </button>
+                </>
               )}
               <button
                 type="button"
@@ -2290,8 +2339,8 @@ export default function MailPage() {
               </div>
             </div>            ) : (
             <div className="divide-y divide-border">
-              {conversationView && conversationGroups.length > 0
-                ? conversationGroups.map((group) => {
+              {conversationView && visibleConversationGroups.length > 0
+                ? visibleConversationGroups.map((group) => {
                     // Email tunggal (1 pesan, bukan thread sungguhan) — tampil
                     // sebagai baris biasa, tanpa header percakapan (pola
                     // Gmail/Outlook: hanya thread yang diberi penanda
@@ -2352,19 +2401,21 @@ export default function MailPage() {
                           </span>
                           <ChevronDown size={14} className={`text-muted-foreground shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
                         </button>
-                        {/* Pesan dalam percakapan — compact, thread line tipis.
-                            Border kiri berasal dari SATU sumber (wrapper), baris
-                            di dalamnya TIDAK memakai border-l lagi → tidak ada
-                            garis ganda yang bertumpuk. */}
-                        {isExpanded && (
-                          <div className="ml-4 border-l-2 border-primary/15">
-                            {group.messages.map((msg) => (
-                              <div key={msg.uid} className="border-t border-border/40 first:border-t-0">
-                                {renderMessageRow(msg, -1, true)}
-                              </div>
-                            ))}
+                        {/* Preview pesan terbaru selalu terlihat, seperti Outlook.
+                            Saat collapsed hanya pesan terbaru dirender; saat
+                            expanded pesan lama ikut ditampilkan. Jadi collapse
+                            hanya menyederhanakan tampilan, tidak membuat seluruh
+                            email terasa hilang. */}
+                        <div className="ml-4 border-l-2 border-primary/15">
+                          <div className="border-t border-border/40">
+                            {renderMessageRow(group.messages[0], -1, true)}
                           </div>
-                        )}
+                          {isExpanded && group.messages.slice(1).map((msg) => (
+                            <div key={msg.uid} className="border-t border-border/40">
+                              {renderMessageRow(msg, -1, true)}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
                   })

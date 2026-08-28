@@ -24,10 +24,11 @@ const main = fs.readFileSync(path.resolve('src/main.jsx'), 'utf8');
 let ok = true;
 
 // 1. SW network-first
-const hasNetworkFirst = /sw\.js/.test('') || true;
 // Struktur minimal: di dalam event 'fetch', respondWith(fetch(request)…) langsung
-const fetchFirst = /respondWith\(\s*fetch\(request\)/.test(sw);
+const fetchFirst = /respondWith\(\s*(?:networkFirst\(request\)|fetch\(request\))/.test(sw);
 const noCachedFirst = /caches\.match\(request\)\.then\(\(cached\).*return cached \|\| network/.test(sw);
+const hasResponseFallback = /return new Response\(/.test(sw);
+const avoidsNavigationFallback = /request\.mode !== 'navigate'/.test(sw);
 
 if (!fetchFirst) {
   console.error('✗ sw.js harus network-first: respondWith(fetch(request)…) di jalur utama.');
@@ -39,6 +40,18 @@ if (!fetchFirst) {
 if (noCachedFirst) {
   console.error('✗ Terdeteksi pola stale-while-revalidate (cached-first) — campuran chunk!');
   ok = false;
+}
+if (!hasResponseFallback) {
+  console.error('✗ Jalur offline harus selalu mengembalikan new Response().');
+  ok = false;
+} else {
+  console.log('✓ Jalur offline selalu menghasilkan Response valid');
+}
+if (!avoidsNavigationFallback) {
+  console.error('✗ Navigasi tidak boleh fallback ke HTML cache lama (risiko mixed build).');
+  ok = false;
+} else {
+  console.log('✓ Navigasi tidak memakai HTML cache lama saat offline');
 }
 
 // 2. CACHE_NAME versi vN

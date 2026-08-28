@@ -6,6 +6,43 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-08-28 — Conversation latest-preview invariant
+
+- Jangan pilih conversation preview dari urutan raw SOGo response. `groupConversations` wajib mengurutkan anggota setiap grup berdasarkan tanggal lalu menetapkan `latest`; UI memakai `group.latest`.
+- Counter mailbox dan action icons harus dipisah secara struktural dengan grid row/overflow, bukan hanya flex-wrap.
+
+## 2026-08-28 — Conversation preview pagination final
+
+- Pastikan `filteredMessages` dideklarasikan sebelum dipakai oleh preview memo; urutan deklarasi penting walau JavaScript source terlihat linear.
+- Untuk conversation UX, raw page slicing dapat menyembunyikan thread baru. Satu preview terbaru per normalized subject harus dipilih dari seluruh loaded filtered data.
+- Mailbox header counter dan actions harus dipisahkan secara struktural (grid rows/overflow), bukan hanya mengandalkan flex-wrap.
+
+## 2026-08-28 — Conversation page preview
+
+- Conversation UI tidak boleh melakukan raw `slice(0, 50)` lalu baru grouping; thread baru dapat tertutup oleh banyak pesan dari thread lama. Gunakan satu preview terbaru per normalized subject dari seluruh loaded filtered source, kemudian render UID preview.
+- Header action icons dan counter harus berada pada cluster bounded + wrapping; `shrink-0` tanpa batas lebar masih dapat overflow pada list width minimum.
+
+## 2026-08-28 — Conversation grouping dan toolbar mailbox
+
+- Grouping conversation harus memakai seluruh pesan loaded yang lolos filter, bukan `visibleMessages` yang dibatasi pagination. Untuk render, gunakan proyeksi UID ke pesan yang sudah terlihat agar email belum dimuat tidak muncul prematur.
+- Toolbar dengan banyak kontrol min 44px wajib `flex-wrap`/`max-w-full`; panel mailbox dapat menyempit sampai 240px.
+- Regression gates conversation pagination/filter/expand dan toolbar layout wajib dijalankan setelah perubahan ini.
+
+## 2026-08-27 — Full-stack audit R4
+
+- Backend routes, authentication/session, rate-limit, input validation, frontend hooks/storage/XSS sinks, conversation/filter/pagination, scroll, mobile, and accessibility were re-audited.
+- No new production bug was validated. `/api/send/config` is intentionally non-session-gated because it returns only public send limits and ComposeModal needs it before SMTP session readiness.
+- Validation evidence: 71/71 test scripts PASS, single React runtime, conversation gates, scroll contract, 169 accessibility assertions, Vite build, npm audit production 0 vulnerabilities, backend/deploy syntax, and diff check all PASS.
+
+## 2026-08-27 — Full-stack audit R5 (ai-toolkit + ai-fix + ai-loop)
+
+- Re-audited backend (endpoints, API key, SMTP session, rate-limit, input validation, send queue, SSRF, error handling), all flows (login/logout/compose/draft/send/attachment/undo-send/search/filter/snooze/auto-archive/calendar/contacts), and frontend (hooks, React Query, localStorage, XSS sinks, conversation, pagination, scroll, mobile, keyboard, a11y).
+- No new production bug validated; no speculative code changes and no new deploy.
+- `/api/send/config` confirmed intentionally non-session-gated: returns only public send limits and ComposeModal needs it before SMTP session readiness; gating it would break compose UX.
+- Validation evidence: 71/71 test scripts PASS, conversation tests PASS, single React runtime, scroll contract, 169 accessibility assertions, Vite build PASS, npm audit production 0 vulnerabilities, node --check server.js PASS, bash -n deploy.sh PASS, git diff --check PASS.
+- `theme-init.js` kini dibundle dari `src/themeInit.js` dan diimpor paling awal oleh `src/main.jsx`; jangan mengembalikan classic `<script src>` dari `public/` karena memicu warning Vite. Initializer harus tetap side-effect-only dan fail-open untuk menjaga anti-FOUC.
+
+
 ## 2026-08-18 — React #310 ROOT CAUSE: useRef after early return
 
 - **Root cause sebenarnya:** 3x `React.useRef` (contactNameRef, contactEmailRef, contactPhoneRef) dideklarasikan SETELAH early return `if (!msgId) return null;`. React melihat jumlah hook berbeda antara render → Rules of Hooks violation → React #310.
@@ -588,12 +625,12 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - `clearAllRules` harus membersihkan key v2 + v1 agar benar-benar reset.
 
 ## 2026-08-21T10:18:53Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Storage schema versioning: semua domain localStorage (pcp_signatures, pcp_snooze, flag_colors, auto_archive_rules, sogo_prefs, pcp_prefs) dimigrasi ke key *_v2_* dengan fallback chain readStorage() + persistNormalized() di storageMigrate.js; key v1 dihapus hanya bila tulis v2 sukses; JSON literal 'null' dianggap tidak ada data. 39/39 test PASS, build OK.
 
 ## 2026-08-21T10:24:14Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Sanitasi kirim email: sendMessage() di api.js kini selalu DOMPurify.sanitize(body, PURIFY_CONFIG) utk isHTML sebelum dikirim (SMTP langsung, payload SOGo /send, fallback SMTP 501) — defense-in-depth di atas sanitasi ComposeModal.handleSend; guard DOMPurify.isSupported utk lingkungan tanpa DOM; test jsdom test-send-sanitize memverifikasi script/onerror/javascript:/data: href hilang + rel=noopener dipaksa + plain text tidak diubah. 40/40 test PASS.
 
@@ -606,57 +643,57 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 - **Panel detail `hidden md:block` = fitur mati di mobile:** ContactsPage panel detail kontak `hidden md:block` → di layar < md, tap kontak tidak menampilkan apa-apa (state berubah tapi tidak dirender). Pola: setiap panel detail desktop butuh pasangan sheet mobile (overlay fixed + backdrop).
 
 ## 2026-08-25T15:49:02Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: formatAddresses harus normalisasi item SOGo (null/string); dua keydown global = double-fire → ownership satu pihak via isReaderOwnedShortcut; drag kalender harus pertahankan seluruh field event; log produksi tidak boleh memuat session token; panel detail hidden md:block = fitur mati di mobile.
 
 ## 2026-08-26T01:07:44Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Audit aksesibilitas webmail: token kontras light muted-foreground 45% (4.64:1 on muted), destructive light 0 72% 46% (5.61) / dark 0 84% 58% (5.04); amber-900 session badge; star amber-600 light + amber-400 dark (3.15/13.07); spam orange-600 light (3.58); SwipeableRow butuh dark:bg-red-700 krn destructive dark 58% lightness memberi white-fg cuma 3.79:1. Touch target 44px via min-w-11/min-h-11 di toolbar/bulk/reader/sidebar. Aria: semua icon-only button butuh aria-label; toggle pakai aria-pressed; filter/move pakai aria-expanded; sender baris pesan <span onClick> → <button type=button> agar keyboard-accessible. focus-visible global outline hsl(var(--ring)) di index.css. Known limits: --border light 1.23:1 (3:1 butuh border ~75% lightness, perubahan visual besar), FLAG_COLORS yellow-500/green-500 <3:1 di light (perlu varian 600/700). Test a11y = 63 assertions (18 kontras matematis + 45 static).
 
 ## 2026-08-26T01:15:42Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Bug hunt kombinasi: (1) SEMUA query key React Query global harus di-scope identitas user — ['smtp-session-status'] di Sidebar tanpa scope menampilkan countdown sesi akun sebelumnya ke akun baru (cache QueryClient global, staleTime 30s). Fix: queryKey ['smtp-session-status', user?.sogoToken]. (2) Komponen yang mount permanen di belakang modal (MessageReader + ComposeModal saat reply) perlu guard keyboard berdasarkan state modal: prop shortcutsEnabled={!composeOpen} + guard di handler + deps array. Tanpa ini 'r' reset compose, Delete hapus pesan yang dibalas, Escape tutup reader di balik modal. (3) Verified aman multi-akun: localStorage semua *_v2_<email> scoped; LoginPage revokeSmtpSession+clearUser+resetSessionExpiredFlag sebelum login baru; server /api/send terikat session.user + anti-spoof From (403 bila mismatch); register SMTP evict sesi lama per user; visibleOrderUids = hasil filter snooze (reader tak buka pesan tersembunyi); semua interval unmount-clean + multi-tab idempotent. Test test:state-combination = 7 assertions static.
 
 ## 2026-08-26T01:35:07Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Edge case kalender: EventModal TIDAK validasi end>=start — SOGo menerima payload durasi negatif dan bikin event rusak/500; fix helper murni src/lib/eventValidation.js (validateEventTimes: all-day start==end valid, lintas tanggal valid, tanggal rusak ditolak tanpa crash) + normalizeRepeatCount (0/negatif/NaN→1, float floor) dipakai handleSave. Verified aman: pagination MailPage dedup by uid + sort desc + cutoff 5-bulan via uid MINIMUM batch (headers tak urut) + stopFetchingRef utk batch pendek; visibleCount sengaja tak di-reset (jaga scroll). StatsPage semua count default 0 via catch. ContactsPage key uid||idx. RulesPage StatsBar guard total==0. ComposeModal guard to wajib + server validateRecipientList (emailValidation.js) 400. Test test:event-validation = 16 assertions.
 
 ## 2026-08-26T01:39:42Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Validasi recipient compose: ComposeModal hanya guard to wajib, format invalid lolos sampai server (400 generik). Fix: firstInvalidRecipient(value) di src/lib/emailValidation.js — entri pertama tidak valid dlm daftar dipisah koma (null bila valid), reuse isSafeRecipient (anti CRLF/header injection, support 'Nama <email>'); guard handleSend validasi Kepada/Cc/Bcc berurutan dgn pesan 'Alamat email tidak valid di "<field>": "<addr>". Gunakan format nama@domain.com.'; koma/spasi trailing diterima (filter Boolean); server tetap validasi ulang (validateRecipientList) — defense-in-depth dua lapis.
 
 ## 2026-08-26T01:43:52Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Duplikat event kalender: (1) EventModal double-submit — tombol disabled={saving} (state async) TIDAK melindungi Enter auto-repeat/klik ganda di tick yang sama; handleSave/handleDelete butuh guard re-entry via useRef sinkron (savingRef), bukan state, karena 2x createCalendarEvent = 2x newEventGuid = 2 event. (2) SOGo eventsblocks meng-expand recurring jadi satu baris PER OCCURRENCE (start berbeda) — JANGAN dedup by id saja; dedup benar by id|start|calendar (normalisasi String utk number vs string), recurring & cross-calendar tetap dipertahankan. Parser dipindah ke src/lib/calendarEvents.js (murni, bisa diuji) + guard baris rusak (blocks/baris non-array) agar satu baris korup tidak merusak kalender. Test test:calendar-events = 18 assertions.
 
 ## 2026-08-26T01:49:00Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Security refresh: (1) rate-limit /api/send harus per-AKUN bukan per-IP — kantor/NAT berbagi 1 IP publik, key IP = 10 kirim/mnt tersedot semua user (429 palsu). Pola: middleware resolveSmtpSession (isi req.smtpSession tanpa 401) sebelum rateLimit, keyFn (req)=>req.smtpSession?.user||clientIp(req); handler reuse req.smtpSession; JANGAN hapus log '[smtp-session] 401 send' (monitor-smtp.sh grep '401 send'). (2) Query pencarian ke SOGo wajib di-cap (MAX_SEARCH_QUERY_LENGTH=500 di buildMessageSearchBody + maxLength input) — body /view tanpa batas = DoS ringan ke SOGo. Pola tetap kuat: clientIp hanya percaya X-Real-IP dari trusted proxy; pathSegment anti-traversal (hanya %2F utk folder); attachment filename anti-path/CRLF; toSafeUrl allowlist; /api/preferences bind session.user (403 mismatch); API key timing-safe; cookie httpOnly SameSite=Strict.
 
 ## 2026-08-26T01:57:43Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Edge kontak & signature: (1) highlight seleksi kontak 'selected?.uid===contact.uid' crash-logika saat uid kosong (entri GAL/rusak) — SEMUA baris kosong-uid ke-highlight; pola aman: contact.uid ? uid===selected.uid : contact===selected. (2) Duplikat kontak: blokir duplikat PERSONAL (pesan jelas), IZINKAN duplikat GAL (direktori read-only, salinan personal dari kolega = normal) — findDuplicateKind prioritas personal > gal, case-insensitive. (3) Sync signature SOGo one-way push → perangkat lain stale selamanya (fallback SOGo hanya saat daftar lokal KOSONG); fix pull-back idempotent: shouldImportSogoSignature(list, html) = sogoHtml non-empty && tidak ada entri dgn html trim sama — tarik sebagai entri baru saat buka Settings; tidak menimpa editan lokal, tidak menumpuk. Test test:contact-signature-edge = 18 assertions.
 
 ## 2026-08-26T02:01:52Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Nginx webmail security: HSTS wajib tanpa includeSubDomains (subdomain lain bisa non-HTTPS); COOP same-origin + CORP same-origin + X-XSS-Protection 0 + CSP upgrade-insecure-requests ditambahkan ke 3 blok location. Keputusan penting: img-src 'self' data: TANPA https: — semua gambar eksternal email di-rewrite ke /api/image-proxy (anti tracking-pixel); mengizinkan https: langsung = browser bisa muat pixel tanpa proxy. Referrer-Policy strict-origin-when-cross-origin krusial krn URL SOGo memuat sogoToken di path (hanya origin yg bocor keluar). /api/* proxy tidak perlu header tambahan — server.js upstream sudah set sendiri. Image-proxy 502 utk URL gambar gagal = status sengaja remoteImage.js (DNS/redirect/UA), bukan regresi nginx; 400 passthrough utk url invalid bukti routing jalan. Config single-source: configs/site.webmail.custom + deploy.sh substitusi port + reload; validasi docker exec nginx -t dulu sebelum reload.
 
 ## 2026-08-26T02:04:33Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: /api/health butuh API key — di-enforce di server.js app.use('/api', requireApiKey) SEBELUM route (bukan di nginx; nginx passthrough). Preflight deploy.sh cek dgn key ke backend langsung; verify() tidak cek health → gap. Fix: verify_health() end-to-end via nginx (--resolve 127.0.0.1) + key dari .env via awk heredoc (pola sama preflight, anti-escaping); harap 200. Keputusan: health tetap di belakang key (konsisten semua /api/*, hanya {ok:true}). CATATAN arsitektur: VITE_API_KEY ada di bundle frontend = soft gate; auth sebenarnya /api/send dll = cookie SMTP httpOnly SameSite=Strict; jangan andalkan API key sbg satu-satunya auth.
 
 ## 2026-08-26T02:06:03Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: verify_health ditambahkan ke deploy.sh verify() — cek /api/health end-to-end via nginx + API key (sebelumnya hanya preflight backend langsung). /api/health di-enforce requireApiKey di server.js (app level), nginx passthrough; konsisten dgn preflight. Deploy terverifikasi live: webmail 200, image-proxy 200, health 200.
 
@@ -679,7 +716,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   ter-refresh (jangan nunggu interval prune 60s).
 
 ## 2026-08-26T02:16:57Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Snooze di-migrasi ke schema v3 folder-scoped {[folderId]:{[uid]:wake}} — UID SOGo per-folder membuat entri snooze flat (v2) yatim saat pesan di-archive (false-positive sembunyikan pesan baru dgn UID reuse). executeRules terima isExcluded(msg) utk skip pesan tersnooze (deferral eksplisit user). unsnoozeMessages membersihkan entri saat move/delete/junk/archive + bump tick. Migrasi versi per-domain via readStorage(base, scope, 3) tanpa ubah STORAGE_VERSION global. 49/49 test PASS, deploy live terverifikasi hash.
 
@@ -700,7 +737,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   reader & range-select mati diam-diam.
 
 ## 2026-08-26T02:23:56Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Konflik sorting MailPage: sortedMessages kini urut by TANGGAL (sortMessagesByDate — uid SOGo tidak dijamin sekuensial dgn waktu). sortAsc hanya membalik urutan GRUP (reorderDateGroups utk date-group, groupMessages asc utk conversation thread), isi grup tetap date-descending. Keyboard j/k + range-select visibleOrderUids pakai sumber urutan sama dengan render; fallback saat conversation view tanpa grup. 49/49 test PASS, deploy live hash terverifikasi.
 
@@ -720,7 +757,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   cukup utk dedup notifikasi lintas tab (tidak perlu koordinasi manual).
 
 ## 2026-08-26T02:29:57Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Race multi-tab diperbaiki: (1) snooze sync via storage event listener (key pcp_snooze_v3/v2 + clear) → bump snoozeTick — event 'storage' hanya fire di tab lain; (2) auto-archive double-move dicegah via claimAutoArchiveUids (sessionStorage per-tab, TTL 5 mnt) + releaseAutoArchiveClaims; rulesProcessed hanya utk pesan yang benar-benar dipindah; (3) notifikasi sudah dedup via Notification tag. Pelajaran: sessionStorage utk klaim lintas tab (auto-clean saat tab tutup), storage event utk sync UI. 50/50 test PASS, deploy live hash terverifikasi.
 
@@ -739,7 +776,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   berubah.
 
 ## 2026-08-26T02:41:56Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Sync cache React Query lintas tab utk Calendar/Contacts: helper crossTab.js — bumpDomainVersion (monotonik Math.max(Date.now(), prev+1), key pcp_<domain>_v_<email>) + watchDomainVersion (storage event listener, invalidate saat versi naik; e.key null = clear). Dipasang di CalendarPage (create/update/delete+drag) dan ContactsPage (create/delete). Bug ditemukan test: bump berbasis Date.now() bisa sama dalam ms sama → wajib monotonik. 51/51 test PASS, deploy live hash terverifikasi.
 
@@ -759,7 +796,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   terima trade-off (sama dgn perilaku pra-cache yang baca per-render).
 
 ## 2026-08-26T02:50:50Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Round performance & mobile: (1) getFlagColor hot path — getStore baca+parse localStorage utk tiap baris × per-render → cache in-memory per email + invalidate-on-write + __resetFlagColorCache utk test; (2) swipe mobile membuka pesan — onSwipe callback di SwipeableRow sebelum aksi, MailPage suppressClick utk menelan synthetic click (pola long-press). Pelajaran: hot path render bebas baca storage sinkron; gesture yang memicu aksi harus tekan synthetic click. 51/51 test PASS, deploy live hash terverifikasi.
 
@@ -775,7 +812,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   hot path render (per-baris × per-frame).
 
 ## 2026-08-26T02:58:08Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Pengukuran dampak cache flagColors: benchmark A/B scripts/benchmark-flag-cache.mjs (npm run bench:flag-cache) memakai modul asli + data realistis. Hasil konsisten: 58-84% waktu lebih cepat & 98-99% baca localStorage berkurang (60-120 baca per siklus render → 1). Keterbatasan: CPU-side Node; verifikasi jank scroll browser butuh sesi login asli. 51/51 test PASS.
 
@@ -797,7 +834,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   toggleRule memutasi elemen cached lalu saveRules delete cache — aman).
 
 ## 2026-08-26T03:04:31Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Pola cache in-memory per-email untuk storage yang dibaca di hot path (getFlagColor → getRules/getRuleSummary): cache miss = ≤2 baca localStorage (fallback v2+v1), hit = 0. Invalidate di SEMUA jalur tulis modul (audit via grep localStorage.setItem/removeItem; executeRules bump runCount lewat updateRule ikut invalidate). Trap test: storage.setItem/clear() mentah tidak invalidate cache → wajib __reset*Cache. ReadStorage 1 call = 1-2 getItem, assertion read-count pertama harus toleran.
 
@@ -819,7 +856,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   asli + autosave saat kirim sukses. Duplikat dihindari oleh userEditedRef.
 
 ## 2026-08-26T03:14:25Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Pola race autosave: 3 guard ref wajib — autosaveBusy (cegah tumpukan, finally reschedule), sentRef (autosave in-flight saat Send membersihkan draftnya sendiri), userEditedRef (autosave hanya setelah input user berubah). handleSend harus clearTimeout sebelum request. extractHtml SOGo parts: prefer text/html di kedalaman mana pun (findHtml dua-pass), fallback text/plain wrap div. Edit draft tanpa draftId SOGo: buka compose pre-filled dari /view + autosave ke draft baru + hapus draft asli saat kirim. Keterbatasan: draft ber-lampiran tidak bisa direstorasi (saveDraft tanpa lampiran).
 
@@ -840,7 +877,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   SOGo (belum dieksplorasi).
 
 ## 2026-08-26T03:21:10Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Restorasi lampiran draft SOGo: downloadURL dari /view memuat token sesi — fetch + credentials include + sogoHeaders (XSRF); base64 chunked 32KB. extractAttachments di messageHtml.js (dedup reader+mail). Unduh paralel Promise.allSettled, gagal satu → skip + warning. Restore ≠ user edit (tidak memicu autosave). Keterbatasan: saveDraft SOGo hanya teks — lampiran restore hanya hidup di sesi compose.
 
@@ -859,7 +896,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   unparseable date dianggap dalam window.
 
 ## 2026-08-26T03:26:21Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Pola interaksi search: (1) search menembus batasan daftar biasa — window bulan + filter snooze di-skip saat searchQuery (pola Gmail), filter tampak tetap berlaku; (2) rules engine yang memindah pesan harus off saat search (early-return + deps); (3) filter yang UI-nya disembunyikan saat mode lain wajib di-reset state-nya (categoryFilter saat search); (4) ekstrak logika window inline ke helper murni (applyMessageWindow di dateGroups.js) agar testable.
 
@@ -875,7 +912,7 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
   tombol ikon + teks satu baris, `items-center` lebih aman di semua lebar.
 
 ## 2026-08-26T03:32:20Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Posisi ikon di layout dinamis (Tailwind): (1) tombol overlay di input butuh padding kanan >= lebar tombol (36px → pr-10); (2) header judul+badge+cluster tombol: wrapper kiri min-w-0 flex-1 + label truncate + kanan shrink-0 agar judul menyusut duluan; (3) items-baseline dengan tombol ikon tanpa teks bikin ikon mengambang — pakai items-center.
 
@@ -898,7 +935,7 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   overlap check `s <= dayEnd && e > dayStart`.
 
 ## 2026-08-26T07:29:38Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Kalender: helper tanggal lokal baru src/lib/dateFormat.js — jangan pernah pakai toISOString() utk tanggal input (UTC; WIB +7 jam 00:00-06:59 = hari sebelumnya → klik sel/event 02:00/drag dini hari pindah sehari). eventsOnDay overlap utk multi-day (end eksklusif). Drag recurring harus fetch /view utk pola repeat (grid eventsblocks tidak memuat repeat, hanya c_iscycle); keterbatasan: edit occurrence tunggal = edit seluruh seri. 54/54 PASS, live terverifikasi hash.
 
@@ -912,7 +949,7 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   `lazyWithReload` → reload sekali, sessionStorage flag anti-loop.
 
 ## 2026-08-26T08:12:44Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Hardening error produksi: fetchWithTimeout (connectSogo 20s, registerSmtpSession 15s); friendlyLoginError petakan Failed to fetch/NetworkError/AbortError ke pesan Indonesia; lazyWithReload reload sekali saat chunk 404 pasca deploy (sessionStorage flag anti-loop). Root cause akun-spesifik masih butuh pcp_last_error dari user. 54/54 PASS, live terverifikasi hash (index-CFA4jfth, LoginPage-BZQgrSvg).
 
@@ -925,7 +962,7 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   duplikat personal diblokir (findDuplicateKind prioritas 'personal').
 
 ## 2026-08-26T08:27:10Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Kontak SOGo: fetchContacts sekarang pakai parseContactRow murni (contactUtils.js) — field c_cn/c_mail/emails bisa object, wajib dinormalisasi string; emails bisa array string ATAU array object. ContactsPage tambah savingRef anti double-submit create. 54/54 PASS, live terverifikasi hash (index-CHLCPQI3, ContactsPage-DdssLPt0).
 
@@ -952,7 +989,7 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   tutup (draft autosave = fitur lanjutkan dari Draf).
 
 ## 2026-08-26T08:43:38Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Ai-loop menyeluruh: security & robustness bersih (XSS/tabnabbing/input validation solid dari round sebelumnya). 2 bug flow diperbaiki: (1) kalender klik sel bulan mengirim Date midnight → openCreateModal default jam 09:00, week/day kirim hour asli; (2) tutup compose edit-draft tanpa kirim → handleClose hapus copy autosave (draft asli tetap; compose baru tidak dihapus). 54/54 PASS, live (index-Dmd94Swz, CalendarPage-DWieJ8Gk, MailPage-CMVgao9L).
 
@@ -964,7 +1001,7 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   selesai) untuk mencegah double-schedule / aksi kedua menyentuh uid pending.
 
 ## 2026-08-26T09:02:25Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Race undo-delete: operasi tertunda (timer 6s) wajib kunci sourceFolder saat penjadwalan — UID SOGo per-folder; moveMutation pakai vars.sourceFolder; seleksi bulk dibersihkan saat DIJADWALKAN (bukan saat sukses). 55/55 PASS, live (index-JAzdFEU-, MailPage-BPYRzevc).
 
@@ -980,7 +1017,7 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   harus menutup lightbox DULU baru reader — lightbox di dep array keydown.
 
 ## 2026-08-26T09:09:50Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Regresi overwrite: commit 6c1485f 'fix(nginx)' menimpa MessageReader.jsx dengan versi lama — 5 fitur hilang (lightbox preview gambar/PDF, tambah-kontak, markMessagesAsJunk, unduh-semua, viewURL). Restored + guard test-a11y statis. Pelajaran: git log -S simbol utk cari commit penghapus; commit nginx jangan campur code. 55/55 PASS, live (index-C98uu0QO, MailPage-BR9Zl6lN).
 
@@ -992,116 +1029,233 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Urutan grup = by pesan terbaru; pesan dalam grup = urutan input (pastikan caller menyortir date-desc dulu).
 
 ## 2026-08-26T09:25:31Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Conversation grouping Outlook-like: cluster by normalized subject + participant overlap dengan selfEmail dikecualikan; baris dalam percakapan harus satu sumber border kiri (border-l-4 di dalam thread line = garis ganda bertumpuk). 55/55 test PASS, live di produksi (index-v0ElPSRV, MailPage-Cx_GFAiC).
 
 ## 2026-08-26T09:40:03Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Auto-advance reader (navigateAfter) sempat hilang saat merge restore fitur 08bef9c: prop siblingUids/onNavigateTo tetap di-pass MailPage tapi tidak dikonsumsi → hapus/pindah/spam selalu tutup reader. Pola yang benar: setelah aksi, siblingUids[idx+1] ?? siblingUids[idx-1] → onNavigateTo, fallback onClose. Guard test statis wajib untuk fitur yang pernah hilang karena overwrite.
 
 ## 2026-08-26T09:57:58Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Fitur lib bisa mati diam-diam walau unit test hijau: proxyExternalImages (imageProxy.js) lengkap + test 68 assertion tapi tidak pernah di-wire ke MessageReader → gambar eksternal bocor langsung ke pengirim (IP + read-receipt). Wajib assertion statis wiring di komponen untuk fitur yang berdampak keamanan/privacy. Juga: labelField 'to' utk folder Terkirim/Draf di header percakapan (konsisten dgn renderMessageRow); SOGo viewPart kirim X-Frame-Options SAMEORIGIN → iframe lightbox PDF aman.
 
 ## 2026-08-26T10:04:26Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Race autosave vs tutup modal: guard harus memakai ref flag (closedRef/sentRef) karena promise in-flight tidak bisa dibatalkan — cleanup harus terjadi di sisi async setelah await selesai, bukan hanya di handler sinkron. Juga: payload onReply antar komponen harus membawa composeMode agar konsumen (ComposeModal) bisa pilih signature per mode.
 
 ## 2026-08-26T10:11:11Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Overlap elemen UI: (1) event kalender di slot jam sama wajib side-by-side via kolom layout (greedy: width=100/maxCols) — full-width = saling timpa; (2) baris form dengan label+input+tombol di lebar sempit harus flex-wrap (hitung lebar min: label 64 + input min + tombol ≈ >280px inner modal 320px); (3) footer dengan cluster kiri + tombol aksi perlu flex-wrap + flex-1 min-w-0 + shrink-0.
 
 ## 2026-08-26T10:18:07Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Audit overlap UI menyeluruh putaran 2: pattern yang wajib — container flex dengan min-w-0, teks truncate, elemen kanan shrink-0; badge dengan ml-auto perlu shrink-0 + truncate agar tidak saling dorong di layar sempit. Semua halaman (mail, kalender, kontak, stats, rules, login, modal) sudah diverifikasi.
 
 ## 2026-08-26T10:24:06Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Pola overlap yang luput dari audit visual: elemen opacity-0 pointer-events-none TETAP reserve ruang di flex layout — di lebar sempit elemen lain bisa terjepit habis walau tidak 'tumpang tindih'. Selalu gunakan display:none (hidden) untuk aksi hover yang harus mengosongkan ruang, atau jadikan overlay absolute. Date group-hover:hidden + aksi hidden group-hover:flex = pola Gmail yang benar.
 
 ## 2026-08-26T10:29:37Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Rotasi audit PreferencesPage/signatures: (1) race one-time migration — migratedRef di-set sebelum data async (fetchPreferences) tiba → migrasi di-skip selamanya; fix: guard `if (!data) return;` SEBELUM `ref.current = true` dengan deps [email, prefs]. (2) Signature HTML aman: selalu lewat DOMPurify PURIFY_CONFIG + hardenAnchorNode di 3 titik (inject editor, paste, chokepoint send) — tidak perlu sanitize di storage layer. (3) syncToSogo = aksi manual, idempotent, placeholder legacy tidak ter-sync. 119 a11y assertions, 55/55 PASS, live di produksi.
 
 ## 2026-08-26T10:43:06Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Rotasi OWASP (rate-limit + data leak antar role): (1) 429 harus masuk daftar no-retry react-query — retry 429 memperparah rate-limit server (hanya 401/403/404 yang dikecualikan sebelumnya). (2) queryClient.clear() wajib di SEMUA jalur logout: session-expired sudah benar, tapi logout manual (Sidebar) & login baru (LoginPage) hanya clearUser() → cache akun A (pesan/kontak/kalender/prefs) tersisa di memori saat akun B login di perangkat sama; query key memuat sogoToken jadi tak tampil, tapi hygiene memori buruk di shared device. (3) Backend sudah solid: rate-limit per-akun (send 10/mnt key session.user), ownership /api/preferences (403 bila email != sesi), from dipaksa session.user (anti-spoof), cookie SMTP HttpOnly+SameSite=Strict+Path=/api (CSRF tertutup via preflight JSON juga). 123 a11y assertions, 55/55 PASS.
 
 ## 2026-08-26T10:50:02Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Rotasi CalendarPage recurring: (1) data loss: save event recurring tanpa repeat → SOGo menimpa recurrence (pola hilang); semua jalur edit/drag wajib resolve repeat via /view sebelum save atau TOLAK save (safety net: isRecurring && !repeat && !repeatTouched). Edit event berulang harus diblokir saat detail /view gagal — fallback ke data grid (eventsblocks) yang tanpa repeat = pola rusak. (2) Hapus occurrence recurring = hapus SELURUH seri (satu UID) — konfirmasi wajib menyebut scope. (3) Fitur edit/hapus satu occurrence butuh recurrence_id/EXDATE (SOGo 5) — workstream terpisah. 129 a11y assertions, 55/55 PASS.
 
 ## 2026-08-26T13:44:54Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Rotasi audit RulesPage (auto-archive vs snooze vs filter kategori): (1) sessionStorage adalah PER-TAB — klaim multi-tab yang memakai sessionStorage tidak pernah terlihat antar tab (double-move tetap terjadi); fix pakai localStorage (shared) + ownership per-instance + release hanya klaim sendiri + storage listener (bump state → re-run engine) untuk menutup race klaim berbarengan. Pelajaran: fitur multi-tab wajib diuji dengan DUA instance storage terpisah, bukan satu storage bersama (test lama lolos walau perilaku asli salah). (2) Setiap jalur yang memindahkan pesan (manual run-now vs engine otomatis) harus konsisten soal snooze: pesan di-snooze = 'tunda utk DILIHAT' → jangan pernah dipindah rule di jalur mana pun, dan TANDAI processed agar tidak di-arsip ulang saat bangun (pola Gmail: filter tidak dijalankan ulang saat wake; konsekuensi: rule baru tidak berlaku retroaktif ke pesan yang sudah di-snooze). (3) Hitung kategori client-side (countCategories) harus memakai pesan yang BENAR-BENAR terlihat — pesan tersembunyi (snooze) yang ikut dihitung membuat tab 'Promosi 5' padahal daftar 3. 137 a11y assertions, 55/55 PASS.
 
 ## 2026-08-26T14:06:36Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Fitur edit/hapus SATU occurrence event berulang (SOGo 5) selesai — kontrak recurrence DIVERSIFIKASI dari source, bukan tebakan: (1) eventsblocks mengirim c_recurrence_id per baris occurrence = unix detik start (all-day: GMT midnight); (2) path occurrence SOGo 5 = Calendar/{cal}/{uid}/occurence{unixSec}/view|save|delete — server resolve via SOGoCalendarComponent.lookupName (hasPrefix 'occurence' + substringFromIndex:9 = intValue), bukan field recurrence_id di body; (3) save occurrence = exception RECURRENCE-ID (repeat WAJIB null di payload — mengirim repeat justru mengubah pola SERI); (4) delete occurrence = EXDATE di master (SOGoComponentOccurence.prepareDelete); (5) tanpa segmen occurrence, save/delete menyentuh SELURUH seri. Pelajaran: kontrak API pihak ketiga harus diverifikasi dari source client+server (UI SOGo 5.12.10 Component.service.js/Resource.service.js + file .m server) + diuji runtime (mock fetch memverifikasi URL occurence{ts} dan body tanpa repeat), bukan hanya assertion statis string. 146 a11y assertions, 55/55 PASS.
 
 ## 2026-08-26T14:18:09Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Drag scope occurrence kalender: drag SATU kejadian event berulang kini memindahkan hanya kejadian itu (exception RECURRENCE-ID via segmen occurence{ts}), bukan seluruh seri — konsisten dengan fitur edit/hapus occurrence. Implementasi: handleDragStart menyimpan { ev, series: !!e.shiftKey } (semua view meneruskan native event drag), handleDrop mengirim payload editScope 'single' + occurrenceId + repeat null + repeatTouched false saat occurrence && !series; Shift+drag mempertahankan jalur lama (pindah seri, repeat master di-resolve via /view). Pelajaran: konsistensi scope (edit/hapus/drag) pada recurring event penting — semua gesture harus default scope single utk occurrence, dengan jalur eksplisit (Shift) utk seluruh seri. 149 a11y assertions, 55/55 PASS.
 
 ## 2026-08-26T16:06:47Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Kontrak SOGo kontak (diverifikasi source 5.12.10 + UI live): (1) create kontak = POST {pid}/_new_/saveAsContact + body c_component:'vcard' — server lookupName di SOGoContactGCSFolder hanya membuat objek baru bila URL berakhiran AsContact/AsList, jadi POST .../new → 404; (2) delete kontak = GET {pid}/{uid}/delete (Resource.remove UI SOGo), POST → POSTAction WebDAV-only → 500. Pola: jangan asumsi endpoint SOGo — unduh UI SOGo live dari server produksi (mail.pcpexpress.co.id/SOGo/WebServerResources/js/...) + source server lookupName untuk verifikasi kontrak. 
 
 ## 2026-08-26T16:15:59Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Fitur riwayat alamat terkirim: semua jalur kirim (compose, reply, forward, quick-reply) melewati ComposeModal.handleSend — rekam di sana cukup (grep sendMessage( memastikan tidak ada pemanggil lain). batchWithLimit (concurrency 5 + allSettled) di MailPage dipakai utk mark-all-read: SOGo tidak punya endpoint batch, Promise.all massal memicu 429/500/timeout dan menggagalkan seluruh operasi walau mayoritas sukses — pola utk batch per-uid lain. Pola parse recipient aman: isSafeRecipient + recipientAddress dari emailValidation (tolak kontrol chars, koma, ganda @). Storage per-akun baru: pcp_emailHistory_v1_<email> (≤200, sort lastUsed di baca). 
 
 ## 2026-08-26T16:24:35Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Audit PreferencesPage: preferensi tampilan SOGo (SOGoMailComposeMessageType, SOGoMailReplyPlacement, SOGoFirstDayOfWeek, SOGoConfirmDelete) sebelumnya disimpan tapi TIDAK dikonsumsi webmail — pola 'setting tanpa efek'. Pola wiring: cek konsumen dgn grep sebelum menganggap setting berfungsi; query preferences pakai key ['preferences', token] (cache react-query shared antar halaman). SOGoFirstDayOfWeek: 0=Minggu,1=Senin; rotasi label hari = DAYS_ID.slice(1)+DAYS_ID[0]. SOGoConfirmDelete '0' = hapus langsung, '1' = konfirmasi (webmail pakai undo toast 6dtk sbg konfirmasi). SOGoDateFormat strftime tidak dipetakan — webmail punya format id-ID sendiri (renderDate). 
 
 ## 2026-08-27T01:16:42Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Conversation view: grup dengan 1 pesan (email tunggal) jangan dirender sebagai header percakapan ala Outlook (avatar stack + badge count '1' + chevron) — render sebagai baris biasa via renderMessageRow(msg, -1, false); hanya grup >=2 pesan yang dapat header + thread line. Pola Gmail/Outlook: penanda percakapan hanya utk thread sungguhan. Logika grouping di lib murni conversations.js tidak perlu diubah — keputusan render cukup di MailPage (group.messages.length === 1). visibleOrderUids/range-select/auto-advance tidak terpengaruh karena key di SwipeableRow = msg.uid.
 
 ## 2026-08-27T02:46:37Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Nginx mailcow sites-default.conf.j2 level-server meng-inherit X-Frame-Options SAMEORIGIN + HSTS 15768000 ke SEMUA location tanpa add_header sendiri — termasuk location /api proxy milik kita → konflik dgn header server.js (DENY/31536000), browser lihat 2 nilai XFO beda. Fix pola: di tiap location /api gunakan proxy_hide_header (buang header upstream server.js utk nama yg sama) + add_header konsisten (nilai identik dgn server.js) — hasil SATU header bersih. Server.js juga harus set HSTS sendiri (jangan andalkan nginx) + Cache-Control no-store utk data email sensitif; image-proxy tetap public immutable (cacheable). Verifikasi duplikat header: curl -D - | grep -c 'header-name:' harus 1.
 
 ## 2026-08-27T02:48:30Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Nginx: expires -1 menghasilkan Cache-Control: no-cache + header Expires terpisah — bila blok lokasi JUGAA punya add_header Cache-Control sendiri, hasilnya DUA header Cache-Control dgn nilai berbeda (no-cache + no-store) yg membingungkan parser header. Utk SPA no-store cukup satu add_header Cache-Control; jangan kombinasikan dgn expires -1. Validasi: curl -sI index.html | grep -c cache-control harus 1.
 
 ## 2026-08-27T02:55:27Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Pola bug: textarea plain mode yang menampilkan value dgn regex strip-tag (body.replace(/<[^>]*>?/gm,'')) di SETIAP render akan memakan karakter '<' milik user (mis. 'a < b', kode) — regex tidak bisa membedakan tag asli vs teks polos. Fix: deteksi tag HTML LENGKAP (/<[a-z][^>]*>/i) dulu; hanya strip bila body benar-benar HTML, teks polos dibiarkan. Pola race paste: e.preventDefault() di handler async WAJIB dipanggil synchron SEBELUM await apapun — kalau ditunda browser sudah menjalankan paste default → konten ganda. Untuk fallback Clipboard API cek dt.types (Files / image/*) utk tahu ada gambar tanpa await.
 
 ## 2026-08-27T03:05:57Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: PageLoader 'Memuat...' tampil di atas karena h-full collapse di parent Suspense tanpa tinggi; fix min-h-screen di App.jsx. Deploy.sh build ulang saat deploy (npm run build) sehingga hash bundle live bisa berbeda dari build lokal (index-DEndK4RE.js vs index-Agks9UF6.js) — verifikasi fix via grep string di bundle, bukan hanya cek hash.
 
 ## 2026-08-27T03:30:48Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Batch fitur live: Undo Send 180s server-side queue (kredensial AES-256-GCM di data/pending-sends.json, flush 5s, retry 3x, /api/send/undo + /api/send/pending) + Kirim Terjadwal via sendAt (wajib lewat SMTP proxy, SOGo tak dukung send-at). Dark mode auto via prefers-color-scheme dengan anti-FOUC script EKSTERNAL theme-init.js karena CSP script-src 'self' memblokir inline. PWA: sw.js network-first utk navigasi + stale-while-revalidate asset, TIDAK pernah cache /api; nginx wajib no-cache utk file non-hash (sw/theme-init/manifest) + mime application/manifest+json. NGINX LESSON: route /api baru harus ditambah location exact di configs/site.webmail.custom; tanpa itu request jatuh ke SPA fallback (200 index.html) atau 405. Route API di ROOT domain, bukan /webmail prefix.
 
 ## 2026-08-27T03:41:48Z
-- Task: 
+- Task: full-stack audit
 - Status: COMPLETED
 - Finding: Batas lampiran webmail kini env-configurable: SMTP_MAX_ATTACHMENT_MB (default 20), SMTP_MAX_TOTAL_MB (60), SMTP_MAX_ATTACHMENTS (10) — server.js menghitung body limit express dari nilai tsb (jangan hardcode '30mb'). GET /api/send/config mengekspos batas ke frontend (ComposeModal fetch saat buka). Control-tower punya GET/POST /api/webmail/send-config yang menulis .env sogo-proxy + restart sogo-smtp-proxy via exec child — PENTING: systemctl --user dari proses node non-login butuh XDG_RUNTIME_DIR=/run/user/1000 eksplisit. Route /api baru wajib ditambah location exact di configs/site.webmail.custom (tanpa itu SPA fallback 200/405).
+
+## 2026-08-27 — MessageReader hook-order regression
+
+- React #310 dapat terjadi walau runtime React tunggal dan bundle terbaru sudah live: hook yang berada setelah early return tetap melanggar Rules of Hooks saat state query berubah.
+- `MessageReader` wajib mendeklarasikan semua hook sebelum guard `!msgId`, loading, atau missing-data. Regression gate `scripts/test-message-reader-hooks.mjs` mengunci kontrak ini.
+- Validasi reproduksi Settings tidak cukup untuk MailPage; jalankan build + runtime repro dan inspeksi stack/bundle live.
+
+## 2026-08-27T13:40:24Z
+- Task: full-stack audit
+- Status: COMPLETED
+- Finding: React #310 final root cause: MessageReader phishingResult useMemo was after !msgId/loading/!msg early returns; moving it before guards fixed hook-order regression. Build and 64/64 tests pass; live index-CIE8nhoo.js and MailPage-2zSZT0ww.js verified HTTP 200 with SW v6.
+
+## 2026-08-27 — Full-stack audit result
+
+- Auth middleware harus berjalan sebelum parsing/validasi payload besar pada endpoint SMTP; ini mengurangi unauthenticated CPU/memory abuse tanpa mengubah response flow user sah.
+- Regression suite saat ini mencakup 66 test script; production smoke checks mengonfirmasi API key gate, SSRF block, webmail 200, dan SW v6.
+- Static/runtime checks tidak menggantikan browser E2E dengan akun nyata; laporan UI baru harus menyertakan chunk terbaru dan langkah reproduksi.
+
+## 2026-08-27T13:51:09Z
+- Task: 20260827-134738-153596
+- Status: COMPLETED
+- Finding: No unresolved validated bugs in audited backend/frontend/flow scope. Durable findings: authenticate before parsing large SMTP payloads; keep all MessageReader hooks before early returns; browser E2E with real accounts remains a validation gap.
+
+## 2026-08-27T14:59:12Z
+- Task: 20260827-145747-418514
+- Status: COMPLETED
+- Finding: Audit ulang backend/frontend/flow pada 2026-08-27-R2: 65/65 test script PASS, npm audit production 0 vulnerabilities, node --check server.js dan bash -n deploy.sh PASS, build Vite PASS. Endpoint /api/send tetap autentikasi sesi sebelum validasi payload besar; sink HTML teridentifikasi dan seluruh jalur render/editor memakai DOMPurify atau escaping yang sesuai. Tidak ada perubahan implementasi baru pada pass ini; E2E browser dengan akun nyata tetap menjadi batas validasi.
+
+## 2026-08-27T15:07:28Z
+- Task: 20260827-145747-418514
+- Status: COMPLETED
+- Finding: 2026-08-27-R2: Origin HTML tidak lagi mereferensikan index-BYuPjuaA/MailPage-DSiqnbKr; keduanya HTTP 404, sedangkan api lama masih dapat tersaji oleh cache sehingga stack campuran tetap mungkin. Build terbaru memakai index-BcphgSXN dan MailPage-CGCIdKvE. Ditambahkan lazy chunk recovery throttle 30 detik agar stale chunk dapat pulih tanpa reload loop. Validasi: 66 test script PASS, build PASS, single React PASS, MessageReader hook-order PASS, Settings runtime repro PASS, npm audit production 0 vulnerabilities, syntax backend/deploy PASS.
+
+## 2026-08-27T15:10:46Z
+- Task: 20260827-145747-418514
+- Status: COMPLETED
+- Finding: 2026-08-27: Stack user masih memuat index-BYuPjuaA/MailPage-DSiqnbKr yang 404 di origin, disertai SW TypeError Failed to convert value to Response saat offline. Root reliability issue: catch SW mengembalikan hasil caches.match tanpa jaminan Response dan navigasi dapat memakai shell lama. Fix public/sw.js v7: networkFirst helper, Response validation, explicit 503/504 fallback, cached fallback hanya non-navigation; main.jsx register sw.js?v=7. Regression gate diperluas. Validasi 66/66 tests PASS, build PASS, npm audit 0 vulnerabilities, live HTML index-BC29lqgB + api-DlVVOlMp, MailPage-BH-NtVaj HTTP 200, SW v7 live.
+
+## 2026-08-27T15:17:26Z
+- Task: 20260827-145747-418514
+- Status: COMPLETED
+- Finding: 2026-08-27: Root cause conversation email menghilang adalah grouping dilakukan dari daftar display/pagination, bukan seluruh header yang sudah dimuat. Fix MailPage menggunakan groupConversations(messages, ...) sehingga semua pesan loaded tetap terlihat sebagai anggota conversation; server pagination tetap berjalan untuk pesan yang belum loaded. Predicate expand/collapse all memakai Math.min(50, conversationGroups.length) sesuai safety limit. Validasi 67/67 test PASS, build PASS, npm audit 0 vulnerabilities, deploy live sukses; bundle MailPage-D6iqYufP.js HTTP 200 dan SW v7 markers terverifikasi.
+
+## 2026-08-27T15:42:45Z
+- Task: 20260827-154014-106687
+- Status: COMPLETED
+- Finding: 2026-08-27 UI action audit: memeriksa tombol Mail, Compose, Reader, Calendar, Contacts, Preferences, Rules, Sidebar serta layout fixed/absolute/sticky dan responsive sizing. Tidak ditemukan handler fitur utama yang hilang atau overlap tervalidasi. Gate baru scripts/test-ui-actions-layout.mjs memastikan modifier shortcut MailPage tidak mengambil alih browser, aksi utama tetap terhubung, dan komponen memakai min-w-0/flex-wrap/shrink contract. Validasi akhir 68/68 test script PASS, build PASS, npm audit production 0 vulnerabilities, node --check server.js, bash -n deploy.sh, a11y 169 assertions PASS, keyboard ownership dan scroll contract PASS. Tidak ada deploy karena tidak ada perubahan implementasi produksi; hanya regression gate/dokumentasi.
+
+## 2026-08-27T15:53:18Z
+- Task: 20260827-154014-106687
+- Status: COMPLETED
+- Finding: 2026-08-27 conversation follow-up: gejala fitur seolah tidak bekerja dapat terjadi karena email tunggal sengaja dirender sebagai baris biasa (Outlook behavior) dan grouping participant terlalu ketat pada data header SOGo. Solusi aman yang diterapkan tidak memaksa subject-only grouping yang berisiko mencampur email unrelated: mempertahankan groupConversations(messages), menambah label aksesibel 'Conversation aktif/Aktifkan conversation' dan counter thread multi-message. Live bundle MailPage-BfVzuGe_ memuat perubahan; index-BitohUbQ dan SW v7 terverifikasi. 68/68 tests PASS, build/security/syntax PASS, production deploy sukses.
+
+## 2026-08-27T15:57:46Z
+- Task: 20260827-154014-106687
+- Status: COMPLETED
+- Finding: 2026-08-27: Conversation grouping participant-aware menyebabkan thread nyata terpecah karena SOGo list header tidak menyediakan metadata Message-ID/References dan from/to dapat tidak konsisten. Keputusan user-friendly: default groupConversations mengelompokkan normalized subject; strictParticipants hanya opt-in untuk isolasi vendor. Test diperbarui untuk subject grouping + strict split. Validasi 68/68 test PASS, build PASS, npm audit 0 vulnerabilities, syntax backend/deploy PASS, production deploy sukses; live MailPage-BKpnY-E4.js HTTP 200 dan index-w6M-3jGE.js aktif.
+
+## 2026-08-27T16:01:53Z
+- Task: 20260827-154014-106687
+- Status: COMPLETED
+- Finding: Conversation audit lanjutan menemukan bug expand-all: singleton groups ikut dihitung sehingga toggle tampak tidak bekerja. Fix memakai expandableConversationGroups (messages.length > 1, cap 50) dan all-open berbasis every thread key. Validasi 69/69 test, Vite build, npm audit production 0 vulnerabilities, backend/deploy syntax, dan diff check PASS. Belum deploy production.
+
+## 2026-08-27T16:08:47Z
+- Task: 20260827-154014-106687
+- Status: COMPLETED
+- Finding: Conversation UX diperbaiki: thread multi-pesan sebelumnya hanya menampilkan header saat collapsed sehingga email terbaru terasa hilang. Sekarang pesan terbaru selalu tampil sebagai preview, pesan lama muncul saat expand. Regression gate diperluas; 69/69 test, build, syntax, npm audit production, dan diff check PASS. Belum deploy production.
+
+## 2026-08-27T16:18:24Z
+- Task: 20260827-161438-257180
+- Status: COMPLETED
+- Finding: Full-stack ai-loop R3 selesai. Temuan conversation: grouping seluruh messages melewati filter/snooze sehingga email tampak hilang saat toggle. Fix memakai displayMessages sebagai visibility gate; preview terbaru tetap tampil, pesan lama muncul saat expand. Validasi 71/71 tests, Vite build, npm audit production 0 vulnerability, backend/deploy syntax, dan diff check PASS. Tidak ada perubahan backend production; belum deploy.
+
+## 2026-08-27T16:19:58Z
+- Task: 20260827-161438-257180
+- Status: COMPLETED
+- Finding: Full-stack ai-loop R4 selesai tanpa bug baru tervalidasi. Audit backend route/auth/rate-limit/input, frontend hooks/storage/XSS, flow conversation/filter/pagination, scroll/mobile/a11y lulus. Bukti: 71/71 test scripts PASS, conversation gates PASS, single React runtime PASS, scroll contract PASS, a11y 169 assertions PASS, Vite build PASS, npm audit production 0 vulnerability, node/server syntax, bash deploy syntax, diff check PASS. Tidak ada patch production tambahan atau deploy; warning build theme-init.js classic script tetap non-blocking.
+
+## 2026-08-27T16:22:10Z
+- Task: 20260827-162124-324499
+- Status: COMPLETED
+- Finding: Full-stack ai-loop R5 selesai tanpa bug atau vulnerability baru tervalidasi. Audit backend/API/session/rate-limit, frontend React/storage/XSS, flow, conversation, mobile/layout, dan security regression lulus. Bukti: 71/71 test scripts PASS, Vite build PASS, npm audit production 0 vulnerabilities, node --check server.js, bash -n deploy.sh, dan git diff --check PASS. Tidak ada perubahan kode spekulatif atau deploy baru; warning theme-init.js classic script tetap non-blocking.
+
+## 2026-08-28T03:44:21Z
+- Task: 20260827-162124-324499
+- Status: COMPLETED
+- Finding: Vite theme-init warning fixed: anti-FOUC initializer moved from public classic script into bundled src/themeInit.js imported first by main.jsx; build is warning-free, theme regression gate and full relevant gates pass, npm audit production remains clean.
+
+## 2026-08-28T03:52:31Z
+- Task: 20260827-162124-324499
+- Status: COMPLETED
+- Finding: Mailbox toolbar overlap fixed with responsive wrapping. Conversation now groups all loaded messages after active filters and renders only visible UID members, preserving unique/new emails during pagination. Conversation and layout regressions, build, backend/deploy syntax, and diff checks pass.
+
+## 2026-08-28T04:01:34Z
+- Task: 20260827-162124-324499
+- Status: COMPLETED
+- Finding: Follow-up fixed the conversation state/render contract: expand group declaration order is valid, active mode now shows a visible conversation count, grouping uses all loaded filtered messages and render projects visible UIDs. Mailbox toolbar wrapping and all targeted regression/build/syntax checks pass.
+
+## 2026-08-28T04:07:21Z
+- Task: 20260827-162124-324499
+- Status: COMPLETED
+- Finding: Conversation follow-up fixed the real pagination UX: conversation mode now selects one latest preview per normalized subject from all loaded filtered messages, so a new sender/thread cannot disappear behind the first raw page. Mailbox header action cluster has bounded width and wrapping to prevent counter/icon overlap. Targeted regression tests, build, syntax, and diff checks pass.
+
+## 2026-08-28T04:13:38Z
+- Task: 20260827-162124-324499
+- Status: COMPLETED
+- Finding: Final conversation/layout fix: mailbox header now uses separate grid rows for counter and action icons with overflow isolation; filteredMessages declaration order was corrected; conversation previews are selected from all loaded filtered messages by normalized subject so new unique mail cannot disappear behind raw pagination. Targeted tests and build/syntax checks pass.
+
+## 2026-08-28T04:21:25Z
+- Task: 20260827-162124-324499
+- Status: COMPLETED
+- Finding: Final correction validated: groupConversations now sorts each conversation by message date before assigning latest; UI previews use group.latest so new unique mail cannot disappear due to SOGo response order. Mailbox counter and conversation/expand actions are structurally separated into grid rows with overflow isolation. Tests, build, audit, syntax, and diff checks pass.
+
+## 2026-08-28T04:33:38Z
+- Task: 20260827-162124-324499
+- Status: COMPLETED
+- Finding: Conversation and toolbar correction deployed successfully. Live webmail returned HTTP 200; image proxy and authenticated health checks passed; lazy MailPage-Bqn0iL9f.js is HTTP 200 and contains the new mailbox toolbar marker.

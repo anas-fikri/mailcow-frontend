@@ -66,20 +66,19 @@ ok(t1[0].hasUnread, 'hasUnread true (ada belum dibaca)');
 eq(t1[0].senders, ['A', 'B'], 'senders = nama unik (dedupe) urut kemunculan');
 
 
-// 2) Subjek sama tapi partisipan TIDAK overlap (setelah akun sendiri
-//    dikecualikan) → DUA grup (dua thread berbeda dari dua vendor).
-//    Tanpa selfEmail, keduanya menyatu karena sama-sama ke user@mail.com.
+// 2) Outlook-like default: subjek sama langsung menjadi satu conversation,
+//    walaupun metadata participant SOGo tidak lengkap/tidak konsisten.
 const t2 = groupConversations([
   m('1', 'X <x@corp.com>', 'Invoice', '2026-08-20 10:00', true, 'user@mail.com'),
   m('2', 'Y <y@corp.com>', 'Re: Invoice', '2026-08-20 11:00', true, 'user@mail.com'),
 ], false, 'user@mail.com');
-eq(t2.length, 2, 'Invoice berbeda dari pengirim berbeda → dua percakapan');
-// Regresi: tanpa selfEmail keduanya menyatu (perilaku lama) — dokumentasi saja.
-const t2NoSelf = groupConversations([
+eq(t2.length, 1, 'subject sama → satu conversation (default user-friendly)');
+// Mode ketat tetap tersedia untuk caller yang memerlukan isolasi participant.
+const t2Strict = groupConversations([
   m('1', 'X <x@corp.com>', 'Invoice', '2026-08-20 10:00', true, 'user@mail.com'),
   m('2', 'Y <y@corp.com>', 'Re: Invoice', '2026-08-20 11:00', true, 'user@mail.com'),
-]);
-eq(t2NoSelf.length, 1, 'tanpa selfEmail: fallback lama (menyatu)');
+], false, 'user@mail.com', { strictParticipants: true });
+eq(t2Strict.length, 2, 'strictParticipants memisahkan vendor berbeda');
 
 // 3) Grup diurutkan by pesan terbaru (date-desc); asc membalik urutan GRUP.
 const t3 = groupConversations([
@@ -93,8 +92,8 @@ const t3asc = groupConversations([
 ], true);
 eq(t3asc.map((g) => g.subject), ['Lama', 'Baru'], 'asc membalik urutan grup');
 
-// 4) Key unik antar grup (subjek sama + partisipan beda → key berbeda).
-ok(t2[0].key !== t2[1].key, 'key grup berbeda utk thread berbeda');
+// 4) Key tetap unik saat strict mode memisahkan grup.
+ok(t2Strict[0].key !== t2Strict[1].key, 'key strict thread berbeda tetap unik');
 
 // 5) (tanpa subjek) dikelompokkan, sender fallback aman.
 const t5 = groupConversations([
@@ -102,7 +101,7 @@ const t5 = groupConversations([
   m('2', 'budi@x.com', null, '2026-08-21 08:00', true, ''),
 ], false, 'user@mail.com');
 eq(t5.length, 1, '(tanpa subjek) dikelompokkan satu grup (partisipan kosong fallback)');
-ok(t5[0].senders[0] === 'Unknown Sender', 'sender kosong → fallback');
+ok(t5[0].senders.includes('Unknown Sender'), 'sender kosong → fallback');
 
 // 6) Dua pesan mandiri (subjek beda) → dua grup.
 const t6 = groupConversations([

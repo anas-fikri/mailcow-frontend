@@ -16,11 +16,20 @@ import ErrorBoundary from './components/ErrorBoundary'
 // baru + nama chunk terbaru; flag sessionStorage mencegah reload loop. Error
 // nyata (bukan stale chunk) tetap diteruskan ke ErrorBoundary.
 const CHUNK_RELOAD_KEY = '__pcp_chunk_reload';
+const CHUNK_RELOAD_WINDOW_MS = 30_000;
 function lazyWithReload(factory) {
   return lazy(() =>
     factory().catch((err) => {
-      if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
-        sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+      // Hanya cegah reload loop rapat-rapat; setelah 30 detik, kegagalan
+      // berikutnya boleh mencoba pemulihan lagi. sessionStorage flag lama
+      // yang bernilai '1' tidak boleh memblokir recovery permanen dalam tab.
+      let canReload = true;
+      try {
+        const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0);
+        canReload = !Number.isFinite(last) || Date.now() - last > CHUNK_RELOAD_WINDOW_MS;
+        if (canReload) sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
+      } catch { /* storage terbatas/private mode — tetap izinkan recovery */ }
+      if (canReload) {
         window.location.reload();
         return new Promise(() => {}); // menunggu reload selesai
       }

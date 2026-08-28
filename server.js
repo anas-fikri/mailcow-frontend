@@ -278,7 +278,11 @@ function getSmtpSessionToken(req) {
 function requireSmtpSession(req, res, next) {
   const token = getSmtpSessionToken(req);
   const session = token ? getSmtpSession(token) : null;
-  if (!session) return res.status(401).json({ message: 'Sesi SMTP sudah berakhir. Silakan login ulang.' });
+  if (!session) {
+    // Telemetry metadata-only; jangan log token, email, atau body.
+    console.log(`[smtp-session] 401 ${req.method} ${req.path} (ip=${clientIp(req)})`);
+    return res.status(401).json({ message: 'Sesi SMTP sudah berakhir. Silakan login ulang.' });
+  }
   req.smtpSession = session;
   next();
 }
@@ -529,7 +533,7 @@ app.get('/api/send/config', rateLimit({ max: 60, windowMs: 60000, keyFn: clientI
 // Rate-limit kirim per AKUN (bukan per IP): kantor/NAT berbagi satu IP
 // publik, key IP membuat 10 kirim/menit tersedot semua user (429 palsu /
 // self-DoS). Key = session.user; request tanpa sesi sah fallback ke IP.
-app.post('/api/send', resolveSmtpSession, rateLimit({ max: 10, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) }), async (req, res) => {
+app.post('/api/send', resolveSmtpSession, requireSmtpSession, rateLimit({ max: 10, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) }), async (req, res) => {
   // Zod validation
   const parsed = sendEmailSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -565,16 +569,9 @@ app.post('/api/send', resolveSmtpSession, rateLimit({ max: 10, windowMs: 60000, 
     return res.status(400).json({ message: att.error });
   }
 
-  // Look up SMTP session — token diambil dari cookie httpOnly (fallback header/body).
-  // resolveSmtpSession sudah mengisinya utk rate-limit key; lookup ulang di sini
-  // TIDAK dilakukan — pakai req.smtpSession (nilai sama, di-refresh lastUsed).
+  // requireSmtpSession sudah menolak request tanpa sesi SEBELUM validasi payload
+  // berat. req.smtpSession juga me-refresh lastUsed dan dipakai ulang di sini.
   const session = req.smtpSession;
-  if (!session) {
-    // Log 401 with hint untuk monitoring rasio idle expiry (lihat scripts/monitor-smtp.sh).
-    // Jangan log token/email — sebelumnya tak ada telemetry, ini hanya counter + ip.
-    console.log(`[smtp-session] 401 send: sesi tidak valid (ip=${clientIp(req)})`);
-    return res.status(401).json({ message: 'Sesi SMTP sudah berakhir. Silakan login ulang.' });
-  }
 
   if (from && recipientAddress(from) !== session.user.toLowerCase()) {
     return res.status(403).json({ message: 'Alamat pengirim harus sesuai dengan akun yang login.' });

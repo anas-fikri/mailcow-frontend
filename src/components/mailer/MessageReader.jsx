@@ -254,6 +254,22 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     onError: (err) => toast.error(err?.message || 'Gagal melaporkan spam.'),
   });
 
+  // Hook ini WAJIB dideklarasikan sebelum early return apa pun di bawah.
+  // Query berpindah dari loading → loaded menyebabkan render ulang; jika hook
+  // berada setelah `if (!msgId)`/`if (isLoading)`, jumlah hook berubah dan
+  // React melempar error #310 (Rendered fewer hooks than expected).
+  const phishingResult = React.useMemo(() => {
+    if (!msg) return null;
+    const bodyHtml = extractHtml(msg.parts) || '';
+    return analyzePhishing({
+      from: formatAddresses(msg.from),
+      replyTo: formatAddresses(msg['reply-to']),
+      subject: msg.subject || '',
+      bodyHtml,
+      bodyPlain: '',
+    });
+  }, [msg]);
+
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!msg) return;
@@ -492,18 +508,6 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       setContactSaving(false);
     }
   }
-
-  // ── Phishing detection ──────────────────────────────────────────────────────
-  const phishingResult = React.useMemo(() => {
-    if (!msg) return null;
-    return analyzePhishing({
-      from: formatAddresses(msg.from),
-      replyTo: formatAddresses(msg['reply-to']),
-      subject: msg.subject || '',
-      bodyHtml: rawHtml || '',
-      bodyPlain: '',
-    });
-  }, [msg, rawHtml]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (

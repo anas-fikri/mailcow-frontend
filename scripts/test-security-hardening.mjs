@@ -26,11 +26,11 @@ const ok = (cond, name) => { assert.ok(cond, name); pass++; console.log(`  ✓ $
 const server = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
 ok(server.includes('function resolveSmtpSession'), 'server.js punya resolveSmtpSession (rate-limit key)');
 ok(
-  server.includes("app.post('/api/send', resolveSmtpSession, rateLimit({ max: 10, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) })"),
-  '/api/send rate-limit keyed per session.user (fallback IP)'
+  server.includes("app.post('/api/send', resolveSmtpSession, requireSmtpSession, rateLimit({ max: 10, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) })"),
+  '/api/send auth + rate-limit keyed per session.user (fallback IP)'
 );
 ok(server.includes('const session = req.smtpSession;'), 'handler /api/send reuse req.smtpSession (tanpa lookup ganda)');
-ok(server.includes("console.log(`[smtp-session] 401 send"), 'telemetry 401 send dipertahankan (monitor-smtp.sh)');
+ok(server.includes("console.log(`[smtp-session] 401 ${req.method} ${req.path}"), 'telemetry 401 SMTP dipertahankan tanpa data sensitif');
 
 // ── 2. Cap query pencarian ───────────────────────────────────────────────────
 ok(MAX_SEARCH_QUERY_LENGTH === 500, 'MAX_SEARCH_QUERY_LENGTH = 500');

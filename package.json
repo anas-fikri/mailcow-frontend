@@ -50,6 +50,8 @@
     "test:flag-colors": "node scripts/test-flag-colors.mjs",
     "test:storage-migrate": "node scripts/test-storage-migrate.mjs",
     "test:format": "node scripts/test-format.mjs",
+    "test:theme-init": "node scripts/test-theme-init.mjs",
+    "test:conversation-toolbar": "node scripts/test-conversation-toolbar-regression.mjs",
     "test:calendar-drop": "node scripts/test-calendar-drop.mjs",
     "test:keyboard-ownership": "node scripts/test-keyboard-ownership.mjs",
     "test:a11y": "node scripts/test-a11y.mjs",
