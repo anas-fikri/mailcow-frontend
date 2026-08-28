@@ -1,7 +1,7 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-28T04:38:24Z
+Generated At: 2026-08-28T04:55:19Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
@@ -13,7 +13,7 @@ Suggestions are evidence-based from current task state, goals, validation, risks
 - Why: Current task contains validation work that still needs explicit confirmation.
 - Source: current-task.md
 
-## 3. [MEDIUM] Follow up on discovered knowledge: Delivery completed: commit 5ed47dd created, production deploy succeeded via SERVER=deploy-mail ./deploy.sh, webmail HTTP 200, image-proxy checks PASS, authenticated /api/health PASS. git push timed out and remote confirmation was unavailable; do not claim push succeeded.
+## 3. [MEDIUM] Follow up on discovered knowledge: Production TDZ crash fixed: isSentOrDraft is declared before conversation memos, regression gate added, hotfix commit 1c9d039 deployed successfully, live MailPage-DsHlNfUG.js verified HTTP 200. Push attempts timed out and remain unconfirmed.
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 

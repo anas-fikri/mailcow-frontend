@@ -1264,3 +1264,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 20260828-043403-608230
 - Status: COMPLETED
 - Finding: Delivery completed: commit 5ed47dd created, production deploy succeeded via SERVER=deploy-mail ./deploy.sh, webmail HTTP 200, image-proxy checks PASS, authenticated /api/health PASS. git push timed out and remote confirmation was unavailable; do not claim push succeeded.
+
+## 2026-08-28T04:55:18Z
+- Task: 20260828-043403-608230
+- Status: COMPLETED
+- Finding: Production TDZ crash fixed: isSentOrDraft is declared before conversation memos, regression gate added, hotfix commit 1c9d039 deployed successfully, live MailPage-DsHlNfUG.js verified HTTP 200. Push attempts timed out and remain unconfirmed.
