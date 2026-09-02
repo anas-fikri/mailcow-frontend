@@ -2,7 +2,7 @@
 
 - Scope: multi-tab webmail — mutasi mailbox di tab A (delete/move/flag/read/junk/folder/kirim) kini memicu invalidate + refetch di tab B. Bump versi dipasang di layer api.js (bumpMailVersion setelah mutasi sukses); MailPage memasang watchDomainVersion('mail') → invalidate messages/unseen/folders.
 - Validation: scripts/test-mail-crosstab.mjs baru (bump/scope/watcher/fail-no-bump), 75/75 regression PASS, vite build PASS.
-- Delivery: di-commit bersama rekam verifikasi; push GitLab tetap ditunda sampai tunnel wg0 hidup.
+- Delivery: commit 4a1e606 di-deploy ke produksi via SERVER=deploy-mail ./deploy.sh (2026-09-02): webmail HTTP 200, /api/health 200 end-to-end, image-proxy SSRF 403 OK, backend unchanged (skip restart). Push GitLab tetap ditunda sampai tunnel wg0 hidup (31 commit lokal menunggu).
 
 ## 2026-09-02 — Mail auto-refresh fix (T-MAIL-REFRESH-2026-09-02)
 
