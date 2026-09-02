@@ -20,9 +20,9 @@ Sub-goal ID: G-001.S-001
 - docs/ai/handoff.md
 
 ## Next Steps
-- Run regression suite + build (DONE: 74/74 PASS, vite build PASS)
-- Close task via ai-close
-- Push tetap tertahan: tunnel wg0 ke GitLab down (lihat knowledge 2026-09-02)
+- [DONE] Regression 74/74 PASS + vite build PASS
+- [DONE] Deploy produksi via SERVER=deploy-mail ./deploy.sh — smoke test webmail 200, /api/health 200, image-proxy SSRF 403 OK, backend unchanged (skip restart)
+- Push ke GitLab ditunda sampai tunnel wg0 hidup (29 commit lokal menunggu, termasuk 3062618)
 
 ## Risk Analysis
 - Status: COMPLETE
@@ -39,4 +39,4 @@ Sub-goal ID: G-001.S-001
 
 ## Validation
 - Risk analysis: COMPLETE
-- Tests/checks: 74/74 PASS; vite build PASS (MailPage-BoZUynRh.js 144.71 kB)
+- Tests/checks: 74/74 PASS; vite build PASS; deploy produksi 2026-09-02 PASS (webmail HTTP 200, /api/health 200 end-to-end, image-proxy SSRF 403 OK, backend unchanged — skip restart). Commit 3062618; GitLab push ditunda sampai tunnel wg0 hidup kembali.
