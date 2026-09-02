@@ -371,6 +371,11 @@ export default function MailPage() {
     // Tunggu folder benar-benar punya data (bukan array default/kosong) agar tidak nabrak saat pertama load
     enabled: !!user?.sogoToken && !!selectedFolder && folders !== DEFAULT_FOLDERS && !isFetchingFolders,
     staleTime: STALE_TIMES.MESSAGES,
+    // Webmail harus menampilkan email terbaru tanpa menunggu ganti folder:
+    // kembali ke tab/window (alt-tab) selalu refetch daftar pesan. Nilai ini
+    // menimpa default global refetchOnWindowFocus: false (App.jsx) KHUSUS
+    // query messages; unseen sudah poll 60s sendiri.
+    refetchOnWindowFocus: true,
   });
 
   // ── Unseen count (INBOX + folder utama lain utk badge sidebar) ─────────────
@@ -444,12 +449,23 @@ export default function MailPage() {
     return applyMessageWindow(messages, { months: MESSAGE_WINDOW_MONTHS });
   }, [messages, selectedFolder, searchQuery]);
 
-  // Reset header tambahan saat query refetch (delete/move/archive → list berubah).
+  // Saat query refetch (delete/move/archive/polling), header tambahan hasil
+  // loadMore TIDAK boleh langsung dibuang — kalau dibuang, list "loncat" balik
+  // ke 50 email pertama di tengah scroll user (gejala list berkedip/mundur).
+  // Header lama divalidasi terhadap daftar uids FRESH dari SOGo: uid yang sudah
+  // tidak ada di server (dihapus/dipindah) dibuang, sisanya dipertahankan.
+  // Tanpa daftar uids (SOGo lama), fallback ke perilaku reset penuh.
   useEffect(() => {
-    setExtraMessages([]);
+    setExtraMessages((prev) => {
+      if (prev.length === 0) return prev;
+      if (!allUids) return [];
+      const freshUids = new Set(allUids.map((u) => String(u)));
+      const stillValid = prev.filter((m) => freshUids.has(String(m.uid)));
+      return stillValid.length === prev.length ? prev : stillValid;
+    });
     setLoadingMore(false);
     stopFetchingRef.current = false;
-  }, [dataUpdatedAt]);
+  }, [dataUpdatedAt, allUids]);
   const ruleSummary = getRuleSummary(user?.email);
   const enabledRules = ruleSummary.enabled;
 
@@ -477,6 +493,27 @@ export default function MailPage() {
       } catch { /* Safari/older — abaikan */ }
     }
   }, [unseenCount, selectedFolder]);
+
+  // ── Auto-refresh daftar pesan saat email baru terdeteksi ──────────────────
+  // Root cause "webmail tidak menampilkan email terbaru": badge unseen di-poll
+  // tiap 60s, tetapi daftar pesan tidak pernah di-refetch otomatis — user hanya
+  // lihat email baru setelah ganti folder / pull-to-refresh. Saat unseen INBOX
+  // NAIK antar poll (ada email baru masuk), invalidate query messages INBOX.
+  // - refetchType 'active': hanya refetch bila query INBOX sedang ter-mount;
+  //   kalau user sedang di folder lain, invalidation menjadi no-op yang aman.
+  // - Search aktif tidak diganggu: hasil pencarian harus stabil; email baru
+  //   muncul di list normal setelah search dibersihkan.
+  const lastUnseenForRefreshRef = useRef(null);
+  useEffect(() => {
+    const prev = lastUnseenForRefreshRef.current;
+    lastUnseenForRefreshRef.current = unseenCount;
+    if (prev === null || unseenCount <= prev) return; // tidak ada email baru
+    if (searchQuery) return;
+    queryClient.invalidateQueries({
+      queryKey: ['messages', user?.sogoToken, 'folderINBOX'],
+      refetchType: 'active',
+    });
+  }, [unseenCount, searchQuery, queryClient, user?.sogoToken]);
 
   // ── Kiriman terjadwal (badge + panel) ────────────────────────────────────
   // Poll queue server tiap 60 dtk; badge merah muncul saat ada kiriman yang

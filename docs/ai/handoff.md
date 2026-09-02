@@ -1,3 +1,10 @@
+## 2026-09-02 — Mail auto-refresh fix (T-MAIL-REFRESH-2026-09-02)
+
+- Root cause "webmail tidak menampilkan email terbaru": query `messages` tidak punya refetch otomatis (badge unseen saja yang poll 60s; `refetchOnWindowFocus: false` global di App.jsx). Email baru hanya muncul setelah ganti folder / pull-to-refresh.
+- Fix di src/pages/MailPage.jsx: (1) `refetchOnWindowFocus: true` khusus query messages; (2) invalidate `['messages', token, 'folderINBOX']` (refetchType 'active') saat unseenCount naik antar poll; (3) extraMessages hasil infinite-scroll kini divalidasi terhadap `uids` fresh dari SOGo saat refetch — mencegah list loncat balik ke 50 email pertama; search aktif tidak diganggu.
+- Validation: 74/74 regression scripts PASS, vite build PASS.
+- Delivery: belum di-push — tunnel wg0 ke GitLab down (lihat knowledge.md 2026-09-02); 28 commit sebelumnya + fix ini menunggu push.
+
 ## 2026-08-28 — Delivery R3
 
 - Scope: ai-toolkit documentation reconciliation and delivery metadata; no speculative application changes.
@@ -12,3 +19,14 @@
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-09-02T14:37:06Z
+- Status: COMPLETED
+- Objective: T-MAIL-REFRESH-2026-09-02: webmail selalu menampilkan email terbaru (auto-refresh list)
+- Summary: Webmail auto-refresh: query messages kini refetchOnWindowFocus + invalidated saat unseenCount naik (poll 60s); extraMessages lazy-load divalidasi terhadap uids fresh SOGo agar list tidak loncat. 74/74 regression PASS, build PASS. Push tertahan: tunnel wg0 ke GitLab down.
+- Branch: main
+- Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M src/pages/MailPage.jsx

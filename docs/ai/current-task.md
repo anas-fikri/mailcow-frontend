@@ -1,43 +1,42 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260828-102701-261571
-Started At: 2026-08-28T10:27:01Z
-Updated At: 2026-08-28T10:34:48Z
+Task ID: 20260902-142500-000001
+Started At: 2026-09-02T14:25:00Z
+Updated At: 2026-09-02T14:37:06Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-T-DELIVERY-2026-08-28-R3: update ai-toolkit documentation, commit, push, deploy
+T-MAIL-REFRESH-2026-09-02: webmail selalu menampilkan email terbaru (auto-refresh list)
 
 ## Goal Link
 Goal ID: G-001
-Sub-goal ID: G-001.S-002
+Sub-goal ID: G-001.S-001
 
 ## Files Involved
+- src/pages/MailPage.jsx
+- docs/ai/knowledge.md
 - docs/ai/current-task.md
 - docs/ai/handoff.md
-- docs/ai/knowledge.md
-- docs/ai/next-tasks.md
-- ai-state.json
 
 ## Next Steps
-- Reconcile delivery state and push status
-- Run regression/build/security gates
-- Commit, push, deploy, and verify production
+- Run regression suite + build (DONE: 74/74 PASS, vite build PASS)
+- Close task via ai-close
+- Push tetap tertahan: tunnel wg0 ke GitLab down (lihat knowledge 2026-09-02)
 
 ## Risk Analysis
 - Status: COMPLETE
 - Risk level: LOW
-- Impact surface: ai-toolkit metadata and production delivery only; no application behavior change.
-- Security concerns: Do not stage secrets, environment files, or credentials; deploy only through the project script.
-- Compatibility concerns: Documentation must not claim push/deploy success without command evidence.
-- Failure modes/edge cases: push timeout, dirty metadata after ai-close, failed deploy preflight, stale service-worker assets.
-- Mitigations: inspect git diff, run gates before commit, verify remote separately, run `SERVER=deploy-mail ./deploy.sh`, and smoke-test live endpoints/assets.
-- Validation plan: regression scripts, build, npm audit, syntax checks, diff check, deployment smoke tests.
+- Impact surface: MailPage polling/refresh behavior only; no backend change.
+- Security concerns: no credential handling; request frequency tetap rendah (1x unseen poll/60s, messages refetch hanya saat unseen naik atau window focus).
+- Compatibility concerns: React Query v5 invalidateQueries refetchType 'active'; refetchOnWindowFocus override per-query.
+- Failure modes/edge cases: list pagination "loncat" saat background refresh → extraMessages kini divalidasi terhadap allUids fresh; search aktif tidak diganggu.
+- Mitigations: validasi extraMessages vs allUids; fallback reset penuh bila SOGo lama tidak menyediakan uids.
+- Validation plan: 74 regression scripts + vite build.
 
 ## Risks
-- Push may time out in this environment; report it as unconfirmed unless remote SHA is verified.
+- Jika unseenCount melompat besar (bulk delivery), satu invalidate cukup — dedup via prev > current guard.
 
 ## Validation
 - Risk analysis: COMPLETE
-- Tests/checks: Pending
+- Tests/checks: 74/74 PASS; vite build PASS (MailPage-BoZUynRh.js 144.71 kB)

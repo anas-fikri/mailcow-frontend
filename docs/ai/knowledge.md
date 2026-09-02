@@ -6,6 +6,18 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-09-02 — Webmail auto-refresh contract (email terbaru selalu tampil)
+
+- Query `messages` MailPage kini: `refetchOnWindowFocus: true` (override global false di App.jsx) + invalidation `['messages', token, 'folderINBOX']` (refetchType 'active') saat `unseenCount` naik antar poll 60s. Badge unseen adalah detektor email baru; list mengikuti.
+- PENTING: saat background refetch, `extraMessages` (hasil lazy `/headers` loadMore) TIDAK boleh di-reset kosong — validasi terhadap `uids` fresh dari SOGo (buang uid yang sudah tidak ada). Reset kosong menyebabkan list "loncat" balik ke 50 email pertama di tengah scroll (gejala list mundur). Fallback reset penuh bila SOGo tidak menyediakan `uids`.
+- Search aktif sengaja tidak di-invalidate — hasil pencarian harus stabil; email baru terlihat setelah search dibersihkan.
+
+## 2026-09-02 — GitLab unreachable via WireGuard policy routing
+
+- `gitlab.pcpexpress.com` (115.178.128.141) diroute via `wg0` (subnet `115.178.128.128/27 scope link` di wg0; terverifikasi `ip route get`). Bila tunnel WireGuard down, push/fetch git ke GitLab timeout (TCP 22/443 filtered, ping loss 100%) — BUKAN masalah kredensial/repo. Repo lain (mis. `~/mailcow-dashboard`) terkena dampak yang sama; push dashboard terakhir berhasil 2026-09-02 13:48 UTC saat tunnel masih hidup.
+- Workaround saat tunnel mati: jalankan push dengan bypass VPN, mis. `git -c http.proxy= ...` tidak cukup — gunakan binding interface: tidak ada; opsi benar adalah hidupkan lagi tunnel wg0, atau sementara `sudo ip route del 115.178.128.128/27 dev wg0` lalu push via eth0 (kembalikan setelah selesai; konfirmasi ke admin jaringan).
+- Host mail (202.148.2.139) dan internet umum TIDAK lewat wg0 — tetap jangkau saat tunnel mati.
+
 ## 2026-08-28 — Conversation latest-preview invariant
 
 - Jangan pilih conversation preview dari urutan raw SOGo response. `groupConversations` wajib mengurutkan anggota setiap grup berdasarkan tanggal lalu menetapkan `latest`; UI memakai `group.latest`.
@@ -1279,3 +1291,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 20260828-102701-261571
 - Status: COMPLETED
 - Finding: Updated current-task risk analysis and handoff, preserved historical handoff entries, and aligned the accessibility regression assertion with the current conversation import/overflow-safe toolbar contract. All test scripts passed, Vite build passed, npm audit production found 0 vulnerabilities, server/deploy syntax and diff check passed. Production deploy via SERVER=deploy-mail ./deploy.sh succeeded: webmail HTTP 200, live index-CN8zwyyK.js and MailPage-ZUSnXAvv.js HTTP 200, image-proxy SSRF/external checks and authenticated health verification passed. Commit 612d63a is local; git push and git ls-remote both timed out, so remote synchronization is unconfirmed.
+
+## 2026-09-02T14:37:06Z
+- Task: 20260902-142500-000001
+- Status: COMPLETED
+- Finding: Mail auto-refresh contract: unseen badge poll (60s) adalah detektor email baru -> invalidate ['messages', token, 'folderINBOX'] refetchType 'active'; refetchOnWindowFocus: true per-query messages. Saat background refetch, extraMessages /headers TIDAK boleh reset kosong - validasi vs uids fresh (reset kosong bikin list loncat ke 50 pertama). Search aktif tidak di-invalidate agar hasil stabil.

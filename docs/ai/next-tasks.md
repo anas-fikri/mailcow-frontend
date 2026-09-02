@@ -1,23 +1,23 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-08-28T10:34:49Z
+Generated At: 2026-09-02T14:37:06Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Reconcile delivery state and push status
+## 1. [MEDIUM] Run regression suite + build (DONE: 74/74 PASS, vite build PASS)
 - Why: Explicit next step recorded on active task.
 - Source: current-task.md
 
-## 2. [MEDIUM] Run regression/build/security gates
+## 2. [MEDIUM] Close task via ai-close
 - Why: Explicit next step recorded on active task.
 - Source: current-task.md
 
-## 3. [MEDIUM] Commit, push, deploy, and verify production
+## 3. [MEDIUM] Push tetap tertahan: tunnel wg0 ke GitLab down (lihat knowledge 2026-09-02)
 - Why: Explicit next step recorded on active task.
 - Source: current-task.md
 
-## 4. [HIGH] Resolve risk: Push may time out in this environment; report it as unconfirmed unless remote SHA is verified.
+## 4. [HIGH] Resolve risk: Jika unseenCount melompat besar (bulk delivery), satu invalidate cukup — dedup via prev > current guard.
 - Why: Risk was recorded but not marked resolved.
 - Source: current-task.md
 

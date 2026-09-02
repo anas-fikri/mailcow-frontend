@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-08-28T10:34:48Z",
+  "last_session": "2026-09-02T14:37:06Z",
   "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
   "modules": {
     "api-native-endpoints": {
@@ -431,15 +431,20 @@
       "what": "Delivery R3: ai-toolkit documentation reconciled, commit 612d63a created, production deploy and smoke checks passed; git push remains unconfirmed because remote timed out.",
       "status": "done",
       "updated_at": "2026-08-28T10:34:48Z"
+    },
+    {
+      "what": "Webmail auto-refresh: query messages kini refetchOnWindowFocus + invalidated saat unseenCount naik (poll 60s); extraMessages lazy-load divalidasi terhadap uids fresh SOGo agar list tidak loncat. 74/74 regression PASS, build PASS. Push tertahan: tunnel wg0 ke GitLab down.",
+      "status": "done",
+      "updated_at": "2026-09-02T14:37:06Z"
     }
   ],
   "active_task": {
-    "id": "20260828-102701-261571",
+    "id": "20260902-142500-000001",
     "status": "COMPLETED",
-    "objective": "T-DELIVERY-2026-08-28-R3: update ai-toolkit documentation, commit, push, deploy",
+    "objective": "T-MAIL-REFRESH-2026-09-02: webmail selalu menampilkan email terbaru (auto-refresh list)",
     "next_step": "",
     "goal_id": "G-001",
-    "sub_goal_id": "G-001.S-002",
-    "updated_at": "2026-08-28T10:34:48Z"
+    "sub_goal_id": "G-001.S-001",
+    "updated_at": "2026-09-02T14:37:06Z"
   }
 }
