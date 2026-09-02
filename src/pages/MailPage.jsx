@@ -18,6 +18,7 @@ import QuickRuleModal from '../components/mailer/QuickRuleModal';
 import { MessageListSkeleton, FoldersListSkeleton } from '../components/Skeleton';
 import { toast } from '../lib/toast';
 import { DEFAULT_FOLDERS, STALE_TIMES, isSentOrDraftFolder, isReaderOwnedShortcut } from '../lib/constants';
+import { watchDomainVersion } from '../lib/crossTab';
 import KeyboardShortcutsModal from '../components/KeyboardShortcuts';
 import SwipeableRow from '../components/SwipeableRow';
 import Avatar from '../components/Avatar';
@@ -514,6 +515,21 @@ export default function MailPage() {
       refetchType: 'active',
     });
   }, [unseenCount, searchQuery, queryClient, user?.sogoToken]);
+
+  // ── Multi-tab sync domain 'mail' ─────────────────────────────────────────
+  // Tab lain melakukan mutasi mailbox (delete/move/flag/read/junk/kirim —
+  // bump-nya dipasang di layer api.js) → tab ini invalidate query mail agar
+  // daftar/badge tidak basi sampai staleTime. Kalau user sedang search,
+  // hasil pencarian tetap stabil (invalidate menandai stale, tidak force).
+  React.useEffect(() => {
+    if (!user?.email || !user?.sogoToken) return;
+    return watchDomainVersion('mail', user?.email, () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken] });
+      queryClient.invalidateQueries({ queryKey: ['unseen', user?.sogoToken] });
+      queryClient.invalidateQueries({ queryKey: ['unseen-per-folder', user?.sogoToken] });
+      queryClient.invalidateQueries({ queryKey: ['folders', user?.sogoToken] });
+    });
+  }, [user?.email, user?.sogoToken, queryClient]);
 
   // ── Kiriman terjadwal (badge + panel) ────────────────────────────────────
   // Poll queue server tiap 60 dtk; badge merah muncul saat ada kiriman yang

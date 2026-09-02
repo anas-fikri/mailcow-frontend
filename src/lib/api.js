@@ -9,6 +9,7 @@ import { parseCalendarEvents } from './calendarEvents.js';
 import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
 import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFormat } from './loginDiagnostics.js';
 import { flattenMailboxes } from './mailboxTree.js';
+import { bumpDomainVersion } from './crossTab.js';
 
 const SOGO_ENV = import.meta.env || {};
 // Same-origin secara default (relatif) — SPA & SOGo dilayani nginx yang sama
@@ -555,6 +556,7 @@ export async function markRead(sogoToken, folder, uid, read = true) {
     body: '{}',
   });
   if (!res.ok) throwApiError(`Gagal menandai pesan (${res.status}).`, res.status);
+  bumpMailVersion(sogoToken);
 }
 
 export async function markFlagged(sogoToken, folder, uid, flagged = true) {
@@ -566,6 +568,7 @@ export async function markFlagged(sogoToken, folder, uid, flagged = true) {
     body: '{}',
   });
   if (!res.ok) throwApiError(`Gagal mengubah tanda bintang (${res.status}).`, res.status);
+  bumpMailVersion(sogoToken);
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -591,6 +594,21 @@ export async function searchMessages(sogoToken, folder, query, criteria = 'all')
   return { messages, total: messages.length };
 }
 
+// ─── Cross-tab sync domain 'mail' ────────────────────────────────────────────
+// Mutasi mailbox (delete/move/flag/read/junk/folder/kirim) di tab A harus
+// terlihat di tab B: bump versi domain 'mail' → tab lain yang memasang
+// watchDomainVersion('mail') ikut invalidate → refetch. Dipanggil DI LAYER API
+// (bukan di tiap halaman) agar semua jalur mutasi tercakup, termasuk RulesPage
+// (auto-archive) dan ComposeModal. Fire-and-forget: gagal localStorage tidak
+// boleh menggagalkan mutasi yang sudah sukses di SOGo.
+// @param {string} sogoToken - sekaligus identifier akun (sama dgn email user,
+//   sesuai kontrak login: sogoToken = username/email) yang di-scope crossTab.
+function bumpMailVersion(sogoToken) {
+  try {
+    bumpDomainVersion('mail', sogoToken);
+  } catch { /* quota/privasi — abaikan */ }
+}
+
 export async function deleteMessages(sogoToken, folder, uids) {
   const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/batchDelete`, {
     method: 'POST',
@@ -599,6 +617,7 @@ export async function deleteMessages(sogoToken, folder, uids) {
     body: JSON.stringify({ uids }),
   });
   if (!res.ok) throwApiError(`Gagal menghapus pesan (${res.status}).`, res.status);
+  bumpMailVersion(sogoToken);
 }
 
 /**
@@ -679,6 +698,7 @@ export async function moveMessages(sogoToken, folder, uids, targetFolder) {
       : `Gagal memindahkan pesan (${res.status}).`;
     throwApiError(msg, res.status);
   }
+  bumpMailVersion(sogoToken);
 }
 
 // ─── Folder management (subfolder) ───────────────────────────────────────────
@@ -705,6 +725,7 @@ export async function createFolder(sogoToken, parentFolderId, name) {
       : `Gagal membuat folder (${res.status}).`;
     throwApiError(msg, res.status);
   }
+  bumpMailVersion(sogoToken);
 }
 
 /** Hapus folder SOGo secara permanen (tanpa pindah ke Sampah). */
@@ -716,6 +737,7 @@ export async function deleteFolder(sogoToken, folderId) {
     body: JSON.stringify({ withoutTrash: true }),
   });
   if (!res.ok) throwApiError(`Gagal menghapus folder (${res.status}).`, res.status);
+  bumpMailVersion(sogoToken);
 }
 
 // ─── Junk/Spam (native SOGo) ──────────────────────────────────────────────────
@@ -753,6 +775,7 @@ export async function markMessagesAsJunk(sogoToken, folder, uids) {
       : `Gagal menandai spam (${res.status}).`;
     throwApiError(msg, res.status);
   }
+  bumpMailVersion(sogoToken);
 }
 
 /** Batalkan penandaan spam (bukan junk) — native SOGo. */
@@ -766,6 +789,7 @@ export async function markMessagesAsNotJunk(sogoToken, folder, uids) {
     body: JSON.stringify({ uids: intUids }),
   });
   if (!res.ok) throwApiError(`Gagal membatalkan spam (${res.status}).`, res.status);
+  bumpMailVersion(sogoToken);
 }
 
 /**
@@ -967,6 +991,7 @@ export async function sendMessage(sogoToken, payload) {
       const err = await smtpRes.json().catch(() => ({}));
       throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
     }
+    bumpMailVersion(sogoToken);
     return smtpRes.json();
   }
 
@@ -1004,7 +1029,10 @@ export async function sendMessage(sogoToken, payload) {
   });
 
   throwIfAuthError(sendRes);
-  if (sendRes.ok) return { ok: true };
+  if (sendRes.ok) {
+    bumpMailVersion(sogoToken);
+    return { ok: true };
+  }
 
   // Fallback: SMTP proxy (workaround SOGo 501 — endpoint /send tidak
   // diimplementasikan). HANYA pada 501: status lain (400/422/500/502/dll)
@@ -1024,6 +1052,7 @@ export async function sendMessage(sogoToken, payload) {
     const err = await smtpRes.json().catch(() => ({}));
     throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
   }
+  bumpMailVersion(sogoToken);
   return smtpRes.json();
 }
 

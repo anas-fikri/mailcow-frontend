@@ -1,3 +1,9 @@
+## 2026-09-02 — Cross-tab sync domain 'mail'
+
+- Scope: multi-tab webmail — mutasi mailbox di tab A (delete/move/flag/read/junk/folder/kirim) kini memicu invalidate + refetch di tab B. Bump versi dipasang di layer api.js (bumpMailVersion setelah mutasi sukses); MailPage memasang watchDomainVersion('mail') → invalidate messages/unseen/folders.
+- Validation: scripts/test-mail-crosstab.mjs baru (bump/scope/watcher/fail-no-bump), 75/75 regression PASS, vite build PASS.
+- Delivery: di-commit bersama rekam verifikasi; push GitLab tetap ditunda sampai tunnel wg0 hidup.
+
 ## 2026-09-02 — Mail auto-refresh fix (T-MAIL-REFRESH-2026-09-02)
 
 - Root cause "webmail tidak menampilkan email terbaru": query `messages` tidak punya refetch otomatis (badge unseen saja yang poll 60s; `refetchOnWindowFocus: false` global di App.jsx). Email baru hanya muncul setelah ganti folder / pull-to-refresh.

@@ -6,6 +6,13 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-09-02 — Cross-tab sync domain 'mail'
+
+- Domain crossTab kini tiga: calendar, contacts, mail. Bump dipasang DI LAYER API (src/lib/api.js, helper bumpMailVersion(sogoToken)) — bukan per halaman — sehingga semua jalur mutasi tercakup: deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk/NotJunk, createFolder, deleteFolder, sendMessage (jalur SOGo 200 dan fallback SMTP proxy). sogoToken dipakai sebagai scope akun (kontrak login: sogoToken = email).
+- Bump HANYA setelah mutasi sukses (setelah cek res.ok) — versi = sinyal sukses; mutasi gagal tidak boleh memicu refetch tab lain. Gagal localStorage tidak boleh menggagalkan mutasi (try/catch).
+- MailPage memasang watchDomainVersion('mail') → invalidate messages/unseen/unseen-per-folder/folders. Search aktif tetap aman: invalidate menandai stale, tidak menimpa hasil yang sedang ditampilkan.
+- Test: scripts/test-mail-crosstab.mjs (bump per mutasi, scope akun, watcher fire, mutasi gagal tidak bump).
+
 ## 2026-09-02 — Webmail auto-refresh contract (email terbaru selalu tampil)
 
 - Query `messages` MailPage kini: `refetchOnWindowFocus: true` (override global false di App.jsx) + invalidation `['messages', token, 'folderINBOX']` (refetchType 'active') saat `unseenCount` naik antar poll 60s. Badge unseen adalah detektor email baru; list mengikuti.
