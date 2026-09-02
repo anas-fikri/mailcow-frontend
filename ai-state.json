@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "last_session": "2026-09-02T14:37:06Z",
-  "context": "PCP Express Webmail — follow-up: (1) tombol hapus draft di daftar (hover desktop), (2) infinite scroll + batas 5 bulan Kotak Masuk, (3) lampiran smart (ikon per tipe file, unduh semua via blob, total ukuran header), (4) preview gambar/PDF dalam lightbox, (5) filter email berlampiran (Paperclip) + seksi lampiran rapi (satu blok, hormati shouldDisplayAttachment). Build OK + test:attachments PASS.",
+  "last_session": "2026-09-02T15:12:17Z",
+  "context": "PCP Express Webmail — freshness pipeline complete & live: (1) auto-refresh daftar pesan (refetchOnWindowFocus + invalidate saat unseenCount naik, poll 60s), (2) cross-tab sync domain 'mail' (bump di layer api.js setelah mutasi sukses, watcher di MailPage invalidate messages/unseen/folders), (3) extraMessages lazy-load divalidasi vs uids fresh SOGo. Root cause jaringan GitLab: trafik diroute via wg0 (WireGuard) yang sedang down — 32 commit lokal menunggu push. Deploy produksi 2x PASS via SERVER=deploy-mail ./deploy.sh.",
   "modules": {
     "api-native-endpoints": {
       "status": "done",
@@ -90,6 +90,18 @@
     "history-scrub": {
       "status": "done",
       "feature": "git filter-repo: hapus sogo.html/test_rq*/test_sogo.js/sogo_test.py dari seluruh riwayat; force-push; reset workspace+macanas"
+    },
+    "mail-auto-refresh": {
+      "status": "done",
+      "feature": "Webmail selalu tampil email terbaru: refetchOnWindowFocus: true khusus query messages + invalidate ['messages', token, 'folderINBOX'] (refetchType 'active') saat unseenCount naik antar poll 60s; search aktif tidak diganggu; extraMessages lazy-load /headers divalidasi terhadap uids fresh agar list tidak loncat balik ke 50 email pertama. Commit 3062618, deployed 2026-09-02"
+    },
+    "mail-crosstab-sync": {
+      "status": "done",
+      "feature": "Cross-tab sync domain 'mail': bump versi di layer api.js (bumpMailVersion setelah mutasi sukses: delete/move/markRead/markFlagged/junk/createFolder/deleteFolder/sendMessage jalur SOGo + fallback SMTP proxy); MailPage watchDomainVersion('mail') → invalidate messages/unseen/unseen-per-folder/folders; versi = sinyal sukses (mutasi gagal tidak bump); test scripts/test-mail-crosstab.mjs. Commit 4a1e606, deployed 2026-09-02"
+    },
+    "gitlab-connectivity": {
+      "status": "blocked",
+      "feature": "gitlab.pcpexpress.com (115.178.128.141) diroute via wg0 (subnet 115.178.128.128/27) — tunnel WireGuard down sejak ~2026-09-02 14:00 UTC: TCP 22/443 filtered, ping loss 100%; DNS+credentials OK, mail host & internet via eth0 normal. 32 commit lokal ahead origin/main tanpa divergensi; cukup git push origin main setelah wg0 hidup"
     }
   },
   "bugs_found": [
@@ -158,6 +170,18 @@
       "issue": "error.message + componentStack exposed in production UI",
       "status": "fixed",
       "fix": "import.meta.env.DEV guard on technical details"
+    },
+    {
+      "file": "src/pages/MailPage.jsx",
+      "issue": "Webmail tidak menampilkan email terbaru: query messages tidak pernah refetch otomatis (badge unseen saja poll 60s; refetchOnWindowFocus: false global di App.jsx) — email baru hanya muncul setelah ganti folder/pull-to-refresh",
+      "status": "fixed",
+      "fix": "refetchOnWindowFocus: true per-query messages + invalidate ['messages', token, 'folderINBOX'] refetchType 'active' saat unseenCount naik antar poll; search aktif dikecualikan"
+    },
+    {
+      "file": "src/pages/MailPage.jsx",
+      "issue": "Background refetch mengosongkan extraMessages hasil lazy-load /headers — list loncat balik ke 50 email pertama di tengah scroll user (regresi potensial dari auto-refresh)",
+      "status": "fixed",
+      "fix": "extraMessages divalidasi terhadap uids fresh dari SOGo (buang uid yang sudah tidak ada, pertahankan sisanya); fallback reset penuh bila SOGo tidak menyediakan uids"
     },
     {
       "file": "src/lib/api.js",
@@ -436,6 +460,21 @@
       "what": "Webmail auto-refresh: query messages kini refetchOnWindowFocus + invalidated saat unseenCount naik (poll 60s); extraMessages lazy-load divalidasi terhadap uids fresh SOGo agar list tidak loncat. 74/74 regression PASS, build PASS. Push tertahan: tunnel wg0 ke GitLab down.",
       "status": "done",
       "updated_at": "2026-09-02T14:37:06Z"
+    },
+    {
+      "what": "Auto-refresh fix di-commit (3062618) dan di-deploy ke produksi via SERVER=deploy-mail ./deploy.sh: webmail HTTP 200, /api/health 200 end-to-end, image-proxy SSRF 403 OK, backend unchanged (skip restart). GitLab push ditunda (tunnel wg0 down).",
+      "status": "done",
+      "updated_at": "2026-09-02T14:55:00Z"
+    },
+    {
+      "what": "Cross-tab sync domain 'mail': bump versi dipasang di layer api.js setelah mutasi sukses (delete/move/flag/read/junk/folder/sendMessage — jalur SOGo + fallback SMTP); MailPage memasang watchDomainVersion('mail') → invalidate messages/unseen/folders di tab lain. Test baru scripts/test-mail-crosstab.mjs; 75/75 regression PASS, build PASS. Commit 4a1e606.",
+      "status": "done",
+      "updated_at": "2026-09-02T15:05:00Z"
+    },
+    {
+      "what": "Cross-tab mail sync di-deploy ke produksi via SERVER=deploy-mail ./deploy.sh: webmail HTTP 200, /api/health 200 end-to-end, image-proxy SSRF 403 OK, backend unchanged. Commit verifikasi dd7f252. 32 commit lokal ahead origin/main menunggu push saat tunnel wg0 hidup.",
+      "status": "done",
+      "updated_at": "2026-09-02T15:12:17Z"
     }
   ],
   "active_task": {

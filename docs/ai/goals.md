@@ -104,6 +104,16 @@ Success criteria:
 - **DoS slow-drip test:** ekstrak fetch image proxy ke `src/lib/remoteImage.js` (timeout/limit/resolve injectable). Test slow-drip (1 byte/50ms tanpa selesai) → hard deadline 504 <3s (bukan hang); bonus fix branch `remaining<=0` (dulu destroy res tanpa settle promise → hang) → reject 504. `test:remote-image`.
 - Validation: 28/28 test PASS, build OK, npm audit 0 vuln, deploy LIVE (webmail HTTP 200, SSRF 403, proxy gambar 200 `image/png`).
 
+### Sub-goal G-001.S-011 — Mail freshness: auto-refresh + cross-tab sync (2026-09-02)
+
+- Status: COMPLETE — deployed LIVE (`3062618` auto-refresh, `4a1e606` cross-tab, `dd7f252` verification record)
+- **Auto-refresh daftar pesan:** root cause "webmail tidak menampilkan email terbaru" — query `messages` tidak pernah refetch otomatis (badge unseen saja poll 60s; `refetchOnWindowFocus: false` global). Fix: `refetchOnWindowFocus: true` per-query messages + invalidate `['messages', token, 'folderINBOX']` (`refetchType: 'active'`) saat unseenCount naik antar poll; search aktif tidak diganggu ✅
+- **Anti-regresi pagination:** background refetch tidak lagi mengosongkan `extraMessages` lazy-load `/headers` — divalidasi terhadap `uids` fresh dari SOGo (buang uid yang sudah tidak ada); list tidak loncat balik ke 50 email pertama di tengah scroll ✅
+- **Cross-tab sync domain 'mail':** bump versi dipasang di layer `api.js` setelah mutasi sukses (delete/move/markRead/markFlagged/junk/createFolder/deleteFolder/sendMessage — jalur SOGo + fallback SMTP proxy); MailPage `watchDomainVersion('mail')` → invalidate messages/unseen/unseen-per-folder/folders di tab lain. Versi = sinyal sukses (mutasi gagal tidak bump); gagal localStorage tidak menggagalkan mutasi ✅
+- Test: `test-mail-crosstab.mjs` baru (bump per mutasi, scope akun, watcher fire, fail-no-bump) ✅
+- Validation: 75/75 regression PASS, build OK, deploy 2x LIVE via `SERVER=deploy-mail ./deploy.sh` (webmail HTTP 200, `/api/health` 200 end-to-end, image-proxy SSRF 403, backend unchanged skip restart) ✅
+- Catatan delivery: git push ke GitLab ditunda — trafik `gitlab.pcpexpress.com` diroute via `wg0` (WireGuard) yang down; 32 commit lokal ahead tanpa divergensi, cukup `git push origin main` setelah tunnel hidup.
+
 ## Goal G-002 — Migration Portal (Eranya → Mailcow)
 
 Status: ACTIVE
