@@ -622,23 +622,29 @@ export async function deleteMessages(sogoToken, folder, uids) {
 
 /**
  * Convert a relative folder path to a SOGo absolute CSS identifier path.
- * SOGo v5 moveMessages expects `folder` as full absolute path:
- *   /{accountId}/{folderId}
- * where {folderId} = each path component prefixed with "folder"
- * e.g. "Archive" → "/anas.fikri@pcpexpress.com/folderArchive"
- *      "Sub/Foo" → "/anas.fikri@pcpexpress.com/folderSub/folderFoo"
+ * Ground truth (SoObjects/Mailer/SOGoMailFolder.m → moveUIDs:toFolder:):
+ * SOGo memecah destination `folder` by '/' → ["", accountName, folder...]
+ * dan MEMBANDINGKAN accountName dengan nameInContainer akun sumber.
+ * Untuk akun utama, nameInContainer = "0" (indeks akun, BUKAN email).
+ * Kirim email di sini → SOGo anggap cross-account →
+ *   500 {"message":"Cannot copy messages to other account."}
  *
- * @param {string} accountId  - SOGo account (email)
+ * Format benar:
+ *   "Archive"   → "/0/folderArchive"
+ *   "INBOX/Sub" → "/0/folderINBOX/folderSub"
+ *
+ * @param {string} accountId  - TIDAK dipakai untuk path tujuan (kompat API lama);
+ *                              akun sumber selalu "Mail/0" pada SPA ini.
  * @param {string} folderPath - relative path like "Archive" or "INBOX/Sub"
- * @returns {string} absolute path like "/anas.fikri@pcpexpress.com/folderArchive"
+ * @returns {string} absolute path like "/0/folderArchive"
  */
-function toSogoAbsPath(accountId, folderPath) {
+function toSogoAbsPath(_accountId, folderPath) {
   const cssId = folderPath
     .split('/')
     .filter(Boolean)
     .map((c) => 'folder' + c)
     .join('/');
-  return '/' + accountId + '/' + cssId;
+  return '/0/' + cssId;
 }
 
 /**
@@ -696,6 +702,13 @@ export async function moveMessages(sogoToken, folder, uids, targetFolder) {
     const msg = detail
       ? `Gagal memindahkan pesan (${res.status}): ${detail.slice(0, 200)}`
       : `Gagal memindahkan pesan (${res.status}).`;
+
+    // Diagnostik tambahan: SOGo kadang return 500 "Cannot copy messages to other account"
+    // kalau target path meminta operasi antar-akun (cross-account IMAP copy yang tidak
+    // di-support oleh endpoint moveMessages SOGo v5).
+    if (detail.includes('Cannot copy messages to other account')) {
+      console.warn('[moveMessages] SOGo menolak karena target cross-account:', absPath);
+    }
     throwApiError(msg, res.status);
   }
   bumpMailVersion(sogoToken);
