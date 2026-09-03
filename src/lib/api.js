@@ -922,6 +922,9 @@ export async function saveDraft(sogoToken, draftId, payload) {
   throwIfAuthError(res);
   if (!res.ok) throw new Error(`Gagal menyimpan draft (${res.status}).`);
   const saved = await res.json().catch(() => ({}));
+  // Draft = mutasi folder Drafts: bump versi crossTab agar tab lain yang
+  // membuka folder Drafts ikut refetch (sama seperti mutasi mailbox lain).
+  bumpMailVersion(sogoToken);
   return saved?.uid || null;
 }
 
@@ -959,6 +962,8 @@ export async function deleteDraft(sogoToken, uid) {
       body: JSON.stringify({ uids: [uid] }),
     });
     throwIfAuthError(res);
+    // Bump hanya bila delete sukses — draft hilang dari folder Drafts tab lain.
+    if (res.ok) bumpMailVersion(sogoToken);
   } catch { /* fire-and-forget */ }
 }
 

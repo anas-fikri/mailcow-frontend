@@ -34,7 +34,7 @@ globalThis.fetch = async () => ({
   text: async () => '',
 });
 
-const { deleteMessages, moveMessages, markRead, markFlagged } = await import('../src/lib/api.js');
+const { deleteMessages, moveMessages, markRead, markFlagged, saveDraft, deleteDraft } = await import('../src/lib/api.js');
 const { readDomainVersion, watchDomainVersion } = await import('../src/lib/crossTab.js');
 
 const TOKEN = 'user@example.test';
@@ -60,6 +60,31 @@ assert.ok(v3 > v2, 'markFlagged harus men-bump versi mail');
 await moveMessages(TOKEN, 'folderINBOX', [42], 'folderArchive');
 const v4 = readDomainVersion('mail', TOKEN);
 assert.ok(v4 > v3, 'moveMessages harus men-bump versi mail');
+
+// ── saveDraft → bump (folder Drafts ikut crossTab) ───────────────────────
+globalThis.fetch = async () => ({
+  status: failStatus || 200,
+  ok: !failStatus,
+  headers: { get: () => 'application/json' },
+  json: async () => ({ uid: 77 }),
+  text: async () => '',
+});
+const v5 = await saveDraft(TOKEN, 'draft123', { subject: 'uji', body: 'isi' });
+assert.equal(v5, 77, 'saveDraft mengembalikan uid draft baru');
+const v6 = readDomainVersion('mail', TOKEN);
+assert.ok(v6 > v4, 'saveDraft harus men-bump versi mail');
+
+// ── deleteDraft → bump bila HTTP sukses ────────────────────────────────
+await deleteDraft(TOKEN, 77);
+const v7 = readDomainVersion('mail', TOKEN);
+assert.ok(v7 > v6, 'deleteDraft (HTTP sukses) harus men-bump versi mail');
+
+// ── saveDraft GAGAL tidak boleh men-bump ───────────────────────────────
+failStatus = 500;
+const vBeforeDraftFail = readDomainVersion('mail', TOKEN);
+await assert.rejects(() => saveDraft(TOKEN, 'draft123', { subject: 'x' }));
+assert.equal(readDomainVersion('mail', TOKEN), vBeforeDraftFail, 'saveDraft gagal tidak men-bump versi');
+failStatus = 0;
 
 // ── Scope akun: token lain tidak terpengaruh ────────────────────────────────
 assert.equal(readDomainVersion('mail', 'other@example.test'), 0, 'akun lain tidak terpengaruh');
