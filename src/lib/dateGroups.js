@@ -52,10 +52,109 @@ function startOfDay(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
+// ─── Format RelativeDate SOGo locale Indonesia ────────────────────────────────
+// SOGo mengembalikan kolom RelativeDate sebagai STRING TAMPILAN sesuai locale
+// user (bukan tanggal machine-readable). Contoh locale 'id':
+//   "Hari ini 09:41" · "Kemarin 16:43" · "Kamis 12:36" (≤6 hari) · "28/08/2026"
+// Parser berikut menormalkan format-format itu ke Date; tanpa ini, pesan
+// terbaru punya ts = -Infinity dan TENGGELAM ke bawah daftar (sort by date),
+// sementara pesan lama bertanggal absolut "dd/mm/yyyy" muncul paling atas.
+
+const ID_MONTHS = {
+  januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
+  juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
+};
+
+const ID_WEEKDAYS = {
+  minggu: 0, senin: 1, selasa: 2, rabu: 3, kamis: 4, jumat: 5, sabtu: 6,
+  // Singkatan/bentuk English yang mungkin muncul di locale lain
+  sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+};
+
+function applyTime(d, hh, mm) {
+  d.setHours(hh ?? 12, mm ?? 0, 0, 0);
+  return d;
+}
+
+/** Hari minggu terbaru yang jatuh pada `dow` (0=Minggu) relatif `now`. */
+function mostRecentWeekday(dow, now) {
+  const d = startOfDay(now);
+  d.setDate(d.getDate() - ((d.getDay() - dow + 7) % 7));
+  return d;
+}
+
+function parseIndoRelativeDate(s, now) {
+  const low = s.toLowerCase();
+
+  // Ambil jam:mm bila ada — "09:41" atau "09.41"
+  const tm = s.match(/(?:^|\s)(\d{1,2})[.:](\d{2})(?:\s|$)/);
+  const hh = tm ? Number(tm[1]) : null;
+  const mm = tm ? Number(tm[2]) : null;
+
+  // "Hari ini 09:41" / "Today 09:41"
+  if (/\b(hari ini|today)\b/.test(low)) {
+    return applyTime(new Date(now), hh, mm ?? 0);
+  }
+  // "Kemarin 16:43" / "Yesterday 16:43"
+  if (/\b(kemarin|yesterday)\b/.test(low)) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 1);
+    return applyTime(d, hh, mm ?? 0);
+  }
+  // Nama hari ("Kamis 12:36", "Senin 08:00") = dalam 6 hari terakhir.
+  // Cocokkan kata utuh agar tidak salah tangkap substring.
+  for (const [name, dow] of Object.entries(ID_WEEKDAYS)) {
+    if (new RegExp(`\\b${name}\\b`).test(low)) {
+      return applyTime(mostRecentWeekday(dow, now), hh, mm ?? 0);
+    }
+  }
+  // "28/08/2026", "28/08/26", "28/08" — hari-bulan-dulu (format ID),
+  // BUKAN mm/dd ala US (05/08 = 5 Agustus, bukan 8 Mei).
+  const dm = s.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  if (dm) {
+    const day = Number(dm[1]);
+    const mon = Number(dm[2]) - 1;
+    if (day >= 1 && day <= 31 && mon >= 0 && mon <= 11) {
+      let year;
+      if (dm[3] !== undefined) {
+        year = Number(dm[3]);
+        if (dm[3].length === 2) year += 2000;
+      } else {
+        year = now.getFullYear();
+      }
+      const d = new Date(year, mon, day);
+      if (hh !== null) applyTime(d, hh, mm);
+      // RelativeDate tidak pernah masa depan — "01/01" yang dilihat di
+      // Februari berarti 1 Januari tahun ini, bukan tahun depan.
+      if (d.getTime() > now.getTime() + 36 * 3600_000) {
+        d.setFullYear(d.getFullYear() - 1);
+      }
+      return d;
+    }
+  }
+  // "12 Agustus" / "12 agustus 09:00" (tanpa tahun)
+  const nm = low.match(/\b(\d{1,2})\s+([a-z]+)\b/);
+  if (nm && ID_MONTHS[nm[2]] !== undefined) {
+    const day = Number(nm[1]);
+    const mon = ID_MONTHS[nm[2]];
+    if (day >= 1 && day <= 31) {
+      const d = new Date(now.getFullYear(), mon, day);
+      if (hh !== null) applyTime(d, hh, mm);
+      if (d.getTime() > now.getTime() + 36 * 3600_000) {
+        d.setFullYear(d.getFullYear() - 1);
+      }
+      return d;
+    }
+  }
+  return null;
+}
+
 /**
  * Parse a SOGo-ish date value into a Date, or null when unparseable.
  * Literal 'today'/'yesterday' relatif terhadap `now` (default: waktu nyata)
- * sehingga perilaku deterministik dan bisa diuji.
+ * sehingga perilaku deterministik dan bisa diuji. Format RelativeDate locale
+ * Indonesia ("Hari ini 09:41", "Kamis 12:36", "28/08/2026") ditangani
+ * parseIndoRelativeDate — lihat catatan di atas.
  */
 export function parseMessageDate(value, now = new Date()) {
   if (value === null || value === undefined) return null;
@@ -67,6 +166,9 @@ export function parseMessageDate(value, now = new Date()) {
     const d = new Date(Number(s) * 1000);
     return Number.isNaN(d.getTime()) ? null : d;
   }
+
+  const parsed = parseIndoRelativeDate(s, now);
+  if (parsed) return parsed;
 
   const low = s.toLowerCase();
   if (low === 'today' || low === 'hari ini') return new Date(now);
@@ -160,9 +262,14 @@ export function sortMessagesByDate(messages = [], opts = {}) {
   });
   // Date DESCENDING selalu — asc hanya dipakai untuk membalik urutan GRUP di
   // pemanggil (lihat reorderDateGroups / groupMessages asc), bukan baris.
+  // Tiebreak uid NUMERIK descending: localeCompare string membuat "99" >
+  // "192" dan mengacaukan urutan thread dgn tanggal tak terbaca.
   stamped.sort((a, b) => {
     if (b.ts !== a.ts) return b.ts - a.ts;
-    return (Number(b.m?.uid) || 0) - (Number(a.m?.uid) || 0);
+    const ua = Number(a.m?.uid);
+    const ub = Number(b.m?.uid);
+    if (!Number.isNaN(ua) && !Number.isNaN(ub)) return ub - ua;
+    return 0; // pertahankan urutan input (sort V8 stabil)
   });
   return stamped.map((s) => s.m);
 }

@@ -102,4 +102,80 @@ assert.deepEqual(applyMessageWindow(undefined, { months: 5 }), []);
 const todayMsg = { uid: 4, date: now2.toISOString() };
 assert.deepEqual(applyMessageWindow([todayMsg, older, unparse], { months: 0, now: now2 }).map((m) => m.uid), [4, 3]);
 
+// ── parseMessageDate: format RelativeDate SOGo locale Indonesia ─────────────
+// SOGo (locale 'id') mengembalikan RelativeDate sebagai STRING TAMPILAN:
+// "Hari ini 09:41", "Kemarin 16:43", "Kamis 12:36", "28/08/2026".
+// Sebelum fix, semuanya tak terbaca → ts=-Infinity → pesan terbaru TENGGELAM
+// ke bawah daftar (sort by date), persis bug "email terbaru kok 28 Agustus".
+const nowId = new Date('2026-09-03T10:00:00'); // Kamis
+
+assert.deepEqual(
+  parseMessageDate('Hari ini 09:41', nowId).getTime(),
+  new Date('2026-09-03T09:41:00').getTime(),
+  '"Hari ini 09:41" → hari ini jam 09:41'
+);
+assert.deepEqual(
+  parseMessageDate('Kemarin 16:43', nowId).getTime(),
+  new Date('2026-09-02T16:43:00').getTime(),
+  '"Kemarin 16:43" → kemarin jam 16:43'
+);
+assert.deepEqual(
+  parseMessageDate('Kamis 12:36', nowId).getTime(),
+  new Date('2026-09-03T12:36:00').getTime(),
+  '"Kamis 12:36" → Kamis terbaru (hari yang sama)'
+);
+assert.deepEqual(
+  parseMessageDate('Senin 08:00', nowId).getTime(),
+  new Date('2026-08-31T08:00:00').getTime(),
+  '"Senin 08:00" → Senin terbaru (2 hari lalu)'
+);
+assert.deepEqual(
+  parseMessageDate('28/08/2026', nowId).getTime(),
+  new Date('2026-08-28T00:00:00').getTime(),
+  '"28/08/2026" → 28 Agustus (day-first, bukan bulan-dulu)'
+);
+assert.deepEqual(
+  parseMessageDate('05/08/2026', nowId).getTime(),
+  new Date('2026-08-05T00:00:00').getTime(),
+  '"05/08/2026" → 5 AGUSTUS (bukan 8 Mei ala US)'
+);
+assert.deepEqual(
+  parseMessageDate('28/08', nowId).getTime(),
+  new Date('2026-08-28T00:00:00').getTime(),
+  '"28/08" (tanpa tahun) → tahun berjalan'
+);
+assert.deepEqual(
+  parseMessageDate('12 Agustus 09:00', nowId).getTime(),
+  new Date('2026-08-12T09:00:00').getTime(),
+  '"12 Agustus 09:00" → 12 Agustus tahun ini'
+);
+assert.deepEqual(
+  parseMessageDate('01/01', nowId).getTime(),
+  new Date('2026-01-01T00:00:00').getTime(),
+  '"01/01" → 1 Januari tahun berjalan (masa lalu, tanpa rollback)'
+);
+
+assert.deepEqual(
+  parseMessageDate('30/12', nowId).getTime(),
+  new Date('2025-12-30T00:00:00').getTime(),
+  '"30/12" terbaca masa depan (Des 2026) → mundur ke 2025 (pesan tak pernah masa depan)'
+);
+// Sort end-to-end: pesan "Hari ini" harus DI ATAS, bukan tenggelam.
+const indoMsgs = [
+  { uid: '10', date: '28/08/2026' },      // lama (absolut)
+  { uid: '11', date: 'Kamis 12:36' },     // hari ini (Kamis = nowId)
+  { uid: '12', date: 'Hari ini 09:41' },  // hari ini, lebih pagi
+  { uid: '13', date: 'Kemarin 16:43' },   // kemarin
+];
+const sortedId = sortMessagesByDate(indoMsgs, { now: nowId });
+assert.deepEqual(
+  sortedId.map((m) => m.uid),
+  ['11', '12', '13', '10'],
+  'email terbaru (Hari ini/Kemarin) harus di ATAS, bukan tenggelam di bawah 28/08'
+);
+// Tanggal Indonesia masuk grup yang benar
+assert.equal(getDateGroup('Hari ini 09:41', nowId).key, 'today');
+assert.equal(getDateGroup('Kemarin 16:43', nowId).key, 'yesterday');
+assert.equal(getDateGroup('28/08/2026', nowId).key, 'thisWeek', '28 Agu dari 3 Sep = 6 hari → Minggu Ini');
+
 console.log('dateGroups assertions passed');
