@@ -1,39 +1,21 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260903-LOGIN-FLAG
-Started At: 2026-09-03T06:30:00Z
-Updated At: 2026-09-03T07:28:42Z
+Task ID: 20260903-MOVE-CROSSACCT
+Started At: 2026-09-03T12:30:00Z
+Updated At: 2026-09-03T13:17:54Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-T-LOGIN-FLAG-2026-09-03: user mendapat "Akun diwajibkan mengganti password sebelum dapat login" padahal sebelumnya bisa login; reset password dari control-tower tidak berpengaruh.
+Fix error 500 "Cannot copy messages to other account." saat run aturan (RulesPage) — analisis dinamis tanpa bergantung pada aturan/akun tertentu.
 
-## Goal Link
-Goal ID: G-001
-Sub-goal ID: G-001.S-011 (lanjutan freshness/availability mail)
+## Result
+- Akar masalah: destination `folder` pada moveMessages dikirim sebagai `/{email}/folderX`; SOGo (SOGoMailFolder.m moveUIDs) membandingkan segmen pertama dengan nameInContainer akun sumber ("0") → dianggap cross-account → 500. Semua jalur move terdampak (rules engine, run manual, drag&drop, archive, quick move).
+- Fix: toSogoAbsPath memakai segmen akun "0" (`/0/folderX`) di src/lib/api.js + unit test scripts/test-move-path.mjs.
+- Bukti dinamis (server, mailbox diag2): destination email → 500 persis dengan error user; destination `/0/` → HTTP 200 dan pesan benar pindah folder (MvTest dibuat otomatis SOGo).
+- Validasi: 76/76 regression PASS, build PASS, commit c320f20, deploy hijau, served chunk terverifikasi (`return\`/0/\`+t.split`).
+- Cleanup: diag2 di-disable kembali, folder MvTest dihapus.
 
-## Files Involved
-- src/lib/loginDiagnostics.js (pesan error login)
-- scripts/test-login-diagnostics.mjs (regresi pesan)
-- produksi mailcow: mailbox.attributes (force_pw_update), _sogo_static_view
-- docs/ai/knowledge.md, docs/ai/handoff.md, ai-state.json
-
-## Root Cause (chain of evidence)
-1. Operasi massal 2026-08-22 14:14–14:15 UTC menyalakan `attributes.force_pw_update=1` di **79 akun** (passwd_update semua nol di 14:14–14:15).
-2. Flag itu **memblokir login SOGo walau password benar** — dibuktikan mailbox kontrol diag2: flag=1+pw benar → 403; pw direset via API → **tetap 403** (reset TIDAK menghapus flag); flag di-clear → 200.
-3. SOGo mailcow mengembalikan `LDAPPasswordPolicyError 65535` untuk SEMUA kegagalan auth (password salah pun sama) → pesan SPA lama "Akun diwajibkan mengganti password" menyesatkan.
-4. Keluhan "control-tower tidak berpengaruh" = reset password memang tidak pernah menghapus flag ini (perilaku mailcow, bukan bug sync).
-
-## Remediation (2026-09-03)
-- 79/79 flag di-clear via API `edit/mailbox` (`force_pw_update=0`), verifikasi DB: sisa **0**. User terdampak bisa login setelah `_sogo_static_view` refresh (~5 menit).
-- Commit `a6b0142`: pesan login direvisi → "password salah ATAU flag wajib ganti password" + CTA menjelaskan reset password tidak menghapus flag. 75/75 regression PASS, build PASS, deployed (semua gate hijau).
-
-## Validation
-- scripts/test-login-diagnostics.mjs + 74 lainnya: 75/75 PASS
-- vite build PASS; produksi HTTP 200, /api/health 200, image-proxy 403/200
-- Eksperimen kontrol diag2: flag=1 → 403; clear flag → 200 (setelah refresh static view)
-
-## Follow-up
-- Mailbox diag diag2/diagx@pcpexpress.co.id di-disable — hapus manual via dashboard (API key RO tidak bisa delete).
-- 35 commit lokal ahead origin/main — push menunggu tunnel wg0.
+## Next Steps
+- Push 38 commit lokal ke GitLab saat tunnel wg0 hidup.
+- (backlog) bump crossTab di saveDraft/deleteDraft; poll unseen 60s→30s.

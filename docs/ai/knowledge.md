@@ -1311,6 +1311,11 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Status: COMPLETED
 - Finding: Mail auto-refresh contract: unseen badge poll (60s) adalah detektor email baru -> invalidate ['messages', token, 'folderINBOX'] refetchType 'active'; refetchOnWindowFocus: true per-query messages. Saat background refetch, extraMessages /headers TIDAK boleh reset kosong - validasi vs uids fresh (reset kosong bikin list loncat ke 50 pertama). Search aktif tidak di-invalidate agar hasil stabil.
 
+## 2026-09-03T13:17:54Z
+- Task: 20260903-MOVE-CROSSACCT
+- Status: COMPLETED
+- Finding: SOGo moveMessages: segmen pertama destination `folder` adalah INDEKS AKUN ("0" untuk akun utama), BUKAN email — SOGoMailFolder.m moveUIDs membandingkannya dengan nameInContainer akun sumber. Kirim /{email}/folderX -> 500 {"message":"Cannot copy messages to other account."} untuk SEMUA move (rules/drag&drop/arsip/quick move); format benar /0/folderX. Dibuktikan live via mailbox diag: destination email -> 500 persis, /0/ -> 200 dan pesan pindah folder (MvTest dibuat otomatis SOGo). Gotcha replikasi: POST /SOGo/so/.../headers|moveMessages WAJIB header X-Requested-With: XMLHttpRequest + X-XSRF-TOKEN (dari cookie XSRF-TOKEN) — tanpa itu SOGo balas 500 "the called object returned no result" (bukan auth error). mailcow _sogo_static_view butuh kolom NOT NULL domain+aliases saat INSERT manual; mailcow API password reset + sinkron hash diverifikasi via doveadm pw -t.
+
 ## 2026-09-03T07:28:42Z
 - Task: 20260903-LOGIN-FLAG
 - Status: COMPLETED
