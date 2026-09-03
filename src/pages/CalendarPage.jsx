@@ -118,6 +118,20 @@ export default function CalendarPage() {
   // Drag & drop state
   const dragEvRef = useRef(null);
 
+  // Preferensi SOGoFirstDayOfWeek (0 = Minggu, 1 = Senin) — dipakai grid
+  // bulan/minggu + label hari. Fallback Minggu bila prefs belum tiba.
+  // PENTING: deklarasi ini HARUS di atas useMemo dateRange — di build produksi
+  // referensi `weekStartsOn` di dependency array dievaluasi segera (TDZ),
+  // beda dengan di dev. Salah urutan = crash "Cannot access before
+  // initialization" (bug produksi 2026-09-03 di CalendarPage).
+  const { data: prefs } = useQuery({
+    queryKey: ['preferences', user?.sogoToken],
+    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
+    enabled: !!(user?.sogoToken && user?.email),
+    staleTime: 5 * 60_000,
+  });
+  const weekStartsOn = String(prefs?.defaults?.SOGoFirstDayOfWeek ?? '0') === '1' ? 1 : 0;
+
   // ── Date range for fetching ────────────────────────────────────────────────
   const { dateRangeStart, dateRangeEnd } = useMemo(() => {
     let start, end;
@@ -149,16 +163,6 @@ export default function CalendarPage() {
     enabled: !!user?.sogoToken,
     staleTime: 5 * 60_000,
   });
-
-  // Preferensi SOGoFirstDayOfWeek (0 = Minggu, 1 = Senin) — dipakai grid
-  // bulan/minggu + label hari. Fallback Minggu bila prefs belum tiba.
-  const { data: prefs } = useQuery({
-    queryKey: ['preferences', user?.sogoToken],
-    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
-    enabled: !!(user?.sogoToken && user?.email),
-    staleTime: 5 * 60_000,
-  });
-  const weekStartsOn = String(prefs?.defaults?.SOGoFirstDayOfWeek ?? '0') === '1' ? 1 : 0;
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   function goBack() {
