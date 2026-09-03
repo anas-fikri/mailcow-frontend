@@ -43,6 +43,12 @@
 -  M docs/ai/knowledge.md
 -  M src/pages/MailPage.jsx
 
+## 2026-09-03T13:40:00Z — Verifikasi replay alur aturan + audit path + status push
+- Status: COMPLETED (push masih tertunda)
+- Audit path SOGo: hanya moveMessages yang memakai destination-di-body — createFolder/deleteFolder/view/headers/batchDelete/junk aman (semua lewat URL /Mail/0/{folderId}, segmen akun sudah benar).
+- Replay alur aturan end-to-end via diag2: seed 2 pesan → createFolder (204) → moveMessages 2 uid ke /0/folderINBOX/folderMvTest (200) → doveadm konfirmasi fisik: pesan pindah ke INBOX/MvTest, uid lain tetap di INBOX. Cleanup selesai (folder dihapus, diag2 di-disable).
+- Push GitLab: wg0 flapping — fetch sempat sukses, lalu peer dead (ping 100% loss, TCP443 timeout), push timeout di 135s. Local main AHEAD 40 commit. Push ulang saat tunnel kantor stabil.
+
 ## 2026-09-03T13:17:54Z — Fix 500 "Cannot copy messages to other account" pada semua move
 - Status: COMPLETED & DEPLOYED
 - Objective: user dapat 500 saat run aturan (RulesPage) — "Cannot copy messages to other account"
