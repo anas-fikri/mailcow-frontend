@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-09-02T15:12:17Z",
+  "last_session": "2026-09-03T07:28:42Z",
   "context": "PCP Express Webmail — freshness pipeline complete & live: (1) auto-refresh daftar pesan (refetchOnWindowFocus + invalidate saat unseenCount naik, poll 60s), (2) cross-tab sync domain 'mail' (bump di layer api.js setelah mutasi sukses, watcher di MailPage invalidate messages/unseen/folders), (3) extraMessages lazy-load divalidasi vs uids fresh SOGo. Root cause jaringan GitLab: trafik diroute via wg0 (WireGuard) yang sedang down — 32 commit lokal menunggu push. Deploy produksi 2x PASS via SERVER=deploy-mail ./deploy.sh.",
   "modules": {
     "api-native-endpoints": {
@@ -105,6 +105,12 @@
     }
   },
   "bugs_found": [
+    {
+      "file": "produksi mailbox (SOGo/mailcow)",
+      "issue": "Operasi massal 22 Aug 14:14-14:15 UTC menyalakan force_pw_update=1 di 79 akun; flag ini BLOKIR login SOGo walau password benar (SOGo balas LDAPPasswordPolicyError 65535), dan reset password via API TIDAK menghapus flag — user terjebak. Pesan error SPA lama salah arah (mengklaim 'wajib ganti password' padahal error sama juga muncul untuk password salah)",
+      "status": "fixed",
+      "fix": "79/79 flag di-clear via API edit/mailbox (sisa 0); pesan login direvisi jadi 'password salah ATAU flag wajib ganti password' + CTA menjelaskan reset password tidak menghapus flag. Commit a6b0142, deployed 2026-09-03"
+    },
     {
       "file": "src/components/mailer/MessageReader.jsx",
       "issue": "Lampiran tidak muncul — SOGo kirim msg.parts sebagai ARRAY langsung (bukan object {type, content}), extractAttachments cek parts.contentType pada array → undefined → return []",

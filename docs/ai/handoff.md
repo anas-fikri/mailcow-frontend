@@ -42,3 +42,11 @@
 -  M docs/ai/handoff.md
 -  M docs/ai/knowledge.md
 -  M src/pages/MailPage.jsx
+
+## 2026-09-03T07:28:42Z — Login blocked: force_pw_update mass-flag (investigasi + remediasi)
+- Status: COMPLETED
+- Objective: user mendapat 'Akun diwajibkan mengganti password' walau sudah reset password dari control-tower
+- Akar masalah: operasi massal 22 Aug 14:14-14:15 UTC menyalakan attributes.force_pw_update=1 di 79 akun; flag memblokir login SOGo walau password benar; reset password via API TIDAK menghapus flag (terbukti eksperimen mailbox kontrol diag2: flag=1+pw benar → 403; pw diganti API → tetap 403; flag di-clear → 200). SOGo juga memakai error yang sama untuk password salah → pesan SPA lama menyesatkan.
+- Remediasi: (1) 79/79 flag di-clear via API edit/mailbox, sisa 0 — user terdampak bisa login lagi setelah refresh _sogo_static_view (~5 menit). (2) Commit a6b0142: pesan login 'password salah ATAU flag wajib ganti password' + CTA edukatif; 75/75 regression PASS; deployed via SERVER=deploy-mail ./deploy.sh (semua gate hijau).
+- Catatan operasional: mailbox diag2/diagx@pcpexpress.co.id di-disable (API key RO tidak bisa delete — perlu dihapus manual via dashboard bila mau bersih). 35 commit lokal ahead origin/main menunggu tunnel wg0.
+- Changed Files: src/lib/loginDiagnostics.js, scripts/test-login-diagnostics.mjs, docs/ai/*, ai-state.json

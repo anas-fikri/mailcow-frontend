@@ -1310,3 +1310,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 20260902-142500-000001
 - Status: COMPLETED
 - Finding: Mail auto-refresh contract: unseen badge poll (60s) adalah detektor email baru -> invalidate ['messages', token, 'folderINBOX'] refetchType 'active'; refetchOnWindowFocus: true per-query messages. Saat background refetch, extraMessages /headers TIDAK boleh reset kosong - validasi vs uids fresh (reset kosong bikin list loncat ke 50 pertama). Search aktif tidak di-invalidate agar hasil stabil.
+
+## 2026-09-03T07:28:42Z
+- Task: 20260903-LOGIN-FLAG
+- Status: COMPLETED
+- Finding: force_pw_update di mailcow tersimpan di mailbox.attributes (JSON), BUKAN kolom tabel — query flag harus JSON_EXTRACT. SOGo mailcow memetakan SEMUA kegagalan auth SQL ke LDAPPasswordPolicyError 65535 (password salah, akun tidak dikenal, flag aktif) — pesan error SPA tidak boleh mengklaim satu penyebab. Reset password via API TIDAK menghapus flag force_pw_update (harus edit attr force_pw_update='0'). SOGo membaca auth via _sogo_static_view yang di-refresh ~5 menit sekali — perubahan password/flag/active tidak langsung terlihat SOGo (uji 2-5 menit setelah perubahan). Operasi massal 22 Aug 14:14-14:15 UTC menyalakan flag di 79 akun; clear 79/79 via API 2026-09-03, sisa 0. Diag mailbox diag2/diagx@pcpexpress.co.id di-disable (delete denied untuk key RO).
