@@ -43,6 +43,14 @@
 -  M docs/ai/knowledge.md
 -  M src/pages/MailPage.jsx
 
+## 2026-09-03T14:53:58Z — Audit fitur Calendar + E2E produksi: 2 bug fix
+- Status: COMPLETED & DEPLOYED
+- Scope: analisa fitur-per-fitur CalendarPage (3 view, navigasi, CRUD, recurrence scope single/all, drag&drop, prefs first-day, crossTab) + audit keamanan + E2E via replika request SPA di produksi (diag2).
+- BUG 1 (kritis): eventsblocks SOGo 5.12 kirim baris di `events` bukan `blocks` → kalender SELALU kosong. Fix parser terima keduanya (6c8f731).
+- BUG 2: recid sudah berprefix `occurence…` → prefix ganda → edit/hapus SATU occurrence selalu 404. Fix occurrenceSegment idempotent + parser pertahankan string.
+- E2E lain PASS: create/edit/view/delete event, delete satu occurrence (204), delete seri, IDOR GUID acak 404, negative end<start diterima server (validasi UI wajib).
+- Keamanan: render aman (React, tanpa innerHTML), auth cookie httpOnly + XSRF, tidak ada cross-user leak. 76/76 regression PASS, deploy hijau, chunk terverifikasi.
+
 ## 2026-09-03T14:10:00Z — Backlog drafts crossTab + audit path lengkap
 - Status: COMPLETED & DEPLOYED
 - Audit semua endpoint ber-parameter folder di api.js: hanya moveMessages yang kirim destination di body (sudah di-fix c320f20); createFolder/deleteFolder/view/headers/batchDelete/junk/compose aman (URL /Mail/0/{folderId}).

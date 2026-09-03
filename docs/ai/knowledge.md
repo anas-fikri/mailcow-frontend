@@ -1316,6 +1316,11 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Status: COMPLETED
 - Finding: SOGo moveMessages: segmen pertama destination `folder` adalah INDEKS AKUN ("0" untuk akun utama), BUKAN email — SOGoMailFolder.m moveUIDs membandingkannya dengan nameInContainer akun sumber. Kirim /{email}/folderX -> 500 {"message":"Cannot copy messages to other account."} untuk SEMUA move (rules/drag&drop/arsip/quick move); format benar /0/folderX. Dibuktikan live via mailbox diag: destination email -> 500 persis, /0/ -> 200 dan pesan pindah folder (MvTest dibuat otomatis SOGo). Gotcha replikasi: POST /SOGo/so/.../headers|moveMessages WAJIB header X-Requested-With: XMLHttpRequest + X-XSRF-TOKEN (dari cookie XSRF-TOKEN) — tanpa itu SOGo balas 500 "the called object returned no result" (bukan auth error). mailcow _sogo_static_view butuh kolom NOT NULL domain+aliases saat INSERT manual; mailcow API password reset + sinkron hash diverifikasi via doveadm pw -t.
 
+## 2026-09-03T14:53:58Z
+- Task: 20260903-CALENDAR-AUDIT
+- Status: COMPLETED
+- Finding: (1) SOGo 5.12 eventsblocks mengembalikan baris di kunci `events`, BUKAN `blocks` — parser yang hanya baca blocks membuat kalender selalu kosong (dibuktikan E2E produksi: 10 baris di events, 0 di blocks). Terima keduanya. (2) c_recurrence_id sudah berprefix `occurence…` (string) — menambah prefix lagi membuat semua edit/hapus SATU occurrence 404; tanpa prefix = 204 sukses. occurrenceSegment kini idempotent. (3) Kontrak request SOGo: POST API wajib X-Requested-With + X-XSRF-TOKEN; GET delete tanpa Content-Type JSON. (4) create/edit/delete + recurrence harian x5 terverifikasi E2E via replika request SPA; negative test end<start DITERIMA SOGo (HTTP 200, event durasi negatif) — validasi UI (eventValidation.js) wajib dipertahankan. (5) IDOR probe GUID acak → 404 (aman). Diag event dibersihkan (sisa 0).
+
 ## 2026-09-03T07:28:42Z
 - Task: 20260903-LOGIN-FLAG
 - Status: COMPLETED
