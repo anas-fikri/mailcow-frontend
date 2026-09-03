@@ -45,11 +45,18 @@ export function friendlyLoginError(err) {
   return err?.message || 'Login gagal. Periksa koneksi dan status akun.';
 }
 
+// PENTING (diagnosa 2026-09-03): SOGo di mailcow ini mengembalikan
+// LDAPPasswordPolicyError 65535 untuk SEMUA kegagalan auth — password salah
+// maupun flag force_pw_update=1 (terbukti via eksperimen mailbox kontrol).
+// Pesan tidak boleh mengklaim pasti satu penyebab.
+const PASSWORD_POLICY_MSG =
+  'Login ditolak: password salah atau akun diwajibkan admin mengganti password. Pastikan password terbaru sudah benar; jika tetap gagal, admin perlu menghapus flag "wajib ganti password" di dashboard.';
+
 export function extractLoginErrorMessage(data, status) {
   // SOGo mengembalikan body seperti { LDAPPasswordPolicyError: 65535 }
   // TANPA field `message` — deteksi field khusus ini langsung dari data.
   if (data && (data.LDAPPasswordPolicyError != null || data.ldapPasswordPolicyError != null)) {
-    return 'Akun diwajibkan mengganti password sebelum dapat login.';
+    return PASSWORD_POLICY_MSG;
   }
 
   const raw = normalizeMessage(
@@ -58,7 +65,7 @@ export function extractLoginErrorMessage(data, status) {
   const text = raw.toLowerCase();
 
   if (/ldappasswordpolicyerror|password.{0,20}(change|expired)|must.{0,20}change/.test(text)) {
-    return 'Akun diwajibkan mengganti password sebelum dapat login.';
+    return PASSWORD_POLICY_MSG;
   }
   if (/inactive|disabled|disallow.{0,20}login|login.{0,20}(disabled|forbidden)/.test(text)) {
     return 'Mailbox tidak aktif atau login akun dinonaktifkan oleh administrator.';
@@ -81,8 +88,12 @@ export function extractLoginErrorMessage(data, status) {
 export function loginErrorAction(err) {
   if (!err?.message) return null;
   const msg = err.message.toLowerCase();
-  if (msg.includes('diwajibkan mengganti password') || msg.includes('diwajibkan mengganti')) {
-    return { type: 'password-change', label: 'Hubungi administrator', hint: 'Password akun ini perlu direset oleh admin.' };
+  if (msg.includes('diwajibkan') || msg.includes('password salah')) {
+    return {
+      type: 'password-change',
+      label: 'Tetap gagal? Hubungi administrator',
+      hint: 'Reset password saja TIDAK menghapus flag "wajib ganti password" (force_pw_update) — flag itu harus dihapus admin dari dashboard mailbox.',
+    };
   }
   if (msg.includes('mailbox tidak aktif')) {
     return { type: 'inactive', label: 'Hubungi administrator', hint: 'Akun ini telah dinonaktifkan.' };
