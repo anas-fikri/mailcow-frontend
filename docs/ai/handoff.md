@@ -71,3 +71,14 @@
 - Validasi: 76/76 regression PASS, build PASS, commit c320f20, deploy hijau, served chunk terverifikasi memuat "return`/0/`+t.split".
 - Catatan: diag2 dipakai untuk eksperimen (password doveadm-hash, login 200) lalu di-disable kembali; folder MvTest dihapus.
 - Changed Files: src/lib/api.js, scripts/test-move-path.mjs, docs/ai/*
+
+## 2026-09-03T16:05:00Z — Audit fitur Mail /webmail/mail + E2E produksi + fix junk
+- Status: COMPLETED & DEPLOYED
+- Objective: analisa fitur/fungsi halaman mail satu per satu, audit + e2e test, cari bug & vulnerability.
+- Pemetaan fitur: list+pagination server-side (/view prefetch ~100 + /headers lazy), search (filters SOGo), read+auto markRead, reply/forward/quick-reply, compose+draft autosave, attach restore, junk/ham, rules engine, folders CRUD, snooze, crossTab, keyboard shortcuts, phishing banner, image proxy anti-tracking.
+- E2E produksi (diag2): login 200; folders 200 (7 mailbox); INBOX/Drafts/Junk view 200; compose 201; saveDraft 200 (+uid); batchDelete 200; createFolder/deleteFolder 204; search filters 200; moveMessages /0/... 200 + fisik pindah (doveadm); negative legacy destination → 500 persis "Cannot copy messages to other account".
+- BUG #3 ditemukan & fixed (commit 07a82cd, LIVE): Lapor Spam hanya POST markMessagesAsJunk (204) tanpa memindahkan pesan — pesan tetap di INBOX. Flow native SOGo = laporan + moveMessages → folderJunk. Sekarang SPA mereplikasi itu; notjunk dari Junk → INBOX. Test baru scripts/test-junk-move.mjs (6 assertion).
+- Audit keamanan: XSS terkendali (DOMPurify 3 lapis: render email, editor compose, chokepoint sendMessage; hardening hook anti-tabnabbing + data: URI); SSRF image-proxy guarded (DNS pinning, blokir IP privat, hard deadline, size cap, Sec-Fetch-Site anti-hotlink); IDOR/traversal 404; auth XSRF+XMLHttpRequest wajib; search query di-cap 500 char.
+- Catatan: markMessagesAsNotJunk tidak dipakai UI → tree-shaken (benar); jika suara "Tidak Spam" dibutuhkan, impor dari api.js.
+- Regression: 77/77 PASS (tambah 1 file test), build PASS, deploy hijau, served chunk api-DEoJTmwF.js terverifikasi mengandung flow junk baru.
+- Cleanup: semua pesan uji dihapus, diag2 di-disable kembali.
