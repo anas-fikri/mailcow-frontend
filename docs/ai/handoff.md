@@ -1,3 +1,9 @@
+## 2026-09-03 — Fix tanggal SOGo Indonesia: email terbaru tenggelam di bawah daftar
+
+- Root cause "email terbaru kok 28 Agustus": sortMessagesByDate (f152e84, deploy 28 Agu) mengurutkan by parsed date, tapi RelativeDate SOGo locale Indonesia ("Hari ini 09:41", "Kamis 12:36", "28/08/2026") tak terbaca Date.parse → ts=-Infinity → pesan ≤1 minggu tenggelam; "dd/mm/yyyy" lama salah-parse month-first dan mengapung di atas. Deploy & koneksi terverifikasi baik — ini bug parsing murni.
+- Fix: parseIndoRelativeDate di src/lib/dateGroups.js + tiebreak uid numerik; 16 assertion baru di scripts/test-date-groups.mjs; 75/75 regression PASS, build PASS.
+- Delivery: commit 116ccb9 di-deploy ke produksi (SERVER=deploy-mail ./deploy.sh, 2026-09-03); chunk tersaji produksi terverifikasi memuat parser baru. Push GitLab tetap menunggu tunnel wg0.
+
 ## 2026-09-02 — Cross-tab sync domain 'mail'
 
 - Scope: multi-tab webmail — mutasi mailbox di tab A (delete/move/flag/read/junk/folder/kirim) kini memicu invalidate + refetch di tab B. Bump versi dipasang di layer api.js (bumpMailVersion setelah mutasi sukses); MailPage memasang watchDomainVersion('mail') → invalidate messages/unseen/folders.

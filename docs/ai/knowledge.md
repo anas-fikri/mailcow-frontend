@@ -6,6 +6,13 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-09-03 — SOGo RelativeDate adalah string tampilan locale, bukan tanggal machine-readable
+
+- SOGo kolom `RelativeDate` (jadi `msg.date`) dikirim SESUAI LOCALE user: locale 'id' → "Hari ini 09:41", "Kemarin 16:43", "Kamis 12:36" (≤6 hari), absolut "dd/mm/yyyy" (>1 minggu). `Date.parse()` GAGAL untuk semuanya, dan salah-parse "dd/mm/yyyy" sebagai US month-first (05/08 = 8 Mei). Locale dapat diverifikasi via sogo_folder_info (kolom c_language) — di produksi: Indonesia.
+- Akibatnya sort-by-date membuat SEMUA pesan ≤1 minggu tenggelam (ts=-Infinity) — gejala "email terbaru di webmail kok 28 Agustus" padahal SOGo/mail client tampil benar. Dipicu sejak commit f152e84 (sort by date, deploy 28 Agu).
+- Fix: `parseIndoRelativeDate` di src/lib/dateGroups.js — normalisasi relative/weekday/day-first + rollback tahun utk tanggal masa depan; sort tiebreak uid numerik (bukan localeCompare, yang membuat "99" > "192"). Diuji di scripts/test-date-groups.mjs dengan format asli SOGo 'id'.
+- Lesson: jangan sort/format berdasarkan string display dari backend lokalized; minta field machine-readable bila tersedia (mis. header Date asli via /headers) atau tulis parser toleran per-locale.
+
 ## 2026-09-02 — Cross-tab sync domain 'mail'
 
 - Domain crossTab kini tiga: calendar, contacts, mail. Bump dipasang DI LAYER API (src/lib/api.js, helper bumpMailVersion(sogoToken)) — bukan per halaman — sehingga semua jalur mutasi tercakup: deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk/NotJunk, createFolder, deleteFolder, sendMessage (jalur SOGo 200 dan fallback SMTP proxy). sogoToken dipakai sebagai scope akun (kontrak login: sogoToken = email).
