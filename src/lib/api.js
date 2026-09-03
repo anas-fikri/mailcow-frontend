@@ -1307,6 +1307,13 @@ export async function createCalendarEvent(sogoToken, event, calendarId = 'person
  * menyentuh SELURUH seri (semua occurrence berbagi satu UID).
  */
 function occurrenceSegment(occurrenceId) {
+  if (occurrenceId === null || occurrenceId === undefined || occurrenceId === '') return '';
+  // E2E produksi 2026-09-03: c_recurrence_id dari eventsblocks SUDAH berprefix
+  // `occurence…` (string, bukan unix mentah). Prefix ganda → 404 di semua
+  // edit/hapus SATU occurrence. Nilai numeric (unix) juga diterima (kompat).
+  if (typeof occurrenceId === 'string' && /^occurence\d+$/.test(occurrenceId)) {
+    return occurrenceId;
+  }
   const n = Number(occurrenceId);
   return Number.isFinite(n) && n > 0 ? `occurence${n}` : '';
 }

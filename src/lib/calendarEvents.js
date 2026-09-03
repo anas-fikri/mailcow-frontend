@@ -17,8 +17,13 @@ export function parseCalendarEvents(raw) {
 
   for (const cal of (Array.isArray(raw) ? raw : [])) {
     const fields = Array.isArray(cal?.eventsFields) ? cal.eventsFields : [];
-    const blocks = Array.isArray(cal?.blocks) ? cal.blocks : [];
-    for (const block of blocks) {
+    // E2E produksi 2026-09-03 (SOGo 5.12, mailcow): baris event ada di kunci
+    // `events`, BUKAN `blocks` — membaca blocks saja membuat kalender selalu
+    // kosong padahal server punya event. Terima keduanya (kompat antar versi).
+    const rawRows = Array.isArray(cal?.events) ? cal.events
+      : Array.isArray(cal?.blocks) ? cal.blocks
+      : [];
+    for (const block of rawRows) {
       // Guard baris rusak — Object.fromEntries pada non-array crash.
       if (!Array.isArray(block)) continue;
       const ev = Object.fromEntries(fields.map((f, i) => [f, block[i]]));
@@ -39,13 +44,14 @@ export function parseCalendarEvents(raw) {
         location: ev.c_location || '',
         isAllDay: !!ev.c_isallday,
         isRecurring: !!ev.c_iscycle,
-        // c_recurrence_id = unix detik start occurrence (SOGo isi per baris
-        // recurring). Dipakai utk edit/hapus SATU occurrence: server meresolve
-        // `occurence{ts}` via SOGoCalendarComponent.lookupName. Tanpa ini,
-        // edit/hapus selalu menyentuh SELURUH seri (semua occurrence berbagi
-        // satu UID). All-day: c_recurrence_id = GMT midnight.
-        occurrenceId: (ev.c_recurrence_id !== null && ev.c_recurrence_id !== undefined && ev.c_recurrence_id !== '' && Number(ev.c_recurrence_id) > 0)
-          ? Number(ev.c_recurrence_id)
+        // c_recurrence_id = identitas occurrence (E2E produksi 2026-09-03: SOGo
+        // 5.12 mengirim STRING berprefix `occurence{ts}`, contoh
+        // "occurence1788422400"). Dipakai utk edit/hapus SATU occurrence via
+        // segmen path occurence{ts}. Dipertahankan apa adanya (string) — prefix
+        // ganda membuat semua edit/hapus occurrence 404. Kompat: numeric unix
+        // (versi lama) tetap diterima occurrenceSegment.
+        occurrenceId: (ev.c_recurrence_id !== null && ev.c_recurrence_id !== undefined && ev.c_recurrence_id !== '' && (typeof ev.c_recurrence_id === 'string' || Number(ev.c_recurrence_id) > 0))
+          ? ev.c_recurrence_id
           : null,
         calendar,
         folder: ev.c_folder || '',

@@ -37,6 +37,24 @@ function cal(rows, calendarName = 'personal') {
   }];
 }
 
+// ── 0. REGRESI E2E 2026-09-03: SOGo 5.12 kirim baris di `events`, bukan `blocks` ──
+{
+  const raw = [{
+    eventsFields: FIELDS,
+    events: [[
+      'evt-e2e', 'Acara Produksi', 1700000000, 1700003600, 0, 0, null,
+      '', 0, 'personal', '', '', '', '', 'CONFIRMED', '09:00',
+    ]],
+  }];
+  const evs = parseCalendarEvents(raw);
+  assert.equal(evs.length, 1, 'kunci `events` (SOGo 5.12) harus terbaca — kalender tidak boleh kosong');
+  assert.equal(evs[0].title, 'Acara Produksi');
+  const evsBlocks = parseCalendarEvents(cal([
+    { c_name: 'evt-b', c_title: 'Via Blocks', c_startdate: 1700000000, c_enddate: 1700003600 },
+  ]));
+  assert.equal(evsBlocks.length, 1, 'kunci `blocks` (versi lama) tetap terbaca');
+}
+
 // ── 1. Dedup baris duplikat ──────────────────────────────────────────────────
 let evs = parseCalendarEvents(cal([
   { c_name: 'evt-1', c_title: 'Rapat', c_startdate: 1700000000, c_enddate: 1700003600 },
@@ -68,11 +86,18 @@ assert.equal(evs[1].occurrenceId, 1700604800, 'occurrence #2 memakai c_recurrenc
 pass++;
 assert.equal(evs[2].occurrenceId, null, 'event non-berulang tanpa c_recurrence_id → null');
 pass++;
-// Toleran string numerik (SOGo bisa kirim "1700000000")
+// Toleran string numerik (versi lama bisa kirim "1700000000") — dipertahankan
+// apa adanya; prefix `occurence` ditangani occurrenceSegment (fix E2E 2026-09-03)
 evs = parseCalendarEvents(cal([
   { c_name: 'evt-s', c_title: 'S', c_startdate: 1700000000, c_iscycle: true, c_recurrence_id: '1700000000' },
 ]));
-assert.equal(evs[0].occurrenceId, 1700000000, 'c_recurrence_id string numerik di-coerce ke number');
+assert.equal(evs[0].occurrenceId, '1700000000', 'c_recurrence_id string numerik dipertahankan apa adanya');
+pass++;
+// REGRESI E2E 2026-09-03: SOGo 5.12 kirim recid BERPREFIX `occurence…` (string)
+evs = parseCalendarEvents(cal([
+  { c_name: 'evt-p', c_title: 'P', c_startdate: 1700000000, c_iscycle: true, c_recurrence_id: 'occurence1700000000' },
+]));
+assert.equal(evs[0].occurrenceId, 'occurence1700000000', 'recid berprefix occurence dipertahankan (anti prefix-ganda 404)');
 pass++;
 // c_recurrence_id 0 / kosong → null (bukan occurrence valid)
 evs = parseCalendarEvents(cal([
