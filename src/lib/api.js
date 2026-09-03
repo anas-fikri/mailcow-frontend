@@ -770,39 +770,66 @@ function normalizeUids(uids) {
     .filter((n) => n !== null);
 }
 
-/** Tandai pesan sebagai spam (junk) — native SOGo. */
+/**
+ * Tandai pesan sebagai spam (junk).
+ *
+ * Ground truth SOGo (dibaca dari sumber + diverifikasi E2E di produksi):
+ * endpoint `markMessagesAsJunk` (SOGoMailFolder.m markMessagesAsJunkOrNotJunk)
+ * HANYA mengirim email laporan ke alamat learn-spam bila mailJunkSettings
+ * vendor=generic — TIDAK set flag IMAP dan TIDAK memindahkan pesan.
+ * UI native SOGo (Mailer.services.js markOrUnMarkMessagesAsJunk) SELALU
+ * memanggil moveMessages ke folder Junk SETELAH endpoint itu.
+ *
+ * Maka: panggil endpoint laporan (best-effort, boleh gagal), lalu pindahkan
+ * pesan ke folder Junk via moveMessages (format destination /0/...). Bila
+ * folder source SUDAH folderJunk, tidak ada move — cukup endpoint laporan.
+ */
 export async function markMessagesAsJunk(sogoToken, folder, uids) {
   const intUids = normalizeUids(uids);
   if (intUids.length === 0) throw new Error('Tidak ada pesan valid untuk ditandai spam.');
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/markMessagesAsJunk`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ uids: intUids }),
-  });
-  if (!res.ok) {
-    let detail = '';
-    try { detail = await res.text(); } catch { /* ignore */ }
-    const msg = detail
-      ? `Gagal menandai spam (${res.status}): ${detail.slice(0, 200)}`
-      : `Gagal menandai spam (${res.status}).`;
-    throwApiError(msg, res.status);
+
+  // 1. Laporan learn-spam (best-effort — tanpa ini pesan tetap harus pindah)
+  try {
+    await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/markMessagesAsJunk`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ uids: intUids }),
+    });
+  } catch { /* laporan gagal ≠ operasi gagal */ }
+
+  // 2. Pindahkan ke folder Junk (perilaku native SOGo) — kecuali sudah di Junk.
+  if (folder !== 'folderJunk') {
+    await moveMessages(sogoToken, folder, uids, 'folderJunk');
+  } else {
+    bumpMailVersion(sogoToken);
   }
-  bumpMailVersion(sogoToken);
 }
 
-/** Batalkan penandaan spam (bukan junk) — native SOGo. */
+/**
+ * Batalkan penandaan spam (bukan junk).
+ * Sama seperti markMessagesAsJunk: endpoint hanya kirim laporan not-spam;
+ * pesan harus DIPINDAHKAN ke INBOX (perilaku native SOGo) bila source folder
+ * Junk. Dari folder lain, cukup laporan (pesan tidak pernah pindah).
+ */
 export async function markMessagesAsNotJunk(sogoToken, folder, uids) {
   const intUids = normalizeUids(uids);
   if (intUids.length === 0) throw new Error('Tidak ada pesan valid.');
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/markMessagesAsNotJunk`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ uids: intUids }),
-  });
-  if (!res.ok) throwApiError(`Gagal membatalkan spam (${res.status}).`, res.status);
-  bumpMailVersion(sogoToken);
+
+  try {
+    await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/markMessagesAsNotJunk`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ uids: intUids }),
+    });
+  } catch { /* laporan gagal ≠ operasi gagal */ }
+
+  if (folder === 'folderJunk') {
+    await moveMessages(sogoToken, folder, uids, 'folderINBOX');
+  } else {
+    bumpMailVersion(sogoToken);
+  }
 }
 
 /**
