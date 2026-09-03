@@ -43,6 +43,12 @@
 -  M docs/ai/knowledge.md
 -  M src/pages/MailPage.jsx
 
+## 2026-09-03T14:10:00Z — Backlog drafts crossTab + audit path lengkap
+- Status: COMPLETED & DEPLOYED
+- Audit semua endpoint ber-parameter folder di api.js: hanya moveMessages yang kirim destination di body (sudah di-fix c320f20); createFolder/deleteFolder/view/headers/batchDelete/junk/compose aman (URL /Mail/0/{folderId}).
+- Backlog #2 selesai: saveDraft/deleteDraft kini men-bump versi crossTab 'mail' (commit 6ca0b6c) — folder Drafts ikut sync antar tab; bump hanya setelah sukses. test-mail-crosstab diperluas (drafts bump + gagal tidak bump). 76/76 regression PASS, build PASS, deploy hijau, served chunk terverifikasi (n.ok&&bump).
+- next-tasks.md diregenerasi (backlog draft done; push 42 commits menunggu wg0 stabil).
+
 ## 2026-09-03T13:40:00Z — Verifikasi replay alur aturan + audit path + status push
 - Status: COMPLETED (push masih tertunda)
 - Audit path SOGo: hanya moveMessages yang memakai destination-di-body — createFolder/deleteFolder/view/headers/batchDelete/junk aman (semua lewat URL /Mail/0/{folderId}, segmen akun sudah benar).
