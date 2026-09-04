@@ -2,10 +2,10 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, FileDown, Paperclip,
-  Flag, Printer, FolderOpen, Star, AlertTriangle, UserPlus, ExternalLink, Eye, X,
+  Flag, Printer, FolderOpen, Star, AlertTriangle, UserPlus, ExternalLink, Eye, X, ShieldCheck,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, createContact, fetchAttachmentData } from '../../lib/api';
+import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, markMessagesAsNotJunk, createContact, fetchAttachmentData } from '../../lib/api';
 import { unsnoozeMessages } from '../../lib/snooze';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
@@ -252,6 +252,23 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       toast.success('Pesan dilaporkan sebagai spam');
     },
     onError: (err) => toast.error(err?.message || 'Gagal melaporkan spam.'),
+  });
+
+  // Bukan Spam — markMessagesAsNotJunk: laporan not-spam (best-effort) +
+  // pindah balik ke INBOX bila source folder Junk (perilaku native SOGo).
+  const notSpamMutation = useMutation({
+    mutationFn: () => markMessagesAsNotJunk(user.sogoToken, folder, [msgId]),
+    onSuccess: () => {
+      if (user?.email && unsnoozeMessages(user.email, folder, [msgId]) > 0) {
+        onSnoozeCleared?.();
+      }
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
+      queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+      navigateAfter();
+      onMoveComplete?.();
+      toast.success('Pesan dikembalikan ke Kotak Masuk');
+    },
+    onError: (err) => toast.error(err?.message || 'Gagal membatalkan spam.'),
   });
 
   // Hook ini WAJIB dideklarasikan sebelum early return apa pun di bawah.
@@ -558,6 +575,17 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               aria-label="Laporkan spam"
             >
               {spamMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <AlertTriangle size={18} />}
+            </button>
+          )}
+          {folder === 'folderJunk' && (
+            <button
+              onClick={() => notSpamMutation.mutate()}
+              disabled={notSpamMutation.isPending}
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10"
+              title="Bukan Spam"
+              aria-label="Laporkan bukan spam dan kembalikan ke Kotak Masuk"
+            >
+              {notSpamMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
             </button>
           )}
           {/* Move to folder — click toggle (mobile-friendly) */}

@@ -4,10 +4,10 @@ import {
   Inbox, Send, Trash2, FileText, Loader2, Edit3, Mail, Menu, X,
   AlertCircle, Search, Trash, CheckSquare, Square, MailOpen, RefreshCw,
   Folder, FolderPlus, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown, ChevronRight,
-  Archive, BellRing, CheckCheck, Clock, Paperclip, CalendarClock, Reply,
+  Archive, BellRing, CheckCheck, Clock, Paperclip, CalendarClock, Reply, ShieldCheck,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, undoScheduledSend } from '../lib/api';
+import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, markMessagesAsNotJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, undoScheduledSend } from '../lib/api';
 import { formatAddresses } from '../lib/format';
 import { extractHtml, extractAttachments } from '../lib/messageHtml';
 import { analyzePhishing, RISK_LEVELS } from '../lib/phishingDetection';
@@ -1044,6 +1044,20 @@ export default function MailPage() {
     onError: (err) => toast.error(err?.message || 'Gagal melaporkan spam.'),
   });
 
+  // Bukan Spam (folder Junk) — markMessagesAsNotJunk: laporan not-spam
+  // (best-effort) + pindahkan balik ke INBOX (perilaku native SOGo).
+  const notJunkMutation = useMutation({
+    mutationFn: ({ uids }) => markMessagesAsNotJunk(user.sogoToken, selectedFolder, uids),
+    onSuccess: (_data, vars) => {
+      clearSnoozesForMoved(vars?.uids || []);
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
+      queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
+      setSelectedUids([]);
+      toast.success('Pesan dikembalikan ke Kotak Masuk');
+    },
+    onError: (err) => toast.error(err?.message || 'Gagal membatalkan spam.'),
+  });
+
   // Buat subfolder — native SOGo createFolder.
   const createFolderMutation = useMutation({
     mutationFn: ({ parentId, name }) => createFolder(user.sogoToken, parentId, name),
@@ -1496,6 +1510,12 @@ export default function MailPage() {
       if (key === '!' && selectedFolder !== 'folderJunk') {
         e.preventDefault();
         junkMutation.mutate({ uids: targetUids });
+        return;
+      }
+
+      if (key === '!' && selectedFolder === 'folderJunk') {
+        e.preventDefault();
+        notJunkMutation.mutate({ uids: targetUids });
         return;
       }
 
@@ -2322,6 +2342,16 @@ export default function MailPage() {
                   aria-label="Laporkan pesan terpilih sebagai spam"
                 >
                   <AlertTriangle size={16} />
+                </button>
+              )}
+              {selectedFolder === 'folderJunk' && (
+                <button
+                  onClick={() => notJunkMutation.mutate({ uids: selectedUids })}
+                  className="min-w-11 min-h-11 flex items-center justify-center text-emerald-600 dark:text-emerald-500 hover:bg-emerald-500/10 rounded"
+                  title="Bukan Spam"
+                  aria-label="Laporkan pesan terpilih bukan spam dan kembalikan ke Kotak Masuk"
+                >
+                  <ShieldCheck size={16} />
                 </button>
               )}
               <button
