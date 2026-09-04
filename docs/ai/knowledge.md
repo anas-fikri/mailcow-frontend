@@ -1384,3 +1384,20 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Insiden diag2 500 (endpoint Mail) penyebabnya pesan **zero-byte** dari
   `doveadm save` tanpa input — SOGo gagal parse envelope → semua endpoint
   Mail 500. Recovery: expunge pesan kosong.
+
+## 2026-09-04 — Pelajaran metodologi audit (kenapa bug sort lolos audit Sep 3)
+
+- Audit Mail Sep 3 (E2E flow + security) TIDAK menemukan bug parser tanggal
+  karena bug itu bukan di flow: semua request 200, semua pesan fisik benar.
+  Bug ada di lapisan presentasi — `parseMessageDate("13:36")` → null →
+  ts=-Infinity → pesan tenggelam dalam sort, TANPA error apapun.
+- Akar kelolosan: (1) E2E meng-assert status code + state mailbox, bukan
+  URUTAN render; (2) test unit parser hanya menguji format yang penulis bayangkan
+  (ISO/epoch/'today') — nol case locale English / jam polos (diverifikasi di
+  git history: grep 'thursday|monday' = 0 pada versi awal); (3) degradasi
+  diam-diam (null → paling bawah) tidak pernah muncul di log/console.
+- **ATURAN AUDIT KE DEPAN**: untuk kode parser/formatter/konversi format,
+  wajib CAPTURE data produksi asli (replikasi request + dump respons mentah)
+  dan jalankan lewat implementasi nyata — jangan hanya replay flow request.
+  Golden-sample dari SOGo sejak awal akan langsung menangkap "13:36",
+  "Thursday 08:55", dan "04-Sep-26".
