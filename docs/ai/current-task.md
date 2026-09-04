@@ -1,37 +1,38 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260904-GOLDEN-RETEST-MAIL
-Updated At: 2026-09-04T07:40:00Z
+Task ID: 20260904-GOLDEN-CALENDAR-CONTACTS
+Updated At: 2026-09-04T08:20:00Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Retest audit halaman /webmail/mail menggunakan **golden-sample data produksi**
-untuk SEMUA parser & formatter — menyusul pelajaran bug sort email yang lolos
-audit flow biasa.
+Extend golden-sample capture + regression tests to Calendar & Contacts parsers.
 
 ## Result
-- Capture respons SOGo produksi ASLI (diag2, locale English): list INBOX
-  (4 varian RelativeDate sekaligus: "14:24", "04:38", "Tuesday 14:24",
-  "27-Aug-26"), detail pesan multipart dgn lampiran PDF, folders (7 mailbox).
-  Resep capture permanen: `scripts/capture-mail-golden.sh`.
-- Replay lewat implementasi nyata (`scripts/test-mail-golden.mjs`, 40+ assertion):
-  parseMessageRows, sortMessagesByDate, applyMessageWindow, extractHtml,
-  extractAttachments, parseSizeToBytes/formatFileSize/totalAttachmentSize,
-  formatAddresses, analyzePhishing, classifyEmail, flattenMailboxes,
-  groupConversations, buildMessageSearchBody.
-- **2 bug ditemukan & fixed**:
-  1. `renderDate` tidak pernah bisa mem-parse format detail SOGo
-     "Friday, September 04, 2026 14:24 WIB" (suffix zona non-ISO → Date.parse
-     NaN → string mentah Inggris ditampilkan). Fix: strip suffix zona 3-huruf
-     sebelum parse (zona di-drop = benar, SOGo merender di zona user).
-  2. `formatFileSize(144)` & `totalAttachmentSize` menampilkan "0 KB" untuk
-     lampiran/pesanan sub-KB (Math.round(144/1024)=0). Fix: "< 1 KB → N B".
-- Suite penuh 79/79 PASS, build PASS, deployed & verified live
-  (build-version 1788507310996, fix ada di chunk produksi).
-- Fixture permanen: `scripts/fixtures/mail-golden-{list,detail,folders}.json`
-  (respons HTTP 200 asli produksi — regenerate setelah upgrade SOGo).
+- Capture respons produksi ASLI (diag2): eventsblocks (3 occurrence recurring),
+  event detail (/view), contacts view (60 baris: 59 GAL + 1 personal).
+  Resep permanen: `scripts/capture-calendar-contacts-golden.sh`.
+- **BUG KRITIS #1 — createContact data loss diam-diam (FIXED, LIVE)**:
+  `POST .../Contacts/personal/_new_/saveAsContact` → 200 `{"id":"_new_"}` tapi
+  kartu TIDAK PERNAH tersimpan (4 round E2E + dump tabel fisik sebagai bukti;
+  tersisa phantom draft `_new_` dengan email kadang kosong). Flow UI SOGo asli
+  (Card.service.js $save): GET newguid → POST {pid}/{guid}/saveAsContact dengan
+  emails/phones ARRAY [{type,value}]. Fix di api.js mengikuti flow itu; E2E
+  produksi pasca-fix: kontak tersimpan & terlihat di view (✅), cleanup 204.
+- **BUG #2 — parseCalendarEvents c_partmails (FIXED)**: produksi kirim ARRAY
+  ["tim@…"], parser lama String(array) → gabung tanpa spasi. Kini array join
+  (', ') + kompat string newline.
+- Temuan dokumentasi (bukan bug): saveAsContact mengabaikan field `c_o`
+  (org via array `orgs` di UI asli; form create SPA tidak punya org).
+- Detail tanggal event "2026-09-05T10:00+07:00" (ISO tanpa detik) ter-parse
+  valid — tidak perlu fix.
+- Test baru `scripts/test-calendar-contacts-golden.mjs` (40+ assertion);
+  test-a11y.mjs kontrak createContact direvisi (larang URL literal _new_);
+  suite penuh **80/80 PASS**. Deployed & verified live (build-version
+  1788509587987, api-BKPZd7ja.js berisi flow baru).
 
 ## Follow-up
-- Golden-sample belum mencakup halaman Calendar/Contacts (parser berbeda) —
-  kandidat tugas berikutnya (lihat docs/ai/next-tasks.md).
+- Golden-sample telah mencakup Mail + Calendar + Contacts. Halaman Stats/Rules
+  memakai data localStorage (bukan respons SOGo) — tidak butuh fixture produksi.
+- Kalau perlu audit edit/update kontak (saveAsContact pada kartu eksisting),
+  resep capture yang sama bisa dipakai.

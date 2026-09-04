@@ -1186,20 +1186,48 @@ export async function fetchContacts(sogoToken) {
 }
 
 export async function createContact(sogoToken, contactData) {
-  // Kontrak SOGo (diverifikasi dari UI SOGo 5.12 live + source server):
-  // server `lookupName` di SOGoContactGCSFolder hanya membuat objek baru bila
-  // URL berakhiran `AsContact`/`AsList` — `POST .../Contacts/personal/new`
-  // menghasilkan 404. Create yang benar: `POST .../Contacts/personal/_new_/
-  // saveAsContact` dengan body JSON berisi `c_component: 'vcard'` + fields.
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Contacts/personal/_new_/saveAsContact`, {
+  // Kontrak SOGo 5.12 — DIVERIFIKASI E2E GOLDEN-SAMPLE produksi (2026-09-04):
+  // 1. `POST .../Contacts/personal/_new_/saveAsContact` → 200 {"id":"_new_"}
+  //    tapi kartu TIDAK PERNAH tersimpan (phantom draft `_new_` saja; c_mail
+  //    kadang kosong). Data loss diam-diam — user tidak melihat error.
+  // 2. Flow UI SOGo asli (Card.service.js $save): GET newguid → POST
+  //    {pid}/{guid}/saveAsContact dengan body $omit: emails/phones ARRAY
+  //    [{type, value}]. Round 4 E2E membuktikan kartu tersimpan PENUH.
+  const guidRes = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Contacts/personal/newguid`, {
+    credentials: 'include',
+    headers: sogoHeaders(),
+  });
+  throwIfAuthError(guidRes);
+  if (!guidRes.ok) throw new Error('Gagal membuat ID kontak baru.');
+  const guidData = await guidRes.json().catch(() => null);
+  const guid = guidData?.id || (typeof guidData === 'string' ? guidData : null);
+  if (!guid) throw new Error('Respons newguid tidak valid.');
+
+  // Normalisasi ke bentuk $omit UI SOGo: emails/phones array of {type, value}.
+  const email = String(contactData?.c_mail || '').trim();
+  const phone = String(contactData?.c_telephonenumber || '').trim();
+  const body = {
+    c_component: 'vcard',
+    ...contactData,
+    emails: Array.isArray(contactData?.emails) && contactData.emails.length
+      ? contactData.emails
+      : (email ? [{ type: 'pref', value: email }] : []),
+    phones: Array.isArray(contactData?.phones) && contactData.phones.length
+      ? contactData.phones
+      : (phone ? [{ type: 'work', value: phone }] : []),
+  };
+
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Contacts/personal/${pathSegment(guid, 'guid')}/saveAsContact`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ c_component: 'vcard', ...contactData }),
+    body: JSON.stringify(body),
   });
   throwIfAuthError(res);
-  if (!res.ok) throw new Error('Gagal menambah kontak.');
-  return res.text();
+  if (!res.ok) throw new Error(`Gagal menambah kontak (${res.status}).`);
+  // SOGo membalas JSON {"id": "<guid>", "pid": "personal"} — kembalikan id.
+  const saved = await res.json().catch(() => ({}));
+  return saved?.id || guid;
 }
 
 export async function deleteContact(sogoToken, cardId) {

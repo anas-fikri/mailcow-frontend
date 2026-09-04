@@ -1422,3 +1422,26 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   menangani keduanya.
 - Fixture & resep: scripts/fixtures/mail-golden-*.json + capture-mail-golden.sh.
   Regenerate fixture tiap kali SOGo di-upgrade.
+
+## 2026-09-04 — Golden-sample Calendar/Contacts: bug createContact data loss
+
+- **`POST .../Contacts/personal/_new_/saveAsContact` TIDAK MENYIMPAN KARTU** —
+  SOGo balas 200 {"id":"_new_"} tapi hanya menulis phantom draft (view
+  menampilkan baris `_new_` dgn c_mail kadang kosong; tidak ada tabel kartu
+  fisik). 4 round E2E + inspeksi tabel (sogodiag2pcp00101264c81 tidak pernah
+  tercipta) membuktikannya. Kontrak benar = UI SOGo sendiri (Card.service.js
+  $save): GET {pid}/newguid → POST {pid}/{guid}/saveAsContact, body $omit
+  (emails/phones ARRAY [{type,value}], c_component vcard). SPA sudah di-fix;
+  E2E produksi pasca-fix: kartu tersimpan & tampil di view.
+- Respons view kontak kolomnya DINAMIS antar request (sourceID vs sourceid,
+  c_uid ada/hilang, urutan beda) — parser WAJIB peta kolom dinamis
+  (parseContactRow sudah benar; jangan pernah hardcode index).
+- saveAsContact MENGABAIKAN field `c_o` di body create (org lewat array
+  `orgs` di flow UI asli).
+- Calendar eventsblocks produksi: c_partmails = ARRAY (bukan string newline);
+  c_recurrence_id = "occurence{ts}" STRING (prefix jangan digandakan);
+  start/end unix detik; occurrence recurring = baris terpisah per hari.
+- SOGo auto-DROP tabel kartu/kalender saat kosong — "table doesn't exist"
+  untuk folder kosong adalah NORMAL, bukan korupsi.
+- newguid kontak balas {"id":"<guid>.vcf","pid":"personal"}; newguid kalender
+  balas {"id":"...ics"}. Ekstrak .id sebelum dipakai di URL path.

@@ -58,8 +58,15 @@ export function parseCalendarEvents(raw) {
         owner: ev.c_owner || '',
         status: ev.c_status,
         description: ev.c_description || '',
-        // c_partmails newline-separated (iCalEvent+SOGo.m quickRecordFromContent)
-        attendees: ev.c_partmails ? String(ev.c_partmails).split('\n').filter(Boolean).join(', ') : '',
+        // c_partmails: GOLDEN-SAMPLE produksi 2026-09-04 = ARRAY
+        // ["tim@pcpexpress.co.id", ...] (bukan string newline seperti dugaan
+        // lama dari iCalEvent+SOGo.m). String(array) menggabung dgn koma TANPA
+        // spasi → "a@x,b@y"; array→join(', ') benar, string lama tetap didukung.
+        attendees: ev.c_partmails
+          ? (Array.isArray(ev.c_partmails)
+            ? ev.c_partmails.map((p) => String(p || '').trim()).filter(Boolean).join(', ')
+            : String(ev.c_partmails).split('\n').map((p) => p.trim()).filter(Boolean).join(', '))
+          : '',
         // c_classification: 0=public, 1=private, 2=confidential
         classification: ev.c_classification === 1 ? 'private' : ev.c_classification === 2 ? 'confidential' : 'public',
       });

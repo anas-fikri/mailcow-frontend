@@ -131,3 +131,13 @@
 - Fix #1: renderDate gagal parse "…14:24 WIB" (NaN → string mentah tampil).
 - Fix #2: lampiran sub-KB tampil "0 KB" → kini "144 B".
 - Deployed & verified live; tab terbuka auto-reload via deploy-check.
+
+## 2026-09-04 — Golden-sample Calendar/Contacts: fix data loss createContact
+- Bug kritis: createContact lama (_new_/saveAsContact) → 200 tapi kartu tak
+  tersimpan (phantom draft). Fix = flow UI SOGo (newguid → {guid}/saveAsContact,
+  emails/phones array). E2E produksi ✅ tersimpan.
+- Bug #2: parseCalendarEvents c_partmails array (bukan string newline) — fixed.
+- Fixture: contacts-golden-view.json, calendar-golden-eventsblocks.json,
+  calendar-golden-event-detail.json + resep capture-calendar-contacts-golden.sh.
+- Test baru test-calendar-contacts-golden.mjs; kontrak createContact di
+  test-a11y.mjs direvisi. Suite 80/80 PASS. Deployed & live-verified.

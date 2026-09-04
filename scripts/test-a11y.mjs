@@ -469,11 +469,16 @@ passCount++;
 // intValue). c_recurrence_id dari eventsblocks = unix detik start occurrence.
 const apiSrc = read('src/lib/api.js');
 // ── Kontrak API kontak SOGo (audit 2026-08-26) ──────────────────────────────
-// Server SOGo `lookupName` di SOGoContactGCSFolder hanya membuat objek baru
-// bila URL berakhiran AsContact/AsList. `POST .../Contacts/personal/new` → 404;
-// kontrak UI SOGo live = `POST .../_new_/saveAsContact` + c_component: 'vcard'.
+// Direvisi golden-sample produksi 2026-09-04: `_new_/saveAsContact` → 200
+// tapi kartu TIDAK PERNAH tersimpan (phantom draft — data loss diam-diam).
+// Kontrak UI SOGo asli (Card.service.js $save): GET newguid → POST
+// {pid}/{guid}/saveAsContact dgn emails/phones ARRAY [{type,value}].
 // Delete memakai GET (Resource.remove UI SOGo), bukan POST.
-assert.ok(apiSrc.includes("Contacts/personal/_new_/saveAsContact"), 'api: createContact harus pakai _new_/saveAsContact (bukan /new)');
+assert.ok(apiSrc.includes("Contacts/personal/newguid"), 'api: createContact harus GET newguid dulu (flow UI SOGo)');
+// Cek kode (bukan komentar): URL create harus memakai pathSegment(guid),
+// BUKAN literal _new_ (baris komentar yang menjelaskan bug boleh ada).
+assert.ok(apiSrc.includes("${pathSegment(guid, 'guid')}/saveAsContact"), 'api: createContact harus POST ke {guid}/saveAsContact');
+assert.ok(!/['"`]Contacts\/personal\/_new_\/saveAsContact/.test(apiSrc), 'api: createContact TIDAK BOLEH pakai URL literal _new_/saveAsContact (data loss terbukti golden-sample)');
 assert.ok(apiSrc.includes("c_component: 'vcard'"), 'api: createContact harus sertakan c_component vcard');
 assert.ok(apiSrc.includes("method: 'GET'" ) && apiSrc.includes("/Contacts/personal/${pathSegment(cardId, 'cardId')}/delete"), 'api: deleteContact harus GET {pid}/{uid}/delete (kontrak UI SOGo)');
 passCount += 3;
