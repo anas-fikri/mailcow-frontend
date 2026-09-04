@@ -160,3 +160,13 @@
 - Catatan: cleanup via klik grid event tidak reliable (chip nested; slice(0,3)
   di sel bisa menelan event uji) — pakai jalur API.
 - Suite unit tetap 80/80 PASS; diag2 disabled kembali setelah E2E.
+
+## 2026-09-04 — Browser E2E mail flow (Puppeteer, produksi)
+- Test: scripts/e2e-mail-browser.mjs — login UI → Tulis Pesan → To=diri sendiri
+  (MultiEmailInput + Enter commit chip) → subjek unik + body → Kirim → poll
+  kedatangan di INBOX → asersi SORT: subjek uji DI ATAS email "Yesterday"
+  (pembanding di-seed via doveadm dengan Date kemarin 21:38 — RelativeDate
+  "Yesterday 21:38") → reload penuh: persist + sort stabil → cleanup
+  batchDelete. Pre-cleanup email uji lama = idempoten.
+- Regresi langsung bug RelativeDate ("13:36" tenggelam di bawah email lama).
+- Suite unit tetap 80/80; diag2 dibersihkan & disabled setelah E2E.

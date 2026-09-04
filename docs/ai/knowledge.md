@@ -1476,3 +1476,17 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   karena run sebelumnya bisa gagal di tengah dan meninggalkan state.
 - SOGo 500 transien tetap ada meski header benar — retry 3x backoff 300ms
   (pola sama dengan api.js fetchMessage).
+
+## 2026-09-04 — E2E browser mail: pola verifikasi sort
+
+- Asersi sort di browser: kumpulkan elemen subjek baris
+  (div.text-sm.truncate, urutan dokumen = urutan tampil) lalu bandingkan index
+  subjek uji vs pembanding "Yesterday". Pembanding harus di-SEED dulu
+  (doveadm save dgn Date kemarin) — tanpa pembanding, asersi sort tidak
+  mengetes apa pun.
+- MultiEmailInput compose: ketik email lalu Enter/Tab untuk commit chip
+  (handler keydown Enter|Tab|koma).
+- Kirim→muncul di INBOX tidak instan (SMTP + refetch): poll tiap 3 dtk hingga
+  30 dtk, jangan asumsikan langsung.
+- Cleanup email uji via POST batchDelete {uids} sama seperti SPA; pre-cleanup
+  di awal run menjaga idempotensi.
