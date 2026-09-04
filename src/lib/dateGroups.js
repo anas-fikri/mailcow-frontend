@@ -67,7 +67,11 @@ const ID_MONTHS = {
 
 const ID_WEEKDAYS = {
   minggu: 0, senin: 1, selasa: 2, rabu: 3, kamis: 4, jumat: 5, sabtu: 6,
-  // Singkatan/bentuk English yang mungkin muncul di locale lain
+  // English — SOGo default locale adalah English; user profil bisa saja English
+  // meski UI SPA berbahasa Indonesia (diverifikasi: SOGoLanguage="English" di
+  // sogo_user_profile). Nama penuh DAN singkatan 3-huruf didukung (SOGo
+  // NSWeekDayNameArray memakai nama penuh; format lain bisa memakai singkatan).
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
   sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
 };
 
@@ -86,12 +90,33 @@ function mostRecentWeekday(dow, now) {
 function parseIndoRelativeDate(s, now) {
   const low = s.toLowerCase();
 
-  // Ambil jam:mm bila ada — "09:41" atau "09.41"
+  // Ambil jam:mm bila ada — "09:41" atau "09.41", plus AM/PM opsional
+  // (locale 12-hour; produksi memakai SOGoTimeFormat="%H:%M" 24-jam, ini
+  // lapisan defensif agar "3:00 PM" tidak salah dibaca jam 03:00).
   const tm = s.match(/(?:^|\s)(\d{1,2})[.:](\d{2})(?:\s|$)/);
-  const hh = tm ? Number(tm[1]) : null;
+  let hh = tm ? Number(tm[1]) : null;
   const mm = tm ? Number(tm[2]) : null;
+  const mer = s.match(/(?:^|\s)(\d{1,2})[.:](\d{2})\s*([ap])\.?m\.?(?:\s|$)/i);
+  if (mer) {
+    const isPM = mer[3].toLowerCase() === 'p';
+    if (isPM && hh < 12) hh += 12;
+    if (!isPM && hh === 12) hh = 0;
+  }
 
-  // "Hari ini 09:41" / "Today 09:41"
+  // "28/08/2026", "28/08/26", "28/08" — hari-bulan-dulu (format ID),
+  // BUKAN mm/dd ala US (05/08 = 5 Agustus, bukan 8 Mei).
+  const dm = s.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  // "12 Agustus" / "12 agustus 09:00" (tanpa tahun). Angka tidak boleh bagian
+  // dari waktu ("08:00"/"08.00"): lookahead menolak angka yang diikuti
+  // [.:]+digit — termasuk via backtracking ("0" dari "08:00" tidak boleh
+  // lolos lalu menyandingkan "8" sebagai teks). Tanpa itu "Senin 08:00"
+  // cocok di sini sebelum pencocokan nama-hari.
+  const nm = low.match(/\b(\d{1,2})(?![.:]?\d)\s+([a-z]+)\b/);
+  // Nm hanya relevan bila kata setelah angka benar-benar nama bulan —
+  // "3:00 pm" (jam+meridiem) menghasilkan nm=["00","pm"] tapi bukan tanggal.
+  const nmIsMonth = !!(nm && ID_MONTHS[nm[2]] !== undefined);
+
+  // "Today 09:41" / "Yesterday 16:43" (locale English — SOGoLanguage default)
   if (/\b(hari ini|today)\b/.test(low)) {
     return applyTime(new Date(now), hh, mm ?? 0);
   }
@@ -101,16 +126,27 @@ function parseIndoRelativeDate(s, now) {
     d.setDate(d.getDate() - 1);
     return applyTime(d, hh, mm ?? 0);
   }
-  // Nama hari ("Kamis 12:36", "Senin 08:00") = dalam 6 hari terakhir.
-  // Cocokkan kata utuh agar tidak salah tangkap substring.
+  // Nama hari ("Kamis 12:36", "Kam, 12:36", "Thursday 08:55", "Thu 3:00 PM")
+  // = dalam 6 hari terakhir. Cocokkan kata utuh agar tidak salah tangkap
+  // substring (mis. "sab" di dalam kata lain).
   for (const [name, dow] of Object.entries(ID_WEEKDAYS)) {
     if (new RegExp(`\\b${name}\\b`).test(low)) {
       return applyTime(mostRecentWeekday(dow, now), hh, mm ?? 0);
     }
   }
+  // WAKTU POLOS ("10:38" / "09.05") = SELALU email HARI INI.
+  // SOGo 5.12 UIxMailListActions.m messageDate(): email dengan dayOfCommonEra
+  // sama dengan hari ini dirender SEBAGAI JAM SAJA tanpa kata "Today" — ini
+  // format paling umum di INBOX. Tanpa cabang ini email terbaru punya ts
+  // -Infinity dan TENGGELAM ke bawah daftar (bug "email terbaru kok kemarin").
+  // Harus SETELAH today/yesterday/nama-hari (yang bisa memuat jam). Gate-nya
+  // KETAT: string harus hanya berisi waktu (+AM/PM opsional) — tanpa itu
+  // tanggal absolut "2026-08-22 08:00" ikut tertelan dan salah jadi hari ini.
+  if (hh !== null && !dm && !nmIsMonth && /^\s*\d{1,2}[.:]\d{2}(?:\s*[ap]\.?m\.?)?\s*$/i.test(s)) {
+    return applyTime(new Date(now), hh, mm ?? 0);
+  }
   // "28/08/2026", "28/08/26", "28/08" — hari-bulan-dulu (format ID),
   // BUKAN mm/dd ala US (05/08 = 5 Agustus, bukan 8 Mei).
-  const dm = s.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
   if (dm) {
     const day = Number(dm[1]);
     const mon = Number(dm[2]) - 1;
@@ -132,9 +168,7 @@ function parseIndoRelativeDate(s, now) {
       return d;
     }
   }
-  // "12 Agustus" / "12 agustus 09:00" (tanpa tahun)
-  const nm = low.match(/\b(\d{1,2})\s+([a-z]+)\b/);
-  if (nm && ID_MONTHS[nm[2]] !== undefined) {
+  if (nmIsMonth) {
     const day = Number(nm[1]);
     const mon = ID_MONTHS[nm[2]];
     if (day >= 1 && day <= 31) {

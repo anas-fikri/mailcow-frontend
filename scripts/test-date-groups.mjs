@@ -178,4 +178,86 @@ assert.equal(getDateGroup('Hari ini 09:41', nowId).key, 'today');
 assert.equal(getDateGroup('Kemarin 16:43', nowId).key, 'yesterday');
 assert.equal(getDateGroup('28/08/2026', nowId).key, 'thisWeek', '28 Agu dari 3 Sep = 6 hari → Minggu Ini');
 
+// ── REGRESI 2026-09-04: format RelativeDate locale ENGLISH (SOGoLanguage) ────
+// SOGo 5.12 UIxMailListActions.m messageDate():
+//   - email HARI INI   → waktu polos TANPA kata "Today" ("10:38")
+//   - kemarin          → "Yesterday 21:38"
+//   - ≤6 hari          → nama hari locale ("Thursday 08:55")
+//   - ≥7 hari          → short date ("04-Sep-26")
+// Diverifikasi produksi: anas.fikri@pcpexpress.com SOGoLanguage=English — email
+// hari ini (10:38) tenggelam ke bawah daftar di bawah "Kemarin 21:38" karena
+// parser lama hanya mengenal format Indonesia + singkatan 3-huruf English.
+const nowEn = new Date('2026-09-04T14:00:00'); // Jumat, 4 Sep 2026
+
+// Waktu polos = email hari ini (cabang paling penting)
+assert.deepEqual(
+  parseMessageDate('10:38', nowEn).getTime(),
+  new Date('2026-09-04T10:38:00').getTime(),
+  '"10:38" (waktu polos) → HARI INI jam 10:38 — bukan NULL/tenggelam'
+);
+assert.deepEqual(
+  parseMessageDate('09.05', nowEn).getTime(),
+  new Date('2026-09-04T09:05:00').getTime(),
+  '"09.05" (pemisah titik) → hari ini'
+);
+assert.equal(getDateGroup('10:38', nowEn).key, 'today', 'waktu polos masuk grup Hari Ini');
+
+// Nama hari English penuh + singkatan
+assert.deepEqual(
+  parseMessageDate('Thursday 08:55', nowEn).getTime(),
+  new Date('2026-09-03T08:55:00').getTime(),
+  '"Thursday 08:55" → Kamis terbaru (kemarin)'
+);
+assert.deepEqual(
+  parseMessageDate('Monday 12:36', nowEn).getTime(),
+  new Date('2026-08-31T12:36:00').getTime(),
+  '"Monday 12:36" → Senin terbaru (4 hari lalu)'
+);
+assert.deepEqual(
+  parseMessageDate('Fri 09:00', nowEn).getTime(),
+  new Date('2026-09-04T09:00:00').getTime(),
+  '"Fri 09:00" → Jumat (hari ini) via singkatan'
+);
+assert.deepEqual(
+  parseMessageDate('Yesterday 21:38', nowEn).getTime(),
+  new Date('2026-09-03T21:38:00').getTime(),
+  '"Yesterday 21:38" → kemarin (locale English)'
+);
+assert.deepEqual(
+  parseMessageDate('Today 07:49', nowEn).getTime(),
+  new Date('2026-09-04T07:49:00').getTime(),
+  '"Today 07:49" → hari ini (locale English)'
+);
+
+// Short date SOGo English: "04-Sep-26" — day-first + nama bulan singkat
+assert.deepEqual(
+  parseMessageDate('28-Aug-26', nowEn).getTime(),
+  new Date('2026-08-28T00:00:00').getTime(),
+  '"28-Aug-26" (SOGoShortDateFormat) → 28 Agustus 2026'
+);
+
+// Sort end-to-end English: email "10:38" hari ini harus DI ATAS "Yesterday 21:38"
+const englishMsgs = [
+  { uid: '87',  date: 'Yesterday 21:38' }, // kemarin malam
+  { uid: '136', date: '10:38' },           // HARI INI — dulu tenggelam!
+  { uid: '129', date: 'Thursday 08:55' },  // Kamis lalu
+  { uid: '126', date: '08:42' },           // hari ini, lebih pagi
+  { uid: '98',  date: '28-Aug-26' },       // lama
+];
+const sortedEn = sortMessagesByDate(englishMsgs, { now: nowEn });
+assert.deepEqual(
+  sortedEn.map((m) => m.uid),
+  ['136', '126', '87', '129', '98'],
+  'email hari ini (10:38, 08:42) harus di ATAS "Yesterday 21:38" — reproduksi bug anas.fikri'
+);
+
+// Guard: waktu polos TIDAK boleh menelan format lain
+assert.equal(parseMessageDate('garbage', nowEn), null, 'teks acak tetap NULL');
+assert.equal(parseMessageDate('25.000,50', nowEn), null, 'angka desimal koma bukan jam');
+assert.equal(
+  parseMessageDate('12 Agustus 09:00', nowEn).getTime(),
+  new Date('2026-08-12T09:00:00').getTime(),
+  'format bulan-ID tetap menang atas waktu polos'
+);
+
 console.log('dateGroups assertions passed');

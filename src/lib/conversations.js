@@ -9,6 +9,8 @@
  * Message-ID/In-Reply-To metadata.
  */
 
+import { parseMessageDate } from './dateGroups.js';
+
 const SUBJECT_PREFIXES = [
   /^Re:\s*/i, /^Fwd:\s*/i, /^Fw:\s*/i, /^AW:\s*/i, /^WG:\s*/i, /^Antw:\s*/i,
   /^[\[]?RE[\]]?[:\-]\s*/i, /^[\[]?FWD[\]]?[:\-]\s*/i,
@@ -93,8 +95,12 @@ export function groupConversations(messages = [], asc = false, selfEmail = '', o
   }
 
   const ts = (m) => {
-    const d = m && m.date ? new Date(String(m.date).replace(/ /g, 'T')) : null;
-    return d && !Number.isNaN(d.getTime()) ? d.getTime() : 0;
+    // Pakai parser SOGo terpusat (parseMessageDate) — bukan `new Date(string)`.
+    // RelativeDate SOGo ("10:38" = hari ini, "Thursday 08:55" nama-hari locale)
+    // TIDAK bisa di-parse new Date() → ts=0 → preview thread memilih pesan LAMA
+    // sebagai "terbaru" (persis keluarga bug sort by date di dateGroups.js).
+    const d = m && m.date ? parseMessageDate(m.date) : null;
+    return d ? d.getTime() : 0;
   };
   for (const g of groups) {
     // SOGo batch/header order is not guaranteed; normalize each thread before
