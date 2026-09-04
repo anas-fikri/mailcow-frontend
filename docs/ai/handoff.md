@@ -170,3 +170,12 @@
   batchDelete. Pre-cleanup email uji lama = idempoten.
 - Regresi langsung bug RelativeDate ("13:36" tenggelam di bawah email lama).
 - Suite unit tetap 80/80; diag2 dibersihkan & disabled setelah E2E.
+
+## 2026-09-04 — e2e-browser-runner.sh: satu perintah untuk semua browser E2E
+- **`scripts/e2e-browser-runner.sh [contacts|calendar|mail|all]`** (SERVER=deploy-mail): lifecycle lengkap —
+  (1) enable diag2 + password statis + flush memcached + **seed pembanding "kemarin 21:38"** utk asersi sort mail,
+  (2) jalankan E2E terpilih berurutan, (3) `trap EXIT` menjamin cleanup (expunge INBOX + disable diag2) **walau test gagal**.
+- **Verifikasi back-to-back: 3/3 PASS** — contacts (muncul+persist), calendar (muncul+persist+cleanup API), mail
+  (kedatangan + **sort benar: uji index 0 < yesterday index 2** + persist stabil). Server bersih: INBOX 0, active=0,
+  0 tabel kartu/kalender tersisa.
+- SKIP_ENABLE=1 utk skip langkah server bila diag sudah aktif. Laporan kegagalan ringkas di akhir (`E2E gagal: …`).

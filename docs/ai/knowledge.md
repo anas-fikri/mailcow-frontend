@@ -1490,3 +1490,15 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   30 dtk, jangan asumsikan langsung.
 - Cleanup email uji via POST batchDelete {uids} sama seperti SPA; pre-cleanup
   di awal run menjaga idempotensi.
+
+## 2026-09-04 — Pola runner E2E browser (e2e-browser-runner.sh)
+- **trap EXIT = cleanup terjamin**: E2E yang mutasi data server WAJIB punya cleanup yang jalan walau test
+  gagal/timeout (dulu ada run gagal meninggalkan 4 event uji yang mengunci run berikutnya). Pola:
+  `CLEANED` guard + `trap cleanup EXIT` + expunge/disable di akhir.
+- **Idempoten berlapis**: (1) seed pembanding pakai Message-ID unik per-run — aman dijalankan berulang;
+  (2) pre-cleanup di dalam tiap E2E (via session browser) menangkap leftover yang lolos trap (kontak/event
+  butuh session SOGo, tak bisa dari SSH murni).
+- **Asersi sort butuh pembanding nyata**: INBOX kosong hanya membuktikan kedatangan; seed doveadm
+  `Date: yesterday 21:38` dulu agar `idx(uji) < idx(yesterday)` benar-benar mengetes parser/sort.
+- Konvensi akhir test browser: unit = `scripts/test-*.mjs` (deterministik, auto-run), browser E2E =
+  `scripts/e2e-*.mjs` + runner ini (opt-in, butuh server produksi + Chrome).
