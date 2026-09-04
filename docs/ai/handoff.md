@@ -82,3 +82,9 @@
 - Catatan: markMessagesAsNotJunk tidak dipakai UI → tree-shaken (benar); jika suara "Tidak Spam" dibutuhkan, impor dari api.js.
 - Regression: 77/77 PASS (tambah 1 file test), build PASS, deploy hijau, served chunk api-DEoJTmwF.js terverifikasi mengandung flow junk baru.
 - Cleanup: semua pesan uji dihapus, diag2 di-disable kembali.
+
+## 2026-09-04 — Fitur "Bukan Spam" (commit 367f0d6, LIVE)
+- Tombol "Bukan Spam" (ShieldCheck, emerald) di toolbar bulk MailPage + reader MessageReader, hanya muncul di folder Junk; shortcut `!` di Junk kini un-junk (kembali INBOX) alih-alih junk.
+- Flow: POST markMessagesAsNotJunk (laporan best-effort) → moveMessages ke folderINBOX — replikasi flow native SOGo, sama seperti fix Lapor Spam (07a82cd).
+- Validasi: regression 77/77 PASS, build PASS, deploy hijau; served chunk api-COycyjie.js + MailPage-DYEIUpHb.js terverifikasi berisi fitur.
+- GitLab push masih tertunda (tunnel wg0 flapping) — local main ahead; push manual `git push origin main` saat tunnel stabil.

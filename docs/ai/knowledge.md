@@ -1330,3 +1330,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 20260903-MAIL-E2E-AUDIT
 - Status: COMPLETED
 - Finding: endpoint SOGo `markMessagesAsJunk`/`markMessagesAsNotJunk` (SOGoMailFolder.m markMessagesAsJunkOrNotJunk) HANYA mengirim email laporan learn-spam ke alamat junkEmailAddress bila mailJunkSettings vendor=generic — TIDAK set flag IMAP \Junk dan TIDAK memindahkan pesan. UI native SOGo (Mailer.services.js markOrUnMarkMessagesAsJunk) SELALU memanggil moveMessages ke folder Junk SETELAH endpoint itu. Dibuktikan E2E di diag2: POST → 204 tapi pesan tetap di INBOX (Junk kosong). Fix SPA: replikasi flow native (laporan best-effort + move /0/folderJunk; notjunk dari Junk → /0/folderINBOX). Gotcha doveadm save di mailcow: butuh flag -m (`doveadm save -u X -m INBOX`), tanpa itu error file_istream.stat. `markMessagesAsNotJunk` belum dipakai komponen mana pun → tree-shaken dari bundle (bukan bug build).
+
+## 2026-09-04T00:00:00Z — Tombol "Bukan Spam" di folder Junk
+- Task: 20260904-NOTJUNK-BUTTON
+- Status: COMPLETED
+- Finding: helper `markMessagesAsNotJunk` (laporan not-spam best-effort + moveMessages → folderINBOX bila source Junk, pola native SOGo) sudah ada di api.js sejak audit mail E2E namun tidak dipakai UI apa pun sehingga tree-shaken. Wiring-nya butuh: mutation mirror `junkMutation` (MailPage), mutation mirror `spamMutation` (MessageReader), tombol toolbar bulk + tombol reader dengan gate `selectedFolder === 'folderJunk'`, shortcut `!` di Junk memanggil notJunk. Verifikasi served chunk: grep "markMessagesAsNotJunk" di api chunk + "Bukan Spam" di MailPage chunk.
