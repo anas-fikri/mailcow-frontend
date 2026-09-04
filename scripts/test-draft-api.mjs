@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createDraft, saveDraft, deleteDraft, sendMessage, fetchAttachmentData } from '../src/lib/api.js';
+import { createDraft, saveDraft, deleteDraft, sendMessage, fetchAttachmentData, _waitForContactCaptures } from '../src/lib/api.js';
 
 const calls = [];
 const draftJson = { draftId: 'draft-123' };
@@ -55,6 +55,7 @@ const sendRes = await sendMessage('user@example.test', {
 assert.deepEqual(sendRes, { ok: true });
 const sendCall = calls.find((c) => c.url.endsWith('/send'));
 assert.equal(sendCall.options.method, 'POST');
+await _waitForContactCaptures(); // capture fire-and-forget setelah kirim selesai
 
 // sendMessage — SOGo 501 → fallback ke SMTP /api/send (tanpa throw).
 sendStatus = 501;
@@ -63,6 +64,7 @@ const fallbackRes = await sendMessage('user@example.test', {
   to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '',
 });
 assert.deepEqual(fallbackRes, { ok: true });
+await _waitForContactCaptures();
 const smtpCall = calls.find((c) => c.url.endsWith('/api/send'));
 assert.ok(smtpCall, '501 harus memicu fallback /api/send');
 assert.equal(smtpCall.options.method, 'POST');
@@ -83,6 +85,7 @@ try {
 }
 assert.ok(threw, 'SOGo 500 harus throw, bukan fallback ke SMTP');
 assert.match(threw.message, /500/);
+await _waitForContactCaptures();
 assert.equal(calls.some((c) => c.url.endsWith('/api/send')), false, '500 tidak boleh memicu /api/send');
 
 // sendMessage — dengan lampiran → langsung ke /api/send (bypass SOGo compose)
@@ -96,6 +99,7 @@ const attachRes = await sendMessage('user@example.test', {
   to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '', attachments,
 });
 assert.deepEqual(attachRes, { ok: true });
+await _waitForContactCaptures();
 assert.equal(calls.some((c) => c.url.endsWith('/Mail/0/compose')), false, 'ada lampiran → tidak boleh buat draft SOGo');
 const attachCall = calls.find((c) => c.url.endsWith('/api/send'));
 assert.ok(attachCall, 'ada lampiran → harus panggil /api/send');
@@ -109,7 +113,7 @@ assert.equal(attachBody.attachments[0].data, Buffer.from('pdf').toString('base64
 sendStatus = 200;
 
 // deleteDraft with a uid → batchDelete
-calls.length = 0;
+calls.length = 0; // capture fase sebelumnya sudah ditunggu via _waitForContactCaptures
 await deleteDraft('user@example.test', 99);
 assert.equal(calls.length, 1);
 assert.ok(calls[0].url.endsWith('/folderDrafts/batchDelete'));

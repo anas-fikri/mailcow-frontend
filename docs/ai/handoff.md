@@ -191,3 +191,11 @@
 - `SERVER=deploy-mail scripts/e2e-browser-runner.sh all`: **contacts + calendar + mail + notjunk PASS** berurutan, cleanup terjamin, server bersih (active=0, INBOX/Junk/Sent=0).
 - **Bug runner ditemukan & fixed**: seed pembanding memakai subjek "E2E Pembanding Kemarin", tapi asersi E2E mencari `/Yesterday/i` pada TEKS SUBJEK → asersi sort jalan dalam mode degradasi diam-diam (run all pertama hanya "kebetulan benar" karena leftover seed lama ber-subjek "Yesterday"). Seed diganti subjek "E2E Yesterday Comparer"; asersi sort kini selalu aktif (uji index 0 < yesterday index 1).
 - Pelajaran: asersi berbasis konten harus dikontrol kontraknya end-to-end (seed ↔ assertion), bukan cuma "test pass".
+
+## 2026-09-04 — Fitur auto-capture kontak eksternal (commit LIVE + E2E browser)
+- **Permintaan user**: alamat external yang di-reply (dan semua penerima kirim) otomatis tersimpan di kontak. Keputusan: semua kirim sukses (bukan hanya reply), selalu aktif (tanpa toggle dulu).
+- **Implementasi**: `src/lib/contactCapture.js` (filter murni: valid, bukan self, bukan no-reply/daemon/bounce, dedup case-insensitive) + chokepoint `captureExternalContacts` di api.js pada **3 jalur sukses sendMessage** (SOGo langsung / fallback SMTP / SMTP lampiran+jadwal). Dedup dedup personal+GAL via fetchContacts (1 request memuat keduanya) → createContact guid-flow. Fire-and-forget: gagal capture TIDAK PERNAH menggagalkan kirim. Test seam `_waitForContactCaptures()` utk unit test deterministik.
+- **E2E produksi**: `scripts/e2e-contact-capture-browser.mjs` — UI compose ke `…@contoh.example` (TLD reserved, tak pernah terkirim nyata) → poll kontak sampai alamat muncul → cleanup. **3 run PASS** (idempoten). Runner `all` = 5 test.
+- **Gotcha**: kirim ke TLD reserved memicu **DSN bounce delayed dari MAILER-DAEMON** ke INBOX — E2E punya sweepBounces; cleanup kontak wajib pakai kolom **`id`** (bukan `c_uid` yang null di view — pola sama dgn parseContactRow).
+- Gotcha tooling: eksekusi inline `import('puppeteer')` vs statis memberi beda interop CJS — skrip kini pakai `puppeteerPkg?.default ?? puppeteerPkg` (aman kedua bentuk).
+- Suite **81/81 PASS**, server bersih (active=0, INBOX/Junk/Sent=0).

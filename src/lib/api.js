@@ -10,6 +10,7 @@ import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.
 import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFormat } from './loginDiagnostics.js';
 import { flattenMailboxes } from './mailboxTree.js';
 import { bumpDomainVersion } from './crossTab.js';
+import { pickExternalContacts, filterKnownContacts } from './contactCapture.js';
 
 const SOGO_ENV = import.meta.env || {};
 // Same-origin secara default (relatif) — SPA & SOGo dilayani nginx yang sama
@@ -994,6 +995,43 @@ export async function deleteDraft(sogoToken, uid) {
   } catch { /* fire-and-forget */ }
 }
 
+/**
+ * Auto-capture kontak eksternal setelah kirim sukses (pola Gmail).
+ * Fire-and-forget: SELALU best-effort — kegagalan apa pun (fetchContacts,
+ * createContact) TIDAK BOLEH menggagalkan kirim yang sudah sukses.
+ *
+ * Dedup personal+GAL via fetchContacts (satu request memuat keduanya), lalu
+ * createContact guid-flow per kandidat.
+ */
+const _contactCaptures = new Set();
+
+/** Test seam: tunggu semua capture fire-and-forget selesai (unit test saja). */
+export function _waitForContactCaptures() {
+  return Promise.all([..._contactCaptures]);
+}
+
+function captureExternalContacts(sogoToken, from, recipients) {
+  const task = (async () => {
+    try {
+      const candidates = pickExternalContacts(recipients, from);
+      if (candidates.length === 0) return;
+      const known = await fetchContacts(sogoToken).catch(() => null);
+      const fresh = filterKnownContacts(candidates, known || []);
+      for (const c of fresh) {
+        try {
+          await createContact(sogoToken, {
+            c_cn: c.name || c.email,
+            c_mail: c.email,
+            c_component: 'vcard',
+          });
+        } catch { /* satu kartu gagal ≠ hentikan sisanya */ }
+      }
+    } catch { /* capture tidak pernah menggagalkan kirim */ }
+  })();
+  _contactCaptures.add(task);
+  task.finally(() => _contactCaptures.delete(task)).catch(() => {});
+}
+
 export async function sendMessage(sogoToken, payload) {
   const { to, cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '', attachments = [], sendAt } = payload;
 
@@ -1037,6 +1075,7 @@ export async function sendMessage(sogoToken, payload) {
       throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
     }
     bumpMailVersion(sogoToken);
+    captureExternalContacts(sogoToken, from, { to, cc, bcc }); // fire-and-forget
     return smtpRes.json();
   }
 
@@ -1076,6 +1115,7 @@ export async function sendMessage(sogoToken, payload) {
   throwIfAuthError(sendRes);
   if (sendRes.ok) {
     bumpMailVersion(sogoToken);
+    captureExternalContacts(sogoToken, from, { to, cc, bcc }); // fire-and-forget
     return { ok: true };
   }
 
@@ -1098,6 +1138,7 @@ export async function sendMessage(sogoToken, payload) {
     throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
   }
   bumpMailVersion(sogoToken);
+  captureExternalContacts(sogoToken, from, { to, cc, bcc }); // fire-and-forget
   return smtpRes.json();
 }
 

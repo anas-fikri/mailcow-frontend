@@ -16,7 +16,7 @@ for (const k of ['window', 'document', 'navigator', 'HTMLElement', 'Node', 'Elem
   }
 }
 
-const { sendMessage } = await import('../src/lib/api.js');
+const { sendMessage, _waitForContactCaptures } = await import('../src/lib/api.js');
 
 // Tangkap semua request fetch; kembalikan 200 agar jalur lanjut.
 const sent = [];
@@ -40,8 +40,9 @@ await sendMessage('token@x.test', {
   isHTML: true,
   attachments: [{ filename: 'a.txt', contentType: 'text/plain', data: 'YQ==' }],
 });
-assert.equal(sent.length, 1, 'harus ada 1 request (SMTP path)');
-assert.ok(String(sent[0].url).includes('/api/send'), 'kirim via /api/send');
+await _waitForContactCaptures(); // capture fire-and-forget settle sebelum fase berikutnya
+assert.ok(sent.length >= 1, 'minimal 1 request (SMTP path)');
+assert.ok(String(sent[0].url).includes('/api/send'), 'kirim via /api/send (request pertama)');
 const smtpBody = sent[0].body.body;
 assert.ok(!smtpBody.includes('<script>'), 'script tag dihapus');
 assert.ok(!smtpBody.includes('onerror'), 'event handler dihapus');
@@ -65,7 +66,7 @@ globalThis.fetch = async (url, opts = {}) => {
     return { status: 501, ok: false, headers: { get: () => 'text/plain' },
       json: async () => ({}), text: async () => 'Not implemented' };
   }
-  sogoCalled++;
+  if (String(url).includes('/api/send')) sogoCalled++; // hitung HANYA fallback SMTP (capture kontak jangan ikut terhitung)
   return { status: 200, ok: true, headers: { get: () => 'application/json' },
     json: async () => ({ ok: true, messageId: 'm2' }), text: async () => '' };
 };
@@ -75,6 +76,7 @@ await sendMessage('token@x.test', {
   isHTML: true,
   attachments: [],
 });
+await _waitForContactCaptures();
 assert.equal(sogoCalled, 1, 'fallback SMTP dipanggil setelah 501');
 const fallback = sent.find((s) => String(s.url).includes('/api/send'));
 assert.ok(fallback, 'ada request /api/send fallback');
@@ -93,6 +95,7 @@ await sendMessage('token@x.test', {
   to: 'a@x.test', subject: 'Plain', body: '<script>alert(1)</script> teks', isHTML: false,
   attachments: [{ filename: 'a.txt', contentType: 'text/plain', data: 'YQ==' }],
 });
+await _waitForContactCaptures();
 assert.equal(sent[0].body.body, '<script>alert(1)</script> teks', 'plain text dikirim apa adanya (dikirim sebagai text/plain, bukan HTML)');
 
 // ── Jalur 4: isHTML=true dengan body kosong / non-string → tidak crash ──────
@@ -101,6 +104,7 @@ await sendMessage('token@x.test', {
   to: 'a@x.test', subject: 'Kosong', body: undefined, isHTML: true,
   attachments: [{ filename: 'a.txt', contentType: 'text/plain', data: 'YQ==' }],
 });
+await _waitForContactCaptures();
 assert.equal(typeof sent[0].body.body, 'string', 'body kosong → string (sanitize non-string tidak crash)');
 
 console.log('send-sanitize assertions passed');

@@ -1509,3 +1509,10 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - **Send-to-self via SOGo send meninggalkan salinan di folder Sent** — semua cleanup test mail harus sapu INBOX+Junk+Sent; doveadm expunge runner juga.
 - **Page global JS hilang setelah page.reload()** — jangan simpan state di `window.*` utk dipakai lintas reload; kirim sebagai argumen evaluate.
 - Label folder bisa drift antar versi bundel (produksi "Spam" vs source "Junk/Spam") — selector E2E pakai regex toleran.
+
+## 2026-09-04 — Auto-capture kontak eksternal: desain + kontrak verifikasi
+- **Filter capture** (contactCapture.js): `isAutoContactCandidate` menolak self (from bisa berformat "Nama <self>"), local-part service (`no-reply|mailer-daemon|postmaster|autoreply|bounce*|abuse`), dan dedup per-kirim. `filterKnownContacts` membandingkan lowercased email terhadap personal+GAL.
+- **Chokepoint**: di sendMessage api.js (bukan di ComposeModal) supaya reply/quick-reply/compose/scheduled semua tercakup. Pola fire-and-forget yang benar: simpan Promise di Set → `task.finally(delete).catch()` → test seam `_waitForContactCaptures()` = `Promise.all(set)`. Jangan pernah `await` di jalur kirim.
+- **Contacts/personal/view**: kolom `c_uid` BISA null — uid kartu ada di kolom **`id`** (parseContactRow sudah benar: `c.id || c.c_uid`); delete kontak pakai uid itu. Jangan asumsikan `c_uid`.
+- **Kirim ke TLD reserved (.example)**: SMTP menerima lalu bounce DSN delayed dari MAILER-DAEMON — test yang kirim ke alamat reserved HARUS sweep INBOX dari subjek "Undelivered"/from MAILER-DAEMON.
+- **Puppeteer CJS interop**: `import puppeteer from 'puppeteer'` bisa kehilangan `.default` tergantung konteks eksekusi (inline vs file) — pakai `pkg?.default ?? pkg` di semua skrip E2E baru.
