@@ -98,3 +98,9 @@
 - Bonus diagnosis: 403 login diag kemarin = salah format payload diagnostik (harus JSON `userName`, bukan form) + baris static view mailbox baru tak auto-insert. Bukan bug produksi; tidak ada user terdampak (login user real normal sepanjang waktu).
 - Config change: blok debug sogo.conf dimatikan (verbose log IMAP sejak 27 Aug). Backup: /etc/sogo/sogo.conf.bak-debug-on.
 - diag3@pcpexpress.co.id dibuat (disabled) sebagai diag account cadangan; diag2 tetap disabled.
+
+## 2026-09-04 — Cleanup akun diag selesai
+- diag3@pcpexpress.co.id: ternyata sudah terhapus bersih (sesi sebelumnya) — audit 9 lapisan (mailbox, alias, quota2, static view, sogo_users/cache/folder_info/alarms, maildir, doveadm) semuanya 0.
+- Bonus: menemukan & menghapus **diagx@pcpexpress.co.id** (sisa test mailbox "Diag Test" dari sesi debug moveMessages 3 Sep; disabled, tanpa maildir). Dihapus via mailcow API → cascade bersih (mailbox/alias/quota2 = 0). Tidak ada residual SOGo table.
+- Sisa akun diag: hanya **diag2@pcpexpress.co.id** (disabled) — dipertahankan sebagai akun diag utama untuk E2E.
+- Catatan infra: nama container mailcow kini berprefix `mailcow-` (mis. `mailcow-dovecot-mailcow-1`), jangan hardcode `dovecot-mailcow` lama.
