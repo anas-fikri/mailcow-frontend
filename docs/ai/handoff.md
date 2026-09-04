@@ -207,3 +207,15 @@
 - **E2E baru** `scripts/e2e-spaced-folder-browser.mjs`: buat subfolder berspasi via UI → pilih 2 email → toolbar bulk "Pindah ke..." (flow asli aplikasi; MailPage TIDAK punya drag & drop) → buka folder → reload persist → hapus folder → sapu email INBOX/Junk/Sent. 2 run PASS (idempoten).
 - Runner: pilihan baru `spaced`; `all` = 6 test.
 - Server bersih: 0 folder uji, INBOX/Junk/Sent = 0, diag2 disabled. Unit suite 81/81.
+
+## 2026-09-04 — Akar masalah "harus ganti password" setelah reset password via Control Tower
+- **Laporan user**: reset password mailbox dari control-tower → user tak bisa login dengan pesan "Akun diwajibkan mengganti password", padahal fitur force_pw_update tidak diaktifkan.
+- **Diagnosa dinamis (diag2, replika request persis jalur control-tower)**:
+  1. Control Tower SPA → `POST /api/v1/edit/mailbox` `{items:[email], attr:{password,password2}}` → nginx `auth_request` (JWT/X-API-Key ke server.js:3003) → FastCGI json_api.php (inject X-API-Key) → `mailbox('edit','mailbox')`.
+  2. PHP mailcow TIDAK menyentuh force_pw_update saat reset (attr tidak dikirim → `$is_now` dipertahankan; terverifikasi: flag tetap `"0"`, passwd_update ter-set NOW()).
+  3. **Akar**: `update_sogo_static_view()` (functions.inc.php:988, dipanggil otomatis setelah SETIAP edit mailbox) menulis `c_password` = `{SSHA256}` + sha256(**string kosong**) karena variabel `$password`/`$salt` TIDAK ADA di scope fungsi (bug upstream mailcow; yang benar `$random_password`/`$random_salt`). `{SSHA256}47DEQpj8HBS…` = sha256("") konstanta.
+  4. SOGo auth membaca `_sogo_static_view` → hash bogus ≠ password apa pun → SEMUA login 403 (LDAPPasswordPolicyError 65535) → pesan SPA "diwajibkan mengganti password" = **interpretasi salah**, sebenarnya auth rusak total.
+  5. **Self-heal**: cron `*/5 sync_sogo_passwords.sh` meng-UPDATE `c_password = mailbox.password` (BLF-CRYPT asli) + flush memcached → dalam ≤5 menit login normal lagi. Itulah kenapa keluhan terdengar sementara.
+- **Bukti**: step-by-step repro — reset via API → login 403/403 (pw baru & lama) → c_password = {SSHA256}47DEQpj8HBS → repair SQL (sama dgn cron) + flush → login pw BARU 200, pw lama 403.
+- **Rekomendasi fix**: (a) immediate-sync — control-tower server.js memanggil UPDATE-JOIN + flush memcached tepat setelah edit/mailbox yang mengubah password (menghilangkan window 5 mnt); (b) patch `update_sogo_static_view()` di container mailcow (rawan tertimpa update — prioritas a).
+- Server dibersihkan: diag2 disabled + row static view dihapus + flush memcached.

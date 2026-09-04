@@ -1,20 +1,24 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260904-SPACED-FOLDER
+Task ID: 20260904-RESET-PW-LOGIN-BROKEN
 Updated At: 2026-09-04
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Fix "Parameter folder tidak valid." pada operasi folder berspasi di webmail, lalu lindungi dengan E2E browser.
+Jawab kenapa reset password mailbox dari control-tower membuat akun tak bisa login dengan pesan "diwajibkan mengganti password" padahal fitur itu tidak diaktifkan.
 
 ## Result
-- Akar: guard keamanan `src/lib/pathSegment.js` whitelist `A-Za-z0-9@._%+~%-` menolak SPASI — produksi punya puluhan folder user berspasi ("INBOX/Pak Eriawan", "Team KAC 3 - Tuta", "Deleted Items", dst).
-- Fix: whitelist diperluas ke RFC 3986 pchar + spasi; tetap menolak traversal (`..`), `%2F`, karakter kontrol, escape ilegal. Kontrak produksi terverifikasi: SOGo mengirim spasi MENTAH di path folder JSON (bukan %20).
-- Deploy: `SERVER=deploy-mail ./deploy.sh` — bundle live `api-AIxtT8el.js` memuat guard baru (guard lama 0 match di chunk live).
-- E2E baru `scripts/e2e-spaced-folder-browser.mjs` (runner pilihan `spaced`, `all` = 6 test): buat subfolder berspasi via UI → pilih 2 email → toolbar "Pindah ke..." (flow asli; tidak ada drag & drop di MailPage) → buka folder → reload persist → hapus folder → sapu email INBOX/Junk/Sent. 2 run PASS idempoten.
-- Validasi: unit suite 81/81; server bersih (0 folder uji, INBOX/Junk/Sent = 0, diag2 disabled).
+Akar masalah ditemukan via eksperimen dinamis end-to-end (diag2, replika request persis jalur control-tower):
 
-## Follow-ups
-- Push commits ke GitLab (tunnel wg0) bila diminta.
-- Pertimbangkan audit guard serupa di path non-folder (contact/calendar URL segments).
+- Reset via control-tower (`POST /api/v1/edit/mailbox` attr {password,password2}) TIDAK menyentuh `force_pw_update` — flag tetap "0" (terverifikasi).
+- **Akar**: bug upstream mailcow `update_sogo_static_view()` (functions.inc.php:988) — variabel `$password`/`$salt` tidak ada di scope, sehingga setiap edit mailbox menulis `c_password = {SSHA256}+sha256("")` (konstanta `47DEQpj8HBS…`) ke `_sogo_static_view`.
+- SOGo auth ke tabel fisik itu → semua password ditolak → 403/LDAPPasswordPolicyError → pesan SPA "diwajibkan mengganti password" (salah interpretasi).
+- Cron `*/5 sync_sogo_passwords.sh` memulihkan hash BLF-CRYPT asli → login normal lagi dalam ≤5 menit. Itu sebabnya efeknya terasa sementara.
+
+Bukti berantai: reset via API → login 403 (pw baru & lama) → c_password = {SSHA256}47DEQpj8HBS → repair SQL + flush → login pw baru 200 / pw lama 403.
+
+## Follow-ups (disarankan ke user)
+1. **Immediate-sync di control-tower server.js**: setelah edit/mailbox yang mengubah password, jalankan UPDATE-JOIN `_sogo_static_view` + flush memcached (menghilangkan window 5 menit).
+2. Patch `update_sogo_static_view()` di container mailcow (catat: hilang saat update mailcow).
+3. Pertimbangkan pesan error SPA yang lebih jujur: LDAPPasswordPolicyError ≠ pasti wajib ganti password.
