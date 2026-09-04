@@ -92,3 +92,9 @@
 ## 2026-09-04 — Aksi per-baris "Bukan Spam" (commit 3923f69, LIVE)
 - Hover action ShieldCheck pada row pesan di folder Junk (pola cluster hover Gmail-like, gate `folderJunk && !isTouch`) → notJunkMutation per uid → laporan + moveMessages ke INBOX.
 - Regression 77/77 PASS, build PASS, deploy hijau, served chunk terverifikasi.
+
+## 2026-09-04 — E2E "Bukan Spam" sukses penuh (produksi, diag2)
+- Chain terverifikasi: login 200 → seed ham ke Junk → markMessagesAsNotJunk 204 → moveMessages /0/folderINBOX 200 → doveadm: Junk kosong, INBOX berisi pesan. Negative test dari INBOX: 204 tanpa move. Cleanup 0 sisa.
+- Bonus diagnosis: 403 login diag kemarin = salah format payload diagnostik (harus JSON `userName`, bukan form) + baris static view mailbox baru tak auto-insert. Bukan bug produksi; tidak ada user terdampak (login user real normal sepanjang waktu).
+- Config change: blok debug sogo.conf dimatikan (verbose log IMAP sejak 27 Aug). Backup: /etc/sogo/sogo.conf.bak-debug-on.
+- diag3@pcpexpress.co.id dibuat (disabled) sebagai diag account cadangan; diag2 tetap disabled.

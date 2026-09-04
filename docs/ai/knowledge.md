@@ -1335,3 +1335,12 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 20260904-NOTJUNK-BUTTON
 - Status: COMPLETED
 - Finding: helper `markMessagesAsNotJunk` (laporan not-spam best-effort + moveMessages → folderINBOX bila source Junk, pola native SOGo) sudah ada di api.js sejak audit mail E2E namun tidak dipakai UI apa pun sehingga tree-shaken. Wiring-nya butuh: mutation mirror `junkMutation` (MailPage), mutation mirror `spamMutation` (MessageReader), tombol toolbar bulk + tombol reader dengan gate `selectedFolder === 'folderJunk'`, shortcut `!` di Junk memanggil notJunk. Verifikasi served chunk: grep "markMessagesAsNotJunk" di api chunk + "Bukan Spam" di MailPage chunk.
+
+## 2026-09-04T10:30:00Z — E2E NotJunk + akar masalah 403 login SOGo diag
+- Task: 20260904-NOTJUNK-E2E
+- Status: COMPLETED
+- Finding 1 (PENTING): endpoint login SOGo 5.12.9 `/SOGo/connect` WAJIB body JSON dengan key `userName` — `{"userName":"u@d","password":"..."}` (UI/MainUI/SOGoRootPage.m:284 `[contentAsString] objectFromJSONString`). Form-encoded atau JSON key `user` → error "json parser" di log + `bound: 0` + 403 LDAPPasswordPolicyError 65535. Semua diagnostik curl form-encoded sebelumnya (termasuk Sep 3) salah format — bukan indikasi bug server.
+- Finding 2: mailcow `_sogo_static_view` TIDAK auto-insert baris mailbox baru; script sync cron hanya UPDATE baris existing. Mailbox baru (diag3) butuh INSERT eksplisit 15 kolom ke static view sebelum SOGo mengenalinya.
+- Finding 3: blok debug eksperimental di sogo.conf (SOGoDebugRequests/ImapDebugEnabled/WODebug/NSDebugEnabled/SOGoDebugEnabled = YES, aktif sejak 27 Aug) menyebabkan log IMAP verbose banget tapi BUKAN penyebab gagal login. Kini di-comment; backup `/etc/sogo/sogo.conf.bak-debug-on` (via container, host file root-owned).
+- Finding 4: sogo-tool di container mailcow harus `docker exec -u sogo`; `sogo-tool dump-defaults -f <plist>` untuk baca konfigurasi efektif; `doveadm save` butuh `-m`; capture log SOGo via `docker exec -d ... cat /dev/sogo_log` (WOLogFile pipe).
+- E2E NotJunk (diag2, produksi): login JSON userName 200 → seed doveadm Junk → view 404 (endpoint lain) → markMessagesAsNotJunk 204 → moveMessages `/0/folderINBOX` 200 → fisik: Junk kosong, INBOX berisi (doveadm search guid). Negative: notjunk dari INBOX 204 tanpa move. Cleanup: diag2+diag3 disabled, static view & profile & pesan test = 0.
