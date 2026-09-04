@@ -104,3 +104,8 @@
 - Bonus: menemukan & menghapus **diagx@pcpexpress.co.id** (sisa test mailbox "Diag Test" dari sesi debug moveMessages 3 Sep; disabled, tanpa maildir). Dihapus via mailcow API → cascade bersih (mailbox/alias/quota2 = 0). Tidak ada residual SOGo table.
 - Sisa akun diag: hanya **diag2@pcpexpress.co.id** (disabled) — dipertahankan sebagai akun diag utama untuk E2E.
 - Catatan infra: nama container mailcow kini berprefix `mailcow-` (mis. `mailcow-dovecot-mailcow-1`), jangan hardcode `dovecot-mailcow` lama.
+
+## 2026-09-04 — Fix: email terbaru "hilang" dari atas daftar (sort by date)
+- Laporan user (anas.fikri@pcpexpress.com): filter unread menampilkan email jam 10:38, tanpa filter email teratas malah "Kemarin 21:38".
+- Akar masalah: parser RelativeDate SPA hanya mengenal format Indonesia; SOGo merender email hari ini sebagai waktu polos ("10:38", TANPA "Today") dan nama hari English penuh ("Thursday 08:55") untuk locale English (profil anas.fikri SOGoLanguage=English) → ts=-Infinity → tenggelam di sort date-desc. Dibuktikan dari source SOGo 5.12 UIxMailListActions.m + uji parser Node + doveadm (email hari ini ada di INBOX).
+- Fix: parseMessageDate ditambah cabang waktu-polos=hari-ini (regex strict full-string), nama hari English penuh, AM/PM defensif; conversations.js ts() memakai parser yang sama (bug sekunder: preview thread salah pilih pesan terbaru). Commit f0b1d7b, regression 77/77, deploy terverifikasi (chunk MailPage-CMTXJ2bb.js memuat sunday..saturday + regex time-only).
