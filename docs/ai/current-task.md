@@ -1,33 +1,20 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260904-AUTO-CAPTURE-CONTACTS
-Updated At: 2026-09-04T12:30:00Z
+Task ID: 20260904-SPACED-FOLDER
+Updated At: 2026-09-04
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Fitur: alamat external yang di-reply otomatis tersimpan di kontak. Keputusan user:
-semua kirim sukses (reply/reply-all/compose), selalu aktif tanpa toggle.
+Fix "Parameter folder tidak valid." pada operasi folder berspasi di webmail, lalu lindungi dengan E2E browser.
 
 ## Result
-- **`src/lib/contactCapture.js`** — filter murni: alamat valid (parseRecipientEntry),
-  bukan self (from "Nama <self>" dikenali), bukan alamat layanan
-  (no-reply/mailer-daemon/postmaster/autoreply/bounce/abuse), dedup per-kirim;
-  `filterKnownContacts` buang yang sudah ada di kontak Personal/GAL.
-- **`src/lib/api.js`** — chokepoint `captureExternalContacts` fire-and-forget pada
-  **3 jalur sukses sendMessage** (SOGo langsung / fallback SMTP / SMTP lampiran+jadwal).
-  Dedup via 1× fetchContacts (personal+GAL), simpan via createContact guid-flow.
-  Kegagalan capture TIDAK PERNAH menggagalkan kirim. Test seam `_waitForContactCaptures()`.
-- **Unit test** `scripts/test-contact-capture.mjs` (6 grup asersi) — suite **81/81 PASS**
-  (2 test lama yang hitung-request-persis diadaptasi ke seam).
-- **E2E browser** `scripts/e2e-contact-capture-browser.mjs` — UI compose ke
-  `…@contoh.example` (TLD reserved) → poll kontak sampai muncul → cleanup + sweep DSN.
-  **3 run PASS** di produksi (idempoten). Runner `all` = 5 test.
-- **Deploy** produksi selesai & diverifikasi E2E di bundle live.
-- Gotcha terdokumentasi: DSN bounce delayed dari MAILER-DAEMON; kolom uid kontak =
-  `id` (bukan `c_uid` yang bisa null); puppeteer interop `pkg?.default ?? pkg`.
-- Server akhir: active=0, INBOX/Junk/Sent=0.
+- Akar: guard keamanan `src/lib/pathSegment.js` whitelist `A-Za-z0-9@._%+~%-` menolak SPASI — produksi punya puluhan folder user berspasi ("INBOX/Pak Eriawan", "Team KAC 3 - Tuta", "Deleted Items", dst).
+- Fix: whitelist diperluas ke RFC 3986 pchar + spasi; tetap menolak traversal (`..`), `%2F`, karakter kontrol, escape ilegal. Kontrak produksi terverifikasi: SOGo mengirim spasi MENTAH di path folder JSON (bukan %20).
+- Deploy: `SERVER=deploy-mail ./deploy.sh` — bundle live `api-AIxtT8el.js` memuat guard baru (guard lama 0 match di chunk live).
+- E2E baru `scripts/e2e-spaced-folder-browser.mjs` (runner pilihan `spaced`, `all` = 6 test): buat subfolder berspasi via UI → pilih 2 email → toolbar "Pindah ke..." (flow asli; tidak ada drag & drop di MailPage) → buka folder → reload persist → hapus folder → sapu email INBOX/Junk/Sent. 2 run PASS idempoten.
+- Validasi: unit suite 81/81; server bersih (0 folder uji, INBOX/Junk/Sent = 0, diag2 disabled).
 
-## Follow-up
-- Toggle Preferences ("Simpan otomatis alamat eksternal") bila nanti diminta user.
-- Perluas filter service local-part bila ada laporan noise autocomplete.
+## Follow-ups
+- Push commits ke GitLab (tunnel wg0) bila diminta.
+- Pertimbangkan audit guard serupa di path non-folder (contact/calendar URL segments).

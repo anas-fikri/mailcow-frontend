@@ -199,3 +199,11 @@
 - **Gotcha**: kirim ke TLD reserved memicu **DSN bounce delayed dari MAILER-DAEMON** ke INBOX — E2E punya sweepBounces; cleanup kontak wajib pakai kolom **`id`** (bukan `c_uid` yang null di view — pola sama dgn parseContactRow).
 - Gotcha tooling: eksekusi inline `import('puppeteer')` vs statis memberi beda interop CJS — skrip kini pakai `puppeteerPkg?.default ?? puppeteerPkg` (aman kedua bentuk).
 - Suite **81/81 PASS**, server bersih (active=0, INBOX/Junk/Sent=0).
+
+## 2026-09-04 — Fix "Parameter folder tidak valid." + E2E folder berspasi
+- **Bug produksi**: folder dengan SPASI ("INBOX/Pak Eriawan", "Team KAC 3 - Tuta", dll — puluhan di Dovecot) melempar error di setiap operasi, karena guard keamanan `pathSegment.js` hanya whitelist `A-Za-z0-9@._%+~%-`.
+- **Fix**: whitelist diperluas ke RFC 3986 pchar + spasi. Tetap menolak traversal (`..`, `/` mentah, `%2F`), karakter kontrol, dan escape ilegal. Produksi mengirim spasi MENTAH di JSON folder path (bukan %20) — guard baru persis cocok kontrak.
+- **Deploy**: `SERVER=deploy-mail ./deploy.sh` sukses; bundle live (`api-AIxtT8el.js`) memuat whitelist baru, guard lama 0 match.
+- **E2E baru** `scripts/e2e-spaced-folder-browser.mjs`: buat subfolder berspasi via UI → pilih 2 email → toolbar bulk "Pindah ke..." (flow asli aplikasi; MailPage TIDAK punya drag & drop) → buka folder → reload persist → hapus folder → sapu email INBOX/Junk/Sent. 2 run PASS (idempoten).
+- Runner: pilihan baru `spaced`; `all` = 6 test.
+- Server bersih: 0 folder uji, INBOX/Junk/Sent = 0, diag2 disabled. Unit suite 81/81.

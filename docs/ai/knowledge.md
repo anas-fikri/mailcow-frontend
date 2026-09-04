@@ -1516,3 +1516,11 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - **Contacts/personal/view**: kolom `c_uid` BISA null — uid kartu ada di kolom **`id`** (parseContactRow sudah benar: `c.id || c.c_uid`); delete kontak pakai uid itu. Jangan asumsikan `c_uid`.
 - **Kirim ke TLD reserved (.example)**: SMTP menerima lalu bounce DSN delayed dari MAILER-DAEMON — test yang kirim ke alamat reserved HARUS sweep INBOX dari subjek "Undelivered"/from MAILER-DAEMON.
 - **Puppeteer CJS interop**: `import puppeteer from 'puppeteer'` bisa kehilangan `.default` tergantung konteks eksekusi (inline vs file) — pakai `pkg?.default ?? pkg` di semua skrip E2E baru.
+
+## 2026-09-04 — pathSegment & folder berspasi (dari audit E2E folder)
+1. **Produksi penuh folder berspasi** ("INBOX/Pak Eriawan", "Team KAC 3 - Tuta", "Deleted Items", "X. Spam"). Guard URL `pathSegment.js` yang terlalu ketat = bug nyata user-facing ("Parameter folder tidak valid."), bukan kasus tepi.
+2. **Kontrak SOGo produksi: spasi MENTAH** dalam path folder JSON (`'INBOX/E2E Folder Spasi'`), BUKAN `%20`. Guard yang menerima `%20` justru tidak cocok kontrak. Whitelist aman = RFC 3986 pchar + spasi, tetap tolak `%2F`/`..`/kontrol.
+3. **MailPage tidak punya drag & drop** — pemindahan pesan hanya via bulk select + toolbar `select[aria-label="Pindah pesan terpilih ke folder"]` (quickMoveMutation). Jangan menguji flow UI yang dianggap ada.
+4. `createFolder` SOGo: URL = folder INDUK, body.name = nama baru — salah bentuk → folder ternesting tak terduga (`INBOX/E2E.../E2E...`).
+5. Pre-cleanup E2E harus menyapu EMAIL juga, bukan hanya folder — waits asersi wajib ter-scope ke stamp unik per run (subjek generik salah cocok ke leftover).
+6. E2E gagal bisa jadi PENGUJI bug produksi yang sesungguhnya: run spaced-folder mereproduksi persis keluhan user karena fix pathSegment belum di-build/deploy saat itu. Selalu cek apakah fix sudah ada di bundle live sebelum menyalahkan test.
