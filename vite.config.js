@@ -26,11 +26,27 @@ const useSesShimPlugin = {
   },
 }
 
+// ─── Plugin: fingerprint build di index.html (deteksi deploy oleh SPA) ──────
+// SPA lama di tab terbuka tidak tahu ada deploy baru (chunk lama tetap jalan
+// tanpa error). Meta build-version + poll ringan (deployCheck.js) membuat tab
+// reload sendiri sekali setelah deploy baru terdeteksi.
+const buildVersionPlugin = () => ({
+  name: 'build-version-stamp',
+  transformIndexHtml(html) {
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return html.replace(
+      '<head>',
+      `<head>\n    <meta name="build-version" content="${stamp}" />`,
+    );
+  },
+})
+
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
     useSesShimPlugin,
+    buildVersionPlugin(),
   ],
   base: '/webmail/',
   resolve: {

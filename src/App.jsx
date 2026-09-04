@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import AppLayout from './components/layout/AppLayout'
 import { useAuthStore } from './store/authStore'
 import { onSessionExpired, resetSessionExpiredFlag, revokeSmtpSession } from './lib/api'
+import { startDeployPolling } from './lib/deployCheck'
 import ToastContainer from './components/Toast'
 import { toast } from './lib/toast'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -109,6 +110,17 @@ function ChunkReloadFlagReset() {
   return null;
 }
 
+// ─── Deteksi deploy baru ───────────────────────────────────────────────
+// Tab yang terbuka sebelum deploy terus menjalankan chunk LAMA tanpa error
+// (lazyWithReload hanya menangkap 404 chunk keras). Poll meta build-version
+// tiap 5 menit (saat tab visible) → reload sekali saat versi server berbeda.
+function DeployWatcher() {
+  useEffect(() => {
+    return startDeployPolling({ intervalMs: 5 * 60_000 });
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -116,6 +128,8 @@ export default function App() {
         <ErrorBoundary>
           <SessionWatcher>
             <ChunkReloadFlagReset />
+            <DeployWatcher />
+            <DeployWatcher />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />

@@ -1359,3 +1359,28 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Finding 4: live bucket di Redis: key `RL<base24-cryptobox-hash dari rs_dynrl_<user>>` (prefix RL, bukan RS — RS_<num> adalah key modul lain). Inspeksi resmi: `docker exec rspamd rspamadm ratelimit track`. Hash bisa direplikasi: `rspamadm lua -e 'print(require"rspamd_cryptobox_hash".create("rs_dynrl_<user>"):base32():sub(1,24))'`.
 - Finding 5 (gotcha): `sasl_username=` di log postfix TANPA domain; rcpt count harus dari qid `client=` + `to=<>` per queue-id, bukan baris sasl.
 - Fix (disetujui user): RL_VALUE 100/1h → 300/1h untuk 714 user (HSET massal, berlaku seketika tanpa restart). Custom dipertahankan: alim.fatkhurrohman@pcptransport.com & domain innaka.dev = 10/1m (hardening lama), anas.fikri@ = 200/1h. Mailcow UI Ratelimits juga menulis RL_VALUE ini.
+
+## 2026-09-04 — Verifikasi fix sort email + deploy-check otomatis (tab basi)
+
+- **Fix parser terverifikasi dengan data produksi asli**: capture `/view` SOGo 5.12
+  (diag2, locale English) membuktikan email hari ini dirender `RelativeDate` =
+  **jam polos** `"13:36"` (tanpa "Today") — persis varian yang diperbaiki di
+  `dateGroups.js`. Simulasi penuh `parseMessageRows` + `sortMessagesByDate`
+  dengan matriks headers asli → email terbaru di atas. Kolumn `RelativeDate`
+  dipetakan dinamis (alias `date`) di `messageRows.js`; fallback positional
+  index 7 tetap ada untuk respons tanpa kolom.
+- **Bukti bundle produksi = fix**: chunk ber-hash (`MailPage-*.js`) berisi
+  weekday-map English. Grep komentar di bundle tidak berguna (minifier strip);
+  grep marker kode seperti nama variabel map (`thursday`) yang work.
+- **Akar masalah "sudah diperbaiki tapi user masih lihat lama"**: tab SPA yang
+  terbuka sebelum deploy terus menjalankan chunk LAMA di memori **tanpa error**
+  — lazyWithReload hanya menangkap 404 chunk keras. Fix permanen:
+  (1) plugin vite `build-version-stamp` menempel `<meta name="build-version">`
+  di index.html tiap build; (2) `src/lib/deployCheck.js` poll meta tsb tiap
+  5 menit (skip saat tab hidden), reload sekali bila versi server ≠ versi tab
+  (guard sessionStorage 30s anti-loop); (3) `DeployWatcher` di App.jsx.
+- Header cache nginx sudah benar (HTML no-store, asset hashed immutable) —
+  bukan penyebab; service worker v7 network-first + skipWaiting juga aman.
+- Insiden diag2 500 (endpoint Mail) penyebabnya pesan **zero-byte** dari
+  `doveadm save` tanpa input — SOGo gagal parse envelope → semua endpoint
+  Mail 500. Recovery: expunge pesan kosong.

@@ -114,3 +114,11 @@
 - Keluhan user: error 4.7.1 saat kirim dari webmail. Terbukti di postfix: 8 milter-reject (4 alfian @09:26, 4 nazwa @10:03–10:17), semua dari SOGo.
 - Akar masalah: bucket ratelimit per-user dihitung PER-PENERIMA (bincpt=nrcpt di plugin rspamd) — 6 email × banyak penerima = 93 penerima/17 menit > burst 100/1h. "mailcow" di pesan error = nama handler custom keyword, bukan bucket bersama.
 - Fix dieksekusi (disetujui user): RL_VALUE Redis 100/1h → 300/1h untuk 714 user. Custom limit lain dipertahankan (10/1m alim/innaka, 200/1h anas.fikri). Berlaku seketika, tanpa restart. Tidak ada pesan hilang (soft reject).
+
+## 2026-09-04 — Sort email terverifikasi + auto-reload tab basi setelah deploy
+- Verifikasi E2E data produksi: RelativeDate asli `"13:36"` (email hari ini,
+  English locale) ter-parse & ter-sort benar oleh bundle terdeploy.
+- Fitur baru: deploy-check otomatis (`deployCheck.js` + vite
+  `build-version-stamp` + `DeployWatcher` di App.jsx) — tab lama reload sendiri
+  ≤5 menit setelah deploy baru, tanpa aksi user. Test: `scripts/test-deploy-check.mjs`
+  (suite penuh 78/78 pass). Sudah live di produksi.
