@@ -88,3 +88,7 @@
 - Flow: POST markMessagesAsNotJunk (laporan best-effort) → moveMessages ke folderINBOX — replikasi flow native SOGo, sama seperti fix Lapor Spam (07a82cd).
 - Validasi: regression 77/77 PASS, build PASS, deploy hijau; served chunk api-COycyjie.js + MailPage-DYEIUpHb.js terverifikasi berisi fitur.
 - GitLab push masih tertunda (tunnel wg0 flapping) — local main ahead; push manual `git push origin main` saat tunnel stabil.
+
+## 2026-09-04 — Aksi per-baris "Bukan Spam" (commit 3923f69, LIVE)
+- Hover action ShieldCheck pada row pesan di folder Junk (pola cluster hover Gmail-like, gate `folderJunk && !isTouch`) → notJunkMutation per uid → laporan + moveMessages ke INBOX.
+- Regression 77/77 PASS, build PASS, deploy hijau, served chunk terverifikasi.
