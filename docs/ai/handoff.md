@@ -143,7 +143,7 @@
   test-a11y.mjs direvisi. Suite 80/80 PASS. Deployed & live-verified.
 
 ## 2026-09-04 — Browser E2E create contact (Puppeteer, produksi)
-- Test: scripts/test-contact-browser-e2e.mjs — login UI → Contacts → Tambah →
+- Test: scripts/e2e-contact-browser.mjs — login UI → Contacts → Tambah →
   Simpan → muncul di daftar → persist setelah reload penuh → cleanup via UI.
   2x run PASS. Menutup lingkaran regresi bug data loss createContact.
 - Infra: Chrome deps user-space (~/.local/chrome-libs, tanpa sudo) +

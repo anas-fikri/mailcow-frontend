@@ -9,7 +9,7 @@ Project Root: /home/anas.fikri/mailcow-frontend
 Add a browser-level regression test for creating a contact end-to-end in the SPA.
 
 ## Result
-- Test baru `scripts/test-contact-browser-e2e.mjs` (Puppeteer + Chrome for
+- Test baru `scripts/e2e-contact-browser.mjs` (Puppeteer + Chrome for
   Testing): login UI diag2 → halaman Contacts → Tambah → isi form → Simpan →
   kontak muncul di daftar → **TETAP ADA setelah reload penuh** (bukti persist
   di server — regresi bug data loss `_new_`) → cleanup via UI (Hapus Kontak)

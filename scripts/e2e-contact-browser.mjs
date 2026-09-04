@@ -10,7 +10,7 @@
  * Prasyarat: diag2 aktif (script enable otomatis via API tidak tersedia dari
  * luar; jalankan bagian 0 dari scripts/capture-mail-golden.sh dulu bila
  * akun disabled, atau set env DIAG_ENABLED=1 jika sudah aktif).
- * Chrome: puppeteer bundled (linux). Jalankan: node scripts/test-contact-browser-e2e.mjs
+ * Chrome: puppeteer bundled (linux). Jalankan (opt-in, butuh diag2 aktif): node scripts/e2e-contact-browser.mjs
  */
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync } from 'node:fs';
@@ -194,9 +194,9 @@ try {
   const realErrors = consoleErrors.filter((e) => !/Download the React DevTools/i.test(e));
   assert.deepEqual(realErrors, [], `tanpa pageerror: ${JSON.stringify(realErrors)}`);
 
-  console.log('✅ test-contact-browser-e2e: create contact end-to-end lolos (muncul + persist + tanpa error React)');
+  console.log('✅ e2e-contact-browser: create contact end-to-end lolos (muncul + persist + tanpa error React)');
 } catch (err) {
-  console.error('❌ test-contact-browser-e2e GAGAL:', err.message);
+  console.error('❌ e2e-contact-browser GAGAL:', err.message);
   process.exitCode = 1;
 } finally {
   await browser?.close();

@@ -1453,7 +1453,7 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   Tanpa sudo: `apt-get download <pkg>` + `dpkg-deb -x <deb> ~/.local/chrome-libs/`
   lalu `LD_LIBRARY_PATH=~/.local/chrome-libs/usr/lib/x86_64-linux-gnu`.
   Ubuntu 24.04: paket t64 (libatk1.0-0t64, libcups2t64, libasound2t64, …).
-- Pola reusable di scripts/test-contact-browser-e2e.mjs: `findChrome()`
+- Pola reusable di scripts/e2e-contact-browser.mjs: `findChrome()`
   (auto-pilih binary cache terbaru, override CHROME_PATH) + `ensureChromeLibs()`.
 - Versi cache puppeteer bisa BEDA dari versi yang diminta paket — jangan
   hardcode versi; scan direktori cache.
