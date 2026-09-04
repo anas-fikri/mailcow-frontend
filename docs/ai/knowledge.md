@@ -1401,3 +1401,24 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   dan jalankan lewat implementasi nyata — jangan hanya replay flow request.
   Golden-sample dari SOGo sejak awal akan langsung menangkap "13:36",
   "Thursday 08:55", dan "04-Sep-26".
+
+## 2026-09-04 — Golden-sample retest Mail: 2 bug baru ditemukan & fixed
+
+- Metode baru terbukti productive pada penggunaan pertama: replay data produksi
+  asli menemukan 2 bug yang tidak kelihatan dari kode maupun E2E flow:
+  1. `renderDate` (format.js): detail SOGo "Friday, September 04, 2026 14:24 WIB"
+     → Date.parse NaN (suffix zona WIB tak dikenal V8). Zona 3-huruf non-ISO
+     HARUS di-strip; tanpa zona, JS mem-parse sebagai waktu lokal — benar,
+     karena SOGo merender tanggal di zona user.
+  2. formatFileSize/totalAttachmentSize: sub-KB ditampilkan "0 KB"
+     (Math.round(144/1024)=0). Fix: <1 KB tampil "N B".
+- Format RelativeDate SOGo 5.12 English locale TERVERIFIKASI 4 varian dari
+  data asli: "14:24" (hari ini), "04:38" (hari ini dini hari), "Tuesday 14:24"
+  (≤6 hari), "27-Aug-26" (≥7 hari, dd-Mon-yy). Semua ter-parse oleh parser.
+- uid SOGo = urutan DELIVERY, bukan tanggal — sort by date menghasilkan urutan
+  beda dari uid (9,12,11,10 utk golden fixture); jangan sort by uid.
+- Ukuran di list ("671 B") vs detail part ("144 B") konsisten string terformat
+  SI-unit style SOGo ("KiB"/"MiB" di list via Size kolom); parseSizeToBytes
+  menangani keduanya.
+- Fixture & resep: scripts/fixtures/mail-golden-*.json + capture-mail-golden.sh.
+  Regenerate fixture tiap kali SOGo di-upgrade.

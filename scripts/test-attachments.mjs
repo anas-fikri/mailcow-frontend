@@ -42,6 +42,9 @@ assert.equal(formatFileSize(0), '');
 assert.equal(formatFileSize(''), '');
 assert.equal(formatFileSize(1536 * 1024), '1.5 MB');
 assert.equal(formatFileSize(512 * 1024), '512 KB');
+// Sub-KB: bytes utuh, bukan "0 KB" (golden sample produksi: "144 B")
+assert.equal(formatFileSize(144), '144 B');
+assert.equal(formatFileSize(1023), '1023 B');
 
 // ── totalAttachmentSize ───────────────────────────────────────────────────────
 assert.equal(totalAttachmentSize([]), '');

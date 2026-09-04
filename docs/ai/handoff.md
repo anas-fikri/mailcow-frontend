@@ -122,3 +122,12 @@
   `build-version-stamp` + `DeployWatcher` di App.jsx) — tab lama reload sendiri
   ≤5 menit setelah deploy baru, tanpa aksi user. Test: `scripts/test-deploy-check.mjs`
   (suite penuh 78/78 pass). Sudah live di produksi.
+
+## 2026-09-04 — Golden-sample retest /webmail/mail: 2 fix + test permanen
+- Capture data produksi asli (diag2): list/detail/folders → fixture permanen
+  `scripts/fixtures/mail-golden-*.json` + resep `scripts/capture-mail-golden.sh`.
+- Test baru `scripts/test-mail-golden.mjs` (replay seluruh parser/formatter
+  MailPage lewat data asli; 40+ assertion). Suite 79/79 PASS.
+- Fix #1: renderDate gagal parse "…14:24 WIB" (NaN → string mentah tampil).
+- Fix #2: lampiran sub-KB tampil "0 KB" → kini "144 B".
+- Deployed & verified live; tab terbuka auto-reload via deploy-check.

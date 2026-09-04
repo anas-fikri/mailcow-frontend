@@ -68,6 +68,9 @@ export function parseSizeToBytes(size) {
 export function formatFileSize(size) {
   if (!size || size === 0) return '';
   if (typeof size === 'string') return size;
+  // < 1 KB → tampilkan bytes utuh (golden sample produksi: lampiran kecil
+  // "144 B" — Math.round(144/1024) = 0 menampilkan "0 KB" yang menyesatkan).
+  if (size < 1024) return `${size} B`;
   return size > 1024 * 1024
     ? `${(size / 1024 / 1024).toFixed(1)} MB`
     : `${Math.round(size / 1024)} KB`;
@@ -83,5 +86,6 @@ export function totalAttachmentSize(attachments) {
   if (bytes <= 0) return '';
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
   if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  if (bytes < 1024) return `${bytes} B`;
   return `${Math.round(bytes / 1024)} KB`;
 }

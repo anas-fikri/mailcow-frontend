@@ -42,7 +42,14 @@ export function formatAddresses(arr) {
 
 export function renderDate(value) {
   if (!value) return '';
-  const d = new Date(value);
+  // Format detail SOGo produksi: "Friday, September 04, 2026 14:24 WIB" —
+  // suffix zona 3-huruf non-ISO membuat Date.parse → NaN (V8 tak kenal WIB).
+  // Buang suffix itu; tanpa zona, string diparse sebagai waktu LOKAL —
+  // memang benar karena SOGo sudah merender di zona user (WIB).
+  let s = String(value).trim();
+  const withoutTz = s.match(/^(.*?\d{2}:\d{2})\s+[A-Za-z]{2,4}$/);
+  if (withoutTz) s = withoutTz[1];
+  const d = new Date(s);
   if (Number.isNaN(d.getTime())) return String(value);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
