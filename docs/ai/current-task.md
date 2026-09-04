@@ -1,28 +1,33 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260904-E2E-RUNNER
-Updated At: 2026-09-04T10:30:00Z
+Task ID: 20260904-E2E-NOTJUNK
+Updated At: 2026-09-04T11:45:00Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Wrap all three browser E2Es (contacts, calendar, mail) in one runner script with diag enable/disable automation, then run all three back-to-back to confirm they pass together.
+Add a browser E2E for the Junk folder 'Bukan Spam' (markMessagesAsNotJunk) flow, wire it into the runner, and validate against production.
 
 ## Result
-- **`scripts/e2e-browser-runner.sh [contacts|calendar|mail|all]`** — lifecycle lengkap:
-  (1) enable diag2 di server (mailbox active + password statis + static view + flush memcached)
-  + seed email pembanding "kemarin 21:38" untuk asersi sort mail E2E (Message-ID unik per run → idempoten),
-  (2) jalankan E2E terpilih berurutan (contacts → calendar → mail),
-  (3) `trap EXIT` menjamin cleanup (expunge INBOX + disable diag2) **walau test gagal** di tengah.
-- `SKIP_ENABLE=1` untuk melewati langkah server bila diag sudah aktif.
-- **Verifikasi back-to-back via runner: 3/3 PASS**:
-  - contacts: kontak muncul di daftar + persist setelah reload penuh, tanpa pageerror
-  - calendar: event muncul di grid + persist, cleanup via API session browser
-  - mail: kedatangan terverifikasi + **sort benar (uji index 0 < yesterday index 2 dari 3 baris)** + persist stabil
-- Server bersih pasca-run: INBOX diag2 = 0, `active=0`, **0 tabel** kartu/kalender tersisa
-  (SOGo auto-drop tabel kosong → tidak ada residue uji).
-- Unit suite tidak tersentuh (80/80) — runner ini opt-in, butuh SSH + Chrome.
+- **`scripts/e2e-notjunk-browser.mjs`** — rantai penuh:
+  seed via session browser (compose → send ke diri sendiri → moveMessages ke Junk,
+  persis flow native SOGo) → UI: buka folder Spam → klik "Bukan Spam" per-baris
+  (ShieldCheck) → **row hilang dari Junk** (regresi bug lama: POST 204 tanpa move) →
+  **muncul di INBOX** → **reload penuh**: tetap di INBOX & tidak kembali ke Junk
+  (persist server) → cleanup INBOX/Junk/Sent. **3 run PASS berturut-turut** (idempoten).
+- **Runner** (`scripts/e2e-browser-runner.sh`): pilihan baru `notjunk`, `all` kini
+  menjalankan 4 test; cleanup expunge INBOX+Junk+Sent.
+- **Perbaikan infra diag (temuan penting)**: `_sogo_static_view` di server ini adalah
+  TABEL FISIK — `sogo_view` tidak ada; SOGo auth langsung ke situ dgn hash BLF-CRYPT
+  dari `mailbox.password`. diag2 kehilangan row-nya → login 403 walau mailbox aktif.
+  Diperbaiki via INSERT mailcow-style + flush memcached; enable block runner direvisi
+  ke mekanisme yang benar (skrip lama pakai UPDATE sogo_view yang tidak berpengaruh).
+- Residue Sent dari E2E mail sebelumnya (5 email) dibersihkan; ke depan semua cleanup
+  menyapu tiga folder.
+- Server akhir: active=0, INBOX=0, Junk=0, Sent=0. Unit suite **80/80 PASS**.
 
 ## Follow-up
-- Jalankan `SERVER=deploy-mail scripts/e2e-browser-runner.sh` sebelum setiap rilis berdampak
-  (setara "klik manual tiga alur utama" — tapi terdokumentasi dan idempoten).
+- Jalankan `SERVER=deploy-mail scripts/e2e-browser-runner.sh` (all = 4 test) sebelum
+  rilis berdampak.
+- Label sidebar "Spam" (bundel) vs "Junk/Spam" (source) menyimpang — sekadar dokumentasi,
+  tidak diubah karena hanya kosmetik.

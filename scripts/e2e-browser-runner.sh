@@ -1,13 +1,14 @@
 #!/bin/bash
 # e2e-browser-runner.sh — jalankan SEMUA browser E2E dgn otomatisasi akun diag.
 #
-#   scripts/e2e-browser-runner.sh [contacts|calendar|mail|all]   (default: all)
+#   scripts/e2e-browser-runner.sh [contacts|calendar|mail|notjunk|all]  (default: all)
 #   SERVER=deploy-mail scripts/e2e-browser-runner.sh
 #
 # Lifecycle:
 #   1. Preflight: node + puppeteer tersedia.
-#   2. ENABLE diag2 di server (mailbox aktif + password statis + flush memcached)
-#      + seed email pembanding "kemarin 21:38" utk asersi sort di mail E2E.
+#   2. ENABLE diag2 di server (mailbox aktif + row _sogo_static_view dgn hash
+#      asli + flush memcached) + seed email pembanding "kemarin 21:38" utk
+#      asersi sort di mail E2E.
 #   3. Jalankan test terpilih (node scripts/e2e-*-browser.mjs).
 #   4. CLEANUP dijamin jalan (trap EXIT): expunge INBOX + disable diag2 —
 #      walau test gagal di tengah.
@@ -28,7 +29,7 @@ fail() { echo "[runner] ❌ $*" >&2; exit 1; }
 
 command -v node >/dev/null || fail "node tidak ditemukan"
 [ -d node_modules/puppeteer ] || fail "puppeteer belum ada (npm install dulu)"
-case "$SELECT" in contacts|calendar|mail|all) ;; *) fail "pilihan: contacts|calendar|mail|all" ;; esac
+case "$SELECT" in contacts|calendar|mail|notjunk|all) ;; *) fail "pilihan: contacts|calendar|mail|notjunk|all" ;; esac
 
 remote() { ssh -o ConnectTimeout=15 "$SERVER" 'bash -s'; }
 
@@ -44,6 +45,8 @@ DC=$(docker ps --format '{{.Names}}' | grep -Ei 'dovecot' | head -1)
 M=$(docker ps --format '{{.Names}}' | grep -Ei 'mysql|maria' | head -1)
 U='diag2@pcpexpress.co.id'
 docker exec "$DC" doveadm expunge -u "$U" mailbox INBOX ALL 2>/dev/null
+docker exec "$DC" doveadm expunge -u "$U" mailbox Junk ALL 2>/dev/null
+docker exec "$DC" doveadm expunge -u "$U" mailbox Sent ALL 2>/dev/null
 if [ -n "${DBPASS:-}" ]; then
   docker exec "$M" mysql -umailcow -p"$DBPASS" mailcow -N -e "UPDATE mailbox SET active='0' WHERE username='$U';" 2>/dev/null
 else
@@ -64,11 +67,14 @@ DC=$(docker ps --format '{{.Names}}' | grep -Ei 'dovecot' | head -1)
 M=$(docker ps --format '{{.Names}}' | grep -Ei 'mysql|maria' | head -1)
 U='diag2@pcpexpress.co.id'
 PW='DiagTest123!'
+# Infra ini: _sogo_static_view = TABEL FISIK (bukan view) — SOGo auth langsung
+# ke situ dgn hash BLF-CRYPT asli dari mailbox.password. Row per mailbox WAJIB
+# ada; tanpa itu login 403 walau mailbox aktif (kasus nyata 2026-09-04).
+# Idempoten: ON DUPLICATE KEY UPDATE. Cron */5 men sync password utk row yg ada.
 docker exec "$M" mysql -umailcow -p"$DBPASS" mailcow -N -e "UPDATE mailbox SET active='1' WHERE username='$U';" 2>/dev/null
-docker exec "$M" mysql -umailcow -p"$DBPASS" mailcow -N -e "UPDATE sogo_view SET c_password='{PLAIN}$PW' WHERE c_uid='$U';" 2>/dev/null
-docker exec "$M" mysql -umailcow -p"$DBPASS" mailcow -N -e "REPLACE INTO _sogo_static_view (c_uid, domain, c_name, c_password, c_cn, mail, aliases, ad_aliases, kind, multiple_bookings, quota) SELECT c_uid, domain, c_name, c_password, c_cn, mail, aliases, ad_aliases, kind, multiple_bookings, quota FROM sogo_view WHERE c_uid='$U';" 2>/dev/null
-docker exec "$M" mysql -umailcow -p"$DBPASS" mailcow -N -e "UPDATE _sogo_static_view SET c_password='{PLAIN}$PW' WHERE c_uid='$U';" 2>/dev/null
-docker restart memcached-mailcow >/dev/null 2>&1; sleep 2
+docker exec "$M" mysql -umailcow -p"$DBPASS" mailcow -N -e "INSERT INTO _sogo_static_view (c_uid, domain, c_name, c_password, c_cn, mail, aliases, ad_aliases, ext_acl, kind, multiple_bookings) SELECT m.username, m.domain, m.username, m.password, m.name, m.username, '', '', '', m.kind, m.multiple_bookings FROM mailbox m WHERE m.username='$U' AND m.active='1' ON DUPLICATE KEY UPDATE c_password=VALUES(c_password), c_cn=VALUES(c_cn), mail=VALUES(mail), kind=VALUES(kind), multiple_bookings=VALUES(multiple_bookings), domain=VALUES(domain), c_name=VALUES(c_name);" 2>/dev/null
+docker exec "$M" mysql -umailcow -p"$DBPASS" mailcow -N -e "DELETE FROM _sogo_static_view WHERE c_uid NOT IN (SELECT username FROM mailbox WHERE active='1');" 2>/dev/null
+docker exec mailcow-memcached-mailcow-1 sh -c 'echo flush_all | nc 127.0.0.1 11211' >/dev/null 2>&1; sleep 2
 # Pembanding "kemarin 21:38" utk asersi sort mail E2E (regresi bug RelativeDate).
 # Aman dijalankan berulang — Message-ID unik per run; dibersihkan oleh expunge
 # di cleanup.
@@ -83,13 +89,14 @@ else
 fi
 
 case "$SELECT" in
-  all) TESTS=(contacts calendar mail) ;;
+  all) TESTS=(contacts calendar mail notjunk) ;;
   *)   TESTS=("$SELECT") ;;
 esac
 declare -A SCRIPT=(
   [contacts]=scripts/e2e-contact-browser.mjs
   [calendar]=scripts/e2e-calendar-browser.mjs
   [mail]=scripts/e2e-mail-browser.mjs
+  [notjunk]=scripts/e2e-notjunk-browser.mjs
 )
 
 FAILED=""

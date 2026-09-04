@@ -179,3 +179,10 @@
   (kedatangan + **sort benar: uji index 0 < yesterday index 2** + persist stabil). Server bersih: INBOX 0, active=0,
   0 tabel kartu/kalender tersisa.
 - SKIP_ENABLE=1 utk skip langkah server bila diag sudah aktif. Laporan kegagalan ringkas di akhir (`E2E gagal: …`).
+
+## 2026-09-04 — E2E browser "Bukan Spam" (commit ke-4 alur utama) + perbaikan infra diag
+- **`scripts/e2e-notjunk-browser.mjs`**: seed via session browser (compose→send ke diri sendiri → moveMessages ke Junk) → UI: folder Spam → klik "Bukan Spam" per-baris → row hilang dari Junk → muncul di INBOX → reload penuh tetap di INBOX & tak kembali ke Junk. **3 run PASS berturut-turut**, masuk runner (`all` kini 4 test).
+- **Temuan infra penting**: `_sogo_static_view` di server ini = TABEL FISIK (bukan view; `sogo_view` tidak ada). SOGo auth langsung ke situ dgn hash BLF-CRYPT dari `mailbox.password` (cron `*/5 sync_sogo_passwords.sh` hanya UPDATE row yg ada). diag2 kehilangan row-nya → login 403 walau mailbox aktif. Perbaikan: INSERT mailcow-style dgn hash asli + flush memcached. **Enable block runner direvisi ke mekanisme ini** (skrip lama memakai UPDATE sogo_view yang tak ada efeknya di infra ini).
+- Headless shell tidak mengaktifkan CSS :hover dari CDP → cluster `hidden group-hover:flex` dipaksa tampil via injected CSS; handler mutasi tetap yang diuji.
+- Kirim-ke-diri meninggalkan salinan di **Sent** — pre-cleanup/cleanup/runner kini menyapu INBOX+Junk+Sent (residue 5 email dari E2E mail sebelumnya dibersihkan).
+- Label sidebar bundel produksi = "Spam" (source: "Junk/Spam") — selector E2E toleran regex.

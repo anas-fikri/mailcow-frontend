@@ -103,29 +103,32 @@ try {
       ...(xsrfToken ? { 'X-XSRF-TOKEN': xsrfToken } : {}),
     };
     const enc = encodeURIComponent(userEmail);
-    const res = await fetch(`/SOGo/so/${enc}/Mail/0/folderINBOX/view`, {
-      method: 'POST', credentials: 'include', headers: hdrs,
-      body: JSON.stringify({ sortby: 'date', asc: 0 }),
-    });
-    if (!res.ok) return { removed: 0, why: `view ${res.status}` };
-    const data = await res.json();
-    const headers = data?.headers || [];
-    const cols = (headers[0] || []).map((c) => String(c).toLowerCase());
-    const iSubj = cols.indexOf('subject');
-    const iUid = cols.indexOf('uid');
-    const uids = [];
-    for (const row of headers.slice(1)) {
-      if (Array.isArray(row) && String(row[iSubj]).includes('E2E Mail ')) uids.push(row[iUid]);
-    }
-    let removed = 0;
-    for (const uid of uids) {
-      const del = await fetch(`/SOGo/so/${enc}/Mail/0/folderINBOX/batchDelete`, {
+    let removed = 0, why = '';
+    // Pre-cleanup menyapu INBOX + Junk + Sent (kirim-ke-diri meninggalkan salinan di Sent)
+    for (const folder of ['folderINBOX', 'folderJunk', 'folderSent']) {
+      const res = await fetch(`/SOGo/so/${enc}/Mail/0/${folder}/view`, {
         method: 'POST', credentials: 'include', headers: hdrs,
-        body: JSON.stringify({ uids: [uid] }),
+        body: JSON.stringify({ sortby: 'date', asc: 0 }),
       });
-      if (del.ok || del.status === 204) removed += 1;
+      if (!res.ok) { why = `view ${folder} ${res.status}`; continue; }
+      const data = await res.json();
+      const headers = data?.headers || [];
+      const cols = (headers[0] || []).map((c) => String(c).toLowerCase());
+      const iSubj = cols.indexOf('subject');
+      const iUid = cols.indexOf('uid');
+      const uids = [];
+      for (const row of headers.slice(1)) {
+        if (Array.isArray(row) && String(row[iSubj]).includes('E2E Mail ')) uids.push(row[iUid]);
+      }
+      for (const uid of uids) {
+        const del = await fetch(`/SOGo/so/${enc}/Mail/0/${folder}/batchDelete`, {
+          method: 'POST', credentials: 'include', headers: hdrs,
+          body: JSON.stringify({ uids: [uid] }),
+        });
+        if (del.ok || del.status === 204) removed += 1;
+      }
     }
-    return { removed };
+    return { removed, why };
   }, USER, xsrf).catch((err) => ({ removed: 0, why: err.message }));
   if (pre.removed > 0) log('pre-cleanup:', pre.removed, 'email uji lama dihapus');
   else if (pre.why) log('pre-cleanup skip:', pre.why);
@@ -246,26 +249,32 @@ try {
       ...(xsrfToken ? { 'X-XSRF-TOKEN': xsrfToken } : {}),
     };
     const enc = encodeURIComponent(userEmail);
-    const res = await fetch(`/SOGo/so/${enc}/Mail/0/folderINBOX/view`, {
-      method: 'POST', credentials: 'include', headers: hdrs,
-      body: JSON.stringify({ sortby: 'date', asc: 0 }),
-    });
-    if (!res.ok) return { ok: false, why: `view ${res.status}` };
-    const data = await res.json();
-    const headers = data?.headers || [];
-    const cols = (headers[0] || []).map((c) => String(c).toLowerCase());
-    const iSubj = cols.indexOf('subject');
-    const iUid = cols.indexOf('uid');
-    const uids = [];
-    for (const row of headers.slice(1)) {
-      if (Array.isArray(row) && String(row[iSubj]).includes(t)) uids.push(row[iUid]);
+    let deleted = 0, ok = true, why = '';
+    // Cleanup menyapu INBOX + Junk + Sent (kirim-ke-diri meninggalkan salinan di Sent)
+    for (const folder of ['folderINBOX', 'folderJunk', 'folderSent']) {
+      const res = await fetch(`/SOGo/so/${enc}/Mail/0/${folder}/view`, {
+        method: 'POST', credentials: 'include', headers: hdrs,
+        body: JSON.stringify({ sortby: 'date', asc: 0 }),
+      });
+      if (!res.ok) { ok = false; why = `view ${folder} ${res.status}`; continue; }
+      const data = await res.json();
+      const headers = data?.headers || [];
+      const cols = (headers[0] || []).map((c) => String(c).toLowerCase());
+      const iSubj = cols.indexOf('subject');
+      const iUid = cols.indexOf('uid');
+      const uids = [];
+      for (const row of headers.slice(1)) {
+        if (Array.isArray(row) && String(row[iSubj]).includes(t)) uids.push(row[iUid]);
+      }
+      if (!uids.length) continue;
+      const del = await fetch(`/SOGo/so/${enc}/Mail/0/${folder}/batchDelete`, {
+        method: 'POST', credentials: 'include', headers: hdrs,
+        body: JSON.stringify({ uids }),
+      });
+      if (del.ok || del.status === 204) deleted += uids.length;
+      else { ok = false; why = `batchDelete ${folder} ${del.status}`; }
     }
-    if (!uids.length) return { ok: false, why: 'tidak ditemukan' };
-    const del = await fetch(`/SOGo/so/${enc}/Mail/0/folderINBOX/batchDelete`, {
-      method: 'POST', credentials: 'include', headers: hdrs,
-      body: JSON.stringify({ uids }),
-    });
-    return { ok: del.ok || del.status === 204, why: `batchDelete ${del.status}` };
+    return { ok, deleted, why };
   }, USER, xsrf2, SUBJECT).catch((err) => ({ ok: false, why: err.message }));
 
   if (cleanup.ok) {

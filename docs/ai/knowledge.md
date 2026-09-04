@@ -1502,3 +1502,10 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   `Date: yesterday 21:38` dulu agar `idx(uji) < idx(yesterday)` benar-benar mengetes parser/sort.
 - Konvensi akhir test browser: unit = `scripts/test-*.mjs` (deterministik, auto-run), browser E2E =
   `scripts/e2e-*.mjs` + runner ini (opt-in, butuh server produksi + Chrome).
+
+## 2026-09-04 — Ground truth infra auth SOGo + pola E2E hover
+- **`_sogo_static_view` di server ini TABEL FISIK, bukan view.** `sogo_view` tidak ada. SOGo auth = lookup row c_uid + hash BLF-CRYPT di tabel itu (password disync dari `mailbox.password` oleh cron `*/5` `/home/anas.fikri/sync_sogo_passwords.sh` — hanya UPDATE row yang SUDAH ada). **Mailbox aktif tanpa row = login 403.** Row hilang kalau pernah dibuang manual (hygiene orphan) dan tidak dibuat ulang oleh aktivasi via SQL murni. Buat row = INSERT mailcow-style (INSERT…SELECT dari mailbox, ON DUPLICATE KEY UPDATE) + flush memcached. Aktifkan mailbox hanya via UI admin ATAU replikasi insert ini.
+- **chrome-headless-shell tidak mengaktifkan CSS :hover via CDP mouse events** (ElementHandle.hover() berpengaruh nol pada `hidden group-hover:flex`). Solusi test: `addStyleTag` force display, klik tombol asli. `matchMedia('(hover: none)')` = false di headless (button tetap di-DOM).
+- **Send-to-self via SOGo send meninggalkan salinan di folder Sent** — semua cleanup test mail harus sapu INBOX+Junk+Sent; doveadm expunge runner juga.
+- **Page global JS hilang setelah page.reload()** — jangan simpan state di `window.*` utk dipakai lintas reload; kirim sebagai argumen evaluate.
+- Label folder bisa drift antar versi bundel (produksi "Spam" vs source "Junk/Spam") — selector E2E pakai regex toleran.
