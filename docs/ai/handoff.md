@@ -109,3 +109,8 @@
 - Laporan user (anas.fikri@pcpexpress.com): filter unread menampilkan email jam 10:38, tanpa filter email teratas malah "Kemarin 21:38".
 - Akar masalah: parser RelativeDate SPA hanya mengenal format Indonesia; SOGo merender email hari ini sebagai waktu polos ("10:38", TANPA "Today") dan nama hari English penuh ("Thursday 08:55") untuk locale English (profil anas.fikri SOGoLanguage=English) → ts=-Infinity → tenggelam di sort date-desc. Dibuktikan dari source SOGo 5.12 UIxMailListActions.m + uji parser Node + doveadm (email hari ini ada di INBOX).
 - Fix: parseMessageDate ditambah cabang waktu-polos=hari-ini (regex strict full-string), nama hari English penuh, AM/PM defensif; conversations.js ts() memakai parser yang sama (bug sekunder: preview thread salah pilih pesan terbaru). Commit f0b1d7b, regression 77/77, deploy terverifikasi (chunk MailPage-CMTXJ2bb.js memuat sunday..saturday + regex time-only).
+
+## 2026-09-04 — Investigasi & fix ratelimit 4.7.1 "mailcow" exceeded
+- Keluhan user: error 4.7.1 saat kirim dari webmail. Terbukti di postfix: 8 milter-reject (4 alfian @09:26, 4 nazwa @10:03–10:17), semua dari SOGo.
+- Akar masalah: bucket ratelimit per-user dihitung PER-PENERIMA (bincpt=nrcpt di plugin rspamd) — 6 email × banyak penerima = 93 penerima/17 menit > burst 100/1h. "mailcow" di pesan error = nama handler custom keyword, bukan bucket bersama.
+- Fix dieksekusi (disetujui user): RL_VALUE Redis 100/1h → 300/1h untuk 714 user. Custom limit lain dipertahankan (10/1m alim/innaka, 200/1h anas.fikri). Berlaku seketika, tanpa restart. Tidak ada pesan hilang (soft reject).
