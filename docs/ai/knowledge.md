@@ -1462,3 +1462,17 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Login flow SPA utk E2E: tunggu input email+password, submit, tunggu path
   keluar dari /login; react-query invalidate membuat kontak baru muncul
   tanpa reload — reload penuh tetap wajib utk bukti persist.
+
+## 2026-09-04 — E2E browser kalender: pola cleanup & XSRF
+
+- Fetch page-context (Puppeteer page.evaluate) ke SOGo WAJIB sertakan header
+  X-XSRF-TOKEN (dibaca dari cookie XSRF-TOKEN) + X-Requested-With:
+  XMLHttpRequest; tanpa itu eventsblocks/delete sering 500 (bukan transien
+  murni — header yang kurang).
+- Cleanup E2E event via API lebih andal daripada klik grid: chip event nested
+  + month view hanya render 3 event per sel (slice(0,3)) — event uji bisa tak
+  terlihat/tak terklik. Pola: eventsblocks (c_title → c_name) → delete by guid.
+- Test E2E browser harus IDEMPOTEN: pre-cleanup data uji lama di awal run,
+  karena run sebelumnya bisa gagal di tengah dan meninggalkan state.
+- SOGo 500 transien tetap ada meski header benar — retry 3x backoff 300ms
+  (pola sama dengan api.js fetchMessage).

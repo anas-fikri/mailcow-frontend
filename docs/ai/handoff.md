@@ -148,3 +148,15 @@
   2x run PASS. Menutup lingkaran regresi bug data loss createContact.
 - Infra: Chrome deps user-space (~/.local/chrome-libs, tanpa sudo) +
   findChrome()/ensureChromeLibs() reusable. diag2 harus aktif sebelum run.
+
+## 2026-09-04 — Browser E2E create event kalender (Puppeteer, produksi)
+- Test: scripts/e2e-calendar-browser.mjs — login UI → Calendar → klik "+" di
+  sel hari ini → modal Event Baru (tanggal pre-filled) → isi Judul → Buat
+  Event → muncul di grid → persist setelah reload penuh → cleanup via API
+  session browser (eventsblocks → delete by c_name, retry anti-500-transien).
+- Idempoten: pre-cleanup otomatis menghapus event uji lama di awal run
+  (2 run berturut-turut PASS); XSRF-TOKEN dari cookie wajib di header fetch
+  page-context (tanpa itu eventsblocks/delete → 500).
+- Catatan: cleanup via klik grid event tidak reliable (chip nested; slice(0,3)
+  di sel bisa menelan event uji) — pakai jalur API.
+- Suite unit tetap 80/80 PASS; diag2 disabled kembali setelah E2E.
