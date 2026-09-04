@@ -186,3 +186,8 @@
 - Headless shell tidak mengaktifkan CSS :hover dari CDP → cluster `hidden group-hover:flex` dipaksa tampil via injected CSS; handler mutasi tetap yang diuji.
 - Kirim-ke-diri meninggalkan salinan di **Sent** — pre-cleanup/cleanup/runner kini menyapu INBOX+Junk+Sent (residue 5 email dari E2E mail sebelumnya dibersihkan).
 - Label sidebar bundel produksi = "Spam" (source: "Junk/Spam") — selector E2E toleran regex.
+
+## 2026-09-04 — Full runner all-4 E2E PASS (asersi sort kini benar-benar aktif)
+- `SERVER=deploy-mail scripts/e2e-browser-runner.sh all`: **contacts + calendar + mail + notjunk PASS** berurutan, cleanup terjamin, server bersih (active=0, INBOX/Junk/Sent=0).
+- **Bug runner ditemukan & fixed**: seed pembanding memakai subjek "E2E Pembanding Kemarin", tapi asersi E2E mencari `/Yesterday/i` pada TEKS SUBJEK → asersi sort jalan dalam mode degradasi diam-diam (run all pertama hanya "kebetulan benar" karena leftover seed lama ber-subjek "Yesterday"). Seed diganti subjek "E2E Yesterday Comparer"; asersi sort kini selalu aktif (uji index 0 < yesterday index 1).
+- Pelajaran: asersi berbasis konten harus dikontrol kontraknya end-to-end (seed ↔ assertion), bukan cuma "test pass".

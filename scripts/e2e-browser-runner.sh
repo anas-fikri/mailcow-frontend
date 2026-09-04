@@ -76,10 +76,12 @@ docker exec "$M" mysql -umailcow -p"$DBPASS" mailcow -N -e "INSERT INTO _sogo_st
 docker exec "$M" mysql -umailcow -p"$DBPASS" mailcow -N -e "DELETE FROM _sogo_static_view WHERE c_uid NOT IN (SELECT username FROM mailbox WHERE active='1');" 2>/dev/null
 docker exec mailcow-memcached-mailcow-1 sh -c 'echo flush_all | nc 127.0.0.1 11211' >/dev/null 2>&1; sleep 2
 # Pembanding "kemarin 21:38" utk asersi sort mail E2E (regresi bug RelativeDate).
+# WAJIB: subjek mengandung "Yesterday" — asersi E2E mencari /Yesterday/i pada
+# TEKS SUBJEK baris (bukan tanggal). Subjek Indonesia → asersi degradasi.
 # Aman dijalankan berulang — Message-ID unik per run; dibersihkan oleh expunge
 # di cleanup.
 {
-printf 'From: Pembanding E2E <comparer@pcpexpress.co.id>\nTo: %s\nSubject: E2E Pembanding Kemarin\nDate: %s\nMessage-ID: <e2e-comparer-%s@pcpexpress.co.id>\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nEmail pembanding utk asersi sort E2E.\n' "$U" "$(date -d 'yesterday 21:38' -R)" "$(date +%s)"
+printf 'From: Pembanding E2E <comparer@pcpexpress.co.id>\nTo: %s\nSubject: E2E Yesterday Comparer\nDate: %s\nMessage-ID: <e2e-comparer-%s@pcpexpress.co.id>\nMIME-Version: 1.0\nContent-Type: text/plain; charset=utf-8\n\nEmail pembanding utk asersi sort E2E.\n' "$U" "$(date -d 'yesterday 21:38' -R)" "$(date +%s)"
 } | docker exec -i "$DC" doveadm save -u "$U" -m INBOX 2>/dev/null
 docker exec "$DC" doveadm force-resync -u "$U" mailbox INBOX >/dev/null 2>&1
 echo "enable OK — INBOX count: $(docker exec "$DC" doveadm search -u "$U" mailbox INBOX ALL 2>/dev/null | wc -l)"
