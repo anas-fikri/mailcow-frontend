@@ -1830,6 +1830,22 @@ export default function MailPage() {
                       <Trash2 size={14} />
                     </button>
                   )}
+                  {/* Bukan Spam per-baris — hanya folder Junk (hover desktop):
+                      laporan not-spam + pindahkan balik ke INBOX. */}
+                  {selectedFolder === 'folderJunk' && !isTouch && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        notJunkMutation.mutate({ uids: [msg.uid] });
+                      }}
+                      tabIndex={-1}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                      title="Bukan Spam"
+                      aria-label="Laporkan bukan spam dan kembalikan ke Kotak Masuk"
+                    >
+                      <ShieldCheck size={14} />
+                    </button>
+                  )}
                 </div>
                 {/* Star/flag — SELALU tampil bila berflag atau layar sentuh;
                     saat desktop & tidak berflag muncul bersama cluster hover.
