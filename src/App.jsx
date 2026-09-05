@@ -129,7 +129,6 @@ export default function App() {
           <SessionWatcher>
             <ChunkReloadFlagReset />
             <DeployWatcher />
-            <DeployWatcher />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />

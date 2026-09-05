@@ -234,3 +234,9 @@
 - **Backup**: `server.js.bak-sogosync-20260905-014225`, `mcp-server.js.bak-sogosync-20260905-014225` di /opt/control-tower. Services `control-tower-api` + `control-tower-mcp` restarted, keduanya active.
 - **Catatan operasional**: server.js/mcp-server.js TIDAK ada di git (live-only di /opt/control-tower); perubahan masa depan harus scp-round-trip + backup + restart kedua service.
 - Diag2 dibersihkan (active=0, row auth dihapus, INBOX=0, memcached flush).
+
+## 2026-09-05 — Klaim "wajib ganti password" muncul lagi (old bundle) + duplikat DeployWatcher
+- **Laporan**: user mendapat pesan error login LAMA ("password salah atau diwajibkan ganti password… Reset password saja TIDAK menghapus flag") padahal bundle berisi pesan baru.
+- **Investigasi**: server bersih total (715/715 row auth MATCH, 0 force_pw_update, 0 MISMATCH, tidak ada mailbox aktif tanpa row). Access log: kegagalan login 09:05:34 dari IP kantor (115.178.128.130, Chrome/macOS) → **sukses 09:05:39 dari IP sama** (Firefox/Windows). Pesan lama hanya ada di bundle pra-deploy → tab Chrome terbuka sebelum deploy + autofill password basi; tidak pernah reload sebelum percobaan login.
+- **Bonus fix**: `DeployWatcher` ter-mount 2× di App.jsx (poll deploy-check dobel tiap 5 menit) → dedup ke 1. Build + deploy ulang (`index-2-jUo9if.js`), suite 81/81.
+- **Pelajaran**: pesan error user = sumber diagnosa versi bundle; selalu cocokkan teks persis dgn bundle live sebelum menyimpulkan regresi.
