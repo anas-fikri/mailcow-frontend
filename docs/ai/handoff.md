@@ -335,3 +335,15 @@ Commit konten: `d3e0d0c`. Tidak ada aksi user — warna flag lama otomatis termi
 - Audit manual module scope MailPage (line 1–243 sebelum komponen; file berakhir di komponen): semua helper bersih (konstanta murni, komponen param-only, satu custom hook).
 - Dibangun guard AST permanen `scripts/test-module-scope-refs.mjs` (devDep: acorn + acorn-jsx) dengan self-test bawaan 3/3; memeriksa 12 file tiap run suite (kini 83/83).
 - Hasil audit penuh: 0 temuan nyata — tidak ada bug kelas flagColorOf lain yang tertinggal. Tidak ada perubahan kode produksi → tidak perlu deploy.
+
+## 2026-09-05 — Deploy audit workers/help + fix ekspos bug link webmail
+
+- Deploy `ebf067a` (audit workers/iframes/inline) + fix lanjutan live.
+- Saat verifikasi fungsional ?domain= (jsdom), ter-expos bug yang baru terlihat
+  setelah fitur hidup: `<a class="host" href="/webmail/">webmail</a>` ikut
+  diganti textContent-nya jadi "mail.X" (teks link menyesatkan). Fix di
+  email-settings.js: link relatif (tag A, href '/') dan id=mail-host tidak
+  disentuh. Test baru scripts/test-email-settings-help.mjs (jsdom) mengunci
+  kontrak: host IMAP/SMTP terganti per domain, canonical + link webmail tetap.
+- Suite 85/85 PASS; md5 live = lokal utk sw.js (fix opaqueredirect), help HTML,
+  email-settings.js; index bundle sama; SPA 200. theme-init.js legacy 404 (OK).

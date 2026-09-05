@@ -8,7 +8,10 @@
     if (domain) {
       var host = 'mail.' + domain;
       document.querySelectorAll('.host').forEach(function (el) {
-        if (el.id !== 'mail-host') el.textContent = host;
+        // Jangan sentuh: baris canonical (id=mail-host, tetap mail.pcpexpress.com)
+        // dan link relatif (href dimulai '/', mis. <a href="/webmail/">webmail</a> —
+        // mengganti textContent-nya jadi 'mail.X' membuat teks link menyesatkan).
+        if (el.id !== 'mail-host' && el.tagName !== 'A') el.textContent = host;
       });
     }
   } catch (e) { /* abaikan */ }
