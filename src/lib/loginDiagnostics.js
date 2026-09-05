@@ -1,7 +1,9 @@
 const LOGIN_ERROR_MESSAGES = {
   400: 'Format permintaan login tidak diterima server. Coba refresh halaman dan ulangi.',
   401: 'Email atau password tidak valid.',
-  403: 'Login ditolak SOGo. Periksa email/password, status mailbox aktif, dan apakah akun diwajibkan mengganti password.',
+  // JANGAN mengklaim penyebab tunggal: 403 login bisa password salah,
+  // mailbox nonaktif, ATAU gangguan sinkronisasi auth server (sementara).
+  403: 'Login ditolak. Periksa kembali email dan password Anda; jika sudah benar dan tetap gagal, tunggu beberapa menit lalu coba lagi — bila masih gagal, hubungi administrator.',
   429: 'Terlalu banyak percobaan login. Tunggu beberapa menit lalu coba lagi.',
   500: 'Server email mengalami kendala saat login. Coba lagi beberapa saat lagi.',
   502: 'Gateway email tidak dapat terhubung ke SOGo. Hubungi administrator.',
@@ -45,12 +47,15 @@ export function friendlyLoginError(err) {
   return err?.message || 'Login gagal. Periksa koneksi dan status akun.';
 }
 
-// PENTING (diagnosa 2026-09-03): SOGo di mailcow ini mengembalikan
-// LDAPPasswordPolicyError 65535 untuk SEMUA kegagalan auth — password salah
-// maupun flag force_pw_update=1 (terbukti via eksperimen mailbox kontrol).
-// Pesan tidak boleh mengklaim pasti satu penyebab.
+// PENTING (diagnosa 2026-09-03 & 2026-09-04): SOGo di mailcow ini mengembalikan
+// LDAPPasswordPolicyError 65535 untuk SEMUA kegagalan auth — password salah,
+// flag force_pw_update=1, maupun hash auth sementara rusak (window ≤5 menit
+// setelah edit mailbox: update_sogo_static_view() menulis hash bogus sampai
+// cron sync_sogo_passwords.sh memperbaikinya). Karena itu pesan WAJIB multi-
+// kemungkinan dan menyarankan retry — JANGAN mengklaim pasti "wajib ganti
+// password" (user reset-password dulu terjebak pesan salah arah ini).
 const PASSWORD_POLICY_MSG =
-  'Login ditolak: password salah atau akun diwajibkan admin mengganti password. Pastikan password terbaru sudah benar; jika tetap gagal, admin perlu menghapus flag "wajib ganti password" di dashboard.';
+  'Login ditolak: kemungkinan besar password salah. Jika Anda yakin password sudah benar, tunggu beberapa menit lalu coba lagi (sinkronisasi akun di server bisa tertunda); bila tetap gagal, hubungi administrator untuk memeriksa status akun Anda.';
 
 export function extractLoginErrorMessage(data, status) {
   // SOGo mengembalikan body seperti { LDAPPasswordPolicyError: 65535 }
@@ -81,18 +86,18 @@ export function extractLoginErrorMessage(data, status) {
 }
 
 /**
- * Pesan error ditampilkan dengan context tambahan — misalnya tombol hubungi
- * admin saat password harus diganti (LDAPPasswordPolicyError).
+ * Pesan error ditampilkan dengan context tambahan — misalnya CTA hubungi
+ * admin untuk kegagalan auth berulang (LDAPPasswordPolicyError).
  * Dipanggil dari LoginPage untuk menambah CTA di bawah pesan error.
  */
 export function loginErrorAction(err) {
   if (!err?.message) return null;
   const msg = err.message.toLowerCase();
-  if (msg.includes('diwajibkan') || msg.includes('password salah')) {
+  if (msg.includes('password salah')) {
     return {
       type: 'password-change',
       label: 'Tetap gagal? Hubungi administrator',
-      hint: 'Reset password saja TIDAK menghapus flag "wajib ganti password" (force_pw_update) — flag itu harus dihapus admin dari dashboard mailbox.',
+      hint: 'Jika password sudah benar dan login tetap gagal setelah beberapa menit, admin perlu memeriksa status akun (termasuk flag "wajib ganti password"/force_pw_update) di dashboard mailbox.',
     };
   }
   if (msg.includes('mailbox tidak aktif')) {

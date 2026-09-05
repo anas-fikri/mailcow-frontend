@@ -8,14 +8,18 @@ import {
   loginErrorAction,
 } from '../src/lib/loginDiagnostics.js';
 
-assert.equal(extractLoginErrorMessage({}, 403), 'Login ditolak SOGo. Periksa email/password, status mailbox aktif, dan apakah akun diwajibkan mengganti password.');
+// 403 fallback TIDAK boleh mengklaim "wajib ganti password" — 403 juga muncul
+// utk password salah & window sinkronisasi auth server (diagnosa 2026-09-04).
+const MSG_403 = 'Login ditolak. Periksa kembali email dan password Anda; jika sudah benar dan tetap gagal, tunggu beberapa menit lalu coba lagi — bila masih gagal, hubungi administrator.';
+assert.equal(extractLoginErrorMessage({}, 403), MSG_403);
 // SOGo mailcow: LDAPPasswordPolicyError 65535 = password salah ATAU flag
-// force_pw_update aktif (terbukti eksperimen mailbox kontrol 2026-09-03).
-const POLICY_MSG = 'Login ditolak: password salah atau akun diwajibkan admin mengganti password. Pastikan password terbaru sudah benar; jika tetap gagal, admin perlu menghapus flag "wajib ganti password" di dashboard.';
+// force_pw_update aktif ATAU window sinkronisasi hash (terbukti eksperimen
+// mailbox kontrol 2026-09-03 & reset-password 2026-09-04) — pesan multi-kemungkinan.
+const POLICY_MSG = 'Login ditolak: kemungkinan besar password salah. Jika Anda yakin password sudah benar, tunggu beberapa menit lalu coba lagi (sinkronisasi akun di server bisa tertunda); bila tetap gagal, hubungi administrator untuk memeriksa status akun Anda.';
 assert.equal(extractLoginErrorMessage({ message: 'LDAPPasswordPolicyError' }, 403), POLICY_MSG);
 // Body polos SOGo tanpa field message — path deteksi langsung.
 assert.equal(extractLoginErrorMessage({ LDAPPasswordPolicyError: 65535 }, 403), POLICY_MSG);
-assert.equal(extractLoginErrorMessage({ message: '<html>secret</html>' }, 403), 'Login ditolak SOGo. Periksa email/password, status mailbox aktif, dan apakah akun diwajibkan mengganti password.');
+assert.equal(extractLoginErrorMessage({ message: '<html>secret</html>' }, 403), MSG_403);
 assert.equal(isUnsupportedLoginFormat(415, { message: 'Unsupported content-type JSON' }), true);
 assert.equal(isUnsupportedLoginFormat(422, {}), true);
 assert.equal(isUnsupportedLoginFormat(403, { message: 'invalid password' }), false);
@@ -51,5 +55,7 @@ assert.equal(friendlyLoginError(null), 'Login gagal. Periksa koneksi dan status 
 const act = loginErrorAction({ message: POLICY_MSG });
 assert.equal(act?.type, 'password-change');
 assert.ok(act?.hint.includes('force_pw_update'));
+// Pesan lama yang salah arah tidak boleh kembali muncul.
+assert.ok(!MSG_403.includes('diwajibkan') && !POLICY_MSG.includes('diwajibkan mengganti password'), 'tidak ada klaim pasti wajib ganti password');
 
 console.log('loginDiagnostics assertions passed');

@@ -219,3 +219,10 @@
 - **Bukti**: step-by-step repro — reset via API → login 403/403 (pw baru & lama) → c_password = {SSHA256}47DEQpj8HBS → repair SQL (sama dgn cron) + flush → login pw BARU 200, pw lama 403.
 - **Rekomendasi fix**: (a) immediate-sync — control-tower server.js memanggil UPDATE-JOIN + flush memcached tepat setelah edit/mailbox yang mengubah password (menghilangkan window 5 mnt); (b) patch `update_sogo_static_view()` di container mailcow (rawan tertimpa update — prioritas a).
 - Server dibersihkan: diag2 disabled + row static view dihapus + flush memcached.
+
+## 2026-09-05 — Pesan error login 403 tidak lagi menuduh "wajib ganti password"
+- **Keluhan**: 403 login SELALU diklaim "akun diwajibkan mengganti password" walau penyebabnya lain (password salah / window sinkronisasi hash ≤5 menit setelah reset — bukti 2026-09-04).
+- **Fix** (`src/lib/loginDiagnostics.js`): 3 titik rewording — fallback 403, PASSWORD_POLICY_MSG (multi-kemungkinan + saran retry), dan hint CTA `loginErrorAction` (tidak lagi mengklaim reset tidak menghapus flag). Trigger CTA diubah dari `diwajibkan|password salah` → `password salah`.
+- **Test**: `test-login-diagnostics.mjs` diupdate + guard baru (old claim must NOT reappear). Suite **81/81 PASS**.
+- **Bonus bug**: `test-mail-golden.mjs` time-bomb — fixture renderDate hardcoded "September 04, 2026" gagal saat tanggal berganti; fixture kini dibangun dinamis (hari ini lokal, format persis SOGo).
+- **Deploy**: `api-DsiEmxta.js` live — 0 hit klaim lama, pesan baru terverifikasi via curl.

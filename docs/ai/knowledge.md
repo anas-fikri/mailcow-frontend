@@ -1532,3 +1532,7 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 4. **Fix berlapis**: sync segera di server.js control-tower setelah edit mailbox dgn password (UPDATE-JOIN + flush), dan/atau patch functions.inc.php di container (hilang saat update mailcow). Repair ad-hoc: `UPDATE _sogo_static_view sv JOIN mailbox m ON m.username=sv.c_uid SET sv.c_password=m.password WHERE m.active=1;` + flush memcached.
 5. **AuthRequest gate /api/v1/ AKTIF lagi di produksi** (site.control-tower.custom: `auth_request /api/v1-auth-check` → server.js:3003) — request API tanpa JWT dashboard / X-API-Key MCP = 401 dari server.js, BUKAN dari mailcow. Penting saat replika request untuk diagnosa.
 6. Diag eksperimen: `doveadm user` "User doesn't exist" untuk mailbox inactive — bukan error; disable mailbox dulu untuk melihat isi folder via doveadm.
+
+## 2026-09-05 — Login error copy: jangan klaim penyebab tunggal
+- Finding: Pesan error login harus multi-kemungkinan. SOGo memetakan SEMUA kegagalan auth ke 403/LDAPPasswordPolicyError 65535 — klaim "wajib ganti password" sudah 2× terbukti salah arah (mass-op 22 Aug & window hash bogus ≤5 menit setelah reset 4 Sep). Pola baru: sebut kemungkinan terbesar dulu (password salah), sarankan retry beberapa menit, baru eskalasi ke admin.
+- Gotcha test: fixture tanggal HARUS dinamis bila fungsi yang diuji punya perilaku relatif-waktu (renderDate "today" → jam-saja). Hardcoded date = time-bomb yang meledak tepat saat tanggal berganti.

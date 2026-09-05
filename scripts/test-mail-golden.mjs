@@ -104,8 +104,16 @@ assert.notEqual(phBad.level, 'safe', 'contoh phishing nyata terdeteksi');
 
 // ── 6. renderDate: format detail SOGo dgn zona WIB ───────────────────────────
 // "Friday, September 04, 2026 14:24 WIB" dulu → NaN → mentah ditampilkan.
-assert.equal(renderDate('Friday, September 04, 2026 14:24 WIB'), '14.24');
-assert.notEqual(renderDate('Friday, September 04, 2026 14:24 WIB'), 'Friday, September 04, 2026 14:24 WIB');
+// Tanggal fixture HARUS dinamis: renderDate menampilkan jam-saja utk pesan
+// "hari ini" (toDateString lokal) — fixture hardcoded pernah time-bomb saat
+// tanggal berganti (4 Sep 2026 → 5 Sep 2026 gagal '14.24' vs '4 Sep 2026').
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const _now = new Date();
+const pad2 = (n) => String(n).padStart(2, '0');
+const todayLabel = `${DAY_NAMES[_now.getDay()]}, ${MONTH_NAMES[_now.getMonth()]} ${pad2(_now.getDate())}, ${_now.getFullYear()} 14:24 WIB`;
+assert.equal(renderDate(todayLabel), '14.24');
+assert.notEqual(renderDate(todayLabel), todayLabel);
 assert.equal(renderDate('not-a-date'), 'not-a-date'); // fallback aman
 assert.equal(renderDate(''), '');
 
