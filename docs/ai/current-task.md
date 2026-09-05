@@ -1,23 +1,24 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260905-SCOPE-GUARD-LIB-EXT
+Task ID: 20260905-AUDIT-UNGUAURDED
 Updated At: 2026-09-05
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Extend the module-scope static guard (`scripts/test-module-scope-refs.mjs`) to cover `src/lib` (47 files) and `src/store` (1 file), so the bug class behind the 2026-09-05 /webmail/mail outage cannot reappear anywhere in the SPA — not just in pages/components.
+Audit the areas the module-scope guard does not cover: workers, iframes, and inline scripts — looking for the outage bug class and security issues.
 
 ## Result
-1. **Cakupan diperluas**: driver kini memindai **60 file** — `src/pages`, `src/components/mailer`, `src/lib`, `src/store`, `App.jsx`, `main.jsx` (sebelumnya 12).
-2. **Gap checker ditemukan & diperbaiki**: perluasan memunculkan 72 temuan no-undef palsu — semua konstanta ber-`export` (mis. `export const FLAG_COLORS`, `EMAIL_CATEGORIES`, `SMTP_SESSION_COOKIE`). Penyebab: pass A `scanDecls` hanya mengecek `st.type === 'VariableDeclaration'`, padahal `export const X` ber-type `ExportNamedDeclaration` dengan deklarasi di `st.declaration` → deklarasi ber-export tidak pernah terdaftar. Fix: unwrap export di `scanDecls`.
-3. **Self-test diperkuat 3→5**: case baru TDZ pada deklarasi ber-export (mengunci bahwa fix export-handling tidak melemahkan deteksi TDZ kelas CalendarPage) + case export const sehat tanpa false-positive.
-4. **Hasil**: 60 file diperiksa, **0 temuan nyata** — seluruh src/lib dan src/store bersih dari bug kelas outage.
+1. **Workers** — satu-satunya worker: `public/sw.js` (service worker). Audit aman; **diperketat**: `isCacheableResponse` kini hanya `response.ok` (hapus `opaqueredirect` — respons opaque tak bisa divalidasi, redirect cross-origin mustahil di skenario same-origin /webmail/ non-api).
+2. **Iframes** — hanya lightbox PDF di `MessageReader.jsx` (`src` = viewURL SOGo same-origin; X-Frame-Options SAMEORIGIN sudah diverifikasi). Tidak ada srcdoc / createElement('iframe') / contentWindow.
+3. **Inline scripts / eval** — tidak ada eval / new Function / createElement('script'). Semua sink (`document.write` print EML, `innerHTML` compose/editor/proxy) sudah di-escape + DOMPurify + image-proxy.
+4. **Bug fitur senyap ditemukan & diperbaiki** — `public/help/email-settings.html` punya inline `<script>` untuk fitur `?domain=` (host IMAP/SMTP per domain, diandalkan `Sidebar.jsx`), tapi CSP `script-src 'self'` (location /webmail + location ~* \.html$) memblokirnya di produksi → fitur mati tanpa error. Fix: diekstrak ke `public/help/email-settings.js` eksternal.
+5. **Guard baru** `scripts/test-public-html.mjs` — public/*.html dilarang punya inline script (mencegah regresi).
+6. **Cleanup** — `public/theme-init.js` (legacy, sudah digantikan `src/themeInit.js`) dihapus. Module-scope guard kini scan rekursif + `public/` + `src/themeInit.js` → **63 file, 0 temuan**.
 
 ## Validasi
-- Guard self-test 5/5; scan 60 file tanpa temuan.
-- Suite **83/83 PASS**.
-- Tidak ada perubahan kode produksi → tidak perlu deploy; bundle live tetap valid.
+- Suite **84/84 PASS** (83 + guard public-html baru), build produksi bersih.
+- dist terverifikasi: `sw.js` (fix opaque), `help/email-settings.js` ikut, `theme-init.js` hilang, HTML referensi script eksternal.
 
 ## Next
-- (Opsional) Cakupan bisa ditambah ke `scripts/` bila pola lintas-modul relevan, atau pasang ESLint no-undef penuh bila ingin mengunci kelas error lain.
+- **Deploy belum dilakukan** — perubahan menyentuh file yang disajikan langsung (`public/sw.js`, help page): jalankan `SERVER=deploy-mail ./deploy.sh` agar live, lalu verifikasi bundle + `/webmail/help/email-settings.html?domain=…`.

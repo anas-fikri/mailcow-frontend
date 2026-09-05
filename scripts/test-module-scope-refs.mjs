@@ -453,15 +453,18 @@ function addDir(dir) {
   const full = join(ROOT, dir);
   if (!existsSync(full)) return;
   for (const f of readdirSync(full, { withFileTypes: true })) {
-    if (f.isDirectory()) continue;
-    if (/\.(jsx|js)$/.test(f.name)) targets.push(join(dir, f.name));
+    if (f.isDirectory()) addDir(join(dir, f.name));
+    else if (/\.(jsx|js)$/.test(f.name)) targets.push(join(dir, f.name));
   }
 }
 addDir('src/pages');
 addDir('src/components/mailer');
 addDir('src/lib');
 addDir('src/store');
-targets.push('src/App.jsx', 'src/main.jsx');
+// public/: worker (sw.js) & skrip eksternal statis (theme-init legacy, help).
+// Skrip klasik tanpa import/export tetap parse sebagai module.
+addDir('public');
+targets.push('src/App.jsx', 'src/main.jsx', 'src/themeInit.js');
 
 // Mode self-test: validasi analyzer, tidak memeriksa file produksi.
 if (process.argv.includes('--self-test')) {

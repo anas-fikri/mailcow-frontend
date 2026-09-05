@@ -1607,3 +1607,27 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   tanpa false-positive — mengunci bahwa fix export-handling tidak melemahkan
   deteksi TDZ (kelas crash CalendarPage).
 - Hasil: 60 file, 0 temuan nyata — libs bersih dari bug kelas outage 2026-09-05.
+
+## 2026-09-05 — Audit area tak-tercakup: workers, iframes, inline scripts
+
+- **Workers**: satu-satunya worker = `public/sw.js` (service worker, network-first
+  /webmail/ non-api). Audit: aman; diperketat `isCacheableResponse` hanya
+  `response.ok` — `opaqueredirect` dihapus (respons opaque tak bisa divalidasi;
+  redirect cross-origin mustahil di skenario same-origin ini).
+- **Iframes**: hanya lightbox PDF `MessageReader.jsx:862` (`src` = viewURL SOGo
+  same-origin, X-Frame-Options SAMEORIGIN — sudah diverifikasi knowledge lama).
+  Tidak ada srcdoc/createElement('iframe')/contentWindow.
+- **Inline scripts / eval**: tidak ada eval/new Function/createElement('script').
+  Sink: `document.write` jalur print EML (header di-escape + body DOMPurify +
+  image-proxy), `innerHTML` ComposeModal/HtmlEditor/imageProxy (semua DOMPurify).
+- **BUG FITUR SENYAP ditemukan**: `public/help/email-settings.html` punya inline
+  `<script>` untuk ?domain= (host IMAP/SMTP per domain) — CSP `script-src 'self'`
+  di `location /webmail` DAN `location ~* \.html$` memblokirnya di produksi →
+  fitur mati tanpa error walau Sidebar.jsx mengandalkannya. Perbaikan: diekstrak
+  ke `public/help/email-settings.js` eksternal (pola sama dgn theme-init).
+- **Guard baru** `scripts/test-public-html.mjs`: public/*.html (rekursif) dilarang
+  punya inline `<script>` — mencegah kelas bug ini kembali.
+- **Cleanup**: `public/theme-init.js` (legacy classic script) dihapus — sudah
+  digantikan `src/themeInit.js` sejak lama; nginx rule regex theme-init tetap
+  harmless (404). Module-scope guard kini scan rekursif + public/ + src/themeInit.js
+  → 63 file, 0 temuan. Suite 84/84 PASS.

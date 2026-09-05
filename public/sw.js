@@ -21,7 +21,10 @@ self.addEventListener('activate', (event) => {
 });
 
 function isCacheableResponse(response) {
-  return response instanceof Response && (response.ok || response.type === 'opaqueredirect');
+  // Hanya response ok. Opaque (cross-origin/no-cors) dan opaqueredirect tidak
+  // pernah di-cache: tidak bisa divalidasi, dan di skenario ini (GET same-origin
+  // /webmail/ non-api) redirect cross-origin tidak mungkin terjadi.
+  return response instanceof Response && response.ok;
 }
 
 async function networkFirst(request) {

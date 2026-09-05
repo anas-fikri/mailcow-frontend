@@ -167,19 +167,6 @@
   <p class="note">Jika pengaturan di atas tidak berhasil, hubungi tim IT/DevOps PCP Express.</p>
 </div>
 
-<script>
-  // Sesuaikan host dengan domain user (?domain=pcpexpress.com) bila tersedia.
-  (function () {
-    try {
-      var domain = new URLSearchParams(location.search).get('domain');
-      if (domain) {
-        var host = 'mail.' + domain;
-        document.querySelectorAll('.host').forEach(function (el) {
-          if (el.id !== 'mail-host') el.textContent = host;
-        });
-      }
-    } catch (e) { /* abaikan */ }
-  })();
-</script>
+<script src="email-settings.js"></script>
 </body>
 </html>
