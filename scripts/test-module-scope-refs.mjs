@@ -157,11 +157,17 @@ function buildScopes(node, parentScope, nodeScopes) {
 
     const scanDecls = (statements) => {
       for (const st of statements || []) {
-        if (st.type === 'VariableDeclaration') {
-          for (const d of st.declarations) declarePattern(d.id, scope, st.kind);
+        // Deklarasi boleh dibungkus export (ExportNamedDeclaration/ExportDefaultDeclaration)
+        // — di module scope `export const X`, declaration berada di st.declaration.
+        const inner = st.type === 'ExportNamedDeclaration' || st.type === 'ExportDefaultDeclaration'
+          ? st.declaration
+          : st;
+        if (!inner) continue;
+        if (inner.type === 'VariableDeclaration') {
+          for (const d of inner.declarations) declarePattern(d.id, scope, inner.kind);
         }
-        if (st.type === 'FunctionDeclaration' && st.id) scope.declare(st.id.name, 'function', st.start);
-        if (st.type === 'ClassDeclaration' && st.id) scope.declare(st.id.name, 'class', st.start);
+        if (inner.type === 'FunctionDeclaration' && inner.id) scope.declare(inner.id.name, 'function', inner.start);
+        if (inner.type === 'ClassDeclaration' && inner.id) scope.declare(inner.id.name, 'class', inner.start);
       }
     };
     if (node.type === 'Program' || node.type === 'BlockStatement' || node.type === 'StaticBlock') scanDecls(node.body);
@@ -393,6 +399,20 @@ function selfTest() {
     'const B = 2;',
     'export default function Page() { return <div>{A}</div>; }',
   ].join('\n');
+  const badTdzExport = [
+    "import { useState } from 'react';",
+    '// deklarasi ber-export harus ikut terdaftar (gap yang ditemukan saat perluasan ke src/lib)',
+    'export const X = Y + 1;',
+    'export const Y = 5;',
+    'export default function Page() { return <div>{X}</div>; }',
+  ].join('\n');
+  const goodExportSnippet = [
+    "import { useState } from 'react';",
+    'export const CATS = { A: 1 };',
+    'export const CAT_KEYS = Object.keys(CATS);',
+    'export const helper = (n) => n * CATS.A;',
+    'export default function Page() { const [v] = useState(0); return <div>{CAT_KEYS.length + helper(v)}</div>; }',
+  ].join('\n');
   const goodSnippet = [
     "import { useState } from 'react';",
     'const pure = (n) => n * 2;',
@@ -408,17 +428,21 @@ function selfTest() {
   results.push({ name: 'module-scope state ref terdeteksi', ok: r1.some((i) => i.kind === 'no-undef' && i.name === 'selectedFolder') && r1.some((i) => i.kind === 'no-undef' && i.name === 'user') });
   const r2 = analyzeCode(badTdz, 'selftest-tdz.jsx');
   results.push({ name: 'TDZ use-before-declare terdeteksi', ok: r2.some((i) => i.kind === 'tdz' && i.name === 'B') });
+  const r2b = analyzeCode(badTdzExport, 'selftest-tdz-export.jsx');
+  results.push({ name: 'TDZ terdeteksi pada deklarasi ber-export', ok: r2b.some((i) => i.kind === 'tdz' && i.name === 'Y') });
   const r3 = analyzeCode(goodSnippet, 'selftest-good.jsx');
   results.push({ name: 'kode sehat tidak false-positive', ok: r3.length === 0 });
+  const r3b = analyzeCode(goodExportSnippet, 'selftest-good-export.jsx');
+  results.push({ name: 'export const sehat tidak false-positive', ok: r3b.length === 0 });
 
   const failedSelf = results.filter((r) => !r.ok);
   if (failedSelf.length > 0) {
     console.error('❌ SELF-TEST guard gagal — analyzer tidak bisa dipercaya:');
     for (const f of failedSelf) console.error(`  - ${f.name}`);
-    console.error('  detail:', JSON.stringify([r1, r2, r3], null, 1));
+    console.error('  detail:', JSON.stringify([r1, r2, r2b, r3, r3b], null, 1));
     return 1;
   }
-  console.log('✅ self-test guard: 3/3 (deteksi module-ref, deteksi TDZ, tanpa false-positive)');
+  console.log('✅ self-test guard: 5/5 (deteksi module-ref, deteksi TDZ, TDZ ber-export, tanpa false-positive)')
   return 0;
 }
 
@@ -435,6 +459,8 @@ function addDir(dir) {
 }
 addDir('src/pages');
 addDir('src/components/mailer');
+addDir('src/lib');
+addDir('src/store');
 targets.push('src/App.jsx', 'src/main.jsx');
 
 // Mode self-test: validasi analyzer, tidak memeriksa file produksi.

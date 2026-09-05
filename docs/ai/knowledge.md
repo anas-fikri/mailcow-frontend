@@ -1594,3 +1594,16 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Guard self-test 3/3 (deteksi module-ref, deteksi TDZ, nol false-positive) — guard yang tak pernah dibuktikan menangkap bug = bukan guard.
 - Audit 12 file produksi: BERSIH — tidak ada lagi helper module-scope yang mereferensikan state komponen selain yang sudah diperbaiki.
 - ForIn/ForOf deklarasi loop ada di `node.left` (bukan `node.init`) — gotcha parser yang bikin 9 false-positive pertama.
+
+## 2026-09-05 — Guard module-scope diperluas ke src/lib + src/store
+
+- `test-module-scope-refs.mjs` kini memindai **60 file** (pages, components/mailer,
+  lib, store, App, main) — sebelumnya hanya 12.
+- Gap checker ditemukan & diperbaiki saat perluasan: pass A tidak mendaftarkan
+  deklarasi yang dibungkus `export` (`export const X` = `ExportNamedDeclaration`
+  wrapping `VariableDeclaration` di `st.declaration`) → semua konstanta ber-export
+  di lib melapor no-undef palsu (72 temuan). Fix: scanDecls unwrap export.
+- Self-test diperkuat 3→5: TDZ pada deklarasi ber-export + export const sehat
+  tanpa false-positive — mengunci bahwa fix export-handling tidak melemahkan
+  deteksi TDZ (kelas crash CalendarPage).
+- Hasil: 60 file, 0 temuan nyata — libs bersih dari bug kelas outage 2026-09-05.
