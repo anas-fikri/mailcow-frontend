@@ -1,34 +1,24 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260905-MAILPAGE-AUDIT
-Updated At: 2026-09-05T08:30:00Z
+Task ID: 20260905-FLAGCOLOR-E2E-VERIFY
+Updated At: 2026-09-05
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Audit mendalam halaman /webmail/mail: flow, fitur, fungsi — cari bugs.
+Verify migrated flag colors survive after a move between folders using the diag account — end-to-end on production.
 
 ## Result
-- Arsitektur dipetakan penuh: MailPage.jsx (2.8k baris) + 10 lib pendukung
-  (dateGroups, conversations, messageRows, mailboxTree, autoArchive, snooze,
-  flagColors, crossTab, messageHtml, api) + MessageReader/ComposeModal.
-- 3 bug flow ditemukan & diperbaiki:
-  1. Filter (flag/kategori/unread/lampiran) hanya menjangkau window paginasi
-     — header infinite-scroll tidak lolos filter (kontras counter vs isi).
-     Fix: filter → lalu slice (`filteredLoadedMessages`).
-  2. Entri flag-color yatim setelah move/delete (uid SOGo per-folder dipakai
-     ulang) → pesan baru membawa warna lama. Fix: `removeFlagColorsBulk`
-     di 4 jalur mutasi.
-  3. quickReply menyuntik HTML email mentah ke compose (editor hanya
-     sanitasi setelah user edit). Fix: sanitize di sumber (PURIFY_CONFIG).
-- Test baru `scripts/test-mail-filter-pagination.mjs`; kontrak test
-  conversation di-update. Suite 82/82 PASS, build OK.
-- Tidak ditemukan: XSS di reader (prepareHtmlContent + EMAIL_PURIFY_CONFIG
-  solid), injeksi di folder path (pathSegment guard + /0/ abs-path fix),
-  race rules multi-tab (klaim localStorage ownership-based).
+- E2E browser baru `scripts/e2e-flagcolor-browser.mjs` (selector runner `flagcolor`) membuktikan lifecycle penuh di produksi dengan diag2: seed store v2 flat → migrasi otomatis ke v3 `{folderINBOX:{...}}` (+ key v2 dihapus) → warna purple tampil di UI → pindah email uji ke Arsip via tombol Arsip per-baris → purge presisi (uid uji hilang, uid lain utuh) → persist setelah reload → tanpa pageerror.
 
-## Follow-up (2026-09-05, selesai)
-- Flag-color store di-upgrade ke folder-scoped v3 (migrasi otomatis v1/v2),
-  purge-on-move presisi per folder asal, test v3 lengkap. Suite 82/82 PASS.
-- Deploy fix audit sebelumnya: SUDAH live & terverifikasi (md5 bundle).
-- Next: deploy flag-color v3 via `SERVER=deploy-mail ./deploy.sh`.
+## Bonus temuan & perbaikan (commit `881f0a1`)
+1. **OUTAGE produksi ketahuan & diperbaiki**: MailPage error boundary sejak deploy v3 (`d3e0d0c`) — `flagColorOf`/`setFlagColorOf` di module scope mereferensikan state komponen → ReferenceError saat chunk dimuat → /webmail/mail crash untuk SEMUA user. Helper dipindah ke dalam komponen. Verifikasi deploy md5/string marker tidak menangkap crash runtime — pelajaran: MailPage wajib smoke-render/E2E saat deploy.
+2. **Jalur Arsip yang lolos dari purge**: tombol Arsip per-baris panggil `moveMessages` langsung (tanpa purge snooze/flag) → kini lewat `moveMutation`; `archiveMutation` kini purge flag colors juga.
+3. **Runner diperkuat**: enable block reset password diag2 (doveadm BLF-CRYPT) — hash eksperimen lama bikin login 403; seed email uji via env `E2E_FC_SUBJECT`; expunge Archive di cleanup.
+
+## Validasi
+- Suite unit 82/82 PASS; build produksi bersih; deploy OK + bundle live md5-identik.
+- **SEMUA 7 browser E2E PASS berturut-turut** (contacts calendar mail notjunk capture spaced flagcolor) via `scripts/e2e-browser-runner.sh all`.
+
+## Next
+- (Opsional) Jadikan smoke-render MailPage sebagai langkah wajib post-deploy (mis. skrip cek cepat yang buka /webmail/mail dgn akun diag sebelum deploy dianggap sukses).
