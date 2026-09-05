@@ -285,6 +285,12 @@ async function connectSogo(email, password, encoding = 'form') {
 }
 
 export async function login(email, password) {
+  // Autofill browser sering membawa whitespace di field email (spasi awal/
+  // akhir, newline dari paste) → SOGo menolak sebagai unknown user walau
+  // password benar (kasus 2026-09-05: 403 konsisten di satu browser, sukses
+  // di browser lain dgn kredensial sama). Trim email di chokepoint; password
+  // TIDAK di-trim (spasi bisa sah bagian dari password).
+  email = String(email || '').trim();
   // Bersihkan session lama agar ganti akun tidak bawa cookie user sebelumnya.
   try {
     await fetch(`${SOGO_BASE}/SOGo/logoff`, {

@@ -247,3 +247,10 @@
 - **Fix 2** (LoginPage.jsx): pada login GAGAL, panggil `checkAndReloadOnNewDeploy({ baseUrl: '/webmail' })` fire-and-forget — tab basi yang gagal login langsung reload sekali ke build terbaru (persis kasus 09:05 tadi).
 - **Verifikasi**: suite 81/81; bundle live `index-ZG4KrZ2c.js` + `LoginPage-DEw9QdHq.js` md5 identik dgn lokal; kedua perbaikan terkonfirmasi di bundle live (minified: `intervalMs:3e5,baseUrl:`/webmail`` dan `catch(t){p({baseUrl:`/webmail`})...`).
 - **Pelajaran**: fitur "silent no-op" harus punya test yang mem-contract nilai konfigurasinya — bukan hanya perilakunya saat konfigurasi benar.
+
+## 2026-09-05 (3) — 403 konsisten di Chrome/macOS, sukses di Firefox/Windows (kredensial sama)
+- **Laporan**: user tetap dapat "kemungkinan besar password salah" (pesan baru = bundle baru) dengan kredensial yang sebelumnya langsung masuk.
+- **Bukti server**: akun anas.fikri@pcpexpress.com sehat total (active, hash MATCH, flag 0, password tak berubah sejak 3 Sep 14:16 WIB); 0 MISMATCH global; user lain login normal. Access log 24h Mac/Chrome: 3×200 (4 Sep) lalu 3×403 (5 Sep) — referer sama-sama .com; Firefox/Windows dari IP kantor sama sukses 09:05. Server menerima password benar dari browser lain → yang dikirim Chrome bukan kredensial benar.
+- **Hipotesis terkuat**: autofill Chrome basi (password pra-reset 3 Sep, atau email dengan whitespace — Chrome menyimpan per-origin, SPA dilayani .com & .co.id).
+- **Mitigasi aplikasi**: trim email di chokepoint `login()` (api.js) — autofill sering membawa spasi awal/akhir; password tidak di-trim. Suite 81/81, deploy OK.
+- **Langkah user**: di Chrome → kelola password → hapus entri lama untuk mail.pcpexpress.* → ketik manual sekali → simpan ulang.
