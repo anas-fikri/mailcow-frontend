@@ -412,3 +412,32 @@ lalu update dokumentasi & ai-toolkit, commit, push, deploy.
 -  M docs/ai/current-task.md
 -  M docs/ai/knowledge.md
 -  M docs/ai/next-tasks.md
+
+## 2026-09-05 — Analisis mendalam /webmail/mail + turunan (bugs & vulnerability)
+
+Metode: inventaris penuh MailPage → komponen turunan (MessageReader, ComposeModal,
+MultiEmailInput, QuickRuleModal) → libs (api/emailValidation/attachments/messageHtml)
+→ backend (sogo-smtp-proxy server.js). Verifikasi live + baca kode + suite.
+
+HASIL: TIDAK ditemukan bug/vulnerability baru yang kritis. Semua kelas risiko
+berikut TERKONFIRMASI terkunci:
+- Backend /api/* tertutup API-key di nginx (403 live tanpa key — semua endpoint
+  termasuk /api/health & /api/send/config). /api/send: Zod schema, validateRecipientList
+  (tolak semua control chars termasuk display name), hasControlChars(subject),
+  From-mismatch → 403, rate-limit per-user, queue terenkripsi (QUEUE_SECRET),
+  undo cek kepemilikan (entry.user === session.user → 404 bila beda), pending
+  difilter per-user.
+- buildMailOptions: from SELALU sessionUser (tidak ada From header user-controlled).
+- sendMessage klien: DOMPurify chokepoint body HTML; fallback SMTP HANYA pada 501
+  (anti kirim-ganda); viaSmtp utk lampiran/sendAt; 401 → logout, 403 tidak.
+- MultiEmailInput: display name kontak di-strip komanya (name.replace(/,/g,''))
+  sebelum `Nama <email>` → tidak ada recipient pecah; handleSend validasi per-field.
+- .eml drag-drop: body di-DOMPurify saat drop; to/cc/subject melewati validasi kirim.
+- markAllRead: batch concurrency 5 + allSettled; proses hanya header yang dimuat
+  (toast jujur melaporkan jumlah).
+- Host parity .com == .co.id (bundle md5 identik); E2E mail PASS di kedua host.
+- Suite 85/85, guard module-scope 63 file 0 temuan, build bersih.
+
+Temuan minor non-bug (dokumentasi): "Tandai semua sudah dibaca" hanya menjangkau
+header yang sudah dimuat (inherent dgn pagination); tab kategori tersembunyi saat
+search aktif (by design).
