@@ -130,6 +130,12 @@ Success criteria:
 - E2E test: login, token generation, job status, SSE progress — all pass.
 
 ### Sub-goal G-002.S-002 — Production sync validation
-- Status: BLOCKED — butuh kredensial Eranya asli + tes browser (tanpa akses agen; menunggu user).
-- End-user sync flow needs browser testing with real Eranya credentials.
-- Verify Sent/Trash/Draft folders are correctly mapped by `--automap`.
+- Status: COMPLETE (per user 2026-09-05) + audit dekomisioning Eranya tercatat di handoff.
+- Cutover 16 Agu 2026 tereksekusi: MX/SPF/autodiscover seluruh domain pindah ke
+  Mailcow + relay DNET; inbound .com terkirim ke mailcow (dovecot Saved); 0 koneksi
+  dari IP Eranya 7 hari; imapsync berhenti (container hilang, tanpa cron).
+- **Temuan audit**: jobs.json 527 akun = 413 done + 114 FAILED (source auth). Semua
+  114 mailbox AKTIF di mailcow, 22+ terima mail 48 jam. Mail historis pra-cutover
+  akun itu belum tersalin → risiko data loss bila Eranya dimusnahkan tanpa re-sync.
+- Next: re-run 114 job gagal (bila akses Eranya dipulihkan) ATAU konfirmasi akun
+  kosong sebelum terminasi tenant Eranya cloud.

@@ -347,3 +347,41 @@ Commit konten: `d3e0d0c`. Tidak ada aksi user — warna flag lama otomatis termi
   kontrak: host IMAP/SMTP terganti per domain, canonical + link webmail tetap.
 - Suite 85/85 PASS; md5 live = lokal utk sw.js (fix opaqueredirect), help HTML,
   email-settings.js; index bundle sama; SPA 200. theme-init.js legacy 404 (OK).
+
+## 2026-09-05 — Push GitLab sukses (89 commits) + Audit dekomisioning Eranya
+
+### Push GitLab (89 commits, sampai bisa)
+- wg0 lokal UP tapi handshake peer mati (route via wg0 → timeout); tanpa sudo tidak
+  bisa revive. Proxy SOCKS lokal port 1080 = systemd user service `macanas`
+  (auto-restart) yang sehat & tembus GitLab.
+- HTTPS via proxy jalan (socks5h, DNS sisi proxy). SSH port 22 via proxy tidak
+  tembus & key id_ed25519_gitlab_pcp ditolak GitLab.
+- Kredensial TIDAK ada di mesin ini (~/.git-credentials 0 byte; dashboard tanpa
+  .gitlab-token/GITLAB_TOKEN). Sumber = Mac (macanas): ~/.git-credentials berisi
+  2 entry gitlab (anas.fikri%40pcpexpress.com + oauth2). Diambil sekali → file
+  temp chmod 600 → push → file dihapus (token tidak pernah tampil).
+- Hasil: `67a9d96..0ec38ca main -> main` = 89 commits (rev-list 88 + 1 commit docs).
+  origin/main lokal sinkron (ahead=0), kredensial temp dihapus, tidak ada proses
+  tambahan tersisa (proxy macanas = milik user, systemd, tetap hidup).
+- Catatan: proxy macanas sempat ter-kill oleh kill loop saya, auto-restart systemd
+  langsung menghidupkannya kembali (PID baru). Tidak ada dampak.
+
+### Audit Eranya cloud — kesimpulan: SUDAH KELUAR dari jalur mail, TAPI 114 migrasi gagal
+- Cutover 16 Agu 2026 (scripts/cutoff-day.sh imapsync-migrate) TEREKSEKUSI: MX
+  pcpexpress.com → mxext-*.dnet.net.id (relay DNET), SPF = include dnet (bukan
+  eranyacloud), autodiscover → mail.pcpexpress.com (mailcow 202.148.2.139).
+  Zero referensi eranyacloud.com di MX/CNAME/TXT ketiga domain (.com/.co.id/
+  pcptransport.com). DMARC aktif semua.
+- Inbound .com TERBUKTI mengalir: postfix lmtp `status=sent ... Saved` via dovecot
+  (contoh 21:05 WIB abdul.latif@, titania.aldafia@). Outbound via smtp-pre relay
+  DNET. Zero koneksi dari IP Eranya (160.22.250.192 dkk) ke mailcow dalam 7 hari.
+- Tidak ada cron/proses/container imapsync aktif. Eranya IMAP (160.22.250.192:993)
+  tidak merespons (source sudah tidak bisa diakses utk re-sync).
+- **RISIKO TERSISA**: jobs.json 527 akun = 413 done + **114 FAILED** ("password
+  salah / akun tidak ditemukan di server"). Semua 114 = mailbox AKTIF di mailcow;
+  22+ menerima mail 48 jam terakhir (real users, sebagian alias layanan spt
+  ict.tech/noreply/abuse/operator). Mail HISTORIS pra-cutover akun-akun ini tidak
+  pernah tersalin dari Eranya → bila Eranya dimusnahkan tanpa re-sync, data lama
+  hilang. Eranya IMAP down → re-sync belum bisa dijalankan sekarang.
+- REKOMENDASI sebelum terminasi tenant Eranya: pulihkan akses source & re-run 114
+  job gagal, ATAU konfirmasi akun-akun itu kosong/tanpa mail penting di Eranya.

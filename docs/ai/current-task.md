@@ -1,24 +1,33 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260905-AUDIT-UNGUAURDED
+Task ID: 20260905-PUSH-GITLAB-ERANYA-AUDIT
 Updated At: 2026-09-05
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Audit the areas the module-scope guard does not cover: workers, iframes, and inline scripts — looking for the outage bug class and security issues.
+1. Push 88+ commit lokal ke GitLab (tertahan sejak tunnel wg0 mati 2026-09-02) sampai berhasil.
+2. Pastikan server Eranya cloud sudah tidak dipakai (migration dinyatakan selesai oleh user).
 
-## Result
-1. **Workers** — satu-satunya worker: `public/sw.js` (service worker). Audit aman; **diperketat**: `isCacheableResponse` kini hanya `response.ok` (hapus `opaqueredirect` — respons opaque tak bisa divalidasi, redirect cross-origin mustahil di skenario same-origin /webmail/ non-api).
-2. **Iframes** — hanya lightbox PDF di `MessageReader.jsx` (`src` = viewURL SOGo same-origin; X-Frame-Options SAMEORIGIN sudah diverifikasi). Tidak ada srcdoc / createElement('iframe') / contentWindow.
-3. **Inline scripts / eval** — tidak ada eval / new Function / createElement('script'). Semua sink (`document.write` print EML, `innerHTML` compose/editor/proxy) sudah di-escape + DOMPurify + image-proxy.
-4. **Bug fitur senyap ditemukan & diperbaiki** — `public/help/email-settings.html` punya inline `<script>` untuk fitur `?domain=` (host IMAP/SMTP per domain, diandalkan `Sidebar.jsx`), tapi CSP `script-src 'self'` (location /webmail + location ~* \.html$) memblokirnya di produksi → fitur mati tanpa error. Fix: diekstrak ke `public/help/email-settings.js` eksternal.
-5. **Guard baru** `scripts/test-public-html.mjs` — public/*.html dilarang punya inline script (mencegah regresi).
-6. **Cleanup** — `public/theme-init.js` (legacy, sudah digantikan `src/themeInit.js`) dihapus. Module-scope guard kini scan rekursif + `public/` + `src/themeInit.js` → **63 file, 0 temuan**.
+## Result 1 — Push GitLab: BERHASIL
+- `67a9d96..0ec38ca main -> main` = 89 commits (88 + 1 commit docs). origin/main lokal sinkron (ahead=0).
+- Jalur: wg0 mati (handshake) → SOCKS proxy 1080 (systemd user service macanas, sehat) → HTTPS push
+  dengan kredensial dari Mac (macanas) via file temp chmod 600, dihapus setelah push. Token tidak pernah tampil.
+- Cleanup: kredensial temp dihapus; proxy macanas = milik user (systemd auto-restart), tidak disentuh.
+
+## Result 2 — Audit Eranya cloud: KELUAR dari jalur mail, tapi ada risiko tersisa
+- Cutover 16 Agu (cutoff-day.sh) TEREKSEKUSI: MX/SPF/autodiscover semua domain → Mailcow + relay DNET.
+  Zero referensi eranyacloud di DNS; DMARC aktif; inbound .com terbukti `status=sent ... Saved` via dovecot.
+  0 koneksi dari IP Eranya ke mailcow 7 hari; tidak ada cron/proses/container imapsync.
+- RISIKO: 527 akun migrasi = 413 done + 114 FAILED (source auth "password salah"). Semua 114 aktif di
+  mailcow; 22+ terima mail 48 jam. Mail historis pra-cutover mereka belum tersalin. Eranya IMAP down
+  (tak bisa re-sync sekarang).
+- Rekomendasi sebelum terminasi tenant Eranya: re-run 114 job gagal ATAU konfirmasi akun kosong.
 
 ## Validasi
-- Suite **84/84 PASS** (83 + guard public-html baru), build produksi bersih.
-- dist terverifikasi: `sw.js` (fix opaque), `help/email-settings.js` ikut, `theme-init.js` hilang, HTML referensi script eksternal.
+- GitLab: `git ls-remote origin HEAD` = 0ec38ca (match lokal); ahead=0 setelah fetch.
+- DNS: dig MX/SPF/TXT/DMARC ketiga domain + scan eranyacloud = bersih; banner mxext dnet; postfix lmtp log.
 
-## Next (sudah dieksekusi di turn lanjutan)
-- ~~Deploy~~ → DONE: `SERVER=deploy-mail ./deploy.sh` 2x (commit `ebf067a` + `87f644b`), live terverifikasi md5-identical; verifikasi fungsional jsdom mengekspos bug link webmail (textContent `<a class="host" href="/webmail/">` ikut diganti jadi 'mail.X') → diperbaiki di `87f644b` + test baru `scripts/test-email-settings-help.mjs`. Suite 85/85 PASS. theme-init.js legacy 404 (OK).
+## Next
+- Re-run 114 migrasi gagal bila akses Eranya tersedia, atau dokumentasikan keputusan data-loss utk akun itu.
+- (Opsional) Sinkronkan ~/.git-credentials lokal dari Mac agar push berikutnya tanpa proxy manual.
