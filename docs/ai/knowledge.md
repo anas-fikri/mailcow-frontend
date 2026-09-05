@@ -1586,3 +1586,11 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Aturan verifikasi deploy MailPage: wajib smoke-render/E2E (e2e-browser-runner) — hash saja tidak cukup.
 - Runner e2e-browser-runner.sh: enable block mereset password diag2 via `doveadm pw -s BLF-CRYPT` (format `{BLF-CRYPT}$2y$...` = mailbox.password mailcow) — hash eksperimen lama menyebabkan 403 baseline.
 - Jalur pindah yang dipakai MailPage: moveMutation/quickMoveMutation/archiveMutation/junkMutation/bulkDelete → purge flag+snooze. Tombol Arsip per-baris sempat bypass (moveMessages langsung) — sekarang lewat moveMutation.
+
+## 2026-09-05 — Static guard: module-scope refs ke state komponen + TDZ
+- `scripts/test-module-scope-refs.mjs` (suite #83) — analyzer AST (acorn + acorn-jsx, devDep baru) untuk 12 file (src/pages, src/components/mailer, App, main):
+  1. **no-undef** — identifier yang tak terdeklarasi di file & bukan global = kelas bug outage flagColorOf (module-scope helper memakai state komponen).
+  2. **TDZ same-scope** — pemakaian let/const/class langsung (bukan dalam fungsi nested) sebelum deklarasi = kelas crash CalendarPage "Cannot access 'X' before initialization".
+- Guard self-test 3/3 (deteksi module-ref, deteksi TDZ, nol false-positive) — guard yang tak pernah dibuktikan menangkap bug = bukan guard.
+- Audit 12 file produksi: BERSIH — tidak ada lagi helper module-scope yang mereferensikan state komponen selain yang sudah diperbaiki.
+- ForIn/ForOf deklarasi loop ada di `node.left` (bukan `node.init`) — gotcha parser yang bikin 9 false-positive pertama.

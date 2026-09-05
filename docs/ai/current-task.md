@@ -1,24 +1,24 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260905-FLAGCOLOR-E2E-VERIFY
+Task ID: 20260905-MAILPAGE-SCOPE-AUDIT
 Updated At: 2026-09-05
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Verify migrated flag colors survive after a move between folders using the diag account — end-to-end on production.
+Re-audit MailPage (and the whole SPA surface) for other module-scope helpers referencing component state — the class of bug that caused the 2026-09-05 /webmail/mail outage (flagColorOf/setFlagColorOf at module scope → ReferenceError → error boundary for all users).
 
 ## Result
-- E2E browser baru `scripts/e2e-flagcolor-browser.mjs` (selector runner `flagcolor`) membuktikan lifecycle penuh di produksi dengan diag2: seed store v2 flat → migrasi otomatis ke v3 `{folderINBOX:{...}}` (+ key v2 dihapus) → warna purple tampil di UI → pindah email uji ke Arsip via tombol Arsip per-baris → purge presisi (uid uji hilang, uid lain utuh) → persist setelah reload → tanpa pageerror.
-
-## Bonus temuan & perbaikan (commit `881f0a1`)
-1. **OUTAGE produksi ketahuan & diperbaiki**: MailPage error boundary sejak deploy v3 (`d3e0d0c`) — `flagColorOf`/`setFlagColorOf` di module scope mereferensikan state komponen → ReferenceError saat chunk dimuat → /webmail/mail crash untuk SEMUA user. Helper dipindah ke dalam komponen. Verifikasi deploy md5/string marker tidak menangkap crash runtime — pelajaran: MailPage wajib smoke-render/E2E saat deploy.
-2. **Jalur Arsip yang lolos dari purge**: tombol Arsip per-baris panggil `moveMessages` langsung (tanpa purge snooze/flag) → kini lewat `moveMutation`; `archiveMutation` kini purge flag colors juga.
-3. **Runner diperkuat**: enable block reset password diag2 (doveadm BLF-CRYPT) — hash eksperimen lama bikin login 403; seed email uji via env `E2E_FC_SUBJECT`; expunge Archive di cleanup.
+1. **Audit manual**: module scope MailPage = line 1–243 sebelum komponen (file berakhir di komponen). Isi: konstanta murni (MESSAGE_WINDOW_MONTHS, PULL_THRESHOLD, SEARCH_CRITERIA, FOLDER_ICONS), helper murni (batchWithLimit, getFolderIcon), komponen param-only (CategoryTabs, DragHandle, PullToRefresh), dan custom hook (useResizable) — semuanya TIDAK mereferensikan state komponen. Bersih.
+2. **Guard permanen dibangun**: `scripts/test-module-scope-refs.mjs` — analyzer AST scope-aware (acorn + acorn-jsx, devDep baru) yang memeriksa 12 file (src/pages/*, src/components/mailer/*, App.jsx, main.jsx) tiap run suite:
+   - Deteksi no-undef (kelas bug outage: helper module-scope memakai identifier yang hanya ada di komponen).
+   - Deteksi TDZ same-scope (kelas crash CalendarPage "Cannot access 'X' before initialization").
+   - Self-test bawaan 3/3 (guard membuktikan dirinya menangkap pola outage persis + TDZ + nol false-positive pada kode sehat) — guard yang tak terbukti menangkap = bukan guard.
+3. **Hasil penuh**: 0 temuan nyata di 12 file — tidak ada bug kelas itu yang tersisa. Perbaikan flagColorOf sebelumnya (sudah live) adalah satu-satunya.
 
 ## Validasi
-- Suite unit 82/82 PASS; build produksi bersih; deploy OK + bundle live md5-identik.
-- **SEMUA 7 browser E2E PASS berturut-turut** (contacts calendar mail notjunk capture spaced flagcolor) via `scripts/e2e-browser-runner.sh all`.
+- Suite 83/83 PASS (82 + guard baru).
+- Tidak ada perubahan kode produksi → tidak perlu deploy; bundle live tetap valid.
 
 ## Next
-- (Opsional) Jadikan smoke-render MailPage sebagai langkah wajib post-deploy (mis. skrip cek cepat yang buka /webmail/mail dgn akun diag sebelum deploy dianggap sukses).
+- (Opsional) Perluas cakupan guard ke src/lib jika pola serupa mungkin muncul di lib dengan closure lintas modul.

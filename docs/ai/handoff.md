@@ -330,3 +330,8 @@ Commit konten: `d3e0d0c`. Tidak ada aksi user — warna flag lama otomatis termi
 - ALL 7 E2E PASS berturut-turut (contacts calendar mail notjunk capture spaced flagcolor).
 
 **Pelajaran**: (1) deploy MailPage wajib diikuti smoke-render/E2E, bukan cuma hash; (2) eksperimen yang mengubah password akun diag harus direset kembali oleh runner enable.
+
+## 2026-09-05 — Re-audit MailPage module-scope refs → guard permanen
+- Audit manual module scope MailPage (line 1–243 sebelum komponen; file berakhir di komponen): semua helper bersih (konstanta murni, komponen param-only, satu custom hook).
+- Dibangun guard AST permanen `scripts/test-module-scope-refs.mjs` (devDep: acorn + acorn-jsx) dengan self-test bawaan 3/3; memeriksa 12 file tiap run suite (kini 83/83).
+- Hasil audit penuh: 0 temuan nyata — tidak ada bug kelas flagColorOf lain yang tertinggal. Tidak ada perubahan kode produksi → tidak perlu deploy.
