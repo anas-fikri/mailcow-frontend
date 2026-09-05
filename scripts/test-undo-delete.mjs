@@ -35,6 +35,10 @@ ok(mail.includes('unsnoozeMessages(user.email, folder, uids)'),
   'snooze dibersihkan di folder ASAL');
 ok(mail.includes("queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, vars?.sourceFolder || selectedFolder] })"),
   'invalidasi cache folder ASAL');
+// Flag-color purge juga folder-scoped: entri di folder ASAL yang dibuang
+// (uid SOGo per-folder — move membuat uid asal tidak berlaku).
+ok(mail.includes("removeFlagColorsBulk(user?.email, vars?.uids || [], vars?.sourceFolder || selectedFolder)"),
+  'purge flag-color di folder ASAL (folder-scoped v3)');
 
 // ── 3. Seleksi dibersihkan saat dijadwalkan (bukan saat sukses move) ────────
 ok(mail.includes('// Pesan sudah DIJADWALKAN hapus') &&

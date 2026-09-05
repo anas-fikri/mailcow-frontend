@@ -1566,3 +1566,17 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Kontrak test berbasis regex pada source (test-conversation-*.mjs) rapuh
   terhadap refactor komentar/nama variabel — update bareng perubahan, jangan
   dimatikan.
+
+## 2026-09-05 — Pelajaran: client-side store berkunci UID wajib folder-scoped
+- Kunci UID SOGo berlaku PER-FOLDER. State client-side yang berkunci uid
+  (snooze, flag color) harus di-scope per folder + punya purge saat uid tidak
+  berlaku — satu-duanya komplementer: scope mencegah salah sasaran lintas
+  folder, purge mencegah kebocoran di folder asal.
+- Pola migrasi storage yang terbukti (storageMigrate + persistNormalized):
+  baca fallback chain versi → normalisasi → tulis key baru sekali-jalan →
+  hapus key lama HANYA bila tulis sukses. Jangan menulis saat read bila data
+  absen (read harus read-only) — menulis '{}' saat baca membuat test
+  read-only gagal & boros quota.
+- Get & set wajib menerima konteks yang sama (folderId) — helper yang
+  mengikat konteks di satu tempat (flagColorOf/setFlagColorOf di MailPage)
+  mencegah call-site lupa mengirim folder.

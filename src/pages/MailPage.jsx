@@ -25,6 +25,10 @@ import KeyboardShortcutsModal from '../components/KeyboardShortcuts';
 import SwipeableRow from '../components/SwipeableRow';
 import Avatar from '../components/Avatar';
 import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor, removeFlagColorsBulk } from '../lib/flagColors';
+// Flag-color store adalah FOLDER-SCOPED (schema v3): uid SOGo berlaku
+// per-folder, jadi warna harus dibaca/ditulis dgn konteks folder aktif.
+const flagColorOf = (uid, folder = selectedFolder) => getFlagColor(user?.email, uid, folder);
+const setFlagColorOf = (uid, color, folder = selectedFolder) => setFlagColor(user?.email, uid, color, folder);
 import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveClaims, autoArchiveClaimsKey } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
@@ -617,7 +621,7 @@ export default function MailPage() {
   // Filter messages by flag color / kategori / belum dibaca / snooze (client-side)
   const filterMessage = (m) => {
     if (!searchQuery && snoozedUids.has(String(m.uid))) return false;
-    if (flagFilter && getFlagColor(user?.email, m.uid) !== flagFilter) return false;
+    if (flagFilter && flagColorOf(m.uid) !== flagFilter) return false;
     if (categoryFilter && classifyEmail(m) !== categoryFilter) return false;
     if (unreadOnly && m.isRead) return false;
     if (hasAttachmentOnly && !m.hasAtt) return false;
@@ -1003,7 +1007,8 @@ export default function MailPage() {
       clearSnoozesForMoved(vars?.uids || [], vars?.sourceFolder);
       // Pindah folder = uid asal tidak berlaku lagi → buang entri flag-color
       // (uid dipakai ulang pesan lain → false positive).
-      removeFlagColorsBulk(user?.email, vars?.uids || []);
+      // Purge folder ASAL (move = uid di folder asal tidak berlaku lagi).
+      removeFlagColorsBulk(user?.email, vars?.uids || [], vars?.sourceFolder || selectedFolder);
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, vars?.sourceFolder || selectedFolder] });
       setSelectedUids([]);
     },
@@ -1016,7 +1021,7 @@ export default function MailPage() {
       // per-folder). Tanpa ini warna flag jadi yatim: pesan BARU yang
       // memakai ulang uid lama ikut terbawa warna + memenuhi filter flag
       // (false positive). Sama dengan pola clearSnoozesForMoved.
-      removeFlagColorsBulk(user?.email, selectedUids);
+      removeFlagColorsBulk(user?.email, selectedUids, selectedFolder);
       return scheduleDelete(selectedUids);
     },
     onSuccess: () => {
@@ -1052,7 +1057,7 @@ export default function MailPage() {
       clearSnoozesForMoved(vars?.uids || []);
       // Uid berhenti berlaku setelah pindah ke Junk → entri flag-color dibuang
       // (sama dgn bulkDeleteMutation / clearSnoozesForMoved).
-      removeFlagColorsBulk(user?.email, vars?.uids || []);
+      removeFlagColorsBulk(user?.email, vars?.uids || [], selectedFolder);
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
       setSelectedUids([]);
@@ -1066,7 +1071,7 @@ export default function MailPage() {
       moveMessages(user.sogoToken, selectedFolder, selectedUids, targetFolder),
     onSuccess: () => {
       clearSnoozesForMoved(selectedUids);
-      removeFlagColorsBulk(user?.email, selectedUids);
+      removeFlagColorsBulk(user?.email, selectedUids, selectedFolder);
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       setSelectedUids([]);
       toast.success('Pesan dipindahkan');
@@ -1074,7 +1079,6 @@ export default function MailPage() {
   });
 
   // Laporkan Spam — native SOGo markMessagesAsJunk (set flag + pindah ke Junk).
-  // (Implementasi di atas; blok duplikat lama dihapus saat audit 2026-09-05.)
   // Bukan Spam (folder Junk) — markMessagesAsNotJunk: laporan not-spam
   // (best-effort) + pindahkan balik ke INBOX (perilaku native SOGo).
   const notJunkMutation = useMutation({
@@ -1616,7 +1620,7 @@ export default function MailPage() {
       : (isActive ? 'bg-muted border-primary' : isFocused ? 'border-primary/40 bg-muted/30' : 'border-transparent');
     // Nama yang ditampilkan — dipakai juga untuk inisial avatar
     const senderLabel = isSentOrDraft ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender');
-    const colorKey = getFlagColor(user?.email, msg.uid);
+    const colorKey = flagColorOf(msg.uid);
     const hasFlag = !!msg.isFlagged || !!colorKey;
     // Lightweight phishing check: From/Reply-To domain mismatch (hanya header, tanpa body)
     // NOTE: sengaja TANPA useMemo — renderMessageRow bukan React component,
@@ -1702,9 +1706,9 @@ export default function MailPage() {
                       key={key}
                       onClick={(e) => {
                         e.stopPropagation();
-                        const currentColor = getFlagColor(user?.email, msg.uid);
+                        const currentColor = flagColorOf(msg.uid);
                         const nextColor = currentColor === key ? null : key;
-                        setFlagColor(user?.email, msg.uid, nextColor);
+                        setFlagColorOf(msg.uid, nextColor);
                         // Set warna → tandai sebagai flagged (star aktif).
                         // Kalau set warna NULL, flag tetap aktif (user bisa punya
                         // star tanpa warna — sama seperti Outlook).
@@ -1716,18 +1720,18 @@ export default function MailPage() {
                         setFlagPickerOpen(null);
                       }}
                       className={`w-9 h-9 rounded-full ${FLAG_COLORS[key].bg} hover:scale-110 transition-transform ${
-                        getFlagColor(user?.email, msg.uid) === key ? 'ring-2 ring-offset-2 ring-border' : ''
+                        flagColorOf(msg.uid) === key ? 'ring-2 ring-offset-2 ring-border' : ''
                       }`}
                       title={FLAG_COLORS[key].label}
                       aria-label={`Tandai ${FLAG_COLORS[key].label.toLowerCase()}`}
-                      aria-pressed={getFlagColor(user?.email, msg.uid) === key}
+                      aria-pressed={flagColorOf(msg.uid) === key}
                     />
                   ))}
                   <div className="w-px bg-border mx-1" />
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setFlagColor(user?.email, msg.uid, null);
+                      setFlagColorOf(msg.uid, null);
                       if (msg.isFlagged) markFlagged(user.sogoToken, selectedFolder, msg.uid, false).then(() => queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] })).catch(() => {});
                       setFlagPickerOpen(null);
                     }}
@@ -2071,7 +2075,7 @@ export default function MailPage() {
               {FLAG_COLOR_KEYS.map((key) => {
                 const colorDef = FLAG_COLORS[key];
                 const isActive = flagFilter === key;
-                const count = messagesInWindow.filter((m) => getFlagColor(user?.email, m.uid) === key).length;
+                const count = messagesInWindow.filter((m) => flagColorOf(m.uid) === key).length;
                 return (
                   <button
                     key={key}

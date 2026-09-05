@@ -279,3 +279,21 @@
 - Test baru `scripts/test-mail-filter-pagination.mjs` (kontrak filter-then-
   paginate + purge-on-move); kontrak test conversation lama di-update ke
   semantik baru. Suite 82/82 PASS. Build OK.
+
+## 2026-09-05 — Flag-color store jadi folder-scoped (schema v3)
+- Menutup edge tersisa dari bug flag yatim: store `flag_colors` kini
+  `{ [folderId]: { [uid]: colorKey } }` di key `flag_colors_v3_<email>`
+  (pola & migrasi sama dengan snooze v2→v3).
+- `getFlagColor/setFlagColor/setFlagColorsBulk/getAllFlags/countFlagColors/
+  removeFlagColor/removeFlagColorsBulk` menerima parameter `folderId`
+  (default `folderINBOX`). MailPage memakai helper `flagColorOf/
+  setFlagColorOf` terikat `selectedFolder`.
+- Migrasi otomatis: v2 flat → dibungkus `folderINBOX`; v1 legacy idem;
+  warna tak dikenal & nilai rusak dibuang; key lama dihapus setelah tulis
+  sukses; read pada storage kosong TIDAK menulis `'{}'`.
+- Purge-on-move kini presisi per-folder asal (moveMutation memakai
+  `vars.sourceFolder`). Warna di folder lain tak mungkin salah sasaran walau
+  uid dipakai ulang — isolasi di level struktur, bukan hanya disiplin purge.
+- Test: `test-flag-colors.mjs` ditulis ulang utk v3 (isolasi folder, purge
+  scoped, migrasi v1/v2, cache, korupsi, clearAll). Suite 82/82 PASS,
+  build OK.

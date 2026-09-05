@@ -22,10 +22,13 @@ assert.match(src, /const filteredLoadedMessages = useMemo\(\s*\(\) =>\s*messages
 assert.match(src, /const displayMessages = filteredLoadedMessages\.slice\(0, visibleCount\)/,
   'displayMessages = filter → THEN slice (order fixed)');
 assert.doesNotMatch(src, /= visibleMessages\.filter\(filterMessage\)/,
-  'old buggy order (filter after pagination) must not return');
-// Flag filter count di sidebar harus dari sumber yang sama (bukan window).
-assert.match(src, /const count = messagesInWindow\.filter\(\(m\) => getFlagColor/,
-  'flag filter counts use the same full-loaded source');
+  'old buggy order (filter after pagination) must not return');// Flag filter count di sidebar harus dari sumber yang sama (bukan window) —
+// sekarang lewat helper folder-scoped flagColorOf (flagColors v3).
+assert.match(src, /const count = messagesInWindow\.filter\(\(m\) => flagColorOf\(m\.uid\) === key\)\.length;/,
+  'flag filter counts use the same full-loaded source (folder-scoped helper)');
+// Semua pembacaan/tulisan flag color di MailPage harus lewat konteks folder.
+assert.doesNotMatch(src, /getFlagColor\(user\?\.email, [^,)]+\)\s*[!=]==?/, 
+  'no folder-less flag color reads (uid is per-folder — always pass folderId)');
 // Conversation juga harus dari sumber terfilter (bukan messages mentah).
 assert.doesNotMatch(src, /=> messages\.filter\(filterMessage\)/,
   'conversation source must not bypass the 5-month window');

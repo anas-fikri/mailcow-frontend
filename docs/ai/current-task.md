@@ -27,6 +27,8 @@ Audit mendalam halaman /webmail/mail: flow, fitur, fungsi — cari bugs.
   solid), injeksi di folder path (pathSegment guard + /0/ abs-path fix),
   race rules multi-tab (klaim localStorage ownership-based).
 
-## Next
-- Deploy: `SERVER=deploy-mail ./deploy.sh` (belum — menunggu instruksi).
-- Backlog: folder-scoping penuh utk flag-color store bila fitur dipakai luas.
+## Follow-up (2026-09-05, selesai)
+- Flag-color store di-upgrade ke folder-scoped v3 (migrasi otomatis v1/v2),
+  purge-on-move presisi per folder asal, test v3 lengkap. Suite 82/82 PASS.
+- Deploy fix audit sebelumnya: SUDAH live & terverifikasi (md5 bundle).
+- Next: deploy flag-color v3 via `SERVER=deploy-mail ./deploy.sh`.

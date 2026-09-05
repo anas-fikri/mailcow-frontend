@@ -1,6 +1,23 @@
 /**
  * Flag Color System — menyimpan preferensi warna flag per user di localStorage.
  * Tidak perlu SOGo API changes, cukup overlay client-side.
+ *
+ * ─── Schema v3: FOLDER-SCOPED (audit 2026-09-05) ─────────────────────────────
+ * SOGo memberi UID PER-FOLDER: pesan yang dipindah (arsip/move/trash/junk)
+ * mendapat UID BARU di folder tujuan, dan UID lama bisa DIPAKAI ULANG oleh
+ * pesan baru di folder asal. Store flat { uid: color } (v2) membuat entri
+ * yatim: warna lama menempel pada pesan baru yang kebetulan memakai uid yang
+ * sama, dan filter flag ikut salah (false positive) — kelas bug yang sama
+ * dengan snooze v2→v3 (lihat src/lib/snooze.js).
+ *
+ * Bentuk v3: { [folderId]: { [uid]: colorKey } }
+ *   - getFlagColor(email, uid, folderId) hanya melihat folder tsb.
+ *   - Purge-on-move (removeFlagColorsBulk) tetap ada sebagai pembersihan
+ *     eksplisit; dengan folder-scoping, entri yang lolos purge pun tidak
+ *     bisa salah sasaran lintas folder.
+ *
+ * Migrasi v2 (flat, per-user) → v3: entri flat dianggap milik folderINBOX
+ * (asal mayoritas operasi flag) — konsisten dengan migrasi snooze v2→v3.
  */
 
 // ─── Color Definitions ───────────────────────────────────────────────────────
@@ -19,43 +36,67 @@ export const FLAG_COLOR_DEFAULT = 'yellow';
 import { writeJSON, readStorage, persistNormalized } from './storageMigrate.js';
 
 const BASE_KEY = 'flag_colors';
-const LS_KEY = (email) => `flag_colors_v2_${email}`;
+const SCHEMA_VERSION = 3;
+const LS_KEY = (email) => `flag_colors_v3_${email}`;
+/** Folder fallback untuk entri legacy flat (v2) — konsisten dgn migrasi snooze. */
+const LEGACY_DEFAULT_FOLDER = 'folderINBOX';
 
 // Cache in-memory per email — getFlagColor dipanggil PER-BARIS di hot path
 // render MailPage (50+ baris × beberapa kali per baris). Tanpa cache, setiap
 // pemanggilan membaca + JSON.parse + normalisasi SELURUH store dari
 // localStorage → lambat (jank saat scroll) dan hit GC. Cache di-invalidate
 // saat store ditulis (setFlagColor dkk), jadi selalu segar di tab ini.
-const storeCache = new Map(); // email → parsed store (object)
+const storeCache = new Map(); // email → normalized store (folder-scoped)
+
+/** Normalisasi satu map { uid: color } — hanya warna yang dikenal. */
+function normalizeFlat(uidMap) {
+  if (!uidMap || typeof uidMap !== 'object' || Array.isArray(uidMap)) return {};
+  const clean = {};
+  for (const [uid, colorKey] of Object.entries(uidMap)) {
+    if (typeof colorKey === 'string' && FLAG_COLORS[colorKey]) clean[uid] = colorKey;
+  }
+  return clean;
+}
+
+/** Normalisasi bentuk v3 { folderId: { uid: color } }; buang folder kosong. */
+function normalizeNested(parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  const out = {};
+  for (const [folderId, uidMap] of Object.entries(parsed)) {
+    if (!uidMap || typeof uidMap !== 'object' || Array.isArray(uidMap)) continue;
+    const clean = normalizeFlat(uidMap);
+    if (Object.keys(clean).length > 0) out[folderId] = clean;
+  }
+  return out;
+}
 
 function getStore(email) {
   if (!email) return {};
   if (storeCache.has(email)) return storeCache.get(email);
 
-  const { value: parsed, key: targetKey, version, fromLegacy } = readStorage(BASE_KEY, email);
+  const { value: parsed, key: targetKey, version, fromLegacy } =
+    readStorage(BASE_KEY, email, SCHEMA_VERSION);
   let result;
   if (parsed == null) {
+    // Tidak ada data (key absen / literal null) → tidak ada yang dinormalisasi:
+    // JANGAN menulis '{}' ke storage saat baca (read-only path). Store baru
+    // dibuat saat tulis pertama lewat setFlagColor dkk.
     result = {};
+    storeCache.set(email, result);
+    return result;
   } else if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    // Bentuk rusak → bersihkan sekali: tulis {} di key terbaru (v2).
+    // Bentuk rusak → bersihkan sekali: tulis {} di key terbaru (v3).
     writeJSON(targetKey, {});
     result = {};
+  } else if (version < 3) {
+    // v1/v2 flat { uid: color } → bungkus ke folderINBOX (migrasi v3).
+    result = { [LEGACY_DEFAULT_FOLDER]: normalizeFlat(parsed) };
   } else {
-    // Migrasi sekali-jalan: buang key dengan warna yang tidak lagi dikenal
-    // (mis. warna lama/rusak) agar countFlagColors/getAllFlags tidak menyimpan
-    // sampah; ditulis balik bila ada yang dibuang.
-    let changed = false;
-    for (const [uid, colorKey] of Object.entries(parsed)) {
-      if (typeof colorKey !== 'string' || !FLAG_COLORS[colorKey]) {
-        delete parsed[uid];
-        changed = true;
-      }
-    }
-    // Write-back SEKALI-JALAN: hasil prune dipersist + data v1 dipindah ke v2
-    // (key v1 dihapus hanya bila tulis sukses). Idempotent utk data valid.
-    persistNormalized(BASE_KEY, email, parsed, parsed, { fromLegacy, key: targetKey, version });
-    result = parsed;
+    result = normalizeNested(parsed);
   }
+  // Write-back SEKALI-JALAN: bentuk ternormalisasi dipersist ke key v3,
+  // key legacy dihapus bila tulis sukses (idempotent utk data valid).
+  persistNormalized(BASE_KEY, email, parsed, result, { fromLegacy, key: targetKey, version });
   storeCache.set(email, result);
   return result;
 }
@@ -66,104 +107,116 @@ function invalidateStore(email) {
 
 function saveStore(email, store) {
   if (!email) return;
-  try {
-    localStorage.setItem(LS_KEY(email), JSON.stringify(store));
-  } catch {}
+  writeJSON(LS_KEY(email), store);
   invalidateStore(email);
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-/** Dapatkan warna flag untuk satu message */
-export function getFlagColor(email, msgUid) {
+/** Dapatkan warna flag untuk satu message PADA FOLDER tertentu. */
+export function getFlagColor(email, msgUid, folderId = LEGACY_DEFAULT_FOLDER) {
   if (!email || !msgUid) return null;
-  const store = getStore(email);
-  const colorKey = store[String(msgUid)];
+  const folderMap = getStore(email)[String(folderId || LEGACY_DEFAULT_FOLDER)];
+  const colorKey = folderMap?.[String(msgUid)];
   return colorKey && FLAG_COLORS[colorKey] ? colorKey : null;
 }
 
-/** Set warna flag untuk satu message (null = hapus flag) */
-export function setFlagColor(email, msgUid, colorKey) {
+/** Set warna flag untuk satu message (null = hapus flag). */
+export function setFlagColor(email, msgUid, colorKey, folderId = LEGACY_DEFAULT_FOLDER) {
   if (!email || !msgUid) return;
   const store = getStore(email);
+  const folder = String(folderId || LEGACY_DEFAULT_FOLDER);
+  const folderMap = { ...(store[folder] || {}) };
   if (colorKey && FLAG_COLORS[colorKey]) {
-    store[String(msgUid)] = colorKey;
+    folderMap[String(msgUid)] = colorKey;
   } else {
-    delete store[String(msgUid)];
+    delete folderMap[String(msgUid)];
+  }
+  if (Object.keys(folderMap).length > 0) {
+    store[folder] = folderMap;
+  } else {
+    delete store[folder];
   }
   saveStore(email, store);
 }
 
-/** Bulk set flag colors */
-export function setFlagColorsBulk(email, uidColorMap) {
+/** Bulk set flag colors untuk SATU folder. */
+export function setFlagColorsBulk(email, uidColorMap, folderId = LEGACY_DEFAULT_FOLDER) {
   if (!email) return;
   const store = getStore(email);
-  Object.entries(uidColorMap).forEach(([uid, colorKey]) => {
+  const folder = String(folderId || LEGACY_DEFAULT_FOLDER);
+  const folderMap = { ...(store[folder] || {}) };
+  Object.entries(uidColorMap || {}).forEach(([uid, colorKey]) => {
     if (colorKey && FLAG_COLORS[colorKey]) {
-      store[String(uid)] = colorKey;
+      folderMap[String(uid)] = colorKey;
     } else {
-      delete store[String(uid)];
+      delete folderMap[String(uid)];
     }
   });
+  if (Object.keys(folderMap).length > 0) {
+    store[folder] = folderMap;
+  } else {
+    delete store[folder];
+  }
   saveStore(email, store);
 }
 
-/** Dapatkan semua flag dengan warnanya untuk satu user */
-export function getAllFlags(email) {
-  return getStore(email);
+/** Semua flag user utk satu folder — { uid: colorKey } (bentuk lama API). */
+export function getAllFlags(email, folderId = LEGACY_DEFAULT_FOLDER) {
+  return getStore(email)[String(folderId || LEGACY_DEFAULT_FOLDER)] || {};
 }
 
-/** Hitung jumlah per warna */
-export function countFlagColors(email) {
-  const store = getStore(email);
+/** Hitung jumlah per warna untuk satu folder. */
+export function countFlagColors(email, folderId = LEGACY_DEFAULT_FOLDER) {
   const counts = {};
   FLAG_COLOR_KEYS.forEach((k) => (counts[k] = 0));
-  Object.values(store).forEach((color) => {
-    if (counts[color] !== undefined) counts[color]++;
+  Object.values(getAllFlags(email, folderId)).forEach((color) => {
+    if (counts[color] !== undefined) counts[color] += 1;
   });
   return counts;
 }
 
-/** Hapus flag untuk UID tertentu */
-export function removeFlagColor(email, msgUid) {
-  setFlagColor(email, msgUid, null);
-}
-
 /**
- * Hapus entri flag-color untuk BANYAK uid sekaligus.
+ * Hapus entri flag-color untuk BANYAK uid pada SATU folder.
  *
- * Dipanggil SETELAH pesan dipindah/dihapus dari sebuah folder (move/arsip/
- * trash/junk) — uid SOGo berlaku PER-FOLDER: pesan yang pindah mendapat uid
- * BARU di folder tujuan, sehingga entri warna di folder asal menjadi yatim.
- * Tanpa pembersihan, pesan BARU yang kebetulan memakai ulang uid lama ikut
- * terbawa warna + memenuhi filter flag (false positive) — kelas bug yang
- * sama dengan snooze v2→v3 (lihat src/lib/snooze.js).
- *
- * Catatan: store masih FLAT per-user (bukan folder-scoped seperti snooze v3)
- * karena konsumennya hanya MailPage/MessageReader; purge-on-move di semua
- * jalur mutasi menutup aliran yatim utama. Keterbatasan: warna yang diset
- * lalu pesannya dipindah oleh jalur yang belum purge tetap bisa yatim.
+ * Dipanggil SETELAH pesan dipindah/dihapus dari folder asal (move/arsip/
+ * trash/junk) — uid di folder asal tidak berlaku lagi. Dengan store
+ * folder-scoped, purge ini scopenya presisi: hanya entri folder asal yang
+ * dihapus; warna di folder lain tidak mungkin salah sasaran walau uid sama.
  *
  * @returns {number} jumlah entri yang dihapus (0 bila tidak ada).
  */
-export function removeFlagColorsBulk(email, msgUids) {
+export function removeFlagColorsBulk(email, msgUids, folderId = LEGACY_DEFAULT_FOLDER) {
   if (!email || !Array.isArray(msgUids) || msgUids.length === 0) return 0;
   const store = getStore(email);
+  const folder = String(folderId || LEGACY_DEFAULT_FOLDER);
+  const folderMap = store[folder];
+  if (!folderMap) return 0;
   let removed = 0;
   for (const uid of msgUids) {
-    if (uid != null && Object.prototype.hasOwnProperty.call(store, String(uid))) {
-      delete store[String(uid)];
+    if (uid != null && Object.prototype.hasOwnProperty.call(folderMap, String(uid))) {
+      delete folderMap[String(uid)];
       removed += 1;
     }
   }
-  if (removed > 0) saveStore(email, store);
+  if (removed > 0) {
+    if (Object.keys(folderMap).length === 0) delete store[folder];
+    saveStore(email, store);
+  }
   return removed;
 }
 
-/** Hapus semua flag untuk user */
+/** Hapus flag untuk UID tertentu pada satu folder. */
+export function removeFlagColor(email, msgUid, folderId = LEGACY_DEFAULT_FOLDER) {
+  setFlagColor(email, msgUid, null, folderId);
+}
+
+/** Hapus semua flag untuk user (SEMUA folder). */
 export function clearAllFlags(email) {
   if (!email) return;
-  localStorage.removeItem(LS_KEY(email));
+  try { localStorage.removeItem(LS_KEY(email)); } catch {}
+  try { localStorage.removeItem(`flag_colors_v2_${email}`); } catch {}
+  try { localStorage.removeItem(`flag_colors_${email}`); } catch {}
   invalidateStore(email);
 }
 
