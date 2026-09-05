@@ -297,3 +297,15 @@
 - Test: `test-flag-colors.mjs` ditulis ulang utk v3 (isolasi folder, purge
   scoped, migrasi v1/v2, cache, korupsi, clearAll). Suite 82/82 PASS,
   build OK.
+
+## 2026-09-05 — Deploy flag-color v3 folder-scoped + verifikasi bundle live
+
+**Deploy**: `SERVER=deploy-mail ./deploy.sh` — semua post-deploy check OK (image proxy 200, `/api/health` 200 via nginx + API key).
+
+**Verifikasi live bundle** (mail.pcpexpress.co.id/webmail):
+- `index-DstfPKd4.js` — md5 live `b4f06680…` = md5 lokal ✅
+- `MailPage-Bq8vrG8G.js` — md5 live `b0eadbdb…` = md5 lokal ✅
+- Marker v3 di chunk live: storage key `flag_colors_v3_<email>` ✅, referensi `flag_colors_v2_` = **0** (migrasi via version-field, bukan key lama) ✅
+- Logika v3 terkonfirmasi di bundle: default `folderINBOX`, migrasi `version<3 → wrap {folderINBOX: …}`, purge per-folder via `removeFlagColorsBulk(email, uids, folder)` ✅
+
+Commit konten: `d3e0d0c`. Tidak ada aksi user — warna flag lama otomatis termigrasi.
