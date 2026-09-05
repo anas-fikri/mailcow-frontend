@@ -16,7 +16,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import puppeteer from 'puppeteer';
 
-const HOST = 'https://mail.pcpexpress.co.id';
+const HOST = process.env.E2E_HOST || 'https://mail.pcpexpress.co.id';
 const USER = process.env.E2E_USER || 'diag2@pcpexpress.co.id';
 const PASS = process.env.E2E_PASS || 'DiagTest123!';
 const STAMP = Date.now();

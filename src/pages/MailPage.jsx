@@ -585,7 +585,6 @@ export default function MailPage() {
   // ── Load More (client-side pagination, after messages assignment) ─────────
   const PAGE_SIZE = 50;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const visibleMessages = messagesInWindow.slice(0, visibleCount);
 
   // ── Snooze (client-side) ───────────────────────────────────────────────────
   // Pesan yang di-snooze disembunyikan dari daftar; muncul lagi saat waktunya.
@@ -608,9 +607,13 @@ export default function MailPage() {
   // Sumber hitung kategori: pesan yang BENAR-BENAR terlihat. Pesan yang
   // di-snooze disembunyikan dari daftar → tidak boleh ikut dihitung di tab
   // kategori (kalau tidak: tab "Promosi 5" tapi daftar cuma 3 → membingungkan).
+  // HARUS dari messagesInWindow (bukan `messages` mentah): email di luar
+  // window 5-bulan INBOX tidak pernah tampil di daftar — menghitungnya membuat
+  // badge kategori lebih besar dari isi daftar (audit 2026-09-05). Di luar
+  // INBOX / saat search, messagesInWindow === messages → tidak ada perubahan.
   const categorySource = useMemo(
-    () => messages.filter((m) => !snoozedUids.has(String(m.uid))),
-    [messages, snoozedUids]
+    () => messagesInWindow.filter((m) => !snoozedUids.has(String(m.uid))),
+    [messagesInWindow, snoozedUids]
   );
 
   // Folder Arsip — SOGo/Dovecot punya folder root "Archive" (diverifikasi).

@@ -22,7 +22,14 @@ assert.match(src, /const filteredLoadedMessages = useMemo\(\s*\(\) =>\s*messages
 assert.match(src, /const displayMessages = filteredLoadedMessages\.slice\(0, visibleCount\)/,
   'displayMessages = filter → THEN slice (order fixed)');
 assert.doesNotMatch(src, /= visibleMessages\.filter\(filterMessage\)/,
-  'old buggy order (filter after pagination) must not return');// Flag filter count di sidebar harus dari sumber yang sama (bukan window) —
+  'old buggy order (filter after pagination) must not return');
+// ── 1b. Hitung tab kategori harus dari window yang sama dgn daftar ──────────
+assert.match(src, /const categorySource = useMemo\(\s*\(\) => messagesInWindow\.filter\(/,
+  'category tab counts come from messagesInWindow (same source as the list), not raw messages');
+assert.doesNotMatch(src, /\(\) => messages\.filter\(\(m\) => !snoozedUids\.has/,
+  'old categorySource (raw messages incl. outside 5-month window) must not return');
+assert.doesNotMatch(src, /const visibleMessages = messagesInWindow\.slice\(0, visibleCount\);/,
+  'dead visibleMessages variable removed (unused after filter-before-pagination fix)');// Flag filter count di sidebar harus dari sumber yang sama (bukan window) —
 // sekarang lewat helper folder-scoped flagColorOf (flagColors v3).
 assert.match(src, /const count = messagesInWindow\.filter\(\(m\) => flagColorOf\(m\.uid\) === key\)\.length;/,
   'flag filter counts use the same full-loaded source (folder-scoped helper)');

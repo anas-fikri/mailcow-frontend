@@ -385,3 +385,19 @@ Commit konten: `d3e0d0c`. Tidak ada aksi user — warna flag lama otomatis termi
   hilang. Eranya IMAP down → re-sync belum bisa dijalankan sekarang.
 - REKOMENDASI sebelum terminasi tenant Eranya: pulihkan akses source & re-run 114
   job gagal, ATAU konfirmasi akun-akun itu kosong/tanpa mail penting di Eranya.
+
+## 2026-09-05 — Analisis mendalam /webmail/mail (host .com) — fix count kategori
+
+- Verifikasi paritas host: mail.pcpexpress.com == .co.id (bundle index md5 identik,
+  CSP sama). E2E mail browser PASS di .com (login/compose/kirim/sort/persist) —
+  anomali login .com sebelumnya = sisi klien (autofill), bukan server.
+- Audit: MailPage tidak punya sink XSS langsung (no dangerouslySetInnerHTML/href
+  konstruksi; render via React escape + child reader/compose yg DOMPurify).
+  markRead/markFlagged folder-scoped & konsisten (search folder-scoped).
+  classifyEmail/countCategories null-safe. E2E mail PASS di .co.id juga.
+- BUG fix (konsistensi UI): categorySource (badge tab kategori) memakai `messages`
+  mentah, padahal komentar intent = "pesan yg benar-benar terlihat" → email di luar
+  window 5-bulan INBOX ikut dihitung (badge > isi daftar). Fix: filter dari
+  messagesInWindow. + hapus dead `visibleMessages` (sisa sebelum fix filter-order).
+- test-mail-filter-pagination.mjs dikunci: categorySource harus dari
+  messagesInWindow; visibleMessages tidak boleh kembali. Suite 85/85 PASS.
