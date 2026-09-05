@@ -1536,3 +1536,10 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 ## 2026-09-05 — Login error copy: jangan klaim penyebab tunggal
 - Finding: Pesan error login harus multi-kemungkinan. SOGo memetakan SEMUA kegagalan auth ke 403/LDAPPasswordPolicyError 65535 — klaim "wajib ganti password" sudah 2× terbukti salah arah (mass-op 22 Aug & window hash bogus ≤5 menit setelah reset 4 Sep). Pola baru: sebut kemungkinan terbesar dulu (password salah), sarankan retry beberapa menit, baru eskalasi ke admin.
 - Gotcha test: fixture tanggal HARUS dinamis bila fungsi yang diuji punya perilaku relatif-waktu (renderDate "today" → jam-saja). Hardcoded date = time-bomb yang meledak tepat saat tanggal berganti.
+
+## 2026-09-05 — Immediate SOGo auth sync + ops control-tower
+- Finding: repair hash SOGo paling aman = JALANKAN script cron yang sama (`sync_sogo_passwords.sh`) secara immediate, jangan duplikasi SQL di Node — script sudah punya guard flush-kondisional (ROW_COUNT>0) yang mencegah logout massal. Idempoten: dipanggil berkali-kali tanpa perubahan hash = tanpa efek.
+- Finding: /opt/control-tower server.js & mcp-server.js live-only (bukan git repo). mcp-server.js posts LANGSUNG ke Mailcow API (bypass proxy server.js) — hook mutasi harus dipasang di KEDUA file.
+- Gotcha: `node --check /tmp/x.js.new` gagal ERR_UNKNOWN_FILE_EXTENSION (Node 18 ESM deteksi via ekstensi) — cek syntax SETELAH file di-install ke path final, atau gunakan ekstensi .mjs.
+- Gotcha: `sudo -n journalctl` blok diam-diam (journalctl tidak masuk NOPASSWD whitelist, output kosong exit 0) — pakai `sudo -n bash -c 'journalctl …'` (bash ada di whitelist). Output unit control-tower-api → jurnal (root); akses via sudo bash.
+- Gotcha: diag2 dapat "ditelur" percobaan reset sebelumnya (password tak tercatat) — selalu set baseline password via jalur terkontrol sebelum E2E auth, jangan asumsikan PW dari sesi sebelumnya.

@@ -226,3 +226,11 @@
 - **Test**: `test-login-diagnostics.mjs` diupdate + guard baru (old claim must NOT reappear). Suite **81/81 PASS**.
 - **Bonus bug**: `test-mail-golden.mjs` time-bomb — fixture renderDate hardcoded "September 04, 2026" gagal saat tanggal berganti; fixture kini dibangun dinamis (hari ini lokal, format persis SOGo).
 - **Deploy**: `api-DsiEmxta.js` live — 0 hit klaim lama, pesan baru terverifikasi via curl.
+
+## 2026-09-05 — Immediate SOGo auth sync di control-tower (window 5 menit dihapus)
+- **Masalah**: setiap reset password mailbox, mailcow `update_sogo_static_view()` menulis hash bogus → SOGo menolak SEMUA password sampai cron `*/5 sync_sogo_passwords.sh` memperbaikinya. User login gagal ±5 menit dengan pesan menyesatkan.
+- **Fix di server** (`/opt/control-tower/`, bukan repo ini): `triggerSogoAuthSync()` fire-and-forget menjalankan `/home/anas.fikri/sync_sogo_passwords.sh` (script cron yang sama — UPDATE JOIN hash + flush memcached hanya bila ada hash berubah, idempoten) setelah **edit/mailbox yang mengubah password sukses**. Dua chokepoint: `server.js` proxy `/api/v1` (menutup SPA/automation) dan `mcp-server.js` `edit_mailbox` (MCP posts langsung ke Mailcow, bypass proxy). Hook terpasang SETELAH response 200 → kegagalan sync tak pernah menggagalkan reset.
+- **E2E produksi terbukti**: hash dipaksa bogus → reset via proxy → **MATCH dalam +5s** (cron masih 257s jauh) → login password baru **200** tanpa flush manual. Journal: `[sogo-sync] edit/mailbox password (items=diag2@…): changed=1` (3× terpicu).
+- **Backup**: `server.js.bak-sogosync-20260905-014225`, `mcp-server.js.bak-sogosync-20260905-014225` di /opt/control-tower. Services `control-tower-api` + `control-tower-mcp` restarted, keduanya active.
+- **Catatan operasional**: server.js/mcp-server.js TIDAK ada di git (live-only di /opt/control-tower); perubahan masa depan harus scp-round-trip + backup + restart kedua service.
+- Diag2 dibersihkan (active=0, row auth dihapus, INBOX=0, memcached flush).
