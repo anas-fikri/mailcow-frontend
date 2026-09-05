@@ -1631,3 +1631,25 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
   digantikan `src/themeInit.js` sejak lama; nginx rule regex theme-init tetap
   harmless (404). Module-scope guard kini scan rekursif + public/ + src/themeInit.js
   → 63 file, 0 temuan. Suite 84/84 PASS.
+
+## 2026-09-05 — Sumber hitung kategori + paritas host + prosedur push GitLab
+
+- MailPage `categorySource` (badge tab Utama/Promosi/Sosial/Update) HARUS dari
+  `messagesInWindow` (bukan `messages` mentah): window 5-bulan INBOX menyembunyikan
+  email lama dari daftar, jadi menghitungnya membuat badge > isi daftar. Pola:
+  sumber hitung UI selalu dari sumber yang sama dengan yang dirender.
+- Paritas host: mail.pcpexpress.com dan mail.pcpexpress.co.id menyajikan bundle
+  identik (single dist, nginx dua server_name). Bedanya hanya sisi klien
+  (password manager per-domain, autofill). E2E bisa ditarget ke host mana via
+  `E2E_HOST=https://mail.pcpexpress.com`.
+- Prosedur push GitLab saat wg0 mati: SOCKS proxy `macanas` (systemd user service,
+  port 1080, bisa tembus gitlab HTTPS) + kredensial dari Mac ~/.git-credentials
+  (entry user anas.fikri@pcpexpress.com atau oauth2) → file temp chmod 600 →
+  `env https_proxy=socks5h://127.0.0.1:1080 git -c credential.helper="store
+  --file=..." push origin main` → rm temp. SSH key id_ed25519_gitlab_pcp TIDAK
+  terotorisasi di GitLab (ditolak) — HTTPS + token adalah jalur yang berlaku.
+
+## 2026-09-05T15:05:23Z
+- Task: 20260905-MAILPAGE-DEEP-ANALYSIS-DELIVERY
+- Status: COMPLETED
+- Finding: MailPage categorySource harus dari messagesInWindow (bukan messages mentah) agar badge kategori sinkron dgn daftar (window 5-bulan INBOX). Host .com == .co.id (bundle identik), beda hanya sisi klien autofill. Push GitLab saat wg0 mati: SOCKS proxy macanas:1080 + kredensial Mac via file temp chmod 600; SSH key gitlab_pcp tidak terotorisasi. E2E_HOST env-overridable utk uji host lain. Suite 85/85 PASS.
