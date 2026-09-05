@@ -441,3 +441,9 @@ berikut TERKONFIRMASI terkunci:
 Temuan minor non-bug (dokumentasi): "Tandai semua sudah dibaca" hanya menjangkau
 header yang sudah dimuat (inherent dgn pagination); tab kategori tersembunyi saat
 search aktif (by design).
+
+## 2026-09-05 — Deep audit round-2 /webmail/mail turunan: bersih
+
+- Cakupan baru (sebelumnya belum ter-audit): autoArchive rule engine, contactCapture/emailHistory, snooze storage, draft save/restore + attachment restore, attachment download, QuickRuleModal, Conversation, parseRecipientEntry.
+- Hasil: tidak ada bug/vulnerability baru; validasi 85/85 test PASS + guard 63 file bersih + build OK. Tidak ada perubahan kode → tidak perlu deploy.
+- Detail bukti per alur: docs/ai/knowledge.md entri 2026-09-05 (audit round-2).
