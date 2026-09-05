@@ -20,5 +20,5 @@ Audit the areas the module-scope guard does not cover: workers, iframes, and inl
 - Suite **84/84 PASS** (83 + guard public-html baru), build produksi bersih.
 - dist terverifikasi: `sw.js` (fix opaque), `help/email-settings.js` ikut, `theme-init.js` hilang, HTML referensi script eksternal.
 
-## Next
-- **Deploy belum dilakukan** — perubahan menyentuh file yang disajikan langsung (`public/sw.js`, help page): jalankan `SERVER=deploy-mail ./deploy.sh` agar live, lalu verifikasi bundle + `/webmail/help/email-settings.html?domain=…`.
+## Next (sudah dieksekusi di turn lanjutan)
+- ~~Deploy~~ → DONE: `SERVER=deploy-mail ./deploy.sh` 2x (commit `ebf067a` + `87f644b`), live terverifikasi md5-identical; verifikasi fungsional jsdom mengekspos bug link webmail (textContent `<a class="host" href="/webmail/">` ikut diganti jadi 'mail.X') → diperbaiki di `87f644b` + test baru `scripts/test-email-settings-help.mjs`. Suite 85/85 PASS. theme-init.js legacy 404 (OK).
