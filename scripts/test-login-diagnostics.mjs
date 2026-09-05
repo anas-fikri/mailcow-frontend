@@ -6,6 +6,7 @@ import {
   isNetworkError,
   friendlyLoginError,
   loginErrorAction,
+  maskEmail,
 } from '../src/lib/loginDiagnostics.js';
 
 // 403 fallback TIDAK boleh mengklaim "wajib ganti password" — 403 juga muncul
@@ -50,6 +51,14 @@ assert.equal(friendlyLoginError(new TypeError('Failed to fetch')), friendly);
 assert.equal(friendlyLoginError(Object.assign(new Error('x'), { name: 'AbortError' })), friendly);
 assert.equal(friendlyLoginError(new Error('Email atau password tidak valid.')), 'Email atau password tidak valid.');
 assert.equal(friendlyLoginError(null), 'Login gagal. Periksa koneksi dan status akun.');
+
+// ── Diagnostik 403: mask email terkirim (autofill/akun salah ketahuan) ──────
+assert.equal(maskEmail('anas.fikri@pcpexpress.com'), 'an••••••••@pcpexpress.com'); // 10 huruf → 2 + 8•
+assert.equal(maskEmail('  user@domain.com '), 'us••@domain.com'); // trim dulu
+assert.equal(maskEmail('bukan-akun@pcpexpress.com'), 'bu••••••••@pcpexpress.com');
+assert.equal(maskEmail('nonsense'), 'no•••');
+assert.equal(maskEmail(''), '(kosong)');
+assert.equal(maskEmail(null), '(kosong)');
 
 // ── CTA untuk pesan password-policy (password salah ATAU flag aktif) ─────────
 const act = loginErrorAction({ message: POLICY_MSG });

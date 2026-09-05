@@ -106,6 +106,22 @@ export function loginErrorAction(err) {
   return null;
 }
 
+/**
+ * Mask email untuk diagnostik login: "anas.fikri@pcpexpress.com" →
+ * "an••••••••••@pcpexpress.com". Tujuan: pada 403, user bisa MELIHAT email
+ * apa yang benar-benar dikirim browser — autofill/akun salah langsung
+ * ketahuan tanpa mengekspos kredensial.
+ */
+export function maskEmail(value) {
+  const s = String(value ?? '').trim();
+  if (!s) return '(kosong)';
+  const at = s.lastIndexOf('@');
+  if (at <= 0) return `${s.slice(0, 2)}•••`;
+  const local = s.slice(0, at);
+  const domain = s.slice(at + 1);
+  return `${local.slice(0, 2)}${'•'.repeat(Math.max(local.length - 2, 1))}@${domain}`;
+}
+
 export function isUnsupportedLoginFormat(status, data) {
   // These statuses explicitly mean the request representation is unsupported.
   if ([415, 422].includes(status)) return true;

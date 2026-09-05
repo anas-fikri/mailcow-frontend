@@ -7,7 +7,7 @@ import { parseMessageRows } from './messageRows.js';
 import { parseContactRow } from './contactUtils.js';
 import { parseCalendarEvents } from './calendarEvents.js';
 import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
-import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFormat } from './loginDiagnostics.js';
+import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFormat, maskEmail } from './loginDiagnostics.js';
 import { flattenMailboxes } from './mailboxTree.js';
 import { bumpDomainVersion } from './crossTab.js';
 import { pickExternalContacts, filterKnownContacts } from './contactCapture.js';
@@ -314,6 +314,11 @@ export async function login(email, password) {
   if (!isLoginSuccessResponse(res, response)) {
     const error = new Error(extractLoginErrorMessage(response.data, res.status));
     error.status = res.status;
+    // Diagnostik 403 (kasus 2026-09-05): browser lain sukses dgn kredensial
+    // "sama" → yang dikirim browser gagal bukan kredensial benar. Tampilkan
+    // email ter-kirim (dimask) agar user langsung melihat identitas yang
+    // dipakai attempt ini — tanpa mengekspos kredensial.
+    error.submittedEmail = maskEmail(email);
     throw error;
   }
 

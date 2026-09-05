@@ -83,7 +83,10 @@ export default function LoginPage() {
       // 403 dgn pesan lama, server sehat). Reload otomatis sekali bila build
       // server lebih baru; kegagalan jaringan diabaikan.
       checkAndReloadOnNewDeploy({ baseUrl: '/webmail' }).catch(() => {});
-      setError(friendlyLoginError(err));
+      // Diagnostik: tampilkan email yang benar-benar terkirim (dimask) pada
+      // 403 — autofill/akun salah ketahuan instan oleh user sendiri.
+      const base = friendlyLoginError(err);
+      setError(err?.submittedEmail ? `${base} (Email terkirim: ${err.submittedEmail})` : base);
       setErrorAction(loginErrorAction(err));
     } finally {
       setLoading(false);
