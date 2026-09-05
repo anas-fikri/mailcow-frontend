@@ -1548,3 +1548,21 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Finding: fetch path relatif `''` = origin root. SPA di subpath (`base: '/webmail/'`) WAJIB meneruskan baseUrl di semua fetch meta/asset non-hashed. `/index.html` di origin ini 404 → `fetchServerBuildVersion` balas null → `shouldReloadForDeploy` false → tidak pernah reload. Gejala: user melihat pesan error versi lama padahal server sudah 2 deploy lebih baru.
 - Pattern: konfigurasi yang salah secara diam-diam (silent no-op) dikontractkan via regression test yang membaca source pemanggil (assert `baseUrl: '/webmail'` hadir di App.jsx & LoginPage.jsx), bukan hanya unit test fungsi.
 - Gotcha verifikasi bundle minified: identifier di-rename (`checkAndReloadOnNewDeploy` → `p`) — grep literal nama fungsi gagal; kontrak string (`baseUrl:\`/webmail\``, `index.html`, `__pcp_deploy_reload`) yang selamat dari minifier.
+
+## 2026-09-05 — Pelajaran dari audit /webmail/mail
+- **Urutan operasi filter vs paginasi**: menerapkan filter client-side pada
+  "window paginasi" (slice) membuat hasil infinite-scroll terlihat tidak
+  konsisten dengan counter filter. Kontrak yang benar: filter atas SELURUH
+  data ter-muat dulu, paginasi memotong hasil filter.
+- **Semua state client-side yang berkunci UID harus dibersihkan saat uid
+  tidak berlaku** (move/delete/junk): SOGo uid per-folder — dipakai ulang.
+  Snooze sudah folder-scoped + purge; flag-color kini juga purge-on-move
+  (flat store; folder-scoping lengkap = backlog bila jumlah pengguna fitur
+  warna meningkat).
+- **Sanitasi harus di sumber data, bukan di consumer**: ComposeModal hanya
+  sanitasi setelah user edit (dirtyRef guard), sehingga jalur yang menyuntik
+  HTML email mentah (quickReply) adalah celah. Aturan: semua konten dari
+  pengirim (body/header) di-sanitize di titik masuk sebelum dioper ke state.
+- Kontrak test berbasis regex pada source (test-conversation-*.mjs) rapuh
+  terhadap refactor komentar/nama variabel — update bareng perubahan, jangan
+  dimatikan.

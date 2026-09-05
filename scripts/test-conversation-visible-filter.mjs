@@ -3,8 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const src = fs.readFileSync('src/pages/MailPage.jsx', 'utf8');
-assert.match(src, /const filteredMessages = useMemo\(/,
-  'conversation has a full loaded-message filter source');
+// Audit 2026-09-05: filter diterapkan pada messagesInWindow SEBELUM paginasi
+// (filteredLoadedMessages → slice) — sebelumnya filter hanya menjangkau
+// visibleMessages (window paginasi) sehingga header hasil infinite-scroll
+// tidak pernah lolos filter flag/kategori/unread/lampiran.
+assert.match(src, /const filteredLoadedMessages = useMemo\(/,
+  'filter applies to ALL loaded messages, not only the pagination window');
+assert.match(src, /filteredLoadedMessages\.slice\(0, visibleCount\)/,
+  'pagination slices the FILTERED list (filter before pagination)');
 assert.match(src, /groupConversations\(filteredMessages,/,
   'conversation groups all loaded filtered messages');
 assert.match(src, /const visibleConversationUids = useMemo\(/,

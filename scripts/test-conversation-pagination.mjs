@@ -15,6 +15,10 @@ assert.match(src, /group\.messages\[0\]/,
   'conversation always keeps latest message visible');
 assert.match(src, /visibleConversationGroups\.filter\(\(group\) => group\.messages\.length > 1\)\.slice\(0, 50\)/,
   'expand-all excludes singleton groups and keeps the 50-thread safety limit');
-assert.match(src, /Conversation dibentuk dari semua pesan yang sudah dimuat/,
+assert.match(src, /Conversation dibentuk dari SEMUA pesan yang sudah dimuat/,
   'conversation grouping documents its loaded-message contract');
+// Audit 2026-09-05: sumber filter = messagesInWindow (bukan `messages` mentah)
+// agar pesan luar window 5-bulan INBOX tidak muncul lewat jalur conversation.
+assert.match(src, /const filteredLoadedMessages = useMemo/,
+  'filter+window applied in one memo (window applies to conversation source too)');
 console.log('conversation-pagination: assertions PASS');

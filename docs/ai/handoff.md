@@ -254,3 +254,28 @@
 - **Hipotesis terkuat**: autofill Chrome basi (password pra-reset 3 Sep, atau email dengan whitespace — Chrome menyimpan per-origin, SPA dilayani .com & .co.id).
 - **Mitigasi aplikasi**: trim email di chokepoint `login()` (api.js) — autofill sering membawa spasi awal/akhir; password tidak di-trim. Suite 81/81, deploy OK.
 - **Langkah user**: di Chrome → kelola password → hapus entri lama untuk mail.pcpexpress.* → ketik manual sekali → simpan ulang.
+
+## 2026-09-05 — Audit mendalam /webmail/mail: 3 bug flow ditemukan & diperbaiki
+- **Bug 1 (filter vs paginasi)**: filter flag/kategori/unread/lampiran hanya
+  diterapkan ke `visibleMessages` (irisan window paginasi 50 & hasil fetch).
+  Header hasil infinite-scroll tidak pernah lolos filter → filter "belum
+  dibaca" bisa tampil lebih sedikit/kosong, tab kategori "Promosi N" tidak
+  sinkron dengan isi daftar. Fix: filter dijalankan di `messagesInWindow`
+  (seluruh header ter-muat) → slice paginasi pada HASIL filter
+  (`filteredLoadedMessages`), urutan operasi dibalik. Tab kategori & flag
+  count ikut memakai sumber yang sama.
+- **Bug 2 (flag-color yatim)**: entri warna flag (localStorage per-uid)
+  tidak dibersihkan saat pesan pindah/dihapus; uid SOGo per-folder dipakai
+  ulang → pesan BARU membawa warna lama + memenuhi filter flag (false
+  positive). Kelas bug sama dengan snooze v2→v3. Fix: `removeFlagColorsBulk`
+  (flagColors.js) dipanggil di moveMutation, quickMoveMutation,
+  bulkDeleteMutation, junkMutation.
+- **Bug 3 (quickReply tanpa sanitasi di sumber)**: quote balasan cepat
+  menyuntik `extractHtml(detail.parts)` MENTAH ke compose; editor hanya
+  sanitasi setelah user mengetik (dirtyRef) → konten berbahaya bisa lolos
+  ke mode "HTML Source"/plain-strip. Fix: `DOMPurify.sanitize(...,
+  PURIFY_CONFIG)` di sumber (konfigurasi yang sama dipakai editor &
+  chokepoint sendMessage).
+- Test baru `scripts/test-mail-filter-pagination.mjs` (kontrak filter-then-
+  paginate + purge-on-move); kontrak test conversation lama di-update ke
+  semantik baru. Suite 82/82 PASS. Build OK.

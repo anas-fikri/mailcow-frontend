@@ -129,6 +129,37 @@ export function removeFlagColor(email, msgUid) {
   setFlagColor(email, msgUid, null);
 }
 
+/**
+ * Hapus entri flag-color untuk BANYAK uid sekaligus.
+ *
+ * Dipanggil SETELAH pesan dipindah/dihapus dari sebuah folder (move/arsip/
+ * trash/junk) — uid SOGo berlaku PER-FOLDER: pesan yang pindah mendapat uid
+ * BARU di folder tujuan, sehingga entri warna di folder asal menjadi yatim.
+ * Tanpa pembersihan, pesan BARU yang kebetulan memakai ulang uid lama ikut
+ * terbawa warna + memenuhi filter flag (false positive) — kelas bug yang
+ * sama dengan snooze v2→v3 (lihat src/lib/snooze.js).
+ *
+ * Catatan: store masih FLAT per-user (bukan folder-scoped seperti snooze v3)
+ * karena konsumennya hanya MailPage/MessageReader; purge-on-move di semua
+ * jalur mutasi menutup aliran yatim utama. Keterbatasan: warna yang diset
+ * lalu pesannya dipindah oleh jalur yang belum purge tetap bisa yatim.
+ *
+ * @returns {number} jumlah entri yang dihapus (0 bila tidak ada).
+ */
+export function removeFlagColorsBulk(email, msgUids) {
+  if (!email || !Array.isArray(msgUids) || msgUids.length === 0) return 0;
+  const store = getStore(email);
+  let removed = 0;
+  for (const uid of msgUids) {
+    if (uid != null && Object.prototype.hasOwnProperty.call(store, String(uid))) {
+      delete store[String(uid)];
+      removed += 1;
+    }
+  }
+  if (removed > 0) saveStore(email, store);
+  return removed;
+}
+
 /** Hapus semua flag untuk user */
 export function clearAllFlags(email) {
   if (!email) return;

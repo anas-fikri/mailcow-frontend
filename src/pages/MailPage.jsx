@@ -6,6 +6,8 @@ import {
   Folder, FolderPlus, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown, ChevronRight,
   Archive, BellRing, CheckCheck, Clock, Paperclip, CalendarClock, Reply, ShieldCheck,
 } from 'lucide-react';
+import DOMPurify from 'dompurify';
+import { PURIFY_CONFIG } from '../lib/pasteUtils';
 import { useAuthStore } from '../store/authStore';
 import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markFlagged, markMessagesAsJunk, markMessagesAsNotJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, undoScheduledSend } from '../lib/api';
 import { formatAddresses } from '../lib/format';
@@ -22,7 +24,7 @@ import { watchDomainVersion } from '../lib/crossTab';
 import KeyboardShortcutsModal from '../components/KeyboardShortcuts';
 import SwipeableRow from '../components/SwipeableRow';
 import Avatar from '../components/Avatar';
-import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor } from '../lib/flagColors';
+import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor, removeFlagColorsBulk } from '../lib/flagColors';
 import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveClaims, autoArchiveClaimsKey } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
@@ -621,15 +623,27 @@ export default function MailPage() {
     if (hasAttachmentOnly && !m.hasAtt) return false;
     return true;
   };
-  const displayMessages = visibleMessages.filter(filterMessage);
 
-  // Conversation dibentuk dari semua pesan yang sudah dimuat dan lolos filter,
-  // bukan dari visibleMessages yang hanya berisi page pertama. Ini menjaga
-  // thread tetap stabil saat infinite-scroll menambah data.
-  const filteredMessages = useMemo(
-    () => messages.filter(filterMessage),
-    [messages, searchQuery, snoozedUids, flagFilter, user?.email, categoryFilter, unreadOnly, hasAttachmentOnly]
+  // BUG FIX (audit 2026-09-05): filter (flag/kategori/belum-dibaca/lampiran)
+  // sebelumnya hanya diterapkan ke `visibleMessages` — irisan window paginasi
+  // (visibleCount) dan hasil fetch. Akibatnya header yang dimuat via infinite
+  // scroll TIDAK lolos filter: dengan filter "belum dibaca" aktif, scroll
+  // memuat email baru yang tak terlihat; kategori "Promosi 12" tapi daftar
+  // tampil 4; flag filter menghitung header yang tak pernah dirender.
+  // Sekarang: filter diterapkan ke messagesInWindow (seluruh header yang
+  // sudah dimuat), paginasi visibleCount memotong HASIL filter — urutan
+  // operasi dibalik, hasil keduanya konsisten untuk semua filter.
+  const filteredLoadedMessages = useMemo(
+    () => messagesInWindow.filter(filterMessage),
+    [messagesInWindow, searchQuery, snoozedUids, flagFilter, user?.email, categoryFilter, unreadOnly, hasAttachmentOnly]
   );
+  const displayMessages = filteredLoadedMessages.slice(0, visibleCount);
+
+  // Conversation dibentuk dari SEMUA pesan yang sudah dimuat dan lolos filter
+  // (bukan hasil slice paginasi) — thread tetap stabil saat infinite-scroll
+  // menambah data. Sumber = messagesInWindow (bukan `messages` mentah): pesan
+  // luar window 5-bulan INBOX tidak boleh muncul lewat jalur conversation.
+  const filteredMessages = filteredLoadedMessages;
 
   // Conversation mode memakai satu preview terbaru per grup pada halaman awal.
   // Preview diambil dari hasil grouping yang sudah diurutkan berdasarkan date,
@@ -987,13 +1001,24 @@ export default function MailPage() {
       moveMessages(user.sogoToken, sourceFolder, uids, targetFolder),
     onSuccess: (_data, vars) => {
       clearSnoozesForMoved(vars?.uids || [], vars?.sourceFolder);
+      // Pindah folder = uid asal tidak berlaku lagi → buang entri flag-color
+      // (uid dipakai ulang pesan lain → false positive).
+      removeFlagColorsBulk(user?.email, vars?.uids || []);
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, vars?.sourceFolder || selectedFolder] });
       setSelectedUids([]);
     },
   });
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: () => scheduleDelete(selectedUids),
+    mutationFn: () => {
+      // BUG FIX (audit 2026-09-05): hapus entri flag-color SEBELUM uid
+      // berhenti berlaku (pindah/hapus mengubah pemetaan uid; SOGo uid
+      // per-folder). Tanpa ini warna flag jadi yatim: pesan BARU yang
+      // memakai ulang uid lama ikut terbawa warna + memenuhi filter flag
+      // (false positive). Sama dengan pola clearSnoozesForMoved.
+      removeFlagColorsBulk(user?.email, selectedUids);
+      return scheduleDelete(selectedUids);
+    },
     onSuccess: () => {
       if (selectedUids.includes(selectedMsgId)) setSelectedMsgId(null);
       // Pesan sudah DIJADWALKAN hapus — bersihkan seleksi sekarang (header
@@ -1020,22 +1045,14 @@ export default function MailPage() {
     },
   });
 
-  const quickMoveMutation = useMutation({
-    mutationFn: ({ targetFolder }) =>
-      moveMessages(user.sogoToken, selectedFolder, selectedUids, targetFolder),
-    onSuccess: () => {
-      clearSnoozesForMoved(selectedUids);
-      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
-      setSelectedUids([]);
-      toast.success('Pesan dipindahkan');
-    },
-  });
-
   // Laporkan Spam — native SOGo markMessagesAsJunk (set flag + pindah ke Junk).
   const junkMutation = useMutation({
     mutationFn: ({ uids }) => markMessagesAsJunk(user.sogoToken, selectedFolder, uids),
     onSuccess: (_data, vars) => {
       clearSnoozesForMoved(vars?.uids || []);
+      // Uid berhenti berlaku setelah pindah ke Junk → entri flag-color dibuang
+      // (sama dgn bulkDeleteMutation / clearSnoozesForMoved).
+      removeFlagColorsBulk(user?.email, vars?.uids || []);
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
       setSelectedUids([]);
@@ -1044,6 +1061,20 @@ export default function MailPage() {
     onError: (err) => toast.error(err?.message || 'Gagal melaporkan spam.'),
   });
 
+  const quickMoveMutation = useMutation({
+    mutationFn: ({ targetFolder }) =>
+      moveMessages(user.sogoToken, selectedFolder, selectedUids, targetFolder),
+    onSuccess: () => {
+      clearSnoozesForMoved(selectedUids);
+      removeFlagColorsBulk(user?.email, selectedUids);
+      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
+      setSelectedUids([]);
+      toast.success('Pesan dipindahkan');
+    },
+  });
+
+  // Laporkan Spam — native SOGo markMessagesAsJunk (set flag + pindah ke Junk).
+  // (Implementasi di atas; blok duplikat lama dihapus saat audit 2026-09-05.)
   // Bukan Spam (folder Junk) — markMessagesAsNotJunk: laporan not-spam
   // (best-effort) + pindahkan balik ke INBOX (perilaku native SOGo).
   const notJunkMutation = useMutation({
@@ -1317,7 +1348,14 @@ export default function MailPage() {
       const subject = detail.subject || '';
       const date    = detail.date || '';
       const replyTo = formatAddresses(detail['reply-to']);
-      const body    = extractHtml(detail.parts);
+      // Sanitasi di SUMBER (bukan bergantung pada editor tujuan): body email
+      // adalah input pengirim. Jalur MessageReader membersihkan via
+      // prepareHtmlContent sebelum dipakai, tetapi quickReply menyuntik mentah
+      // ke compose — editor hanya mensanitasi SETELAH user mengetik
+      // (dirtyRef), jadi quote dari email berbahaya bisa lolos utuh ke
+      // textarea "HTML Source" atau strip plain-text. PURIFY_CONFIG = config
+      // yang sama dipakai editor compose & chokepoint sendMessage.
+      const body    = DOMPurify.sanitize(extractHtml(detail.parts) || '', PURIFY_CONFIG);
       setComposeData({
         composeMode: 'reply',
         to: replyTo || from,
@@ -1544,7 +1582,7 @@ export default function MailPage() {
   // Reset focus index saat daftar pesan berubah
   useEffect(() => {
     setFocusIdx(-1);
-  }, [selectedFolder, searchQuery, visibleMessages.length]);
+  }, [selectedFolder, searchQuery, filteredLoadedMessages.length]);
 
   // Scroll message into view when focusIdx changes
   const msgRefs = useRef({});
@@ -2033,7 +2071,7 @@ export default function MailPage() {
               {FLAG_COLOR_KEYS.map((key) => {
                 const colorDef = FLAG_COLORS[key];
                 const isActive = flagFilter === key;
-                const count = visibleMessages.filter((m) => getFlagColor(user?.email, m.uid) === key).length;
+                const count = messagesInWindow.filter((m) => getFlagColor(user?.email, m.uid) === key).length;
                 return (
                   <button
                     key={key}

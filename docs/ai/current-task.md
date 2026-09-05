@@ -1,20 +1,32 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260905-STALE-TAB-RELOAD-FIX
-Updated At: 2026-09-05T09:45:00Z
+Task ID: 20260905-MAILPAGE-AUDIT
+Updated At: 2026-09-05T08:30:00Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Lanjutan laporan user: pesan error login versi lama muncul dari tab basi. Akar ditelusuri & diperbaiki.
+Audit mendalam halaman /webmail/mail: flow, fitur, fungsi — cari bugs.
 
 ## Result
-- **Akar sebenarnya**: `startDeployPolling()` tanpa `baseUrl` → fetch `/index.html` 404 → auto-reload-on-deploy **no-op diam-diam sejak awal** (bukan sekadar tab yang kebetulan tidak reload).
-- **Fix 1**: App.jsx kirim `baseUrl: '/webmail'` — poller URL kini 200 (diverifikasi produksi).
-- **Fix 2**: LoginPage.jsx — pada login gagal, cek & reload sekali bila build server lebih baru (`checkAndReloadOnNewDeploy`).
-- **Regression contract**: test-deploy-check.mjs assert kedua call site memakai `baseUrl: '/webmail'`.
-- Suite **81/81**; deploy OK; bundle live md5-identik (`index-ZG4KrZ2c.js`, `LoginPage-DEw9QdHq.js`).
+- Arsitektur dipetakan penuh: MailPage.jsx (2.8k baris) + 10 lib pendukung
+  (dateGroups, conversations, messageRows, mailboxTree, autoArchive, snooze,
+  flagColors, crossTab, messageHtml, api) + MessageReader/ComposeModal.
+- 3 bug flow ditemukan & diperbaiki:
+  1. Filter (flag/kategori/unread/lampiran) hanya menjangkau window paginasi
+     — header infinite-scroll tidak lolos filter (kontras counter vs isi).
+     Fix: filter → lalu slice (`filteredLoadedMessages`).
+  2. Entri flag-color yatim setelah move/delete (uid SOGo per-folder dipakai
+     ulang) → pesan baru membawa warna lama. Fix: `removeFlagColorsBulk`
+     di 4 jalur mutasi.
+  3. quickReply menyuntik HTML email mentah ke compose (editor hanya
+     sanitasi setelah user edit). Fix: sanitize di sumber (PURIFY_CONFIG).
+- Test baru `scripts/test-mail-filter-pagination.mjs`; kontrak test
+  conversation di-update. Suite 82/82 PASS, build OK.
+- Tidak ditemukan: XSS di reader (prepareHtmlContent + EMAIL_PURIFY_CONFIG
+  solid), injeksi di folder path (pathSegment guard + /0/ abs-path fix),
+  race rules multi-tab (klaim localStorage ownership-based).
 
 ## Next
-- Push akumulasi commit lokal ke GitLab saat jendela push.
-- (Opsional) Pantau 1-2 hari: tidak ada lagi laporan "pesan lama" berarti fix efektif.
+- Deploy: `SERVER=deploy-mail ./deploy.sh` (belum — menunggu instruksi).
+- Backlog: folder-scoping penuh utk flag-color store bila fitur dipakai luas.
