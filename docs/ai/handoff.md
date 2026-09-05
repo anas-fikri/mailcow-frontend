@@ -309,3 +309,24 @@
 - Logika v3 terkonfirmasi di bundle: default `folderINBOX`, migrasi `version<3 → wrap {folderINBOX: …}`, purge per-folder via `removeFlagColorsBulk(email, uids, folder)` ✅
 
 Commit konten: `d3e0d0c`. Tidak ada aksi user — warna flag lama otomatis termigrasi.
+
+## 2026-09-05 — Verifikasi flag-color v3 E2E: ketemu OUTAGE produksi + fix
+
+**E2E baru `e2e-flagcolor-browser.mjs`** (runner: `flagcolor`) menguji lifecycle penuh di produksi dgn akun diag2:
+1. Seed localStorage v2 flat {4:red,7:blue} → reload → migrasi otomatis ke v3 folderINBOX wrap, key v2 terhapus (PASS)
+2. Warna purple pada email uji tampil di UI star (PASS)
+3. Pindah ke Arsip via tombol Arsip PER-BARIS → purge presisi (uid uji hilang, uid lain utuh) + persist setelah reload (PASS)
+4. Tanpa pageerror (PASS)
+
+**🚨 OUTAGE yang ketahuan + diperbaiki**: MailPage error boundary "Terjadi Kesalahan" sejak deploy v3 (`d3e0d0c`) — `flagColorOf`/`setFlagColorOf` (default param `folder=selectedFolder`, pakai `user?`) dideklarasikan di MODULE SCOPE, padahal `user`/`selectedFolder` state komponen → ReferenceError saat chunk dimuat → SEMUA halaman /webmail/mail crash untuk semua user. Verifikasi deploy sebelumnya cuma md5+string marker, TIDAK pernah render → lolos. Fix: helper dipindah ke dalam komponen (line ~246). Verifikasi md5 saja tidak cukup — harus ada smoke render/E2E tiap deploy MailPage.
+
+**Fix tambahan (jalur Arsip yang lolos dari purge)**:
+- Tombol Arsip per-baris sebelumnya panggil `moveMessages` langsung → TIDAK purge snooze/flag (orphan). Kini lewat `moveMutation` (purge otomatis) + onError toast.
+- `archiveMutation` (Arsip semua) purge flag colors (sebelumnya cuma snooze).
+
+**Runner diperkuat**:
+- Enable block SEKARANG reset password diag2 (doveadm BLF-CRYPT {prefix} = format mailbox.password mailcow) — hash lama dari eksperimen reset kemarin bikin login 403 (baseline E2E lainnya ikut aman).
+- Seed email uji flagcolor dgn subject unik via env `E2E_FC_SUBJECT`; cleanup expunge Archive juga.
+- ALL 7 E2E PASS berturut-turut (contacts calendar mail notjunk capture spaced flagcolor).
+
+**Pelajaran**: (1) deploy MailPage wajib diikuti smoke-render/E2E, bukan cuma hash; (2) eksperimen yang mengubah password akun diag harus direset kembali oleh runner enable.

@@ -27,8 +27,10 @@ import Avatar from '../components/Avatar';
 import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor, removeFlagColorsBulk } from '../lib/flagColors';
 // Flag-color store adalah FOLDER-SCOPED (schema v3): uid SOGo berlaku
 // per-folder, jadi warna harus dibaca/ditulis dgn konteks folder aktif.
-const flagColorOf = (uid, folder = selectedFolder) => getFlagColor(user?.email, uid, folder);
-const setFlagColorOf = (uid, color, folder = selectedFolder) => setFlagColor(user?.email, uid, color, folder);
+// NOTE: helper DI-DEKLARASIKAN DI DALAM komponen (setelah user/selectedFolder
+// ada) — di module scope ia mereferensikan user/selectedFolder yang tidak
+// terdefinisi → ReferenceError saat chunk dimuat (outage 2026-09-05, ketahuan
+// oleh e2e-flagcolor saat halaman mail error boundary).
 import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveClaims, autoArchiveClaimsKey } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
@@ -238,6 +240,11 @@ const SEARCH_CRITERIA = [
 export default function MailPage() {
   const { user, sortAsc, setSortAsc, conversationView, setConversationView } = useAuthStore();
   const queryClient = useQueryClient();
+
+  // Helper flag-color terikat folder aktif — WAJIB di dalam komponen karena
+  // user/selectedFolder adalah state komponen (bukan module scope; bug 2026-09-05).
+  const flagColorOf = (uid, folder = selectedFolder) => getFlagColor(user?.email, uid, folder);
+  const setFlagColorOf = (uid, color, folder = selectedFolder) => setFlagColor(user?.email, uid, color, folder);
 
   const [selectedFolder, setSelectedFolder] = useState('folderINBOX');
   const [selectedMsgId, setSelectedMsgId] = useState(null);
@@ -1158,7 +1165,10 @@ export default function MailPage() {
       // Arsip mengubah UID pesan (UID per-folder SOGo) → entri snooze di
       // folder asal menjadi yatim; hapus agar tidak menyembunyikan pesan
       // inbox baru yang kebetulan memakai ulang UID yang sama.
-      clearSnoozesForMoved(messages.map((m) => m.uid));
+      const movedUids = messages.map((m) => m.uid);
+      clearSnoozesForMoved(movedUids);
+      // Purge flag-color folder asal juga — kelas bug sama (audit 2026-09-05).
+      removeFlagColorsBulk(user?.email, movedUids, selectedFolder);
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
       toast.success('Pesan dipindahkan ke Arsip.');
@@ -1842,12 +1852,13 @@ export default function MailPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        moveMessages(user.sogoToken, selectedFolder, [msg.uid], archiveFolder)
-                          .then(() => {
-                            queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, selectedFolder] });
-                            queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-                          })
-                          .catch(() => toast.error('Gagal mengarsipkan pesan.'));
+                        // Lewat moveMutation (bukan moveMessages langsung) agar
+                        // purge snooze + flag-color ikut jalan — uid folder asal
+                        // tidak berlaku setelah pindah (audit 2026-09-05).
+                        moveMutation.mutate(
+                          { uids: [msg.uid], sourceFolder: selectedFolder, targetFolder: archiveFolder },
+                          { onError: () => toast.error('Gagal mengarsipkan pesan.') },
+                        );
                       }}
                       tabIndex={-1}
                       className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors"

@@ -1580,3 +1580,9 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Get & set wajib menerima konteks yang sama (folderId) — helper yang
   mengikat konteks di satu tempat (flagColorOf/setFlagColorOf di MailPage)
   mencegah call-site lupa mengirim folder.
+
+## 2026-09-05 — MailPage module-scope helper = outage (pelajaran verifikasi deploy)
+- Helper yang mereferensikan state komponen (`user`, `selectedFolder`) TIDAK boleh di module scope: default parameter dievaluasi saat call → ReferenceError saat chunk di-load → error boundary di SEMUA halaman mail. `flagColorOf`/`setFlagColorOf` sempat jadi korban (deploy d3e0d0c), ketahuan hanya karena E2E browser — verifikasi md5/string marker TIDAK menangkap crash runtime.
+- Aturan verifikasi deploy MailPage: wajib smoke-render/E2E (e2e-browser-runner) — hash saja tidak cukup.
+- Runner e2e-browser-runner.sh: enable block mereset password diag2 via `doveadm pw -s BLF-CRYPT` (format `{BLF-CRYPT}$2y$...` = mailbox.password mailcow) — hash eksperimen lama menyebabkan 403 baseline.
+- Jalur pindah yang dipakai MailPage: moveMutation/quickMoveMutation/archiveMutation/junkMutation/bulkDelete → purge flag+snooze. Tombol Arsip per-baris sempat bypass (moveMessages langsung) — sekarang lewat moveMutation.
