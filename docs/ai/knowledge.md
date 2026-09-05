@@ -1543,3 +1543,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Gotcha: `node --check /tmp/x.js.new` gagal ERR_UNKNOWN_FILE_EXTENSION (Node 18 ESM deteksi via ekstensi) — cek syntax SETELAH file di-install ke path final, atau gunakan ekstensi .mjs.
 - Gotcha: `sudo -n journalctl` blok diam-diam (journalctl tidak masuk NOPASSWD whitelist, output kosong exit 0) — pakai `sudo -n bash -c 'journalctl …'` (bash ada di whitelist). Output unit control-tower-api → jurnal (root); akses via sudo bash.
 - Gotcha: diag2 dapat "ditelur" percobaan reset sebelumnya (password tak tercatat) — selalu set baseline password via jalur terkontrol sebelum E2E auth, jangan asumsikan PW dari sesi sebelumnya.
+
+## 2026-09-05 (2) — deployCheck baseUrl + silent no-op
+- Finding: fetch path relatif `''` = origin root. SPA di subpath (`base: '/webmail/'`) WAJIB meneruskan baseUrl di semua fetch meta/asset non-hashed. `/index.html` di origin ini 404 → `fetchServerBuildVersion` balas null → `shouldReloadForDeploy` false → tidak pernah reload. Gejala: user melihat pesan error versi lama padahal server sudah 2 deploy lebih baru.
+- Pattern: konfigurasi yang salah secara diam-diam (silent no-op) dikontractkan via regression test yang membaca source pemanggil (assert `baseUrl: '/webmail'` hadir di App.jsx & LoginPage.jsx), bukan hanya unit test fungsi.
+- Gotcha verifikasi bundle minified: identifier di-rename (`checkAndReloadOnNewDeploy` → `p`) — grep literal nama fungsi gagal; kontrak string (`baseUrl:\`/webmail\``, `index.html`, `__pcp_deploy_reload`) yang selamat dari minifier.

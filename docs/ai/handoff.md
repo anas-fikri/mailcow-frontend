@@ -240,3 +240,10 @@
 - **Investigasi**: server bersih total (715/715 row auth MATCH, 0 force_pw_update, 0 MISMATCH, tidak ada mailbox aktif tanpa row). Access log: kegagalan login 09:05:34 dari IP kantor (115.178.128.130, Chrome/macOS) → **sukses 09:05:39 dari IP sama** (Firefox/Windows). Pesan lama hanya ada di bundle pra-deploy → tab Chrome terbuka sebelum deploy + autofill password basi; tidak pernah reload sebelum percobaan login.
 - **Bonus fix**: `DeployWatcher` ter-mount 2× di App.jsx (poll deploy-check dobel tiap 5 menit) → dedup ke 1. Build + deploy ulang (`index-2-jUo9if.js`), suite 81/81.
 - **Pelajaran**: pesan error user = sumber diagnosa versi bundle; selalu cocokkan teks persis dgn bundle live sebelum menyimpulkan regresi.
+
+## 2026-09-05 (2) — Akar tab basi: auto-reload poller no-op sejak awal (baseUrl salah)
+- **Discovery**: `startDeployPolling()` dipanggil TANPA baseUrl → `fetchServerBuildVersion('')` fetch `/index.html` → **404** → poller no-op diam-diam. Jadi mekanisme auto-reload-on-deploy TIDAK PERNAH bekerja sejak ditulis — inilah kenapa tab Chrome user tetap menjalankan bundle lama + menampilkan pesan error lama.
+- **Fix 1** (App.jsx): `startDeployPolling({ intervalMs: 5*60_000, baseUrl: '/webmail' })` — poller URL kini 200. Kontrak dikunci regression test di test-deploy-check.mjs.
+- **Fix 2** (LoginPage.jsx): pada login GAGAL, panggil `checkAndReloadOnNewDeploy({ baseUrl: '/webmail' })` fire-and-forget — tab basi yang gagal login langsung reload sekali ke build terbaru (persis kasus 09:05 tadi).
+- **Verifikasi**: suite 81/81; bundle live `index-ZG4KrZ2c.js` + `LoginPage-DEw9QdHq.js` md5 identik dgn lokal; kedua perbaikan terkonfirmasi di bundle live (minified: `intervalMs:3e5,baseUrl:`/webmail`` dan `catch(t){p({baseUrl:`/webmail`})...`).
+- **Pelajaran**: fitur "silent no-op" harus punya test yang mem-contract nilai konfigurasinya — bukan hanya perilakunya saat konfigurasi benar.

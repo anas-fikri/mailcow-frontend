@@ -116,7 +116,11 @@ function ChunkReloadFlagReset() {
 // tiap 5 menit (saat tab visible) → reload sekali saat versi server berbeda.
 function DeployWatcher() {
   useEffect(() => {
-    return startDeployPolling({ intervalMs: 5 * 60_000 });
+    // baseUrl WAJIB '/webmail' — SPA dilayani di /webmail/ (vite base), dan
+    // fetchServerBuildVersion('') mem-fetch /index.html yang 404 → poller
+    // no-op diam-diam (auto-reload-on-deploy tidak pernah jalan, kasus nyata
+    // tab basi pasca-deploy 2026-09-05).
+    return startDeployPolling({ intervalMs: 5 * 60_000, baseUrl: '/webmail' });
   }, []);
   return null;
 }

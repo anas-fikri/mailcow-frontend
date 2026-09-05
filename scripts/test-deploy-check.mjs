@@ -91,4 +91,19 @@ const cleanup = startDeployPolling({ intervalMs: 10, documentRef: hiddenDoc });
 assert.equal(typeof cleanup, 'function');
 cleanup(); // tidak boleh throw
 
+// ── Kontrak App.jsx: poller WAJIB memakai baseUrl '/webmail' ──────────────
+// Regresi nyata (2026-09-05): tanpa baseUrl, fetchServerBuildVersion fetch
+// /index.html yang 404 → poller no-op diam-diam → tab basi tak pernah reload.
+const appSrc = (await import('node:fs')).readFileSync('src/App.jsx', 'utf8');
+assert.ok(
+  /startDeployPolling\(\{[^}]*baseUrl:\s*['"]\/webmail['"]/.test(appSrc),
+  'App.jsx startDeployPolling harus memakai baseUrl /webmail (bukan root 404)'
+);
+// LoginPage: cek staleness saat login gagal (kasus tab basi menampilkan pesan lama).
+const loginSrc = (await import('node:fs')).readFileSync('src/pages/LoginPage.jsx', 'utf8');
+assert.ok(
+  loginSrc.includes("checkAndReloadOnNewDeploy({ baseUrl: '/webmail' })"),
+  'LoginPage harus cek deploy baru saat login gagal (tab basi)'
+);
+
 console.log('✅ test-deploy-check: semua assertion lolos');

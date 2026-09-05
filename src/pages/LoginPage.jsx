@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Eye, EyeOff, Loader2, AlertCircle, Sun, Moon } from 'lucide-react';
 import { login, logout, resetSessionExpiredFlag, registerSmtpSession, revokeSmtpSession } from '../lib/api';
 import { friendlyLoginError, loginErrorAction } from '../lib/loginDiagnostics';
+import { checkAndReloadOnNewDeploy } from '../lib/deployCheck';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -76,6 +77,12 @@ export default function LoginPage() {
       }
       navigate('/mail');
     } catch (err) {
+      // Tab basi check (sekali, fire-and-forget): tab yang terbuka sebelum
+      // deploy menjalankan kode lama — menampilkan pesan error versi lama dan
+      // bisa berisi password autofill basi (kasus nyata 2026-09-05: login
+      // 403 dgn pesan lama, server sehat). Reload otomatis sekali bila build
+      // server lebih baru; kegagalan jaringan diabaikan.
+      checkAndReloadOnNewDeploy({ baseUrl: '/webmail' }).catch(() => {});
       setError(friendlyLoginError(err));
       setErrorAction(loginErrorAction(err));
     } finally {

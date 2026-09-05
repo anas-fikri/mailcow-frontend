@@ -1,19 +1,20 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260905-SOGO-IMMEDIATE-SYNC
-Updated At: 2026-09-05T02:00:00Z
+Task ID: 20260905-STALE-TAB-RELOAD-FIX
+Updated At: 2026-09-05T09:45:00Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Eliminate the 5-minute auth-broken window after password reset by syncing `_sogo_static_view` immediately in control-tower.
+Lanjutan laporan user: pesan error login versi lama muncul dari tab basi. Akar ditelusuri & diperbaiki.
 
 ## Result
-- `triggerSogoAuthSync()` fire-and-forget di `/opt/control-tower/server.js` (proxy `/api/v1/edit/mailbox`) + `mcp-server.js` (`edit_mailbox`) — menjalankan `/home/anas.fikri/sync_sogo_passwords.sh` (UPDATE JOIN hash + flush memcached kondisional, idempoten).
-- E2E produksi: hash dipaksa bogus → reset via proxy → **MATCH +5s** (cron 257s jauh) → login password baru **200**. Journal membuktikan hook terpicu 3× (`changed=1`).
-- Backup live files: `*.bak-sogosync-20260905-014225`; services `control-tower-api` + `control-tower-mcp` restarted, active.
-- Diag2 dibersihkan (active=0, row auth dihapus, INBOX=0, flush memcached).
+- **Akar sebenarnya**: `startDeployPolling()` tanpa `baseUrl` → fetch `/index.html` 404 → auto-reload-on-deploy **no-op diam-diam sejak awal** (bukan sekadar tab yang kebetulan tidak reload).
+- **Fix 1**: App.jsx kirim `baseUrl: '/webmail'` — poller URL kini 200 (diverifikasi produksi).
+- **Fix 2**: LoginPage.jsx — pada login gagal, cek & reload sekali bila build server lebih baru (`checkAndReloadOnNewDeploy`).
+- **Regression contract**: test-deploy-check.mjs assert kedua call site memakai `baseUrl: '/webmail'`.
+- Suite **81/81**; deploy OK; bundle live md5-identik (`index-ZG4KrZ2c.js`, `LoginPage-DEw9QdHq.js`).
 
 ## Next
-- Push commit docs dari repo ini ke GitLab saat jendela push berikutnya.
-- (Opsional) Pantau keluhan user "harus ganti password" pasca reset — seharusnya hilang; jika muncul lagi, cek journal `[sogo-sync]` di server.
+- Push akumulasi commit lokal ke GitLab saat jendela push.
+- (Opsional) Pantau 1-2 hari: tidak ada lagi laporan "pesan lama" berarti fix efektif.
