@@ -1,16 +1,16 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-09-05T15:05:24Z
+Generated At: 2026-09-06T14:40:41Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: MailPage categorySource harus dari messagesInWindow (bukan messages mentah) agar badge kategori sinkron dgn daftar (window 5-bulan INBOX). Host .com == .co.id (bundle identik), beda hanya sisi klien autofill. Push GitLab saat wg0 mati: SOCKS proxy macanas:1080 + kredensial Mac via file temp chmod 600; SSH key gitlab_pcp tidak terotorisasi. E2E_HOST env-overridable utk uji host lain. Suite 85/85 PASS.
+## 1. [MEDIUM] Follow up on discovered knowledge: Send dengan lampiran ATAU sendAt selalu via /api/send proxy dan ditahan SEND_UNDO_SECONDS (3 menit) di queue sebelum flush — kedatangan email ±3,5 menit, by design bukan bug; SOGo draft/save protokol 2-fase (multipart attachments lalu JSON headers) — satu request saja menghasilkan draft rusak; klik elemen React di puppeteer harus via page.evaluate (query ulang) bukan evaluateHandle+click karena re-render menyebabkan stale-node 'not clickable'; penanda modal compose tertutup pada reply = placeholder editor hilang karena reader di belakangnya juga memuat teks 'Kepada:'; polling kedatangan email di E2E butuh horizon 5 menit (postfix delays 20-60s + queue undo).
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
 ## 2. [LOW] Review and commit current changes
-- Why: 5 uncommitted file entries remain in the project.
+- Why: 4 uncommitted file entries remain in the project.
 - Source: git status
 
 ## Agent Use

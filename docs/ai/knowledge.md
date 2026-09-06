@@ -1664,3 +1664,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - SOGo `/Mail/0/folderDrafts/<id>/save` butuh DUA request berurutan: multipart (field `attachments`) lalu JSON (headers/text). Satu saja → draft rusak (tanpa headers atau tanpa lampiran). Setiap save append draft baru (uid baru) — draft terbaru = uid terbesar.
 - Native SOGo UI tersembunyi di belakang `/SOGo/` (perlu sesi SPA); endpoint attach tidak bisa ditebak → di-decode dari source SOGo 5.x di GitHub (UIxMailEditor.m `_saveRequestInfo` + MessageEditorController.js angular-file-upload).
 - Pelajaran audit: static/unit tests + audit kode TIDAK menangkap bug data-loss ini; browser E2E end-to-end (dengan reload penuh) yang membuktikannya. E2E bukan pelengkap — satu-satunya pengaman untuk bug lapisan UI/state.
+
+## 2026-09-06T14:40:41Z
+- Task: 20260906-E2E-REPLY-SCHED
+- Status: COMPLETED
+- Finding: Send dengan lampiran ATAU sendAt selalu via /api/send proxy dan ditahan SEND_UNDO_SECONDS (3 menit) di queue sebelum flush — kedatangan email ±3,5 menit, by design bukan bug; SOGo draft/save protokol 2-fase (multipart attachments lalu JSON headers) — satu request saja menghasilkan draft rusak; klik elemen React di puppeteer harus via page.evaluate (query ulang) bukan evaluateHandle+click karena re-render menyebabkan stale-node 'not clickable'; penanda modal compose tertutup pada reply = placeholder editor hilang karena reader di belakangnya juga memuat teks 'Kepada:'; polling kedatangan email di E2E butuh horizon 5 menit (postfix delays 20-60s + queue undo).

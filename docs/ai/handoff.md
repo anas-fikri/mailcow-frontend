@@ -461,3 +461,11 @@ search aktif (by design).
 - **Temuan perilaku produk (by design, bukan bug)**: kirim dengan lampiran ATAU jadwal selalu lewat `/api/send` proxy yang menahan di queue undo 3 menit (SEND_UNDO_SECONDS) sebelum flush — email tiba ±3,5 menit setelah kirim. E2E reply memakai horizon poll 5 menit karena itu.
 - Flake guard: klik tombol via `page.evaluate` (query ulang di browser), bukan `evaluateHandle+click` — React re-render di antara query dan hit-test menyebabkan "not clickable". Modal reply menutup = placeholder editor hilang (reader di belakangnya juga memuat "Kepada:").
 - Semua E2E browser kini 10/10 PASS berurutan di produksi (spaced sempat flake 1x di batch, PASS saat re-run).
+
+## 2026-09-06T14:40:41Z
+- Status: COMPLETED
+- Objective: Tambah browser E2E untuk alur reply-with-attachment dan scheduled send (+undo).
+- Summary: Browser E2E reply-with-attachment + scheduled send selesai & PASS produksi (commit c1e872c, ter-push). Runner kini 10 skenario; reply memverifikasi quote/Re:/lampiran ter-render, sched memverifikasi queue server truth + undo + tidak terkirim. Temuan produk: kirim ber-lampiran/jadwal lewat /api/send proxy ditahan queue undo 3 menit sebelum flush.
+- Branch: main
+- Changed Files:
+- No local changes detected
