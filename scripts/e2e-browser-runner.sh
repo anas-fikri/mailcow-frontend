@@ -1,7 +1,7 @@
 #!/bin/bash
 # e2e-browser-runner.sh — jalankan SEMUA browser E2E dgn otomatisasi akun diag.
 #
-#   scripts/e2e-browser-runner.sh [contacts|calendar|mail|notjunk|capture|spaced|all]  (default: all)
+#   scripts/e2e-browser-runner.sh [contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|reply|sched|all]  (default: all)
 #   SERVER=deploy-mail scripts/e2e-browser-runner.sh
 #
 # Lifecycle:
@@ -29,7 +29,7 @@ fail() { echo "[runner] ❌ $*" >&2; exit 1; }
 
 command -v node >/dev/null || fail "node tidak ditemukan"
 [ -d node_modules/puppeteer ] || fail "puppeteer belum ada (npm install dulu)"
-case "$SELECT" in contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|all) ;; *) fail "pilihan: contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|all" ;; esac
+case "$SELECT" in contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|reply|sched|all) ;; *) fail "pilihan: contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|reply|sched|all" ;; esac
 
 remote() { ssh -o ConnectTimeout=15 "$SERVER" 'bash -s'; }
 
@@ -109,7 +109,7 @@ else
 fi
 
 case "$SELECT" in
-  all) TESTS=(contacts calendar mail notjunk capture spaced flagcolor draft) ;;
+  all) TESTS=(contacts calendar mail notjunk capture spaced flagcolor draft reply sched) ;;
   *)   TESTS=("$SELECT") ;;
 esac
 declare -A SCRIPT=(
@@ -121,6 +121,8 @@ declare -A SCRIPT=(
   [spaced]=scripts/e2e-spaced-folder-browser.mjs
   [flagcolor]=scripts/e2e-flagcolor-browser.mjs
   [draft]=scripts/e2e-draft-attachments-browser.mjs
+  [reply]=scripts/e2e-reply-attach-browser.mjs
+  [sched]=scripts/e2e-scheduled-send-browser.mjs
 )
 
 FAILED=""

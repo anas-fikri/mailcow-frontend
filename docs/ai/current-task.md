@@ -1,27 +1,24 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260906-DRAFT-ATTACH-E2E
+Task ID: 20260906-E2E-REPLY-SCHED
 Updated At: 2026-09-06
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-Tambah browser E2E untuk alur edit draft dengan lampiran end-to-end, dan perbaiki bug yang ditemukannya.
+Tambah browser E2E untuk alur reply-with-attachment dan scheduled send (+undo).
 
 ## Result
-- E2E baru `scripts/e2e-draft-attachments-browser.mjs` (scenario `draft` di
-  `e2e-browser-runner.sh`): compose+attach → autosave → close → reopen →
-  edit → reload → persist → cleanup. PASS di produksi.
-- **Bug 1 (dari E2E)**: autosave draft tidak mengirim lampiran → lampiran
-  hilang server-side. Fix `saveDraft` (api.js): protokol 2-fase SOGo
-  (multipart `attachments` + JSON headers/text).
-- **Bug 2 (dari E2E, kelas data-loss)**: menutup compose edit-draft
-  menghapus copy autosave (berisi edit terbaru) & memelihara draft asli
-  (stale) → edit pengguna hilang diam-diam. Fix: copy terbaru yang selamat,
-  draft asli dihapus; close sebelum autosave → flush save; autosave
-  in-flight saat tutup → path closedRef yang selamatkan hasil terbaru.
-- Kontrak dikunci di `test-draft-compose.mjs`. Suite 85/85, build bersih,
-  deploy live (.co.id & .com md5 chunk identik), E2E draft + mail PASS.
+- `scripts/e2e-reply-attach-browser.mjs` (scenario `reply`): kirim induk →
+  reader → Balas (quote + Re:) → lampir PNG → kirim → balasan tiba dengan
+  lampiran ter-render → cleanup. PASS produksi.
+- `scripts/e2e-scheduled-send-browser.mjs` (scenario `sched`): jadwalkan
+  +2 mnt → toast countdown → badge Terjadwal → panel (server truth) →
+  Batalkan → entry hilang → email tidak tiba. PASS produksi.
+- Runner kini 10 skenario (`all`). Kedua E2E PASS berulang; unit suite 85/85.
+- Insight produk: kirim ber-lampiran/jadwal lewat proxy → queue undo 3 menit
+  sebelum flush (tiba ±3,5 menit) — by design, terdokumentasi di handoff.
 
 ## Next
-- Opsional: E2E serupa untuk reply-with-attachment dan scheduled send.
+- Opsional: kunci flake `spaced` (1x gagal di batch, PASS mandiri) dengan
+  retry-if-flake di runner.
