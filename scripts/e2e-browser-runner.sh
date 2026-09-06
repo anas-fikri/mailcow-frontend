@@ -29,7 +29,7 @@ fail() { echo "[runner] ❌ $*" >&2; exit 1; }
 
 command -v node >/dev/null || fail "node tidak ditemukan"
 [ -d node_modules/puppeteer ] || fail "puppeteer belum ada (npm install dulu)"
-case "$SELECT" in contacts|calendar|mail|notjunk|capture|spaced|flagcolor|all) ;; *) fail "pilihan: contacts|calendar|mail|notjunk|capture|spaced|flagcolor|all" ;; esac
+case "$SELECT" in contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|all) ;; *) fail "pilihan: contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|all" ;; esac
 
 remote() { ssh -o ConnectTimeout=15 "$SERVER" 'bash -s'; }
 
@@ -109,7 +109,7 @@ else
 fi
 
 case "$SELECT" in
-  all) TESTS=(contacts calendar mail notjunk capture spaced flagcolor) ;;
+  all) TESTS=(contacts calendar mail notjunk capture spaced flagcolor draft) ;;
   *)   TESTS=("$SELECT") ;;
 esac
 declare -A SCRIPT=(
@@ -120,6 +120,7 @@ declare -A SCRIPT=(
   [capture]=scripts/e2e-contact-capture-browser.mjs
   [spaced]=scripts/e2e-spaced-folder-browser.mjs
   [flagcolor]=scripts/e2e-flagcolor-browser.mjs
+  [draft]=scripts/e2e-draft-attachments-browser.mjs
 )
 
 FAILED=""

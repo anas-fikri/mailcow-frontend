@@ -73,13 +73,16 @@ ok(!reader.includes('function extractHtml(parts)'), 'MessageReader tidak boleh p
 // text/plain ada di urutan part lebih awal dari html yang bersarang).
 ok(lib.includes('const html = findHtml(parts);'), 'extractHtml harus prefer html di kedalaman mana pun');
 
-// ── Tutup compose mode EDIT DRAFT tanpa kirim → hapus copy autosave ─────────
-// Autosave saat edit draft menyimpan ke draft BARU (copy) — tutup tanpa kirim
-// membuat 2 draft (asli + copy) di folder Draf = duplikat. handleClose harus
-// menghapus copy, menyisakan draft asli.
+// ── Tutup compose mode EDIT DRAFT tanpa kirim → edit TIDAK boleh hilang ─────
+// Autosave saat edit draft menyimpan ke draft BARU (copy) yang membawa SEMUA
+// edit terbaru. Perilaku lama menghapus copy & memelihara draft asli → edit
+// pengguna hilang diam-diam saat tutup (bug ditemukan browser E2E
+// draft-attachments). Semantik benar: copy terbaru yang selamat, draft asli
+// (stale) yang dihapus. Tutup sebelum autosave jalan → flush save terakhir.
 ok(compose.includes('function handleClose()'), 'ComposeModal punya handleClose (cleanup tutup)');
-ok(compose.includes("if (copyUid && copyUid !== editingDraftUidRef.current)"), 'handleClose hapus copy autosave bila beda dari draft asli');
-ok(compose.includes('deleteDraft(token, copyUid)'), 'copy dihapus via deleteDraft');
+ok(compose.includes('if (draftUidRef.current !== editingDraftUidRef.current) {\n          deleteDraft(token, editingDraftUidRef.current); // buang draft asli (stale)'),
+  'handleClose harus memelihara copy terbaru & menghapus draft asli (bukan sebaliknya)');
+ok(compose.includes('runAutosave();'), 'handleClose harus flush save terakhir bila tutup sebelum autosave jalan');
 ok(compose.includes('onClick={handleClose}'), 'tombol X memakai handleClose');
 
 // ── Race 3: autosave in-flight saat TUTUP edit-draft → copy tidak boleh yatim ──
@@ -91,8 +94,13 @@ ok(compose.includes('closedRef.current = true; // autosave in-flight harus tahu 
   'handleClose harus set closedRef');
 ok(compose.includes('if (closedRef.current && editingDraftUidRef.current) {'),
   'runAutosave harus cek closedRef + mode edit-draft setelah save');
-ok(compose.includes('const staleUids = [uid, draftUidRef.current].filter(Boolean);'),
-  'autosave pasca-tutup harus hapus copy baru (uid hasil save) + copy lama');
+// Hasil autosave pasca-tutup = konten terbaru pengguna → copy inilah yang
+// selamat; draft asli (tanpa edit) + copy lama yang dihapus. Save gagal →
+// jangan hapus apa pun (draft asli tetap ada).
+ok(compose.includes('const staleUids = uid\n          ? [editingDraftUidRef.current, draftUidRef.current].filter((u) => u && u !== uid)\n          : [];'),
+  'autosave pasca-tutup harus selamatkan hasil save terbaru & buang draft asli (kebalikan perilaku lama yang membuang edit pengguna)');
+ok(!compose.includes('const staleUids = [uid, draftUidRef.current].filter(Boolean);'),
+  'semantik lama (buang hasil autosave) tidak boleh kembali');
 ok(compose.includes('closedRef.current = false;'), 'reset modal harus reset closedRef');
 
 // ── Reply/forward harus membawa composeMode 'reply' (signature reply) ────────

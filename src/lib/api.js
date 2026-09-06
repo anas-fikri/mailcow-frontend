@@ -938,7 +938,7 @@ export async function createDraft(sogoToken) {
  * @returns {string|null} uid draft di folder Draf (bila SOGo kembalikan)
  */
 export async function saveDraft(sogoToken, draftId, payload) {
-  const { to = '', cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '' } = payload;
+  const { to = '', cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '', attachments = [] } = payload;
   const data = {
     subject,
     to: to ? to.split(',').map(s => s.trim()) : [],
@@ -952,7 +952,34 @@ export async function saveDraft(sogoToken, draftId, payload) {
     from,
   };
   const safeDraftId = pathSegment(draftId, 'draftId');
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/folderDrafts/${safeDraftId}/save`, {
+  const saveUrl = `${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/folderDrafts/${safeDraftId}/save`;
+  const withAtt = Array.isArray(attachments) ? attachments.filter((a) => a && a.data) : [];
+
+  // Protokol SOGo (UIxMailEditor.m saveAction):
+  //   1. multipart POST field "attachments" → simpan part lampiran ke plist
+  //      compose session (_saveAttachments + append draft interim)
+  //   2. json POST → simpan headers/text (storeInfo) lalu append ulang MIME
+  //      LENGKAP (termasuk lampiran) dan mark-deleted draft interim.
+  // Keduanya diperlukan: multipart saja = draft tanpa headers; json saja =
+  // draft tanpa lampiran (bug hilang-lampiran yang ditangkap E2E).
+  if (withAtt.length > 0) {
+    const fd = new FormData();
+    for (const a of withAtt) {
+      const bin = atob(String(a.data));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      fd.append('attachments', new Blob([bytes], { type: a.type || 'application/octet-stream' }), a.name || 'attachment');
+    }
+    const aRes = await fetch(saveUrl, {
+      method: 'POST',
+      credentials: 'include',
+      headers: sogoHeaders(),
+      body: fd,
+    });
+    throwIfAuthError(aRes);
+    if (!aRes.ok) throw new Error(`Gagal menyimpan lampiran draft (${aRes.status}).`);
+  }
+  const res = await fetch(saveUrl, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),

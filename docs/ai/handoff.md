@@ -447,3 +447,9 @@ search aktif (by design).
 - Cakupan baru (sebelumnya belum ter-audit): autoArchive rule engine, contactCapture/emailHistory, snooze storage, draft save/restore + attachment restore, attachment download, QuickRuleModal, Conversation, parseRecipientEntry.
 - Hasil: tidak ada bug/vulnerability baru; validasi 85/85 test PASS + guard 63 file bersih + build OK. Tidak ada perubahan kode → tidak perlu deploy.
 - Detail bukti per alur: docs/ai/knowledge.md entri 2026-09-05 (audit round-2).
+
+## 2026-09-06 — Draft attachments + close-edit bug (browser E2E-driven)
+- **E2E baru** `scripts/e2e-draft-attachments-browser.mjs` (runner scenario `draft`): compose+attach PNG → autosave v1 → close → reopen (lampiran+body direstorasi) → edit v2 → reload → persist → cleanup. PASS di produksi.
+- **Bug 1 — autosave buang lampiran**: `saveDraft` tidak mengirim attachments → SOGo `/save` mereplace seluruh draft (multipart/alternative, 0 part lampiran). Fix di `src/lib/api.js`: protokol 2-fase SOGo (UIxMailEditor.m) — multipart POST field `attachments` DULU, lalu JSON POST (headers/text). Multipart saja = draft tanpa headers; JSON saja = draft tanpa lampiran.
+- **Bug 2 (kelas data-loss) — close edit-draft membuang edit pengguna**: autosave edit-draft menyimpan ke copy baru; `handleClose` lama menghapus copy (berisi edit) & memelihara draft asli (stale) → edit hilang diam-diam. Fix: kebalikan semantik — copy terbaru selamat, draft asli dihapus; close sebelum autosave jalan → flush save terakhir; autosave in-flight saat tutup → path penyelesaian (closedRef) yang selamatkan hasil terbaru (save gagal → jangan hapus apa pun).
+- Kontrak terkunci di `test-draft-compose.mjs` (semantik lama dilarang regresi). Suite 85/85, build bersih, fix live di .co.id & .com (md5 chunk identik), E2E draft + mail PASS.

@@ -196,6 +196,14 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         body: editorMode === 'plain' ? body : DOMPurify.sanitize(body, PURIFY_CONFIG),
         isHTML: editorMode !== 'plain',
         from: userFrom,
+        // Lampiran ikut disimpan (multipart field "attachments") — kalau tidak,
+        // draft SOGo hanya menyimpan teks dan lampiran HILANG saat draft
+        // dibuka ulang (bug ditemukan browser E2E draft-attachments).
+        attachments: attachments.filter((a) => a.data).map((a) => ({
+          name: a.name,
+          type: a.type,
+          data: a.data,
+        })),
       });
       if (sentRef.current) {
         // Email sudah terkirim saat autosave ini berjalan — jangan simpan ref,
@@ -209,13 +217,16 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         return;
       }
       if (closedRef.current && editingDraftUidRef.current) {
-        // Modal ditutup selama autosave berjalan. handleClose hanya membersihkan
-        // copy yang SUDAH ada saat ditutup — saveDraft ini baru saja membuat
-        // copy baru yang harus dibersihkan juga, kalau tidak jadi yatim di Draf.
-        // Compose baru: draft autosave sengaja dipertahankan (dilanjutkan dari
-        // folder Draf), jadi hanya mode edit-draft yang dibersihkan.
+        // Modal ditutup selama autosave berjalan (mode edit-draft). Hasil
+        // autosave INI adalah konten terbaru milik pengguna — copy inilah
+        // yang harus selamat; buang draft asli (tanpa edit) + copy lama.
+        // Membuang hasil autosave = menghapus edit pengguna diam-diam
+        // (bug ditemukan browser E2E draft-attachments). Bila save gagal
+        // (uid falsy) jangan hapus apa pun — draft asli tetap ada.
         autosaveDirty.current = false;
-        const staleUids = [uid, draftUidRef.current].filter(Boolean);
+        const staleUids = uid
+          ? [editingDraftUidRef.current, draftUidRef.current].filter((u) => u && u !== uid)
+          : [];
         staleUids.forEach((dUid) => deleteDraft(token, dUid));
         draftUidRef.current = null;
         draftIdRef.current = null;
@@ -237,7 +248,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
         saveTimerRef.current = setTimeout(() => { runAutosave(); }, 3000);
       }
     }
-  }, [token, user?.email, hasContent, to, cc, bcc, subject, body, editorMode, userFrom]);
+  }, [token, user?.email, hasContent, to, cc, bcc, subject, body, editorMode, userFrom, attachments]);
 
   useEffect(() => {
     if (!isOpen || success || !hasContent) return;
@@ -554,15 +565,27 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
   // berguna utk dilanjutkan dari folder Draf).
   function handleClose() {
     closedRef.current = true; // autosave in-flight harus tahu modal sudah ditutup
-    if (editingDraftUidRef.current && token) {
-      const copyUid = draftUidRef.current;
-      if (copyUid && copyUid !== editingDraftUidRef.current) {
-        deleteDraft(token, copyUid);
+    if (editingDraftUidRef.current && token && !autosaveBusy.current) {
+      if (draftUidRef.current) {
+        // Copy autosave membawa SEMUA edit terbaru pengguna — copy itulah yang
+        // harus selamat di folder Draf. Perilaku lama menghapus copy & memelihara
+        // draft asli → edit pengguna hilang diam-diam saat tutup
+        // (bug ditemukan browser E2E draft-attachments).
+        if (draftUidRef.current !== editingDraftUidRef.current) {
+          deleteDraft(token, editingDraftUidRef.current); // buang draft asli (stale)
+        }
+        draftIdRef.current = null;
+        editingDraftUidRef.current = null;
+      } else if (userEditedRef.current && hasContent) {
+        // Tutup SEBELUM autosave sempat jalan (edit masih di memori):
+        // simpan terakhir sekali, lalu biarkan path penyelesaian autosave
+        // (closedRef) yang membuang draft asli. Tanpa ini edit hilang.
+        runAutosave();
       }
-      draftUidRef.current = null;
-      draftIdRef.current = null;
     }
-    editingDraftUidRef.current = null;
+    // Bila autosave masih berjalan: JANGAN hapus apa pun di sini — path
+    // penyelesaian autosave (closedRef) yang memutuskan: simpan hasil
+    // terbarunya, buang draft asli + copy lama.
     onClose();
   }
 
