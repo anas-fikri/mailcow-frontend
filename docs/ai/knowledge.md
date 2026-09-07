@@ -1728,3 +1728,24 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Pola wild yang benar muncul: gambar part SOGo kini diambil LANGSUNG (bukan via proxy) → `GET /SOGo/so/<user>/Mail/0/.../image00X.jpg → 200` (19 request 200 dalam 6 menit pertama; user nyata: anas.fikri, abdurrahman.taqiuddin). image-proxy pasca-12:00 tidak lagi menerima URL own-host (perilaku sesuai desain).
 - Catatan monitoring: jumlah 415 "dalam 8 menit terakhir" bisa tampak tinggi karena log window bergeser — SELALU agregasi per timestamp sebelum menyimpulkan tren.
 - 403 tetap ada (Sec-Fetch-Site cross-site — hotlink antar-web, sesuai desain). 502 sporadis = host eksternal tertentu yang memang gagal dari jaringan server.
+
+## 2026-09-07 — Latensi pickup deploy + SW probe cache (durable)
+- Monitoring pasca-fix 415 membuktikan tab basi butuh ~11 menit reload: poll
+  5 menit + TIDAK ADA cek saat tab background kembali visible (tab yang
+  hidden saat tick menunggu interval berikutnya penuh).
+- Fix deployCheck.js: interval 60 dtk (fetch ~1KB static, visible tab saja —
+  beban diabaikan) + listener `visibilitychange`/`focus` yang memicu cek
+  SEGERA saat user kembali ke tab, di-throttle ≥30 dtk antar-cek (anti
+  fetch-storm alt-tab). `startDeployPolling` kini menerima `windowRef` utk
+  test; cleanup melepas listener.
+- Bug sekunder: SW network-first meng-cache URL probe `index.html?bv=<ts>`
+  yang UNIK per poll → entri cache tak pernah terbaca lagi; dengan poll 60s
+  = ~1440 entri/hari/tab (bengkak tanpa batas). SW v8: request dgn query
+  `bv=` selalu network-only (isDeployProbe), CACHE_NAME v8 membersihkan
+  akumulasi lama; main.jsx register `sw.js?v=8` (kontrak test
+  test-sw-cache-consistency).
+- Regresi dikunci di test-deploy-check.mjs: interval 60_000 di App.jsx,
+  SW v8 + isDeployProbe, dan perilaku visibility (hidden→0 fetch, visible
+  kembali→1 fetch segera, alt-tab cepat→throttled). Suite 87/87 PASS.
+- Efek: pickup deploy di tab visible ≤60 dtk, tab yang baru kembali visible
+  ≤ hitungan detik. LoginPage tetap cek staleness saat login gagal.

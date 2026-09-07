@@ -477,3 +477,13 @@ search aktif (by design).
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-09-07 — Deploy-reload dipercepat (60s + visibility check) + SW v8
+- deployCheck.js: poll 60 dtk visible-only + cek segera saat
+  visibilitychange/focus (throttle 30 dtk). App.jsx intervalMs 60_000.
+- public/sw.js v8: probe `?bv=` tidak di-cache (URL unik per poll —
+  mencegah cache bengkak ~1440 entri/hari/tab); main.jsx register v=8.
+- Live terverifikasi: SW v8 di kedua host, chunk index berisi
+  `intervalMs:6e4, baseUrl:'/webmail'`, md5 .com == .co.id.
+- Suite 87/87, build bersih, deploy OK, commit e855901 ter-push via SOCKS
+  tunnel (wg0 path tetap untuk host lain).
