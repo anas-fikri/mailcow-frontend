@@ -487,3 +487,10 @@ search aktif (by design).
   `intervalMs:6e4, baseUrl:'/webmail'`, md5 .com == .co.id.
 - Suite 87/87, build bersih, deploy OK, commit e855901 ter-push via SOCKS
   tunnel (wg0 path tetap untuk host lain).
+
+## 2026-09-07T07:05:46Z
+- Status: COMPLETED
+- Objective: Reduce deploy-reload delay so stale tabs pick up new bundles sooner next deploy.
+- Branch: main
+- Changed Files:
+- No local changes detected

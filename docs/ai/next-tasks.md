@@ -1,11 +1,11 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-09-07T01:18:52Z
+Generated At: 2026-09-07T07:05:47Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: uteke setup on this host: prebuilt tarball lacks libonnxruntime.so — copy onnxruntime-linux-x64-1.24.4/lib/libonnxruntime.so* next to the binary in ~/.local/bin or embedding fails with ORT_LIB_PATH error; default recall strategy 'fusion' scores single-memory namespaces below the 0.30 default min_score → set min_score = 0.05 in ~/.codecora/uteke/uteke.toml or recall returns 'No matching results' despite a healthy index; embedding model (~188MB) downloads on first remember; ai-toolkit namespace comes from UTEKE_NAMESPACE in project.env (= sogo-frontend)
+## 1. [MEDIUM] Follow up on discovered knowledge: Deploy-reload latency fixed: 60s visible-tab poll + immediate check on visibilitychange/focus (30s throttle) in deployCheck.js; SW v8 stops caching unique ?bv= probe URLs (was ~1440 dead entries/day/tab at 60s polling), main.jsx registers sw.js?v=8. Regression contracts locked in test-deploy-check.mjs (interval 60_000, isDeployProbe, visibility behavior). Suite 87/87, live verified md5-identical on both hosts; pushed via SOCKS tunnel 1080 since gitlab.pcpexpress.com hangs from workspace (durable pattern).
 - Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
 - Source: knowledge.md
 
