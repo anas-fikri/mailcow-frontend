@@ -1680,3 +1680,7 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - (Dari awalnya tiap 6 jam, diturunkan ke harian untuk mengurangi memori near-identical di registry.) Wrapper sync **5 project** ai-toolkit ke namespace uteke masing-masing (sogo-frontend, mailcow-control-tower, koperasi-local, certificate26, imapsync-migrate) → konteks proyek tetap fresh di registry antara task close.
 - Mingguan (Minggu): `uteke dream --dry-run` per namespace — report saja, tidak mutasi. Untuk merge near-dup nyata, jalankan tanpa `--dry-run` (dedup >0.92 cosine).
 - Unit tersimpan di repo ~/.ai-toolkit (`scripts/ai-sync-cron`, commit 0b60544) dengan perintah instal unit embedded di header.
+
+## 2026-09-07 — uteke dream (real run) + bug catatan
+- `uteke dream` real di semua 5 namespace: **0 duplikat, 0 merge** — memori near-identical teks tapi semantik beda tidak lewat threshold dedup 0.92 cosine. Registry bersih.
+- Bug uteke v0.17.0: fase *contradict* mendeteksi kontradiksi tapi gagal persist graph edge (`FOREIGN KEY constraint failed`, WARN internal) → edge kontradiksi bisa tidak tersimpan; deteksi tetap tampil di output.
