@@ -1708,3 +1708,10 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - **Rich notification**: body notifikasi = pengirim+subjek email terbaru (ref newestMessageRef diisi SETELAH messagesInWindow dideklarasikan — anti TDZ outage kelas 2026-09-05). Toggle per-akun di Settings > Notifikasi (lib/notifyPrefs, key pcp_notify_v1_<email>).
 - Vacation auto-reply ternyata SUDAH ada (PreferencesPage VacationSection via SOGo prefs.defaults.Vacation) — tidak perlu dibuat.
 - Suite 86/86; MailPage chunk md5 identik .com & .co.id; E2E mail PASS.
+
+## 2026-09-07 — Audit mikro round-2 /webmail/mail (3 bug, live)
+- **Shortcut bocor di balik modal**: guard keyboard MailPage hanya composeOpen/keyboardHelpOpen — modal Buat/Hapus Subfolder (folderDialog) & QuickRuleModal bolong; tekan 'd' saat modal Hapus Folder = bulk delete pesan di belakang modal. Fix: guard diperluas + deps array effect diperbarui (anti stale closure).
+- **Favicon badge menempel selamanya**: updateFaviconBadge(0) dulu no-op (return early tanpa canvas data-URL) → dot merah tidak hilang setelah unread=0. Fix: count 0 mengembalikan FAVICON_HREF asli; dikunci unit test 6 kasus (test-favicon-badge.mjs, fake DOM + canvas stub; defaultView.HTMLCanvasElement wajib ada di stub).
+- **Badge basi setelah logout**: tab title "(n)" + favicon merah tidak di-reset saat logout/ganti akun. Fix: cleanup di unmount MailPage (meng-cover logout manual, sesi habis, ganti akun sekaligus) — bukan di tiap handler logout.
+- Area lain dicek bersih: guard INPUT/TEXTAREA/contentEditable sudah benar, delete ada undo 6s (SOGoConfirmDelete), j/k ada scrollIntoView, toast bottom-20 aman dari BottomNav, bulk-bar inline (bukan overlay), SwipeableRow anti vertical-scroll.
+- Suite 87/87; chunk MailPage md5 identik .com & .co.id; E2E mail PASS.
