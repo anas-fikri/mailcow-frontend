@@ -11,6 +11,13 @@
  * index.html (lihat vite.config.js). SPA mem-poll file itu (cache-bust query);
  * jika versi server ≠ versi saat tab dimuat → reload sekali (guard sessionStorage
  * anti loop). Poll hanya saat tab visible — background tab tidak perlu reload.
+ *
+ * LATENSI (pelajaran monitoring 2026-09-07): interval 5 menit + tanpa cek saat
+ * tab kembali visible membuat tab basi butuh ~11 menit untuk reload. Sekarang:
+ * - interval 60 detik (fetch index.html ~1KB, visible tab saja — beban nginx
+ *   static file, dapat diabaikan), dan
+ * - cek SEGERA saat tab visible kembali / window focus (visibilitychange +
+ *   focus), di-throttle ≥30 dtk antar-cek agar alt-tab cepat tidak fetch-storm.
  */
 
 export const BUILD_META_SELECTOR = 'meta[name="build-version"]';
@@ -87,18 +94,37 @@ export async function checkAndReloadOnNewDeploy({ baseUrl = '', embedded, reload
 }
 
 /**
- * Mulai polling periodik (dipakai di App.jsx).
+ * Mulai polling periodik + cek saat tab visible kembali / focus (dipakai App.jsx).
  * @param {object} opts
- * @param {number}   opts.intervalMs  default 5 menit
- * @returns {() => void} fungsi cleanup (clearInterval).
+ * @param {number}   opts.intervalMs   default 60 detik (poll visible tab saja)
+ * @param {Document} [opts.documentRef] injeksi utk test
+ * @param {Window}   [opts.windowRef]  injeksi utk test (default window global)
+ * @returns {() => void} fungsi cleanup (clearInterval + lepas listener).
  */
-export function startDeployPolling({ intervalMs = 300_000, baseUrl = '', documentRef = typeof document !== 'undefined' ? document : undefined } = {}) {
+export function startDeployPolling({ intervalMs = 60_000, baseUrl = '', documentRef = typeof document !== 'undefined' ? document : undefined, windowRef } = {}) {
   if (typeof window === 'undefined' || !documentRef) return () => {};
-  const tick = () => {
+  const win = windowRef ?? window;
+  const THROTTLE_MS = 30_000;
+  let lastCheckAt = 0;
+  const runCheck = () => {
     // Tab di background: skip — jangan fetch, jangan reload di belakang layar.
     if (documentRef.hidden) return;
+    // Throttle: cek interval + cek visibility/focus berbagi jatah ≥30 dtk,
+    // sehingga alt-tab cepat tidak memicu deretan fetch.
+    const now = Date.now();
+    if (now - lastCheckAt < THROTTLE_MS) return;
+    lastCheckAt = now;
     checkAndReloadOnNewDeploy({ baseUrl }).catch(() => {});
   };
-  const id = window.setInterval(tick, intervalMs);
-  return () => window.clearInterval(id);
+  // visibilitychange: tab lama yang di-background sepanjang hari dicek SEGERA
+  // saat user kembali — bukan menunggu tick interval berikutnya.
+  const onVisible = () => runCheck();
+  const id = win.setInterval(runCheck, intervalMs);
+  try { documentRef.addEventListener?.('visibilitychange', onVisible); } catch { /* noop */ }
+  try { win.addEventListener?.('focus', onVisible); } catch { /* noop */ }
+  return () => {
+    win.clearInterval(id);
+    try { documentRef.removeEventListener?.('visibilitychange', onVisible); } catch { /* noop */ }
+    try { win.removeEventListener?.('focus', onVisible); } catch { /* noop */ }
+  };
 }

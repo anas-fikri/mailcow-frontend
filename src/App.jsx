@@ -113,14 +113,17 @@ function ChunkReloadFlagReset() {
 // ─── Deteksi deploy baru ───────────────────────────────────────────────
 // Tab yang terbuka sebelum deploy terus menjalankan chunk LAMA tanpa error
 // (lazyWithReload hanya menangkap 404 chunk keras). Poll meta build-version
-// tiap 5 menit (saat tab visible) → reload sekali saat versi server berbeda.
+// tiap 60 dtk saat tab visible + cek segera saat tab kembali visible/focus
+// (pelajaran monitoring 2026-09-07: interval 5 mkt membuat tab basi butuh
+// ~11 menit untuk reload — kena 415 gambar lama pasca-deploy). Fetch-nya
+// sekali per ~1KB static file, beban diabaikan.
 function DeployWatcher() {
   useEffect(() => {
     // baseUrl WAJIB '/webmail' — SPA dilayani di /webmail/ (vite base), dan
     // fetchServerBuildVersion('') mem-fetch /index.html yang 404 → poller
     // no-op diam-diam (auto-reload-on-deploy tidak pernah jalan, kasus nyata
     // tab basi pasca-deploy 2026-09-05).
-    return startDeployPolling({ intervalMs: 5 * 60_000, baseUrl: '/webmail' });
+    return startDeployPolling({ intervalMs: 60_000, baseUrl: '/webmail' });
   }, []);
   return null;
 }

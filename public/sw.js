@@ -4,9 +4,14 @@
  * fallback cache hanya boleh mengembalikan Response valid. Untuk navigasi,
  * cache fallback tidak dipakai karena shell lama dapat mencampur chunk dengan
  * deployment baru dan memicu React #310.
+ *
+ * v8: JANGAN cache request probe deploy (`?bv=<ts>`, cache: 'no-store') —
+ * URL-nya unik per poll sehingga entri tak pernah terbaca lagi; dengan poll
+ * 60 dtk (deployCheck) cache membengkak ~1440 entri/hari/tab. Bump versi
+ * membersihkan akumulasi entri probe dari poller 5 menit sebelumnya.
  */
 
-const CACHE_NAME = 'pcp-webmail-v7';
+const CACHE_NAME = 'pcp-webmail-v8';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -27,10 +32,17 @@ function isCacheableResponse(response) {
   return response instanceof Response && response.ok;
 }
 
+// Probe deploy-check selalu network-only: URL-nya unik (?bv=<timestamp>)
+// sehingga entri cache tidak pernah terbaca — hanya membuang storage.
+function isDeployProbe(request) {
+  try { return new URL(request.url).searchParams.has('bv'); } catch { return false; }
+}
+
 async function networkFirst(request) {
+  const cacheable = !isDeployProbe(request);
   try {
     const response = await fetch(request);
-    if (isCacheableResponse(response)) {
+    if (cacheable && isCacheableResponse(response)) {
       const copy = response.clone();
       caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
     }

@@ -85,6 +85,8 @@ const intervalHandles = [];
 globalThis.window = {
   setInterval: (fn, ms) => { intervalHandles.push(fn); return intervalHandles.length; },
   clearInterval: (id) => { /* noop */ },
+  addEventListener: () => {},
+  removeEventListener: () => {},
 };
 const hiddenDoc = { hidden: true };
 const cleanup = startDeployPolling({ intervalMs: 10, documentRef: hiddenDoc });
@@ -99,11 +101,62 @@ assert.ok(
   /startDeployPolling\(\{[^}]*baseUrl:\s*['"]\/webmail['"]/.test(appSrc),
   'App.jsx startDeployPolling harus memakai baseUrl /webmail (bukan root 404)'
 );
+// Kontrak latensi (2026-09-07): interval 60 dtk — pelajaran monitoring, tab
+// basi dgn poll 5 mkt butuh ~11 menit reload (kena 415 gambar lama).
+assert.ok(
+  /startDeployPolling\(\{[^}]*intervalMs:\s*60_000/.test(appSrc),
+  'App.jsx startDeployPolling harus interval 60 detik (pickup deploy cepat)'
+);
+// SW v8: probe deploy (?bv=) tidak boleh di-cache — URL unik per poll,
+// cache membengkak ~1440 entri/hari/tab dengan poll 60 dtk.
+const swSrc = (await import('node:fs')).readFileSync('public/sw.js', 'utf8');
+assert.ok(
+  swSrc.includes('pcp-webmail-v8') && /isDeployProbe/.test(swSrc),
+  'sw.js v8 harus skip cache utk probe deploy (?bv=)'
+);
 // LoginPage: cek staleness saat login gagal (kasus tab basi menampilkan pesan lama).
 const loginSrc = (await import('node:fs')).readFileSync('src/pages/LoginPage.jsx', 'utf8');
 assert.ok(
   loginSrc.includes("checkAndReloadOnNewDeploy({ baseUrl: '/webmail' })"),
   'LoginPage harus cek deploy baru saat login gagal (tab basi)'
 );
+
+// ── startDeployPolling: cek segera saat tab visible kembali (throttled) ──
+// Regresi nyata (2026-09-07): tab di-background sepanjang hari hanya dicek
+// saat tick interval — user kembali ke tab harusnya trigger cek SEGERA.
+{
+  // Node tak punya `document` — getEmbeddedBuildVersion() default-param-nya
+  // `document`. Stub dgn versi SAMA dgn fixture server (html1 = 'abc-123')
+  // agar checkAndReloadOnNewDeploy tidak masuk jalur reload.
+  globalThis.document = { querySelector: () => ({ getAttribute: (k) => (k === 'content' ? 'abc-123' : null) }) };
+  let fetchCount = 0;
+  globalThis.fetch = async () => { fetchCount += 1; return { ok: true, text: async () => html1 }; };
+  let handler = null;
+  const doc = {
+    hidden: true,
+    addEventListener: (_t, h) => { handler = h; },
+    removeEventListener: () => {},
+  };
+  const ticks = [];
+  const win = {
+    setInterval: (fn) => { ticks.push(fn); return 1; },
+    clearInterval: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+  const cleanup2 = startDeployPolling({ intervalMs: 60_000, documentRef: doc, windowRef: win });
+  // Tab masih hidden → tick & visibilitychange tidak boleh fetch.
+  ticks[0]();
+  handler?.();
+  assert.equal(fetchCount, 0, 'tab hidden → tidak fetch');
+  // Tab visible kembali → cek segera (satu fetch).
+  doc.hidden = false;
+  handler?.();
+  assert.equal(fetchCount, 1, 'visibilitychange saat visible → fetch segera');
+  // Alt-tab cepat (<30 dtk) → di-throttle, tidak fetch lagi.
+  handler?.();
+  assert.equal(fetchCount, 1, 'throttle 30 dtk → alt-tab cepat tidak fetch ulang');
+  cleanup2();
+}
 
 console.log('✅ test-deploy-check: semua assertion lolos');
