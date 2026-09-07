@@ -75,7 +75,7 @@ export default function AppLayout() {
   if (!isLoggedIn) return <Navigate to="/login" replace />;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground transition-colors duration-200">
+    <div className="flex h-screen supports-[height:100dvh]:h-dvh overflow-hidden bg-background text-foreground transition-colors duration-200">
       <SmtpHeartbeat />
       
       {/* Mobile Sidebar Overlay */}

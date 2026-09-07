@@ -1931,7 +1931,7 @@ export default function MailPage() {
                 <span className="text-xs text-muted-foreground group-hover:hidden">{msg.date}</span>
               </div>
             </div>
-            <div className={`text-sm truncate ${msg.isRead ? 'text-muted-foreground' : 'text-primary font-medium'}`}>
+            <div className={`text-sm truncate ${msg.isRead ? 'text-muted-foreground' : 'text-primary font-medium'}`} title={typeof msg.subject === 'string' ? msg.subject : ''}>
               {typeof msg.subject === 'string' && msg.subject ? msg.subject : '(Tanpa Subjek)'}
             </div>
             <div className="mt-1 flex items-center gap-1.5">
@@ -2002,7 +2002,7 @@ export default function MailPage() {
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <Icon size={18} className="shrink-0" />
-              <span className="truncate">{folder.label}</span>
+              <span className="truncate" title={folder.label}>{folder.label}</span>
             </div>
             {badge > 0 && (
               <span className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ml-1">
@@ -2534,7 +2534,7 @@ export default function MailPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className={`text-sm truncate ${group.hasUnread ? 'font-bold text-foreground' : 'font-medium text-foreground'}`}>
+                              <span className={`text-sm truncate ${group.hasUnread ? 'font-bold text-foreground' : 'font-medium text-foreground'}`} title={group.subject}>
                                 {group.subject}
                               </span>
                               {group.hasUnread && (

@@ -283,3 +283,16 @@ input:-webkit-autofill:active {
     color: #1a56db;
   }
 }
+
+/* ── Mobile: cegah iOS Safari auto-zoom saat fokus ke field form ──
+   Font < 16px pada input/textarea/select memicu zoom-jump otomatis di
+   iOS Safari yang menggeser seluruh layout saat keyboard muncul. Ukuran
+   font desktop tidak berubah; di layar kecil / perangkat sentuh kita
+   paksa 16px (praktik standar, lihat WCAG 1.4.4 & UX mobile). */
+@media (max-width: 640px), (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

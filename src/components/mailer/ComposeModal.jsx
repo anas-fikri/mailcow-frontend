@@ -599,6 +599,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={composeMode === 'reply' ? 'Balas pesan' : composeMode === 'draft' ? 'Ubah draf' : 'Tulis pesan baru'}
         >
           <motion.div
             initial={{ y: '100%' }}
@@ -649,8 +652,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                       Cc/Bcc pindah ke baris bawah input, TIDAK menimpa chip/
                       label (label 64px + input min 150px + tombol ≈90px > 280px). */}
                   <div className="relative py-1 flex flex-wrap items-start border-b border-border/60 min-h-[44px]">
-                    <label className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Kepada:</label>
+                    <label htmlFor="compose-to" className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Kepada:</label>
                     <MultiEmailInput 
+                      inputId="compose-to"
                       value={to} 
                       onChange={(v) => { markUserEdited(); setTo(v); }} 
                       placeholder="nama@domain.com (Tab/Enter)" 
@@ -705,9 +709,9 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                   )}
 
                   {/* Subject */}
-                  <div className="py-2 flex items-center">
-                    <label className="text-sm font-medium w-16 text-muted-foreground shrink-0">Subjek:</label>
+                  <div className="py-2 flex items-center">                      <label htmlFor="compose-subject" className="text-sm font-medium w-16 text-muted-foreground shrink-0">Subjek:</label>
                     <input
+                      id="compose-subject"
                       type="text"
                       value={subject}
                       onChange={(e) => { markUserEdited(); setSubject(e.target.value); }}
@@ -1237,7 +1241,7 @@ function SuggestionList({ items, onSelect }) {
 
 // ── Sub-component: Multi Email Input ──────────────────────────────────────────
 
-function MultiEmailInput({ value, onChange, placeholder, suggestions }) {
+function MultiEmailInput({ value, onChange, placeholder, suggestions, inputId }) {
   const [inputValue, setInputValue] = useState('');
   const [showSugg, setShowSugg] = useState(false);
   const inputRef = useRef(null);
@@ -1305,6 +1309,7 @@ function MultiEmailInput({ value, onChange, placeholder, suggestions }) {
             setTimeout(() => setShowSugg(false), 200);
           }}
           className="w-full bg-transparent border-none focus:outline-none focus:ring-0 text-sm p-1.5 m-0"
+          id={inputId}
           placeholder={emails.length === 0 ? placeholder : ''}
           autoComplete="off"
         />

@@ -83,7 +83,7 @@ export default function QuickRuleModal({ isOpen, onClose, sender, folders = [], 
             <Filter size={16} className="text-primary" />
             <h3 className="text-base font-semibold text-foreground">Buat Aturan Otomatis</h3>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted">
+          <button onClick={onClose} aria-label="Tutup" className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted">
             <X size={16} />
           </button>
         </div>
@@ -103,8 +103,9 @@ export default function QuickRuleModal({ isOpen, onClose, sender, folders = [], 
 
           {/* Nama */}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Nama Aturan</label>
+            <label htmlFor="rule-name" className="block text-xs font-medium text-muted-foreground mb-1.5">Nama Aturan</label>
             <input
+              id="rule-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}

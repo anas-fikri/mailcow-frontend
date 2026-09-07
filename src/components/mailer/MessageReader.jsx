@@ -868,7 +868,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
 
       {/* ── Tambah ke kontak modal ─────────────────────────────────────────── */}
       {contactOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setContactOpen(false)}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setContactOpen(false)} role="dialog" aria-modal="true" aria-label="Tambah ke kontak">
           <div
             className="bg-card w-full max-w-md rounded-2xl shadow-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
@@ -884,18 +884,20 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg">{contactError}</div>
               )}
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-foreground">Nama Lengkap</label>
+                <label htmlFor="contact-name" className="text-sm font-medium text-foreground">Nama Lengkap</label>
                 <input
                   ref={contactNameRef}
+                  id="contact-name"
                   defaultValue={contactPerson?.name || contactPerson?.email || ''}
                   placeholder="John Doe"
                   className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-foreground">Email</label>
+                <label htmlFor="contact-email" className="text-sm font-medium text-foreground">Email</label>
                 <input
                   ref={contactEmailRef}
+                  id="contact-email"
                   defaultValue={contactPerson?.email || ''}
                   type="email"
                   required
