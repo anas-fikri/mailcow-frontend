@@ -1699,3 +1699,12 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Backend server.js (auth smtp/preferences/send-config/clientIp) diaudit ulang: X-Real-IP hanya dipercaya dari trusted peer (anti spoof rate-limit), preferences anti cross-account, tanpa kebocoran info — bersih.
 - Avatar ternyata teks inisial + role=tooltip (bukan img) — aman; touch device sudah ter-cover SwipeableRow + isTouch; list terpaginasi visibleCount.
 - Validasi: suite 85/85, build bersih, deploy live (index/css/chunk MailPage md5 identik di .com & .co.id), E2E mail PASS.
+
+## 2026-09-07 — Fitur engagement + fix signature gambar Outlook
+- **Bug signature gambar tak terload**: resolver CID lama hanya match `cid:<nama-file>` persis; Outlook menulis `cid:image001.png@<hex-uuid>` → tidak pernah match. Fix: lib murni `src/lib/cidImages.js` (3 kandidat: contentId persis, nama file, stem tanpa ekstensi + prefix sebelum '@'), test `scripts/test-cid-images.mjs` (8 grup kasus).
+- Image proxy server.js TIDAK bermasalah (egress OK, github avatar 200 via proxy); CSP img-src memang sengaja tanpa https: — semua gambar eksternal wajib lewat /api/image-proxy.
+- **Favicon unread badge**: lib/faviconBadge.js (canvas 2d, data-URL ke link[rel=icon]; no-op aman tanpa canvas) — diwire ke unseenCount MailPage.
+- **Soft-ask notifikasi**: requestPermission otomatis diganti banner in-app (klik user = gesture). Prompt otomatis browser sering dibuang → denied permanen.
+- **Rich notification**: body notifikasi = pengirim+subjek email terbaru (ref newestMessageRef diisi SETELAH messagesInWindow dideklarasikan — anti TDZ outage kelas 2026-09-05). Toggle per-akun di Settings > Notifikasi (lib/notifyPrefs, key pcp_notify_v1_<email>).
+- Vacation auto-reply ternyata SUDAH ada (PreferencesPage VacationSection via SOGo prefs.defaults.Vacation) — tidak perlu dibuat.
+- Suite 86/86; MailPage chunk md5 identik .com & .co.id; E2E mail PASS.
