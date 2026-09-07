@@ -1675,8 +1675,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Status: COMPLETED
 - Finding: uteke setup on this host: prebuilt tarball lacks libonnxruntime.so — copy onnxruntime-linux-x64-1.24.4/lib/libonnxruntime.so* next to the binary in ~/.local/bin or embedding fails with ORT_LIB_PATH error; default recall strategy 'fusion' scores single-memory namespaces below the 0.30 default min_score → set min_score = 0.05 in ~/.codecora/uteke/uteke.toml or recall returns 'No matching results' despite a healthy index; embedding model (~188MB) downloads on first remember; ai-toolkit namespace comes from UTEKE_NAMESPACE in project.env (= sogo-frontend)
 
-## 2026-09-07 — ai-sync-cron (periodic uteke registry sync)
-- systemd **user timer** `ai-sync.timer` menjalankan `~/.ai-toolkit/scripts/ai-sync-cron` setiap 6 jam (`OnCalendar=*-*-* 00/6:00:00`, `Persistent=true`, linger aktif → tetap jalan saat logout/reboot). Log: `~/.ai-toolkit/logs/ai-sync-cron.log` (rotasi 2MB).
-- Wrapper sync **5 project** ai-toolkit ke namespace uteke masing-masing (sogo-frontend, mailcow-control-tower, koperasi-local, certificate26, imapsync-migrate) → konteks proyek tetap fresh di registry antara task close.
+## 2026-09-07 — ai-sync-cron (daily uteke registry sync)
+- systemd **user timer** `ai-sync.timer` menjalankan `~/.ai-toolkit/scripts/ai-sync-cron` harian pukul 00:30 UTC (`OnCalendar=*-*-* 00:30:00`, `Persistent=true`, linger aktif → tetap jalan saat logout/reboot). Log: `~/.ai-toolkit/logs/ai-sync-cron.log` (rotasi 2MB).
+- (Dari awalnya tiap 6 jam, diturunkan ke harian untuk mengurangi memori near-identical di registry.) Wrapper sync **5 project** ai-toolkit ke namespace uteke masing-masing (sogo-frontend, mailcow-control-tower, koperasi-local, certificate26, imapsync-migrate) → konteks proyek tetap fresh di registry antara task close.
 - Mingguan (Minggu): `uteke dream --dry-run` per namespace — report saja, tidak mutasi. Untuk merge near-dup nyata, jalankan tanpa `--dry-run` (dedup >0.92 cosine).
 - Unit tersimpan di repo ~/.ai-toolkit (`scripts/ai-sync-cron`, commit 0b60544) dengan perintah instal unit embedded di header.

@@ -18,3 +18,7 @@ Suggestions are evidence-based from current task state, goals, validation, risks
 Select one suggestion only after checking dependencies and user priority. Start it with:
 
 ai-start "<selected task>"
+
+## 3. [MEDIUM] Tambahkan informasi quick chat dashboard sebagai card di webmail (pending dependency)
+- Why: Permintaan user (2026-09-07): informasi dari quick chat dashboard akan ditampilkan dalam bentuk card di webmail. **Blocked** sampai modifikasi quick chat dashboard selesai.
+- Source: user request
