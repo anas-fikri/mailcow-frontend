@@ -77,3 +77,26 @@ assert.equal(rewriteCssUrls(''), '');
 assert.equal(rewriteCssUrls(null), null);
 
 console.log('imageProxy assertions passed');
+
+// ── normalizeOwnSogoUrl (fix 415: URL SOGo absolut dari kutipan/forward) ─────
+{
+  const { normalizeOwnSogoUrl } = await import('../src/lib/imageProxy.js');
+  // milik sendiri → path relatif
+  assert.equal(
+    normalizeOwnSogoUrl('https://mail.pcpexpress.com/SOGo/so/u%40d/Mail/0/folderINBOX/295/1/2/image001.jpg'),
+    '/SOGo/so/u%40d/Mail/0/folderINBOX/295/1/2/image001.jpg'
+  );
+  assert.equal(
+    normalizeOwnSogoUrl('https://mail.pcpexpress.co.id/SOGo/so/x/295/1/3/image002.png'),
+    '/SOGo/so/x/295/1/3/image002.png'
+  );
+  // bukan SOGo → null (tetap diproxy)
+  assert.equal(normalizeOwnSogoUrl('https://example.com/SOGo/so/x'), null);
+  // SOGo tapi host tak dikenal → null (eksternal, diproxy)
+  assert.equal(normalizeOwnSogoUrl('https://evil.example/SOGo/so/x'), null);
+  // path non-SOGo di host sendiri → null
+  assert.equal(normalizeOwnSogoUrl('https://mail.pcpexpress.com/webmail/index.html'), null);
+  // relative/cid/data → null
+  assert.equal(normalizeOwnSogoUrl('/SOGo/so/x'), null);
+  assert.equal(normalizeOwnSogoUrl('cid:image001.png@01DC'), null);
+}
