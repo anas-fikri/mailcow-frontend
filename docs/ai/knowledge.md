@@ -1722,3 +1722,9 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Fix: `normalizeOwnSogoUrl()` di lib/imageProxy.js — URL http(s) ber-path `/SOGo/` ke host sendiri (mail.pcpexpress.com + .co.id; env `VITE_SOGO_KNOWN_HOSTS`) di-normalisasi jadi PATH RELATIF (browser fetch langsung dgn cookie sesi; CSP img-src 'self' mengizinkan). Hanya URL eksternal beneran yang diproxy. srcset + CSS url() juga tertangani; tracker tetap di-proxy (test tracking-pixel menjaga).
 - Verifikasi live: email seeded (cid:image001.png@01DC0001 + part PNG) → di reader src=`/SOGo/so/.../image001.png`, fetch 200 image/png, naturalWidth>0. Suite 87/87. Server egress & proxy sendiri TIDAK bermasalah (github avatar 200).
 - Pelajaran audit: 415 massal di nginx log adalah satu-satunya cara melihat bug ini — probe URL valid pun tertipu (404 url saya sendiri). **Selalu cek log produksi untuk kelas bug "user nyata + data nyata".**
+
+## 2026-09-07 — Monitoring pasca-fix 415: RESOLVED di produksi
+- Deploy efektif 11:46 WIB (bundle MailPage-De2itQ4M.js pertama diminta 11:46:39). 415 terakhir tercatat **11:57:27** (tab Chrome/Mac yang belum reload — mekanisme deploy-reload butuh poll/interaksi). Setelah itu: **0 kejadian 415**.
+- Pola wild yang benar muncul: gambar part SOGo kini diambil LANGSUNG (bukan via proxy) → `GET /SOGo/so/<user>/Mail/0/.../image00X.jpg → 200` (19 request 200 dalam 6 menit pertama; user nyata: anas.fikri, abdurrahman.taqiuddin). image-proxy pasca-12:00 tidak lagi menerima URL own-host (perilaku sesuai desain).
+- Catatan monitoring: jumlah 415 "dalam 8 menit terakhir" bisa tampak tinggi karena log window bergeser — SELALU agregasi per timestamp sebelum menyimpulkan tren.
+- 403 tetap ada (Sec-Fetch-Site cross-site — hotlink antar-web, sesuai desain). 502 sporadis = host eksternal tertentu yang memang gagal dari jaringan server.
