@@ -2,12 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, Lock, FileSignature, Plane, Eye, EyeOff,
-  Loader2, CheckCircle2, AlertCircle, ChevronRight,
+  Loader2, CheckCircle2, AlertCircle, ChevronRight, BellRing,
   Sparkles, Copy, Globe, Palette, MessageSquare, Reply, Trash2, Plus,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { registerSmtpSession, changePassword, fetchPreferences, savePreferences } from '../lib/api';
 import { loadSignatures, addSignature, updateSignature, removeSignature, setDefaultSignature, getSignatureById, shouldImportSogoSignature } from '../lib/signatures';
+import { loadNotifyPrefs, saveNotifyPrefs } from '../lib/notifyPrefs';
 import HtmlEditor from '../components/HtmlEditor';
 import Skeleton from '../components/Skeleton';
 
@@ -692,6 +693,72 @@ const COLOR_PRESETS = [
 ];
 
 // ─── Display Preferences ─────────────────────────────────────────────────────
+// ─── Notifikasi (desktop) ──────────────────────────────────────────────────
+function NotifySection() {
+  const { user } = useAuthStore();
+  const [rich, setRich] = useState(true);
+  const [permission, setPermission] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+  );
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!user?.email) return;
+    setRich(loadNotifyPrefs(user.email).rich !== false);
+  }, [user?.email]);
+
+  const persist = (nextRich) => {
+    if (!user?.email) return;
+    saveNotifyPrefs(user.email, { rich: nextRich });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  const requestPermission = async () => {
+    if (typeof Notification === 'undefined') return;
+    try {
+      setPermission(await Notification.requestPermission());
+    } catch { /* browser lama — abaikan */ }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-base font-semibold text-foreground">Notifikasi Desktop</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Izin browser: {permission === 'granted' ? 'diizinkan' : permission === 'denied' ? 'ditolak — aktifkan dari setelan browser' : permission === 'unsupported' ? 'tidak didukung browser ini' : 'belum diminta'}
+        </p>
+        {permission === 'default' && (
+          <button
+            type="button"
+            onClick={requestPermission}
+            className="mt-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+          >
+            Minta izin notifikasi
+          </button>
+        )}
+      </div>
+
+      <label className="flex items-start justify-between gap-4 cursor-pointer">
+        <span>
+          <span className="block text-sm font-medium text-foreground">Notifikasi kaya (pengirim + subjek)</span>
+          <span className="block text-xs text-muted-foreground mt-1">
+            Notifikasi menampilkan pengirim dan subjek email terbaru, bukan hanya jumlah pesan.
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          checked={rich}
+          onChange={(e) => { setRich(e.target.checked); persist(e.target.checked); }}
+          className="mt-1 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]"
+        />
+      </label>
+
+      {saved && <p className="text-xs text-primary">Tersimpan.</p>}
+    </div>
+  );
+}
+
 function DisplaySection() {
   const queryClient = useQueryClient();
   const { user, themeColor, setThemeColor, theme, setTheme } = useAuthStore();
@@ -939,6 +1006,7 @@ export default function PreferencesPage() {
     { id: 'password', label: 'Password',            icon: Lock },
     { id: 'signature', label: 'Signature',          icon: FileSignature },
     { id: 'vacation', label: 'Auto-Reply Cuti',      icon: Plane },
+    { id: 'notify',   label: 'Notifikasi',           icon: BellRing },
   ];
   const [activeTab, setActiveTab] = useState('password');
 
@@ -1007,6 +1075,7 @@ export default function PreferencesPage() {
           {activeTab === 'password'  && <SectionErrorBoundary section="Ganti Password"><ChangePasswordSection /></SectionErrorBoundary>}
           {activeTab === 'signature' && <SectionErrorBoundary section="Signature"><SignatureSection /></SectionErrorBoundary>}
           {activeTab === 'vacation'  && <SectionErrorBoundary section="Auto-Reply Cuti"><VacationSection /></SectionErrorBoundary>}
+          {activeTab === 'notify'    && <SectionErrorBoundary section="Notifikasi"><NotifySection /></SectionErrorBoundary>}
         </div>
       </div>
     </div>

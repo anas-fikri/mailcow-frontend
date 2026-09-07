@@ -34,6 +34,8 @@ import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor, removeFlagCol
 import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveClaims, autoArchiveClaimsKey } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
+import { updateFaviconBadge } from '../lib/faviconBadge';
+import { loadNotifyPrefs, saveNotifyPrefs } from '../lib/notifyPrefs';
 import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate, applyMessageWindow } from '../lib/dateGroups';
 import { groupConversations, normalizeSubject as normalizeConversationSubject } from '../lib/conversations';
 
@@ -274,6 +276,9 @@ export default function MailPage() {
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set()); // folder sidebar yang di-ciutkan
   const prevUnseenRef = useRef(null); // notifikasi email baru — bandingkan unseen count
   const notifGrantedRef = useRef(false); // cegah minta izin berulang
+  // Soft-ask notifikasi: banner in-app (bukan prompt browser otomatis — prompt
+  // otomatis sering dibuang user & denied permanen). null = belum diputuskan.
+  const [notifAsk, setNotifAsk] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false); // mode seleksi (long-press di layar sentuh)
   const [isTouch] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches
@@ -463,6 +468,12 @@ export default function MailPage() {
     return applyMessageWindow(messages, { months: MESSAGE_WINDOW_MONTHS });
   }, [messages, selectedFolder, searchQuery]);
 
+  // Simpan email terbaru (urutan sort desc) utk notifikasi rich — ref agar
+  // tidak memicu re-render; effect notifikasi membaca saat email baru masuk.
+  useEffect(() => {
+    newestMessageRef.current = messagesInWindow?.[0] || null;
+  }, [messagesInWindow]);
+
   // Saat query refetch (delete/move/archive/polling), header tambahan hasil
   // loadMore TIDAK boleh langsung dibuang — kalau dibuang, list "loncat" balik
   // ke 50 email pertama di tengah scroll user (gejala list berkedip/mundur).
@@ -486,6 +497,13 @@ export default function MailPage() {
   // ── Notifikasi email baru ───────────────────────────────────────────────────
   // Tab title badge (selalu) + Notification API (bila diizinkan).
   const unseenCount = unseenData?.unseenCount ?? 0;
+  // Ref utk notif rich: diisi effect setelah messagesInWindow dideklarasikan
+  // (lihat catatan TDZ di effect notifikasi di atas).
+  const newestMessageRef = useRef(null);
+  const notifyPrefsRef = useRef(null);
+  useEffect(() => {
+    if (user?.email) notifyPrefsRef.current = loadNotifyPrefs(user.email);
+  }, [user?.email]);
   useEffect(() => {
     const prev = prevUnseenRef.current;
     const isNewEmail = prev !== null && unseenCount > prev && selectedFolder === 'folderINBOX';
@@ -498,9 +516,19 @@ export default function MailPage() {
 
     if (!isNewEmail) return;
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      // Mode rich (default): pengirim+subjek email terbaru — data diambil
+      // via ref yang diisi effect SETELAH messagesInWindow dideklarasikan
+      // (jangan referensi langsung di sini: TDZ di module chunk → outage
+      // kelas 2026-09-05).
+      const newest = newestMessageRef.current;
+      const rich = notifyPrefsRef.current?.rich !== false;
+      const sender = rich && newest ? formatAddresses(newest.from) : '';
+      const subj = rich && newest ? (newest.subject || '(Tanpa Subjek)') : '';
       try {
-        const n = new Notification('Email baru', {
-          body: `${unseenCount} pesan belum dibaca di Kotak Masuk`,
+        const n = new Notification(rich && sender ? sender : 'Email baru', {
+          body: rich && subj
+            ? `${subj}\n${unseenCount} pesan belum dibaca di Kotak Masuk`
+            : `${unseenCount} pesan belum dibaca di Kotak Masuk`,
           tag: 'sogo-new-mail',
         });
         n.onclick = () => { window.focus(); n.close(); };
@@ -568,19 +596,32 @@ export default function MailPage() {
       .catch(() => {});
   }, [pendingOpen, user?.sogoToken]);
 
-  // Minta izin notifikasi sekali saat pertama kali (setelah ada unseen > 0)
+  // Izin notifikasi — TIDAK auto-request (prompt otomatis sering dibuang &
+  // denied permanen). Tampilkan banner soft-ask sekali setelah mailbox dimuat;
+  // user yang klik banner yang memicu requestPermission (user gesture).
   useEffect(() => {
     if (notifGrantedRef.current || typeof Notification === 'undefined') return;
-    if (Notification.permission === 'granted' || Notification.permission === 'denied') {
+    if (Notification.permission === 'default' && !loadingMessages) {
+      setNotifAsk(true);
+    } else {
       notifGrantedRef.current = true;
-      return;
     }
-    // Default — minta saat user sudah login dan mailbox dimuat
-    if (unseenCount > 0 || !loadingMessages) {
-      notifGrantedRef.current = true;
-      Notification.requestPermission().catch(() => {});
-    }
-  }, [unseenCount, loadingMessages]);
+  }, [loadingMessages]);
+
+  const handleEnableNotifications = React.useCallback(async () => {
+    setNotifAsk(false);
+    notifGrantedRef.current = true;
+    if (typeof Notification === 'undefined') return;
+    try {
+      await Notification.requestPermission();
+    } catch { /* browser lama — abaikan */ }
+  }, []);
+
+  // ── Favicon unread badge (pola Gmail) ─────────────────────────────────
+  useEffect(() => {
+    updateFaviconBadge(unseenCount);
+    return () => updateFaviconBadge(0);
+  }, [unseenCount]);
 
   // ── Load More (client-side pagination, after messages assignment) ─────────
   const PAGE_SIZE = 50;
@@ -2289,6 +2330,31 @@ export default function MailPage() {
               categoryFilter={categoryFilter}
               onSelect={setCategoryFilter}
             />
+          )}
+
+          {/* Soft-ask notifikasi — sekali, bisa ditutup; klik = enable */}
+          {notifAsk && (
+            <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-xl bg-primary/10 border border-primary/20 text-sm">
+              <BellRing size={16} className="text-primary shrink-0" />
+              <span className="flex-1 min-w-0 text-foreground">
+                Aktifkan notifikasi agar tahu saat ada email baru masuk?
+              </span>
+              <button
+                type="button"
+                onClick={handleEnableNotifications}
+                className="shrink-0 px-3 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
+              >
+                Aktifkan
+              </button>
+              <button
+                type="button"
+                onClick={() => { setNotifAsk(false); notifGrantedRef.current = true; }}
+                aria-label="Jangan tampilkan lagi"
+                className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                <X size={14} />
+              </button>
+            </div>
           )}
 
           {/* Search with filter */}

@@ -15,6 +15,7 @@ import { toSafeUrl } from '../../lib/safeUrl';
 import { formatAddresses } from '../../lib/format';
 import { extractHtml, extractAttachments } from '../../lib/messageHtml';
 import { proxyExternalImages } from '../../lib/imageProxy';
+import { resolveCidReferences } from '../../lib/cidImages';
 import { getFileKind, totalAttachmentSize } from '../../lib/attachments';
 import { buildEml, htmlToText } from '../../lib/emlUtils';
 import { analyzePhishing, RISK_LEVELS } from '../../lib/phishingDetection';
@@ -52,6 +53,9 @@ function extractInlineImages(parts, result = []) {
   if (parts.contentType?.startsWith('image/') && parts.downloadURL) {
     result.push({
       name: parts.filename || parts.name || 'image',
+      // Content-ID mentah dari SOGo (jika ada) — dipakai resolver CID utk
+      // match persis sebelum fallback nama file (lihat lib/cidImages.js).
+      contentId: parts.contentId || parts.contentID || parts.cId || '',
       contentType: parts.contentType,
       downloadURL: parts.downloadURL,
     });
@@ -63,46 +67,16 @@ function extractInlineImages(parts, result = []) {
 }
 
 /**
- * Resolve CID (Content-ID) image references in HTML.
- * Maps cid:xxx to SOGo download URLs.
- */
-function resolveCidImages(html, inlineImages) {
-  if (!html || !inlineImages?.length) return html;
-  let resolved = html;
-  inlineImages.forEach((img) => {
-    const cidName = img.name.replace(/\.[^.]+$/, '');
-    const downloadUrl = toSafeUrl(img.downloadURL, { base: SOGO_BASE, allowExternal: false });
-    if (!downloadUrl) return;
-    // Replace cid:name references
-    const regex = new RegExp(`src="cid:${escapeRegex(cidName)}"`, 'gi');
-    if (regex.test(resolved)) {
-      resolved = resolved.replace(regex, `src="${downloadUrl}"`);
-    }
-    // Also try matching the full filename
-    const fullRegex = new RegExp(`src="cid:${escapeRegex(img.name)}"`, 'gi');
-    resolved = resolved.replace(fullRegex, `src="${downloadUrl}"`);
-    // Also match cid with angle brackets
-    resolved = resolved.replace(
-      new RegExp(`src="cid:<${escapeRegex(cidName)}>"`, 'gi'),
-      `src="${downloadUrl}"`
-    );
-  });
-  return resolved;
-}
-
-function escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
  * Sanitize and prepare HTML for rendering.
  * Strips <html>/<body>/<head> wrappers, resolves CID images, sanitizes with DOMPurify.
  */
 function prepareHtmlContent(rawHtml, inlineImages) {
   if (!rawHtml) return '';
 
-  // Resolve CID images first
-  let html = resolveCidImages(rawHtml, inlineImages);
+  // Resolve CID images first (murni lib — menangani cid:nama.ext@uuid ala
+  // Outlook yang tidak pernah match di resolver lama → signature gambar
+  // dari Outlook/Exchange kini tampil).
+  let html = resolveCidReferences(rawHtml, inlineImages, toSafeUrl, { base: SOGO_BASE, allowExternal: false });
 
   // Strip <html>, <head>, <body> tags but keep inner content
   html = html
