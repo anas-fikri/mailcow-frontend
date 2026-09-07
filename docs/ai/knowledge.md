@@ -1684,3 +1684,9 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 ## 2026-09-07 — uteke dream (real run) + bug catatan
 - `uteke dream` real di semua 5 namespace: **0 duplikat, 0 merge** — memori near-identical teks tapi semantik beda tidak lewat threshold dedup 0.92 cosine. Registry bersih.
 - Bug uteke v0.17.0: fase *contradict* mendeteksi kontradiksi tapi gagal persist graph edge (`FOREIGN KEY constraint failed`, WARN internal) → edge kontradiksi bisa tidak tersimpan; deteksi tetap tampil di output.
+
+## 2026-09-07 — Investigasi upstream uteke utk bug contradiction-edge FK
+- **v0.17.0 adalah release terbaru** (published 2026-09-06, sama dgn versi terpasang) — belum ada versi lebih baru; `main` juga belum ada commit fix setelah release → bug CLI dream contradiction-edge (`FOREIGN KEY constraint failed`) **masih ada upstream, belum ada yang bisa di-upgrade**.
+- Akar varian upstream: issue **#1180** (server `POST /graph/edge` 500, FK `graph_edges→graph_nodes`) diperbaiki via #1182 dgn helper `GraphStore::ensure_node_for_memory()` — tapi **path CLI `dream.rs` fase contradict ketinggalan**: masih passing memory UUID mentah ke `add_edge()` tanpa mapping → FK gagal. Fix yang benar sudah tersedia di codebase (panggil helper tsb dulu).
+- Dampak lokal **kosmetik saja**: deteksi kontradiksi tetap tampil di output dream; hanya persist edge graph yang gagal, dan tidak ada fitur ai-toolkit yang pakai graph. Cek ulang saat release >0.17.0 keluar.
+- Tidak ada kredensial GitHub di mesin ini/Mac → issue upstream belum bisa difile dari sini.
