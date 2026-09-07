@@ -71,10 +71,12 @@ function renderBadgeDataUrl(count, doc) {
 export function updateFaviconBadge(count, doc) {
   const d = doc || (typeof document !== 'undefined' ? document : null);
   if (!d) return;
-  const dataUrl = renderBadgeDataUrl(count, d);
-  if (!dataUrl) return; // tanpa canvas: biarkan favicon asli
+  const dataUrl = count > 0 ? renderBadgeDataUrl(count, d) : null;
+  // count 0 / canvas tak tersedia → KEMBALIKAN favicon asli (bug fix: dulu
+  // no-op sehingga badge merah menempel selamanya setelah unread habis).
+  const href = dataUrl || FAVICON_HREF;
   const link = getFaviconLink(d);
-  if (link.getAttribute('href') !== dataUrl) link.setAttribute('href', dataUrl);
+  if (link.getAttribute('href') !== href) link.setAttribute('href', href);
 }
 
 export function __resetFaviconBadge(doc) {

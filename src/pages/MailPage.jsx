@@ -34,7 +34,7 @@ import { FLAG_COLORS, FLAG_COLOR_KEYS, getFlagColor, setFlagColor, removeFlagCol
 import { getRuleSummary, executeRules, claimAutoArchiveUids, releaseAutoArchiveClaims, autoArchiveClaimsKey } from '../lib/autoArchive';
 import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail, countCategories } from '../lib/emailCategory';
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
-import { updateFaviconBadge } from '../lib/faviconBadge';
+import { updateFaviconBadge, __resetFaviconBadge } from '../lib/faviconBadge';
 import { loadNotifyPrefs, saveNotifyPrefs } from '../lib/notifyPrefs';
 import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate, applyMessageWindow } from '../lib/dateGroups';
 import { groupConversations, normalizeSubject as normalizeConversationSubject } from '../lib/conversations';
@@ -620,8 +620,17 @@ export default function MailPage() {
   // ── Favicon unread badge (pola Gmail) ─────────────────────────────────
   useEffect(() => {
     updateFaviconBadge(unseenCount);
-    return () => updateFaviconBadge(0);
   }, [unseenCount]);
+
+  // Logout/unmount (manual, sesi habis, ganti akun): reset tab title +
+  // favicon badge — tanpa ini badge "(n)" dan ikon dot merah akun lama
+  // menempel di tab sampai akun berikutnya memuat.
+  useEffect(() => {
+    return () => {
+      document.title = 'PCP Express Mail';
+      __resetFaviconBadge();
+    };
+  }, []);
 
   // ── Load More (client-side pagination, after messages assignment) ─────────
   const PAGE_SIZE = 50;
@@ -1477,8 +1486,11 @@ export default function MailPage() {
       // tombol tunggal (tanpa modifier) — kombo tetap perilaku asli browser.
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-      // Jika compose modal atau keyboard help terbuka — hanya escape yang works
-      if (composeOpen || keyboardHelpOpen) {
+      // Modal apa pun yang menutupi layar → shortcut pesan dibungkam
+      // (bug audit 2026-09-07: dulu hanya compose+help — modal Buat/Hapus
+      // Subfolder & QuickRule masih bolong, tekan 'd' = bulk delete di
+      // belakang modal). Escape diteruskan agar modal bisa ditutup.
+      if (composeOpen || keyboardHelpOpen || !!folderDialog || !!quickRuleSender) {
         if (e.key === 'Escape') {
           e.preventDefault();
           if (keyboardHelpOpen) setKeyboardHelpOpen(false);
@@ -1634,6 +1646,7 @@ export default function MailPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [
     messages, sortedMessages, focusIdx, selectedMsgId, selectedUids, selectionMode, composeOpen, keyboardHelpOpen,
+    folderDialog, quickRuleSender,
     bulkFlagMutation, bulkMarkReadMutation, bulkDeleteMutation,
   ]);
 
