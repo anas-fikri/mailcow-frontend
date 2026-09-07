@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-09-06T14:40:41Z",
+  "last_session": "2026-09-07T01:18:52Z",
   "context": "PCP Express Webmail — freshness pipeline complete & live: (1) auto-refresh daftar pesan (refetchOnWindowFocus + invalidate saat unseenCount naik, poll 60s), (2) cross-tab sync domain 'mail' (bump di layer api.js setelah mutasi sukses, watcher di MailPage invalidate messages/unseen/folders), (3) extraMessages lazy-load divalidasi vs uids fresh SOGo. Root cause jaringan GitLab: trafik diroute via wg0 (WireGuard) yang sedang down — 32 commit lokal menunggu push. Deploy produksi 2x PASS via SERVER=deploy-mail ./deploy.sh.",
   "modules": {
     "api-native-endpoints": {
@@ -491,6 +491,11 @@
       "what": "Browser E2E reply-with-attachment + scheduled send selesai & PASS produksi (commit c1e872c, ter-push). Runner kini 10 skenario; reply memverifikasi quote/Re:/lampiran ter-render, sched memverifikasi queue server truth + undo + tidak terkirim. Temuan produk: kirim ber-lampiran/jadwal lewat /api/send proxy ditahan queue undo 3 menit sebelum flush.",
       "status": "done",
       "updated_at": "2026-09-06T14:40:41Z"
+    },
+    {
+      "what": "uteke v0.17.0 installed on this machine; ai-close now syncs task knowledge to the central registry (namespace sogo-frontend) instead of falling back to local-only",
+      "status": "done",
+      "updated_at": "2026-09-07T01:18:52Z"
     }
   ],
   "active_task": {
@@ -500,6 +505,6 @@
     "next_step": "",
     "goal_id": "",
     "sub_goal_id": "",
-    "updated_at": "2026-09-06T14:40:41Z"
+    "updated_at": "2026-09-07T01:18:52Z"
   }
 }

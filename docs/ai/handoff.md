@@ -469,3 +469,11 @@ search aktif (by design).
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-09-07T01:18:52Z
+- Status: COMPLETED
+- Objective: Tambah browser E2E untuk alur reply-with-attachment dan scheduled send (+undo).
+- Summary: uteke v0.17.0 installed on this machine; ai-close now syncs task knowledge to the central registry (namespace sogo-frontend) instead of falling back to local-only
+- Branch: main
+- Changed Files:
+- No local changes detected
