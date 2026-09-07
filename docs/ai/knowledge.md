@@ -1690,3 +1690,12 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Akar varian upstream: issue **#1180** (server `POST /graph/edge` 500, FK `graph_edges→graph_nodes`) diperbaiki via #1182 dgn helper `GraphStore::ensure_node_for_memory()` — tapi **path CLI `dream.rs` fase contradict ketinggalan**: masih passing memory UUID mentah ke `add_edge()` tanpa mapping → FK gagal. Fix yang benar sudah tersedia di codebase (panggil helper tsb dulu).
 - Dampak lokal **kosmetik saja**: deteksi kontradiksi tetap tampil di output dream; hanya persist edge graph yang gagal, dan tidak ada fitur ai-toolkit yang pakai graph. Cek ulang saat release >0.17.0 keluar.
 - Tidak ada kredensial GitHub di mesin ini/Mac → issue upstream belum bisa difile dari sini.
+
+## 2026-09-07 — Audit mikro /webmail/mail (icon, posisi, responsif, backend)
+- **iOS auto-zoom**: field form <16px (text-sm/xs) memicu zoom-jump Safari mobile. Fix global di index.css: @media (max-width:640px),(pointer:coarse) → input/textarea/select 16px !important; desktop tak berubah.
+- **h-screen vs URL bar mobile**: 100vh melebihi viewport terlihat → BottomNav/FAB bisa terpotong. Fix: `h-screen supports-[height:100dvh]:h-dvh` (Tailwind v4).
+- **A11y**: modal compose/kontak/quick-rule kini role=dialog+aria-modal+aria-label (compose membedakan new/reply/draft); label Kepada/Subjek/Nama/Email pakai htmlFor; X QuickRuleModal diberi aria-label="Tutup". Escape sengaja TIDAK menutup compose (proteksi draft) — by design.
+- **Truncation**: subjek baris, subjek grup percakapan, label folder sidebar kini punya title tooltip (nilai penuh bisa dibaca).
+- Backend server.js (auth smtp/preferences/send-config/clientIp) diaudit ulang: X-Real-IP hanya dipercaya dari trusted peer (anti spoof rate-limit), preferences anti cross-account, tanpa kebocoran info — bersih.
+- Avatar ternyata teks inisial + role=tooltip (bukan img) — aman; touch device sudah ter-cover SwipeableRow + isTouch; list terpaginasi visibleCount.
+- Validasi: suite 85/85, build bersih, deploy live (index/css/chunk MailPage md5 identik di .com & .co.id), E2E mail PASS.
