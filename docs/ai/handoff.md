@@ -503,3 +503,15 @@ search aktif (by design).
 - Root cause: `(localSig?.html && !localSig?.placeholder) || SOGoMailSignature` bernilai boolean `true` utk user dgn signature lokal real → `.substring` throw. Regresi e6a57e6 (2026-08-21). Bukan soal lokasi — per-account localStorage.
 - Fix: helper `resolveSignatureHtml` (selalu string) + guard typeof di SignaturePicker/PreferencesPage; regresi test ditambahkan; semua test signature PASS + build bersih.
 - Belum di-deploy — jalankan `SERVER=deploy-mail ./deploy.sh`.
+
+## 2026-09-12T00:10:00Z — Deploy fix signature crash
+- Commit 787f9b0 (fix r.substring crash) ter-push ke GitLab via SOCKS
+  socks5h://127.0.0.1:1080 (jalur terdokumentasi; proxy port 1080 sehat).
+- Deploy produksi via SERVER=deploy-mail ./deploy.sh: preflight OK, build,
+  rsync dist (bundle lama MailPage-6eAqXrDW.js terhapus), nginx reload,
+  backend no-op, verifikasi webmail 200 + /api/health 200 + image-proxy OK.
+- Live verify .com: index merujuk index-Cg3ASYNF.js, bundle lama 404,
+  bundle baru MailPage-BKmAypyr.js memuat guard resolveSignatureHtml
+  (r=me(t,Ge?.defaults?.SOGoMailSignature)). md5 .com == .co.id (paritas host).
+- Catatan pipeline: deploy.sh commit-step butuh macOS keychain (security) —
+  di workspace Linux commit+push manual dulu, lalu deploy.sh TANPA argumen.
