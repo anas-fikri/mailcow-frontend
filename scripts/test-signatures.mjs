@@ -10,7 +10,7 @@ globalThis.localStorage = {
 const {
   loadSignatures, addSignature, updateSignature, removeSignature,
   setDefaultSignature, getSignatureFor, getSignatureById,
-  LEGACY_PLACEHOLDER,
+  LEGACY_PLACEHOLDER, resolveSignatureHtml,
 } = await import('../src/lib/signatures.js');
 
 // Empty state
@@ -106,5 +106,37 @@ const viaFor = getSignatureFor('u@example.com', 'new');
 assert.equal(viaFor.id, 'legacy-1');
 assert.equal(viaFor.placeholder, true, 'konsumen harus bisa mendeteksi placeholder via flag');
 assert.equal(getSignatureFor('u@example.com', 'reply').placeholder, undefined, 'signature nyata tanpa flag');
+
+// ── resolveSignatureHtml: SELALU string — regresi crash `r.substring is not a function` ──
+// Bug produksi (commit e6a57e6): ekspresi `(localSig?.html && !localSig?.placeholder)
+// || prefs?.defaults?.SOGoMailSignature` bernilai boolean `true` bila user punya
+// signature lokal real → sigHtml.substring(0, 80) melempar TypeError → compose
+// white-screen. Kontrak: fungsi ini TIDAK BOLEH mengembalikan non-string.
+// Kasus crash produksi: localSig real (html non-empty, tanpa flag) → HARUS html,
+// bukan `true`.
+assert.equal(
+  resolveSignatureHtml({ id: 'x', name: 'A', html: '<b>Halo</b>' }, '<i>sogo</i>'),
+  '<b>Halo</b>',
+  'localSig real harus menghasilkan html string, bukan boolean true',
+);
+// Local placeholder → fallback SOGo
+assert.equal(
+  resolveSignatureHtml({ id: 'x', name: 'A', html: LEGACY_PLACEHOLDER, placeholder: true }, '<i>sogo</i>'),
+  '<i>sogo</i>',
+);
+// Local kosong/whitespace/bukan-string → fallback SOGo
+assert.equal(resolveSignatureHtml({ id: 'x', html: '' }, '<i>sogo</i>'), '<i>sogo</i>');
+assert.equal(resolveSignatureHtml({ id: 'x', html: '   ' }, '<i>sogo</i>'), '<i>sogo</i>');
+assert.equal(resolveSignatureHtml({ id: 'x', html: 123 }, '<i>sogo</i>'), '<i>sogo</i>');
+// Fallback SOGo tidak dipercaya: bukan-string / whitespace-only / object → ''
+assert.equal(resolveSignatureHtml(null, 12345), '');
+assert.equal(resolveSignatureHtml(null, true), '');
+assert.equal(resolveSignatureHtml(null, { weird: true }), '');
+assert.equal(resolveSignatureHtml(null, '   '), '');
+assert.equal(resolveSignatureHtml(null, ''), '');
+assert.equal(resolveSignatureHtml(null, null), '');
+assert.equal(resolveSignatureHtml(null, undefined), '');
+// Tidak ada apa pun → ''
+assert.equal(resolveSignatureHtml(null, ''), '');
 
 console.log('signatures assertions passed');

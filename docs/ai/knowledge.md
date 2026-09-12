@@ -1754,3 +1754,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 20260907-DEPLOY-RELOAD-FAST
 - Status: COMPLETED
 - Finding: Deploy-reload latency fixed: 60s visible-tab poll + immediate check on visibilitychange/focus (30s throttle) in deployCheck.js; SW v8 stops caching unique ?bv= probe URLs (was ~1440 dead entries/day/tab at 60s polling), main.jsx registers sw.js?v=8. Regression contracts locked in test-deploy-check.mjs (interval 60_000, isDeployProbe, visibility behavior). Suite 87/87, live verified md5-identical on both hosts; pushed via SOCKS tunnel 1080 since gitlab.pcpexpress.com hangs from workspace (durable pattern).
+
+## 2026-09-12T00:00:00Z
+- Task: 20260912-SIG-CRASH-SUBSTRING
+- Status: COMPLETED
+- Finding: Pola rapuh `(a?.x && !a?.flag) || fallback` bernilai BOOLEAN `true` (bukan nilai x) saat a real — operator precedence `&&` > `||`. Menyebabkan crash produksi `r.substring is not a function` di auto-inject signature ComposeModal utk SEMUA user dgn signature lokal non-placeholder (regresi e6a57e6; dilaporkan "sebagian user/lokasi beda" padahal deterministik per-account localStorage). Durable rule: resolusi nilai yang dipakai utk method-call (substring/replace/trim) harus lewat helper dgn kontrak return-type string — kini `resolveSignatureHtml()` di src/lib/signatures.js; nilai fallback dari DB/localStorage (SOGoMailSignature) tidak pernah dipercaya tanpa guard typeof. Terverifikasi live dgn mendownload bundle produksi & memetakan kolom stack trace ke source — teknik ini jauh lebih cepat daripada menebak dari source saja.

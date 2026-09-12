@@ -297,7 +297,11 @@ function SignatureSection() {
     if (!email || migratedRef.current) return;
     if (!prefs) return;
     migratedRef.current = true;
-    const savedSogo = prefs?.defaults?.SOGoMailSignature || '';
+    // Guard typeof: nilai dari DB/localStorage tidak dipercaya — bukan-string
+    // (hasil parse rusak) tidak boleh sampai ke .trim()/.substring.
+    const savedSogo = typeof prefs?.defaults?.SOGoMailSignature === 'string'
+      ? prefs.defaults.SOGoMailSignature
+      : '';
     if (savedSogo.trim()) {
       const local = loadSignatures(email);
       if (local.list.length === 0) {

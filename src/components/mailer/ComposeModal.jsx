@@ -12,7 +12,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
 import { handleEditorPaste, insertImageFile, PURIFY_CONFIG } from '../../lib/pasteUtils';
-import { loadSignatures, getSignatureFor } from '../../lib/signatures';
+import { loadSignatures, getSignatureFor, resolveSignatureHtml } from '../../lib/signatures';
 import { formatFileSize, totalAttachmentSize } from '../../lib/attachments';
 import { firstInvalidRecipient } from '../../lib/emailValidation';
 import { recordSentRecipients, getEmailSuggestions } from '../../lib/emailHistory';
@@ -276,9 +276,15 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
     const localSig = getSignatureFor(user.email, composeMode);
     // Entri legacy ber-placeholder tidak ikut disuntik ke email baru — hanya
     // diisi saat user mengeditnya (flag placeholder dihapus oleh updateSignature).
-    const sigHtml = (localSig?.html && !localSig?.placeholder) || prefs?.defaults?.SOGoMailSignature;
+    // resolveSignatureHtml mengembalikan SELALU string (fallback SOGo
+    // dinormalisasi) — mencegah crash `sigHtml.substring is not a function`
+    // saat ekspresi ||-rantai bernilai boolean (regresi e6a57e6).
+    const sigHtml = resolveSignatureHtml(
+      localSig,
+      prefs?.defaults?.SOGoMailSignature,
+    );
     const enabled = localSig
-      ? true
+      ? !localSig.placeholder
       : prefs?.defaults?.SOGoMailSignatureEnabled === '1';
     if (sigHtml && enabled) {
       setBody(cur => {
@@ -823,7 +829,7 @@ export default function ComposeModal({ isOpen, onClose, initialData = null, sogo
                   <SignaturePicker
                     email={user?.email || ''}
                     onInsert={(sigHtml) => {
-                      if (!sigHtml) return;
+                      if (typeof sigHtml !== 'string' || !sigHtml) return;
                       markUserEdited();
                       setBody(cur => {
                         if (cur.includes(sigHtml.substring(0, 80))) return cur;

@@ -144,6 +144,32 @@ export function getSignatureById(email, id) {
   return data.list.find((s) => s.id === id) || null;
 }
 
+/**
+ * Resolve HTML signature final untuk compose: lokal menang, fallback ke
+ * SOGoMailSignature. SELALU mengembalikan STRING (bisa '') — konsumen boleh
+ * langsung memanggil .substring/.replace tanpa guard.
+ *
+ * Bug yang dicegah (regresi e6a57e6): ekspresi
+ *   `(localSig?.html && !localSig?.placeholder) || sogo`
+ * bernilai boolean `true` bila localSig real → `sigHtml.substring(0,80)`
+ * melempar TypeError dan Modal Compose crash (white screen) untuk semua user
+ * yang punya signature lokal.
+ *
+ * Aturan:
+ * - localSig tanpa flag placeholder dan html-nya non-empty → pakai html itu.
+ * - localSig placeholder / kosong / bukan string → fallback SOGo.
+ * - Fallback SOGo dinormalisasi: bukan-string ATAU whitespace-only → ''.
+ *
+ * @param {{html?:string, placeholder?:boolean}|null} localSig
+ * @param {unknown} sogoHtml  nilai prefs?.defaults?.SOGoMailSignature (tidak dipercaya)
+ * @returns {string}
+ */
+export function resolveSignatureHtml(localSig, sogoHtml) {
+  const localHtml = localSig && !localSig.placeholder ? localSig.html : null;
+  if (typeof localHtml === 'string' && localHtml.trim()) return localHtml;
+  return typeof sogoHtml === 'string' && sogoHtml.trim() ? sogoHtml : '';
+}
+
 /** Nama utk dropdown; '' bila tidak ada signature. */
 export function signatureLabel(sig) {
   return sig ? (sig.name || 'Signature') : '';

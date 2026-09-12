@@ -494,3 +494,12 @@ search aktif (by design).
 - Branch: main
 - Changed Files:
 - No local changes detected
+
+## 2026-09-12T00:00:00Z
+- Status: COMPLETED
+- Objective: Diagnose production TypeError `r.substring is not a function` (MailPage-6eAqXrDW.js:48:2152) sebagian user.
+- Branch: main
+- Changed Files: src/lib/signatures.js, src/components/mailer/ComposeModal.jsx, src/pages/PreferencesPage.jsx, scripts/test-signatures.mjs (+ docs/ai/*.md)
+- Root cause: `(localSig?.html && !localSig?.placeholder) || SOGoMailSignature` bernilai boolean `true` utk user dgn signature lokal real → `.substring` throw. Regresi e6a57e6 (2026-08-21). Bukan soal lokasi — per-account localStorage.
+- Fix: helper `resolveSignatureHtml` (selalu string) + guard typeof di SignaturePicker/PreferencesPage; regresi test ditambahkan; semua test signature PASS + build bersih.
+- Belum di-deploy — jalankan `SERVER=deploy-mail ./deploy.sh`.
