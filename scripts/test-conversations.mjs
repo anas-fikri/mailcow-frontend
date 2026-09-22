@@ -126,4 +126,29 @@ const t8b = groupConversations([
 ], false, 'akun@mail.com', { labelField: 'from' });
 eq(t8b[0].senders, ['akun@mail.com'], 'labelField default from → senders = pengirim');
 
+// 9) Agregat lampiran per thread (header conversation collapsed):
+//    lampiran di pesan LAMA tetap terlihat via chip paperclip di header.
+const withAtt = (msg, hasAtt) => ({ ...msg, hasAtt });
+const t9 = groupConversations([
+  withAtt(m('3', 'A <a@x.com>', 'Re: Laporan', '2026-08-22 08:00', true, 'b@x.com'), false), // terbaru TANPA lampiran
+  withAtt(m('2', 'B <b@x.com>', 'Laporan', '2026-08-21 09:00', true, 'a@x.com'), true),      // lama BERlampiran
+]);
+ok(t9[0].hasAttachment === true, 'hasAttachment true walau pesan terbaru polos');
+eq(t9[0].attachmentCount, 1, 'attachmentCount = jumlah pesan berlampiran');
+const t9b = groupConversations([
+  withAtt(m('2', 'B <b@x.com>', 'Laporan', '2026-08-21 09:00', true, 'a@x.com'), true),
+  withAtt(m('1', 'A <a@x.com>', 'Re: Laporan', '2026-08-20 08:00', true, 'b@x.com'), true),
+]);
+ok(t9b[0].hasAttachment === true && t9b[0].attachmentCount === 2, 'semua anggota berlampiran → count 2');
+const t9c = groupConversations([
+  m('2', 'B <b@x.com>', 'Laporan', '2026-08-21 09:00', true, 'a@x.com'), // tanpa field hasAtt
+  m('1', 'A <a@x.com>', 'Re: Laporan', '2026-08-20 08:00', true, 'b@x.com'),
+]);
+ok(t9c[0].hasAttachment === false && t9c[0].attachmentCount === 0, 'tanpa field hasAtt → false/0 (fallback aman)');
+// hasAtt truthy non-boolean (parser bisa kirim 1/"1") tetap dihitung
+const t9d = groupConversations([
+  withAtt(m('1', 'A <a@x.com>', 'Laporan', '2026-08-20 08:00', true, 'b@x.com'), 1),
+]);
+ok(t9d[0].hasAttachment === true, 'hasAtt truthy (1) → hasAttachment true');
+
 console.log(`test-conversations: ${pass} assertion PASS`);

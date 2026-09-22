@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-09-22T11:06:21Z",
+  "last_session": "2026-09-22T12:02:45Z",
   "context": "PCP Express Webmail — freshness pipeline complete & live: (1) auto-refresh daftar pesan (refetchOnWindowFocus + invalidate saat unseenCount naik, poll 60s), (2) cross-tab sync domain 'mail' (bump di layer api.js setelah mutasi sukses, watcher di MailPage invalidate messages/unseen/folders), (3) extraMessages lazy-load divalidasi vs uids fresh SOGo. Root cause jaringan GitLab: trafik diroute via wg0 (WireGuard) yang sedang down — 32 commit lokal menunggu push. Deploy produksi 2x PASS via SERVER=deploy-mail ./deploy.sh.",
   "modules": {
     "api-native-endpoints": {
@@ -501,15 +501,20 @@
       "what": "Fix regresi lampiran: guard Array.isArray(parts) + hormati shouldDisplayAttachment (skip CID footer di daftar lampiran, opts.includeHidden utk jalur data draft/eml), hapus ulang seksi Gambar, formatFileSize dari lib. Regresi commit restore 08bef9c yang menghapus fix 200b250. 8 suite regression PASS + build OK.",
       "status": "done",
       "updated_at": "2026-09-22T11:06:21Z"
+    },
+    {
+      "what": "Indikator lampiran per-thread: agregat hasAttachment/attachmentCount di groupConversations + chip paperclip+count di header conversation collapsed (lampiran di pesan lama kini terlihat). Expanded sudah per-baris sejak awal. Test conversations 37 + golden + build PASS.",
+      "status": "done",
+      "updated_at": "2026-09-22T12:02:45Z"
     }
   ],
   "active_task": {
-    "id": "20260922-105739-174098",
+    "id": "20260922-115707-317695",
     "status": "COMPLETED",
-    "objective": "20260922-ATTACH-REGRESSION: lampiran hilang + gambar CID footer masuk daftar lampiran (regresi restore 08bef9c)",
+    "objective": "20260922-CONV-ATTACH: indikator lampiran per-thread di header conversation (agregat hasAtt)",
     "next_step": "",
     "goal_id": "TBD",
     "sub_goal_id": "TBD",
-    "updated_at": "2026-09-22T11:06:21Z"
+    "updated_at": "2026-09-22T12:02:45Z"
   }
 }

@@ -109,6 +109,11 @@ export function groupConversations(messages = [], asc = false, selfEmail = '', o
     g.senders = [...new Set(g.messages.map((m) => senderDisplayName(m[labelField])))];
     g.hasUnread = g.messages.some((m) => !m.isRead);
     g.latest = g.messages[0] || null;
+    // Agregat lampiran per thread: saat collapsed hanya pesan terbaru yang
+    // dirender, jadi lampiran di pesan lama tidak terlihat. Chip paperclip di
+    // header pakai field ini (pola Gmail/Outlook: paperclip di baris thread).
+    g.hasAttachment = g.messages.some((m) => m && m.hasAtt);
+    g.attachmentCount = g.messages.reduce((n, m) => n + (m && m.hasAtt ? 1 : 0), 0);
   }
 
   groups.sort((a, b) => {

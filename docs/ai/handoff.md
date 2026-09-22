@@ -1,3 +1,13 @@
+## 2026-09-22 — Indikator lampiran per-thread di header conversation
+
+T-20260922-115707: lampiran terlihat di conversation meski pesan berlampiran bukan terbaru
+Implement: Buffy (Codebuff) · Review: self pass 1 + edge pass
+Pass 1 (self): 0 bug · Pass 2 (edge): 0 bug · Pass 3+: belum (reviewer beda session)
+→ IMPLEMENTED: test:conversations 37 (4 assertion agregat baru), mail-golden (thread.hasAttachment/count), conversation-toolbar 7, conversation-init-order 4, a11y 169, build OK. DEPLOY menyusul commit ini.
+
+- Analisa: conversation expanded sudah menampilkan 📎 per baris anggota; collapsed hanya merender pesan terbaru → lampiran di pesan lama tak terlihat. Fix: agregat `hasAttachment`/`attachmentCount` di groupConversations + chip paperclip+count di header thread (pola Gmail/Outlook). Grup 1 pesan tetap dirender sbg baris biasa (chip per-baris berlaku).
+- Review conversation umum: grouping by-subject OK, latest selection pakai parseMessageDate (fix 28 Agu utk RelativeDate locale), preview pagination invariant OK, strictParticipants tersedia. Gap ter-identifikasi: indikator lampiran header (task ini) — gap lain tidak ditemukan.
+
 ## 2026-09-22 — Fix regresi lampiran (guard array + flag shouldDisplayAttachment)
 
 T-20260922-105739: lampiran hilang + gambar CID footer masuk daftar Lampiran
@@ -543,3 +553,18 @@ search aktif (by design).
 -  M src/lib/messageHtml.js
 -  M src/pages/MailPage.jsx
 - ?? docs/ai/tasks/20260922-105739-174098.previous.md
+
+## 2026-09-22T12:02:44Z
+- Status: COMPLETED
+- Objective: 20260922-CONV-ATTACH: indikator lampiran per-thread di header conversation (agregat hasAtt)
+- Summary: Indikator lampiran per-thread: agregat hasAttachment/attachmentCount di groupConversations + chip paperclip+count di header conversation collapsed (lampiran di pesan lama kini terlihat). Expanded sudah per-baris sejak awal. Test conversations 37 + golden + build PASS.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M scripts/test-conversations.mjs
+-  M scripts/test-mail-golden.mjs
+-  M src/lib/conversations.js
+-  M src/pages/MailPage.jsx
+- ?? docs/ai/tasks/20260922-115707-317695.previous.md

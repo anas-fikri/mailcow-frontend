@@ -130,6 +130,9 @@ assert.equal(convs.length, 3, 'Re: Laporan merge dgn induk; 2 subjek lain terpis
 const thread = convs.find((c) => c.norm === 'laporan bulanan tim');
 assert.equal(thread.messages.length, 2, '2 pesan dalam 1 thread');
 assert.equal(thread.messages[0].uid, 9, 'preview thread = pesan TERBARU (bukan induk)');
+// Agregat lampiran thread: pesan induk (uid 9) berlampiran, reply (uid 10) tidak
+assert.equal(thread.hasAttachment, true, 'thread berlampiran walau pesan terbaru polos');
+assert.equal(thread.attachmentCount, 1, '1 dari 2 pesan berlampiran');
 
 // ── 9. Kategori: domain & no-reply ───────────────────────────────────────────
 assert.equal(classifyEmail({ ...byUid.get(11), folderId: 'folderINBOX' }), 'promo');

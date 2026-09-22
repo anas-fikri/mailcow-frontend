@@ -1773,3 +1773,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 20260922-105739-174098
 - Status: COMPLETED
 - Finding: SOGo /view: parts bisa array langsung (semua extract wajib array-aware) dan leaf part punya shouldDisplayAttachment (0=inline CID sudah di body, kontrak Message.service.js:464); filter flag-0 hanya jalur tampilan, jalur data (draft restore/.eml) wajib includeHidden; commit restore wajib di-diff vs commit fix terbaru yang menyentuh file sama
+
+## 2026-09-22T12:02:44Z
+- Task: 20260922-115707-317695
+- Status: COMPLETED
+- Finding: groupConversations kini menghasilkan hasAttachment/attachmentCount per grup (agregat hasAtt); header conversation harus punya chip lampiran karena collapsed hanya merender pesan terbaru — pola yang sama berlaku utk field agregat lain (mis. flag) yang mungkin diinginkan per-thread

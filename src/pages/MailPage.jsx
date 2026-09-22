@@ -2633,6 +2633,19 @@ export default function MailPage() {
                           {latest?.date && (
                             <span className="text-xs text-muted-foreground shrink-0">{latest.date}</span>
                           )}
+                          {/* Lampiran thread: saat collapsed hanya baris terbaru
+                              yang dirender — lampiran di pesan lama tidak
+                              terlihat. Chip agregat di header menutup celah itu
+                              (pola Gmail/Outlook: paperclip di baris thread). */}
+                          {group.hasAttachment && (
+                            <span
+                              className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-0.5"
+                              title={`${group.attachmentCount} pesan berlampiran dalam percakapan`}
+                            >
+                              <Paperclip size={10} aria-hidden />
+                              {group.attachmentCount}
+                            </span>
+                          )}
                           <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
                             {group.messages.length}
                           </span>
