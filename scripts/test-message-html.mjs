@@ -106,4 +106,64 @@ assert.equal(viewOnly[0].downloadURL.includes('part=9'), true, 'downloadURL fall
 assert.equal(extractAttachments({ contentType: 'text/plain', content: 'x' }).length, 0);
 assert.equal(extractAttachments(null).length, 0);
 
+// ── REGRESI 2026-09-22: parts sebagai ARRAY langsung (regresi restore 08bef9c) ─
+// Bug produksi: lampiran tidak muncul + gambar CID footer masuk daftar Lampiran.
+// Ground truth flag: SOGo native Message.service.js:464 — shouldDisplayAttachment
+// 0 = konten sudah tampil di body (inline CID) → BUKAN lampiran.
+const arrayParts = [
+  {
+    contentType: 'multipart/alternative',
+    content: [
+      { contentType: 'text/plain', content: 'versi plain' },
+      { contentType: 'text/html', content: '<p>Body <img src="cid:footer.png"></p>' },
+    ],
+  },
+  {
+    contentType: 'image/png',
+    filename: 'footer.png',
+    contentId: '<footer.png>',
+    size: '1.2 KB',
+    downloadURL: '/SOGo/so/x/Mail/0/folderINBOX/9/1/footer.png',
+    shouldDisplayAttachment: 0, // inline CID → sudah dirender di body
+  },
+  {
+    contentType: 'application/pdf',
+    filename: 'laporan.pdf',
+    size: '144 B',
+    downloadURL: '/SOGo/so/x/Mail/0/folderINBOX/9/2/asAttachment/laporan.pdf',
+    viewURL: '/SOGo/so/x/Mail/0/folderINBOX/9/2/laporan.pdf',
+    shouldDisplayAttachment: 1,
+  },
+];
+// body html tetap ketemu meski top-level parts = array
+assert.equal(extractHtml(arrayParts), '<p>Body <img src="cid:footer.png"></p>');
+// lampiran: HANYA pdf — footer.png (flag 0) tidak dobel di daftar Lampiran
+const attsArray = extractAttachments(arrayParts);
+assert.equal(attsArray.length, 1, 'CID inline (flag 0) di-skip, hanya lampiran asli');
+assert.equal(attsArray[0].name, 'laporan.pdf');
+assert.equal(attsArray[0].downloadURL.includes('asAttachment'), true);
+
+// Varian: flag 0 pada SEMUA tipe (kontrak SOGo), flag 1/undefined tetap lampiran
+assert.equal(extractAttachments({ contentType: 'application/zip', filename: 'a.zip', downloadURL: 'u', shouldDisplayAttachment: 0 }).length, 0, 'flag 0 non-gambar pun di-skip');
+assert.equal(extractAttachments({ contentType: 'application/zip', filename: 'a.zip', downloadURL: 'u', shouldDisplayAttachment: 1 }).length, 1);
+assert.equal(extractAttachments({ contentType: 'application/zip', filename: 'a.zip', downloadURL: 'u' }).length, 1, 'tanpa flag = lampiran (perilaku lama)');
+assert.equal(extractAttachments({ contentType: 'text/html', content: 'x', downloadURL: 'u', shouldDisplayAttachment: 0 }).length, 0);
+
+// Array BERSARANG di dalam content (guard harus rekursif, bukan cuma top-level)
+const nestedArrayInContent = {
+  contentType: 'multipart/mixed',
+  content: [
+    [{ contentType: 'text/html', content: '<b>deep html</b>' }],
+    [{ contentType: 'application/pdf', filename: 'deep.pdf', downloadURL: 'u-deep' }],
+  ],
+};
+assert.equal(extractHtml(nestedArrayInContent), '<b>deep html</b>');
+const deepAtts = extractAttachments(nestedArrayInContent);
+assert.equal(deepAtts.length, 1);
+assert.equal(deepAtts[0].name, 'deep.pdf');
+
+// CID footer dengan flag undefined (SOGo varian lama) TETAP masuk lampiran —
+// fallback aman, tidak pernah memakan lampiran asli.
+assert.equal(extractAttachments({ contentType: 'image/png', filename: 'logo.png', downloadURL: 'u' }).length, 1);
+
 console.log('messageHtml assertions passed');

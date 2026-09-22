@@ -1353,7 +1353,10 @@ export default function MailPage() {
       // blokir seluruh pembukaan draft.
       const restoredAttachments = [];
       const restored = await Promise.allSettled(
-        extractAttachments(detail.parts).map(async (att) => {
+        // includeHidden: part inline CID (flag 0) tetap diunduh — datanya
+        // dibutuhkan agar gambar tidak hilang saat draft dikirim, walau UI
+        // tidak menampilkannya sebagai lampiran.
+        extractAttachments(detail.parts, [], { includeHidden: true }).map(async (att) => {
           const data = await fetchAttachmentData(att.downloadURL);
           if (!data) throw new Error('tidak ada data');
           return {

@@ -51,8 +51,8 @@ ok(compose.includes("if (initialData?.composeMode === 'draft') { sigInjected.cur
   'draft yang dibuka tidak boleh disuntik signature ganda');
 
 // ── Restorasi lampiran saat edit draft ───────────────────────────────────────
-ok(lib.includes('export function extractAttachments(parts, result = [])'),
-  'extractAttachments harus ada di messageHtml.js');
+ok(lib.includes('export function extractAttachments(parts, result = [], opts = {})'),
+  'extractAttachments harus ada di messageHtml.js (opts.includeHidden utk jalur data draft/eml)');
 ok(reader.includes('extractAttachments'), 'MessageReader harus pakai extractAttachments dari lib');
 ok(!reader.includes('function extractAttachments(parts, result = [])'),
   'MessageReader tidak boleh punya duplikat extractAttachments lokal');

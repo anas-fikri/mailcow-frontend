@@ -16,9 +16,16 @@ export function looksLikeHtmlInPlainText(content) {
   return HTML_IN_PLAIN_RE.test(content);
 }
 
-/** Cari konten text/html di kedalaman mana pun dari tree parts. */
+/** Cari konten text/html di kedalaman mana pun dari tree parts (array-aware). */
 function findHtml(parts) {
   if (!parts) return null;
+  if (Array.isArray(parts)) {
+    for (const child of parts) {
+      const found = findHtml(child);
+      if (found) return found;
+    }
+    return null;
+  }
   const ct = parts.contentType || '';
   if (ct === 'text/html' && parts.content) return parts.content;
   if (Array.isArray(parts.content)) {
@@ -30,9 +37,16 @@ function findHtml(parts) {
   return null;
 }
 
-/** Cari konten text/plain di kedalaman mana pun dari tree parts. */
+/** Cari konten text/plain di kedalaman mana pun dari tree parts (array-aware). */
 function findPlain(parts) {
   if (!parts) return null;
+  if (Array.isArray(parts)) {
+    for (const child of parts) {
+      const found = findPlain(child);
+      if (found) return found;
+    }
+    return null;
+  }
   const ct = parts.contentType || '';
   if (ct === 'text/plain' && parts.content) return parts.content;
   if (Array.isArray(parts.content)) {
@@ -46,15 +60,20 @@ function findPlain(parts) {
 
 /**
  * Ambil konten HTML dari struktur MIME parts SOGo (view).
- * - text/html DIKEDALKAN di kedalaman mana pun — SOGo sering menaruh
- *   text/html di dalam multipart/alternative yang bersarang di dalam
- *   multipart/mixed, sementara text/plain ada di urutan part lebih awal;
- *   versi lama hanya cek child langsung sehingga plain bisa menang.
+ * - parts bisa OBJECT ({contentType, content:[...]}) ATAU ARRAY langsung
+ *   (dari UIxMailPartViewer.m renderedPart / UIxMailPartMessageViewer — lihat
+ *   knowledge 2026-08-19; tanpa guard ini body tidak pernah tampil).
+ * - text/html DICARI di kedalaman mana pun — SOGo sering menaruh text/html
+ *   di dalam multipart/alternative yang bersarang di dalam multipart/mixed,
+ *   sementara text/plain ada di urutan part lebih awal; versi lama hanya cek
+ *   child langsung sehingga plain bisa menang.
  * - text/plain → dibungkus div white-space:pre-wrap (jangan escape: biarkan
  *   DOMPurify yang handle — SOGo sering kirim bounce sebagai text/plain berisi
  *   tag HTML semu, dan di-hydrate ke contentEditable via innerHTML)
  */
 export function extractHtml(parts) {
+  // findHtml/findPlain array-aware: prioritas html di SEMUA elemen array dulu,
+  // baru plain — array bisa muncul di top-level maupun bersarang.
   const html = findHtml(parts);
   if (html) return html;
   const plain = findPlain(parts);
@@ -64,10 +83,29 @@ export function extractHtml(parts) {
 
 /**
  * Kumpulkan lampiran (part non-inline dengan downloadURL) dari tree parts.
+ *
+ * Aturan tampil (sama dengan SOGo native Message.service.js:464):
+ * part dengan shouldDisplayAttachment === 0 adalah konten yang SUDAH tampil
+ * di body (gambar inline/CID — banner & footer vendor) dan TIDAK boleh
+ * masuk daftar lampiran; flag undefined/1 tetap dihitung lampiran.
+ *
+ * opts.includeHidden: ikutkan part flag-0 (jalur DATA — restore draft &
+ * export .eml butuh isi file-nya walau UI tidak menampilkannya sebagai
+ * lampiran; tanpa ini gambar CID hilang saat draft dikirim/di-export).
+ *
+ * parts bisa OBJECT atau ARRAY langsung (lihat extractHtml).
+ *
  * @returns {Array<{name:string, size:*, contentType:string, downloadURL:string}>}
  */
-export function extractAttachments(parts, result = []) {
+export function extractAttachments(parts, result = [], opts = {}) {
   if (!parts) return result;
+  if (Array.isArray(parts)) {
+    parts.forEach((child) => extractAttachments(child, result, opts));
+    return result;
+  }
+  // Gambar inline (CID) sudah dirender di body via resolver cid: — jangan
+  // diduplikasi di daftar Lampiran (regresi "footer email jadi lampiran").
+  if (!opts.includeHidden && parts.shouldDisplayAttachment === 0) return result;
   const ct = parts.contentType || '';
   const isInline = ct === 'text/html' || ct === 'text/plain';
   if ((parts.downloadURL || parts.viewURL) && !isInline) {
@@ -81,7 +119,7 @@ export function extractAttachments(parts, result = []) {
     });
   }
   if (Array.isArray(parts.content)) {
-    parts.content.forEach((child) => extractAttachments(child, result));
+    parts.content.forEach((child) => extractAttachments(child, result, opts));
   }
   return result;
 }

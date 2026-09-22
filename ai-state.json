@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-09-07T07:05:46Z",
+  "last_session": "2026-09-22T11:06:21Z",
   "context": "PCP Express Webmail — freshness pipeline complete & live: (1) auto-refresh daftar pesan (refetchOnWindowFocus + invalidate saat unseenCount naik, poll 60s), (2) cross-tab sync domain 'mail' (bump di layer api.js setelah mutasi sukses, watcher di MailPage invalidate messages/unseen/folders), (3) extraMessages lazy-load divalidasi vs uids fresh SOGo. Root cause jaringan GitLab: trafik diroute via wg0 (WireGuard) yang sedang down — 32 commit lokal menunggu push. Deploy produksi 2x PASS via SERVER=deploy-mail ./deploy.sh.",
   "modules": {
     "api-native-endpoints": {
@@ -496,15 +496,20 @@
       "what": "uteke v0.17.0 installed on this machine; ai-close now syncs task knowledge to the central registry (namespace sogo-frontend) instead of falling back to local-only",
       "status": "done",
       "updated_at": "2026-09-07T01:18:52Z"
+    },
+    {
+      "what": "Fix regresi lampiran: guard Array.isArray(parts) + hormati shouldDisplayAttachment (skip CID footer di daftar lampiran, opts.includeHidden utk jalur data draft/eml), hapus ulang seksi Gambar, formatFileSize dari lib. Regresi commit restore 08bef9c yang menghapus fix 200b250. 8 suite regression PASS + build OK.",
+      "status": "done",
+      "updated_at": "2026-09-22T11:06:21Z"
     }
   ],
   "active_task": {
-    "id": "20260907-DEPLOY-RELOAD-FAST",
+    "id": "20260922-105739-174098",
     "status": "COMPLETED",
-    "objective": "Reduce deploy-reload delay so stale tabs pick up new bundles sooner next deploy.",
+    "objective": "20260922-ATTACH-REGRESSION: lampiran hilang + gambar CID footer masuk daftar lampiran (regresi restore 08bef9c)",
     "next_step": "",
-    "goal_id": "",
-    "sub_goal_id": "",
-    "updated_at": "2026-09-07T07:05:46Z"
+    "goal_id": "TBD",
+    "sub_goal_id": "TBD",
+    "updated_at": "2026-09-22T11:06:21Z"
   }
 }

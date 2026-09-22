@@ -1,3 +1,14 @@
+## 2026-09-22 — Fix regresi lampiran (guard array + flag shouldDisplayAttachment)
+
+T-20260922-105739: lampiran hilang + gambar CID footer masuk daftar Lampiran
+Implement: Buffy (Codebuff) · Review: self pass 1 + bug-hunt edge-case
+Pass 1 (self): 1 bug (kontrak test draft-compose — signature extractAttachments berubah, diupdate) · Pass 2 (edge-case): 1 bug (jalur data draft/eml ikut ter-filter flag-0 → fixed via opts.includeHidden) · Pass 3+: belum dijalankan (reviewer beda session)
+→ IMPLEMENTED: 8 suite regression PASS (message-html + regresi baru array/flag, draft-compose 49, eml-sendqueue 51, attachments, mail-golden, a11y 169, security-hardening 21, multitab) + build OK. BELUM deploy.
+
+- Root cause: restorasi 08bef9c (26 Agu) memulihkan MessageReader.jsx pra-19 Agu — menghapus fix commit 200b250: (1) guard Array.isArray(parts) di extract functions (SOGo bisa kirim parts sebagai array → lampiran/body tidak terekstrak), (2) filter shouldDisplayAttachment===0 (gambar inline CID footer/banner ikut masuk daftar Lampiran), (3) formatFileSize lib (size string "1.2 MB" → "NaN KB"). Kontrak flag diverifikasi dari bundle SOGo asli (Message.service.js:464).
+- Fix: findHtml/findPlain/extractAttachments/extractInlineImages array-aware; extractAttachments skip flag-0 utk jalur tampilan + opts.includeHidden utk jalur data (restore draft MailPage, export .eml reader); seksi "Gambar" dihapus lagi (inline CID sudah dirender di body via resolver cid:); formatFileSize diimpor dari lib.
+- Validasi: lihat blok bukti di atas. Regresi baru di scripts/test-message-html.mjs (top-level array, nested array, flag 0/1/undefined, non-gambar flag-0).
+
 ## 2026-09-03 — Fix tanggal SOGo Indonesia: email terbaru tenggelam di bawah daftar
 
 - Root cause "email terbaru kok 28 Agustus": sortMessagesByDate (f152e84, deploy 28 Agu) mengurutkan by parsed date, tapi RelativeDate SOGo locale Indonesia ("Hari ini 09:41", "Kamis 12:36", "28/08/2026") tak terbaca Date.parse → ts=-Infinity → pesan ≤1 minggu tenggelam; "dd/mm/yyyy" lama salah-parse month-first dan mengapung di atas. Deploy & koneksi terverifikasi baik — ini bug parsing murni.
@@ -515,3 +526,20 @@ search aktif (by design).
   (r=me(t,Ge?.defaults?.SOGoMailSignature)). md5 .com == .co.id (paritas host).
 - Catatan pipeline: deploy.sh commit-step butuh macOS keychain (security) —
   di workspace Linux commit+push manual dulu, lalu deploy.sh TANPA argumen.
+
+## 2026-09-22T11:06:21Z
+- Status: COMPLETED
+- Objective: 20260922-ATTACH-REGRESSION: lampiran hilang + gambar CID footer masuk daftar lampiran (regresi restore 08bef9c)
+- Summary: Fix regresi lampiran: guard Array.isArray(parts) + hormati shouldDisplayAttachment (skip CID footer di daftar lampiran, opts.includeHidden utk jalur data draft/eml), hapus ulang seksi Gambar, formatFileSize dari lib. Regresi commit restore 08bef9c yang menghapus fix 200b250. 8 suite regression PASS + build OK.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+-  M scripts/test-draft-compose.mjs
+-  M scripts/test-message-html.mjs
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/messageHtml.js
+-  M src/pages/MailPage.jsx
+- ?? docs/ai/tasks/20260922-105739-174098.previous.md

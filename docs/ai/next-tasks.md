@@ -1,24 +1,32 @@
 # Suggested Next Tasks
 
 Project: mailcow-frontend
-Generated At: 2026-09-07T07:05:47Z
+Generated At: 2026-09-22T11:06:21Z
 
 Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
 
-## 1. [MEDIUM] Follow up on discovered knowledge: Deploy-reload latency fixed: 60s visible-tab poll + immediate check on visibilitychange/focus (30s throttle) in deployCheck.js; SW v8 stops caching unique ?bv= probe URLs (was ~1440 dead entries/day/tab at 60s polling), main.jsx registers sw.js?v=8. Regression contracts locked in test-deploy-check.mjs (interval 60_000, isDeployProbe, visibility behavior). Suite 87/87, live verified md5-identical on both hosts; pushed via SOCKS tunnel 1080 since gitlab.pcpexpress.com hangs from workspace (durable pattern).
-- Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
-- Source: knowledge.md
+## 1. [MEDIUM] Fix extract di messageHtml.js (guard array + hormati shouldDisplayAttachment)
+- Why: Explicit next step recorded on active task.
+- Source: current-task.md
 
-## 2. [LOW] Review and commit current changes
-- Why: 4 uncommitted file entries remain in the project.
-- Source: git status
+## 2. [MEDIUM] Fix MessageReader (inline images, seksi Gambar, formatFileSize lib)
+- Why: Explicit next step recorded on active task.
+- Source: current-task.md
+
+## 3. [MEDIUM] Test regresi + suite + build
+- Why: Explicit next step recorded on active task.
+- Source: current-task.md
+
+## 4. [HIGH] Resolve risk: Regresi fase draft: extractAttachments draft-followup memakai flag c1 — sudah dicek konsisten (c1 && isInline), test:attachments sebagai gate.
+- Why: Risk was recorded but not marked resolved.
+- Source: current-task.md
+
+## 5. [HIGH] Run or verify validation: Risk analysis: REQUIRED
+- Why: Current task contains validation work that still needs explicit confirmation.
+- Source: current-task.md
 
 ## Agent Use
 
 Select one suggestion only after checking dependencies and user priority. Start it with:
 
 ai-start "<selected task>"
-
-## 3. [MEDIUM] Tambahkan informasi quick chat dashboard sebagai card di webmail (pending dependency)
-- Why: Permintaan user (2026-09-07): informasi dari quick chat dashboard akan ditampilkan dalam bentuk card di webmail. **Blocked** sampai modifikasi quick chat dashboard selesai.
-- Source: user request

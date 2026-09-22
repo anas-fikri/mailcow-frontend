@@ -16,7 +16,7 @@ import { formatAddresses } from '../../lib/format';
 import { extractHtml, extractAttachments } from '../../lib/messageHtml';
 import { proxyExternalImages } from '../../lib/imageProxy';
 import { resolveCidReferences } from '../../lib/cidImages';
-import { getFileKind, totalAttachmentSize } from '../../lib/attachments';
+import { getFileKind, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
 import { buildEml, htmlToText } from '../../lib/emlUtils';
 import { analyzePhishing, RISK_LEVELS } from '../../lib/phishingDetection';
 
@@ -50,6 +50,12 @@ const EMAIL_PURIFY_CONFIG = {
 
 function extractInlineImages(parts, result = []) {
   if (!parts) return result;
+  // SOGo bisa kirim parts sebagai ARRAY langsung (bukan object {content}) —
+  // tanpa guard ini gambar CID tidak pernah terkumpul → tidak tampil di body.
+  if (Array.isArray(parts)) {
+    parts.forEach((child) => extractInlineImages(child, result));
+    return result;
+  }
   if (parts.contentType?.startsWith('image/') && parts.downloadURL) {
     result.push({
       name: parts.filename || parts.name || 'image',
@@ -93,16 +99,11 @@ function prepareHtmlContent(rawHtml, inlineImages) {
   return DOMPurify.sanitize(html, EMAIL_PURIFY_CONFIG);
 }
 
-function formatFileSize(bytes) {
-  if (!bytes || bytes === 0) return '';
-  return bytes > 1024 * 1024
-    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
-    : `${Math.round(bytes / 1024)} KB`;
-}
-
 function isImageType(ct) {
   return ct?.startsWith('image/');
 }
+// NOTE: formatFileSize diimpor dari lib/attachments (menangani size STRING
+// terformat SOGo "1.2 MB" — versi lokal lama menghasilkan "NaN KB").
 
 /** Unduh file via blob (fetch + objectURL) — dipakai tombol Unduh di lightbox. */
 async function downloadFileBlob(url, filename) {
@@ -299,7 +300,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       const plainBody = htmlToText(rawHtml || '');
       const htmlBody = rawHtml || '';
       const atts = [];
-      for (const a of attachments) {
+      // includeHidden: part inline CID (flag 0) ikut di-export — tanpa itu
+      // gambar di body (cid:) tidak ter-resolve di email client penerima .eml.
+      for (const a of extractAttachments(msg.parts, [], { includeHidden: true })) {
         if (!a.downloadURL) continue;
         try {
           const data = await fetchAttachmentData(a.downloadURL);
@@ -685,32 +688,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="email-body" dangerouslySetInnerHTML={{ __html: renderHtml }} />
 
-        {/* Inline images preview */}
-        {inlineImages.length > 0 && (
-          <div className="mt-6 space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Gambar</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {inlineImages.map((img, idx) => (
-                <a
-                  key={idx}
-                  href={toSafeUrl(img.downloadURL, { base: SOGO_BASE, allowExternal: false }) || undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group relative rounded-xl overflow-hidden border border-border bg-card hover:ring-2 hover:ring-primary/30 transition-all"
-                >
-                  <img
-                    src={toSafeUrl(img.downloadURL, { base: SOGO_BASE, allowExternal: false }) || undefined}
-                    alt={img.name}
-                    className="w-full h-32 object-cover"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-                  <div className="px-2 py-1 text-xs text-muted-foreground truncate">{img.name}</div>
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Inline images (CID) TIDAK dirender di sini: sudah tampil di body
+            via resolver cid: (prepareHtmlContent) dan flag
+            shouldDisplayAttachment=0 membuat mereka tidak masuk daftar
+            Lampiran (regresi "gambar footer jadi lampiran"). */}
 
         {/* Attachments */}
         {attachments.length > 0 && (

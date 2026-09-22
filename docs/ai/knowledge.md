@@ -6,6 +6,15 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-09-22 — Regresi lampiran: guard array + flag shouldDisplayAttachment hilang saat restorasi
+
+- Gejala produksi: lampiran asli tidak tampil di webmail (tampil di mail client lain), yang muncul justru gambar footer/banner email di daftar Lampiran. Regresi dari restorasi 08bef9c (26 Agu) yang memulihkan MessageReader pra-19 Agu — menghapus fix commit 200b250 (guard Array.isArray(parts) di extract functions + hormati shouldDisplayAttachment).
+- Kontrak SOGo (diverifikasi dari bundle asli container, Message.service.js:464): part dengan `shouldDisplayAttachment === 0` = konten yang SUDAH dirender di body (inline CID — banner/footer vendor) dan tidak boleh masuk daftar lampiran; `undefined`/`1` = lampiran. `parts` juga bisa ARRAY langsung (bukan object {contentType, content}) di top-level maupun bersarang — SEMUA fungsi extract wajib array-aware (findHtml/findPlain/extractAttachments/extractInlineImages).
+- Pola penting: filter flag-0 hanya untuk jalur TAMPILAN. Jalur DATA (restore draft di MailPage openDraftForEdit, export .eml di MessageReader) wajib `extractAttachments(parts, [], { includeHidden: true })` — kalau tidak, gambar CID hilang saat draft dikirim / di-export (bug fase 2 yang tertangkap di pass edge-case).
+- formatFileSize: selalu pakai yang di lib/attachments (menangani size STRING SOGo "1.2 MB"); duplikat lokal lama menghasilkan "NaN KB". Jangan duplikasi helper yang sudah ada di lib murni.
+- Lesson meta: commit "restore file" harus di-diff terhadap commit fix terbaru yang menyentuh file sama — restorasi buta mengembalikan bug yang sudah pernah diperbaiki. Verifikasi kontrak SOGo langsung dari bundle native di container mailcow-sogo-mailcow-1 (WebServerResources/js/Mailer/Message.service.js), bukan dari asumsi.
+- Validasi: test:message-html (regresi array+flag baru), test:draft-compose 49, test:eml-sendqueue 51, test:attachments, test-mail-golden (fixture produksi), test:a11y 169, test:security-hardening 21, test:multitab, build OK.
+
 ## 2026-09-03 — SOGo RelativeDate adalah string tampilan locale, bukan tanggal machine-readable
 
 - SOGo kolom `RelativeDate` (jadi `msg.date`) dikirim SESUAI LOCALE user: locale 'id' → "Hari ini 09:41", "Kemarin 16:43", "Kamis 12:36" (≤6 hari), absolut "dd/mm/yyyy" (>1 minggu). `Date.parse()` GAGAL untuk semuanya, dan salah-parse "dd/mm/yyyy" sebagai US month-first (05/08 = 8 Mei). Locale dapat diverifikasi via sogo_folder_info (kolom c_language) — di produksi: Indonesia.
@@ -1759,3 +1768,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 20260912-SIG-CRASH-SUBSTRING
 - Status: COMPLETED
 - Finding: Pola rapuh `(a?.x && !a?.flag) || fallback` bernilai BOOLEAN `true` (bukan nilai x) saat a real — operator precedence `&&` > `||`. Menyebabkan crash produksi `r.substring is not a function` di auto-inject signature ComposeModal utk SEMUA user dgn signature lokal non-placeholder (regresi e6a57e6; dilaporkan "sebagian user/lokasi beda" padahal deterministik per-account localStorage). Durable rule: resolusi nilai yang dipakai utk method-call (substring/replace/trim) harus lewat helper dgn kontrak return-type string — kini `resolveSignatureHtml()` di src/lib/signatures.js; nilai fallback dari DB/localStorage (SOGoMailSignature) tidak pernah dipercaya tanpa guard typeof. Terverifikasi live dgn mendownload bundle produksi & memetakan kolom stack trace ke source — teknik ini jauh lebih cepat daripada menebak dari source saja.
+
+## 2026-09-22T11:06:21Z
+- Task: 20260922-105739-174098
+- Status: COMPLETED
+- Finding: SOGo /view: parts bisa array langsung (semua extract wajib array-aware) dan leaf part punya shouldDisplayAttachment (0=inline CID sudah di body, kontrak Message.service.js:464); filter flag-0 hanya jalur tampilan, jalur data (draft restore/.eml) wajib includeHidden; commit restore wajib di-diff vs commit fix terbaru yang menyentuh file sama
