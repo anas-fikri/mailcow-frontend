@@ -1,3 +1,19 @@
+## 2026-09-23 — Pratinjau lampiran in-app (spreadsheet → tabel interaktif)
+
+Feedback user: "masih belum ada review, langsung download doang" — klik kartu
+xlsx membuka file mentah (browser auto-download), gak ada pratinjau.
+→ Implement: klik kartu lampiran non-image kini membuka **pratinjau in-app**:
+spreadsheet (xlsx/xls/csv/ods) di-parse via **SheetJS** (`xlsx` 0.18.5,
+dynamic import → chunk terpisah 424 kB, ke-load hanya saat preview dibuka)
+dan dirender sbg tabel dgn tab per-sheet (batas aman: 200 baris & 12 sheet
+per pesan, empty-row di-skip); txt/md/code → pratinjau teks (dibatasi 60 kB);
+PDF/gambar tetap lightbox; jenis lain tetap tab baru. Tombol **Unduh**
+tersedia di header pratinjau (blob, nama file terjaga). Kartu non-previewable
+tampak tanpa ikon mata (indikator klik=pratinjau).
+- Validasi: seluruh suite test:* hijau (setelah perbaikan kurung ternary yang
+  digugurkan build vite), build OK w/ chunk xlsx terpisah. Deploy PASS,
+  bundle live terverifikasi.
+
 ## 2026-09-23 — Lampiran: tombol Unduh per-kartu + filter gambar body (footer/banner) dari daftar
 
 Round-53 lanjutan (feedback user pasca-fix fallback): (1) tombol **Unduh**
