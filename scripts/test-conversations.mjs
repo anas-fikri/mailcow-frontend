@@ -151,4 +151,27 @@ const t9d = groupConversations([
 ]);
 ok(t9d[0].hasAttachment === true, 'hasAtt truthy (1) → hasAttachment true');
 
+// 10) Agregat belum-dibaca & flag per thread (header conversation)
+const withFlag = (msg, isFlagged) => ({ ...msg, isFlagged });
+const t10 = groupConversations([
+  withFlag(m('3', 'A <a@x.com>', 'Re: Rapat', '2026-08-22 08:00', false, 'b@x.com'), false), // terbaru: belum dibaca, tanpa flag
+  withFlag(m('2', 'B <b@x.com>', 'Rapat', '2026-08-21 09:00', false, 'a@x.com'), true),      // lama: belum dibaca + flag
+  withFlag(m('1', 'A <a@x.com>', 'Rapat', '2026-08-20 10:00', true, 'b@x.com'), false),      // lama: dibaca
+]);
+eq(t10[0].unreadCount, 2, 'unreadCount = jumlah pesan !isRead');
+ok(t10[0].hasUnread, 'hasUnread tetap true (ada belum dibaca)');
+ok(t10[0].hasFlagged === true, 'hasFlagged true walau pesan terbaru polos');
+eq(t10[0].flaggedCount, 1, 'flaggedCount = jumlah pesan isFlagged');
+const t10b = groupConversations([
+  m('2', 'B <b@x.com>', 'Rapat', '2026-08-21 09:00', true, 'a@x.com'),
+  m('1', 'A <a@x.com>', 'Re: Rapat', '2026-08-20 10:00', true, 'b@x.com'),
+]);
+eq(t10b[0].unreadCount, 0, 'semua dibaca → unreadCount 0');
+ok(t10b[0].hasFlagged === false && t10b[0].flaggedCount === 0, 'tanpa flag → false/0 (fallback aman)');
+const t10c = groupConversations([
+  withFlag(m('2', 'B <b@x.com>', 'Rapat', '2026-08-21 09:00', false, 'a@x.com'), 1),
+  withFlag(m('1', 'A <a@x.com>', 'Re: Rapat', '2026-08-20 10:00', false, 'b@x.com'), 1),
+]);
+ok(t10c[0].flaggedCount === 2 && t10c[0].unreadCount === 2, 'flag truthy (1) + semua belum dibaca');
+
 console.log(`test-conversations: ${pass} assertion PASS`);

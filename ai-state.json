@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-09-22T12:02:45Z",
+  "last_session": "2026-09-22T12:22:03Z",
   "context": "PCP Express Webmail — freshness pipeline complete & live: (1) auto-refresh daftar pesan (refetchOnWindowFocus + invalidate saat unseenCount naik, poll 60s), (2) cross-tab sync domain 'mail' (bump di layer api.js setelah mutasi sukses, watcher di MailPage invalidate messages/unseen/folders), (3) extraMessages lazy-load divalidasi vs uids fresh SOGo. Root cause jaringan GitLab: trafik diroute via wg0 (WireGuard) yang sedang down — 32 commit lokal menunggu push. Deploy produksi 2x PASS via SERVER=deploy-mail ./deploy.sh.",
   "modules": {
     "api-native-endpoints": {
@@ -509,12 +509,12 @@
     }
   ],
   "active_task": {
-    "id": "20260922-115707-317695",
-    "status": "COMPLETED",
-    "objective": "20260922-CONV-ATTACH: indikator lampiran per-thread di header conversation (agregat hasAtt)",
-    "next_step": "",
-    "goal_id": "TBD",
-    "sub_goal_id": "TBD",
-    "updated_at": "2026-09-22T12:02:45Z"
+    "id": "20260922-122203-130733",
+    "status": "ACTIVE",
+    "objective": "20260922-CONV-HEADER-AGG: agregat belum-dibaca & flag di header conversation + verifikasi E2E live thread berlampiran",
+    "next_step": "Inspect the current code and context",
+    "goal_id": "",
+    "sub_goal_id": "",
+    "updated_at": "2026-09-22T12:22:03Z"
   }
 }

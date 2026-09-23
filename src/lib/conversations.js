@@ -109,6 +109,13 @@ export function groupConversations(messages = [], asc = false, selfEmail = '', o
     g.senders = [...new Set(g.messages.map((m) => senderDisplayName(m[labelField])))];
     g.hasUnread = g.messages.some((m) => !m.isRead);
     g.latest = g.messages[0] || null;
+    // Agregat flag & belum-dibaca per thread (header conversation):
+    // unreadCount = berapa pesan belum dibaca (dot biru hanya sinyal ada/tidak);
+    // hasFlagged/flaggedCount = pesan yang ditandai bintang, color header
+    // diambil dari pesan TERBARU yang ditandai (di MailPage via getFlagColor).
+    g.unreadCount = g.messages.reduce((n, m) => n + (m && !m.isRead ? 1 : 0), 0);
+    g.hasFlagged = g.messages.some((m) => m && m.isFlagged);
+    g.flaggedCount = g.messages.reduce((n, m) => n + (m && m.isFlagged ? 1 : 0), 0);
     // Agregat lampiran per thread: saat collapsed hanya pesan terbaru yang
     // dirender, jadi lampiran di pesan lama tidak terlihat. Chip paperclip di
     // header pakai field ini (pola Gmail/Outlook: paperclip di baris thread).

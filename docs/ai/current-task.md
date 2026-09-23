@@ -1,22 +1,20 @@
 # Current Task
 
-Status: COMPLETED
-Task ID: 20260922-115707-317695
-Started At: 2026-09-22T11:57:07Z
-Updated At: 2026-09-22T12:02:44Z
+Status: ACTIVE
+Task ID: 20260922-122203-130733
+Started At: 2026-09-22T12:22:03Z
+Updated At: 2026-09-22T12:22:03Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-20260922-CONV-ATTACH: indikator lampiran per-thread di header conversation (agregat hasAtt)
+20260922-CONV-HEADER-AGG: agregat belum-dibaca & flag di header conversation + verifikasi E2E live thread berlampiran
 
 ## Goal Link
 Goal ID: TBD
 Sub-goal ID: TBD
 
 ## Files Involved
-- src/lib/conversations.js — agregat hasAttachment/attachmentCount per grup
-- src/pages/MailPage.jsx — chip paperclip di header thread conversation
-- scripts/test-conversations.mjs + scripts/test-mail-golden.mjs — regresi
+- To be determined
 
 ## Next Steps
 - Inspect the current code and context
@@ -24,15 +22,18 @@ Sub-goal ID: TBD
 - Update handoff notes before switching tools
 
 ## Risk Analysis
-- Status: DONE
-- Risk level: LOW (render-only, field tambahan pada grup)
-- Impact surface: header conversation collapsed saja; baris anggota expanded sudah punya indikator per-pesan
-- Security concerns: tidak ada sink baru; ikon dari lucide, teks dari field internal
-- Compatibility concerns: field grup tambahan bersifat aditif — tidak mengubah kontrak hasUnread/senders/latest; hasAtt undefined → indicator tidak tampil (fallback aman)
-- Failure modes/edge cases: (1) thread tanpa lampiran → tanpa chip; (2) hasAtt string "1"/boolean dari parser → truthy cocok; (3) grup 1 pesan dirender sbg baris biasa (tanpa header) → chip per-baris tetap jalan
-- Mitigations: unit test agregat + golden fixture (thread laporan: 1 pesan berlampiran dari 2)
-- Validation plan: test:conversations, test-mail-golden, test:conversation-toolbar, test:a11y, build
-- Open risks/assumptions: indikator mencakup pesan yang SUDAH dimuat di thread (konsisten dgn count badge pesan)
+- Status: REQUIRED BEFORE IMPLEMENTATION
+- Risk level: UNASSESSED
+- Impact surface: Not assessed
+- Security concerns: Not assessed
+- Compatibility concerns: Not assessed
+- Failure modes/edge cases: Not assessed
+- Mitigations: Not assessed
+- Validation plan: Not assessed
+- Open risks/assumptions: Not assessed
+
+## Risks
+- Complete  before changing implementation files.
 
 ## Validation
 - Risk analysis: REQUIRED

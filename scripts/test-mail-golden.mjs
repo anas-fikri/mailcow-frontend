@@ -133,6 +133,10 @@ assert.equal(thread.messages[0].uid, 9, 'preview thread = pesan TERBARU (bukan i
 // Agregat lampiran thread: pesan induk (uid 9) berlampiran, reply (uid 10) tidak
 assert.equal(thread.hasAttachment, true, 'thread berlampiran walau pesan terbaru polos');
 assert.equal(thread.attachmentCount, 1, '1 dari 2 pesan berlampiran');
+// Agregat belum-dibaca & flag (fixture: semua isRead=0, isFlagged=0)
+assert.equal(thread.unreadCount, 2, '2 pesan belum dibaca dalam thread');
+assert.equal(thread.hasFlagged, false, 'tidak ada pesan ditandai di fixture');
+assert.equal(thread.flaggedCount, 0, 'flaggedCount 0');
 
 // ── 9. Kategori: domain & no-reply ───────────────────────────────────────────
 assert.equal(classifyEmail({ ...byUid.get(11), folderId: 'folderINBOX' }), 'promo');

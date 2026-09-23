@@ -2589,6 +2589,17 @@ export default function MailPage() {
                     const isExpanded = expandedConversations.has(group.key);
                     const senders = group.senders;
                     const latest = group.latest;
+                    // Warna bintang header = flag pesan TERBARU yang ditandai
+                    // (konsisten dgn baris; flagColor butuh email+folder →
+                    // dihitung di sini, bukan di lib murni conversations.js).
+                    let headerFlagCls = '';
+                    if (group.hasFlagged) {
+                      const firstFlagged = group.messages.find((msg) => msg.isFlagged);
+                      const k = firstFlagged ? flagColorOf(firstFlagged.uid) : null;
+                      headerFlagCls = k && FLAG_COLORS[k]
+                        ? `${FLAG_COLORS[k].text} ${FLAG_COLORS[k].fill}`
+                        : 'text-amber-600 fill-amber-600 dark:text-amber-400 dark:fill-amber-400';
+                    }
                     return (
                       // Parent list pakai divide-y → pemisah antar grup cukup
                       // dari situ; border-b di sini bikin garis ganda.
@@ -2632,6 +2643,27 @@ export default function MailPage() {
                           </div>
                           {latest?.date && (
                             <span className="text-xs text-muted-foreground shrink-0">{latest.date}</span>
+                          )}
+                          {/* Belum dibaca: hitungan eksplisit per thread —
+                              dot biru di subjek hanya sinyal ada/tidak. */}
+                          {group.unreadCount > 0 && (
+                            <span
+                              className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full shrink-0"
+                              title={`${group.unreadCount} pesan belum dibaca dalam percakapan`}
+                            >
+                              {group.unreadCount} belum dibaca
+                            </span>
+                          )}
+                          {/* Flag thread: bintang warna flag pesan terbaru
+                              yang ditandai; angka hanya bila >1. */}
+                          {group.hasFlagged && (
+                            <span
+                              className="text-[10px] text-amber-600 dark:text-amber-400 bg-muted px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-0.5"
+                              title={`${group.flaggedCount} pesan ditandai dalam percakapan`}
+                            >
+                              <Star size={10} className={headerFlagCls} aria-hidden />
+                              {group.flaggedCount > 1 ? group.flaggedCount : null}
+                            </span>
                           )}
                           {/* Lampiran thread: saat collapsed hanya baris terbaru
                               yang dirender — lampiran di pesan lama tidak
