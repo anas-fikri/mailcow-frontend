@@ -228,7 +228,7 @@ function encodeQP(text) {
  * multipart/mixed; body dibungkus multipart/alternative (text + html bila
  * keduanya ada).
  *
- * @param {object} opts { from, to, cc, bcc, subject, date, textBody, htmlBody, attachments: [{filename, contentType, data(base64)}] }
+ * @param {object} opts { from, to, cc, bcc, subject, date, textBody, htmlBody, attachments: [{filename, contentType, data(base64), contentId?, inline?}] }
  * @returns {string} konten .eml
  */
 export function buildEml(opts = {}) {
@@ -249,26 +249,43 @@ export function buildEml(opts = {}) {
 
   const boundary = `----=_pcp_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
-  const bodyParts = [];
+  const bodyPart = (wrapped, b) =>
+    `--${b}\r\nContent-Type: ${wrapped.ct}\r\nContent-Transfer-Encoding: ${wrapped.enc}\r\n\r\n${wrapped.data}\r\n`;
   const textWrapped = wrapBody(textBody, false);
-  bodyParts.push(`--${boundary}\r\nContent-Type: ${textWrapped.ct}\r\nContent-Transfer-Encoding: ${textWrapped.enc}\r\n\r\n${textWrapped.data}\r\n`);
-  if (htmlBody) {
-    const htmlWrapped = wrapBody(htmlBody, true);
-    bodyParts.push(`--${boundary}\r\nContent-Type: ${htmlWrapped.ct}\r\nContent-Transfer-Encoding: ${htmlWrapped.enc}\r\n\r\n${htmlWrapped.data}\r\n`);
-  }
+  const htmlWrapped = htmlBody ? wrapBody(htmlBody, true) : null;
 
-  const attachParts = (Array.isArray(attachments) ? attachments : [])
-    .filter((a) => a && a.data)
-    .map((a) => {
-      const fn = escapeFilename(sanitizeHeaderValue(a.filename || 'attachment'));
-      const ct = sanitizeHeaderValue(a.contentType || 'application/octet-stream');
-      return `--${boundary}\r\nContent-Type: ${ct}; name="${fn}"\r\nContent-Disposition: attachment; filename="${fn}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${String(a.data).replace(/(.{76})/g, '$1\r\n')}\r\n`;
-    });
+  const attachPart = (a, disposition, b) => {
+    const fn = escapeFilename(sanitizeHeaderValue(a.filename || 'attachment'));
+    const ct = sanitizeHeaderValue(a.contentType || 'application/octet-stream');
+    // Content-ID dipertahankan agar <img src="cid:..."> di body HTML tetap
+    // ter-resolve di client penerima (Outlook/Thunderbird menuntut header ini).
+    const cid = a.contentId ? `Content-ID: <${String(a.contentId).replace(/^<|>$/g, '')}>\r\n` : '';
+    return `--${b}\r\nContent-Type: ${ct}; name="${fn}"\r\n${cid}Content-Disposition: ${disposition}; filename="${fn}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${String(a.data).replace(/(.{76})/g, '$1\r\n')}\r\n`;
+  };
+
+  // Inline images (dgn Content-ID) WAJIB satu multipart/related bersama
+  // htmlBody — kalau flat di multipart/mixed, cid: tidak ter-resolve di
+  // client ketat (bug tertangkap E2E live 2026-09-23: PNG footer ter-export
+  // tanpa Content-ID → gambar footer hilang di Outlook/Thunderbird).
+  const atts = (Array.isArray(attachments) ? attachments : []).filter((a) => a && a.data);
+  const inlineAtts = atts.filter((a) => a.contentId);
+  const regularAtts = atts.filter((a) => !a.contentId);
+  const useRelated = htmlWrapped && inlineAtts.length > 0;
 
   const bodyBlock = [
     'Content-Type: multipart/mixed; boundary="' + boundary + '"',
-    ...bodyParts,
-    ...attachParts,
+    bodyPart(textWrapped, boundary),
+    ...(useRelated
+      ? [
+          `--${boundary}\r\nContent-Type: multipart/related; boundary="${boundary}_rel"\r\n\r\n` +
+          bodyPart(htmlWrapped, `${boundary}_rel`) +
+          inlineAtts.map((a) => attachPart(a, 'inline', `${boundary}_rel`)).join('') +
+          `--${boundary}_rel--\r\n`,
+        ]
+      : htmlWrapped
+        ? [bodyPart(htmlWrapped, boundary)]
+        : []),
+    ...regularAtts.map((a) => attachPart(a, 'attachment', boundary)),
     `--${boundary}--`,
   ].join('\r\n');
 

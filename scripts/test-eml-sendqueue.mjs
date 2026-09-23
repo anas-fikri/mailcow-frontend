@@ -173,6 +173,37 @@ const ok = (cond, name) => { assert.ok(cond, name); pass++; console.log(`  ✓ $
   ok(reparsed.subject === 'Tes' && reparsed.to === 'c@d.com', 'build → parse roundtrip subject/to');
 }
 
+// ── 11b. buildEml: inline CID → multipart/related + Content-ID (E2E live 2026-09-23) ──
+{
+  const png = Buffer.from('png-bytes').toString('base64');
+  const pdf = Buffer.from('pdf-bytes').toString('base64');
+  const eml = buildEml({
+    from: 'a@b.com', to: 'c@d.com', subject: 'CID',
+    textBody: 'teks', htmlBody: '<p>body</p><img src="cid:footer@e2e">',
+    attachments: [
+      { filename: 'footer.png', contentType: 'image/png', data: png, contentId: 'footer@e2e', inline: true },
+      { filename: 'lampiran.pdf', contentType: 'application/pdf', data: pdf },
+    ],
+  });
+  ok(eml.includes('multipart/related'), 'inline CID → struktur multipart/related');
+  ok(eml.includes('Content-ID: <footer@e2e>'), 'Content-ID CID dipertahankan');
+  ok(eml.includes('Content-Disposition: inline; filename="footer.png"'), 'part CID dgn disposition inline');
+  ok(eml.includes('Content-Disposition: attachment; filename="lampiran.pdf"'), 'lampiran biasa tetap attachment');
+  ok(eml.indexOf('multipart/related') < eml.indexOf('lampiran.pdf'), 'related (html+cid) sebelum lampiran biasa');
+  ok(!eml.slice(0, eml.indexOf('footer.png')).includes('Content-ID: <'), 'tidak ada Content-ID liar sebelum part inline');
+  // Roundtrip: parse tetap memahami struktur nested.
+  const reparsed = parseEmlContent(eml);
+  ok(reparsed.subject === 'CID' && reparsed.to === 'c@d.com', 'roundtrip struktur related');
+  // Tanpa CID → tanpa related (flat, kompatibel dgn struktur lama).
+  const plain = buildEml({
+    from: 'a@b.com', to: 'c@d.com', subject: 'Plain',
+    htmlBody: '<p>x</p>',
+    attachments: [{ filename: 'f.txt', contentType: 'text/plain', data: Buffer.from('hi').toString('base64') }],
+  });
+  ok(!plain.includes('multipart/related'), 'tanpa CID → tidak ada multipart/related');
+  ok(!plain.includes('Content-ID:'), 'tanpa CID → tidak ada header Content-ID');
+}
+
 // ── 12. emlUtils: htmlToText ─────────────────────────────────────────────────
 {
   ok(htmlToText('<p>Halo</p><p>Dunia</p>') === 'Halo\nDunia', 'htmlToText pisah paragraf');

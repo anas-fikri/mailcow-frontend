@@ -306,7 +306,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         if (!a.downloadURL) continue;
         try {
           const data = await fetchAttachmentData(a.downloadURL);
-          if (data) atts.push({ filename: a.name, contentType: a.contentType, data });
+          if (data) atts.push({ filename: a.name, contentType: a.contentType, data, contentId: a.contentId, inline: a.inline });
         } catch { /* lampiran gagal diunduh — lewati, .eml tetap terunduh */ }
       }
       const eml = buildEml({

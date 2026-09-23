@@ -29,7 +29,7 @@ fail() { echo "[runner] ❌ $*" >&2; exit 1; }
 
 command -v node >/dev/null || fail "node tidak ditemukan"
 [ -d node_modules/puppeteer ] || fail "puppeteer belum ada (npm install dulu)"
-case "$SELECT" in contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|reply|sched|conversation|convfeatures|all) ;; *) fail "pilihan: contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|reply|sched|conversation|convfeatures|all" ;; esac
+case "$SELECT" in contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|reply|sched|conversation|convfeatures|datapaths|all) ;; *) fail "pilihan: contacts|calendar|mail|notjunk|capture|spaced|flagcolor|draft|reply|sched|conversation|convfeatures|datapaths|all" ;; esac
 
 remote() { ssh -o ConnectTimeout=15 "$SERVER" 'bash -s'; }
 
@@ -109,7 +109,7 @@ else
 fi
 
 case "$SELECT" in
-  all) TESTS=(contacts calendar mail notjunk capture spaced flagcolor draft reply sched conversation convfeatures) ;;
+  all) TESTS=(contacts calendar mail notjunk capture spaced flagcolor draft reply sched conversation convfeatures datapaths) ;;
   *)   TESTS=("$SELECT") ;;
 esac
 declare -A SCRIPT=(
@@ -125,6 +125,7 @@ declare -A SCRIPT=(
   [sched]=scripts/e2e-scheduled-send-browser.mjs
   [conversation]=scripts/e2e-conversation-header-browser.mjs
   [convfeatures]=scripts/e2e-conversation-features-browser.mjs
+  [datapaths]=scripts/e2e-datapaths-browser.mjs
 )
 
 FAILED=""

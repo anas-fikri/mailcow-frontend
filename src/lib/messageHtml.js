@@ -116,6 +116,11 @@ export function extractAttachments(parts, result = [], opts = {}) {
       downloadURL: parts.downloadURL || parts.viewURL,
       // viewURL utk preview lightbox (SOGo viewPart) — preview aman di iframe/img.
       viewURL: parts.viewURL || parts.downloadURL,
+      // Content-ID + inline utk export .eml: part CID ikut di-export
+      // (includeHidden) dan harus ditulis sbg inline dgn Content-ID di
+      // multipart/related agar cid: ter-resolve di client penerima.
+      contentId: parts.contentId || parts.contentID || parts.cId || '',
+      inline: parts.shouldDisplayAttachment === 0,
     });
   }
   if (Array.isArray(parts.content)) {

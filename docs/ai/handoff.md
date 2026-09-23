@@ -1,3 +1,10 @@
+## 2026-09-23 — E2E jalur data: restore draft + export .eml (1 bug buildEml ditemukan & di-fix)
+
+T-20260923-014649: E2E live `datapaths` (pilihan baru di runner) — jalur DATA bukan sekadar tampilan.
+Implement: Buffy (Codebuff) · Hasil: restore draft TERBUKTI utuh sampai payload kirim; export .eml menangkap bug buildEml.
+→ (A) Draft asli di-seed via protokol SOGo (multipart attachments + JSON save — replikasi saveDraft), dibuka dari folder Draf, dikirim: payload /api/send membawa footer.png (inline CID) + lampiran.pdf + body + penerima → includeHidden restore terbukti end-to-end. Undo via toast 'Urungkan' → doveadm: 0 delivery (nol email nyata). (B) export .eml: PNG CID ikut ter-export tapi TANPA Content-ID dan flat di multipart/mixed → cid: tidak ter-resolve di client penerima (janji komentar kode tidak pernah dipenuhi). Fix buildEml: struktur mixed[related[html, inline…], attachment…] + Content-ID + disposition inline; extractAttachments expose contentId/inline; reader mengoper. 60 assertion test:eml-sendqueue (+11 baru) PASS.
+- DEPLOY diperlukan utk fix ini; E2E datapaths wajib hijau pasca-deploy.
+
 ## 2026-09-23 — Audit E2E live conversation: sortAsc, expand-all, pagination (tanpa bug baru)
 
 T-20260923-012329: audit 3 fitur conversation yang dijaga test statis, kini dengan gerbang E2E live terhadap produksi.
@@ -610,3 +617,22 @@ search aktif (by design).
 -  M scripts/e2e-browser-runner.sh
 - ?? docs/ai/tasks/20260923-012329-321379.previous.md
 - ?? scripts/e2e-conversation-features-browser.mjs
+
+## 2026-09-23T02:04:59Z
+- Status: COMPLETED
+- Objective: 20260922-DATA-E2E: E2E live jalur data (restore draft berlampiran via kirim ulang + export .eml) di produksi
+- Summary: E2E live jalur data: (A) restore draft berlampiran TERBUKTI — seed draft via protokol asli SOGo (multipart attachments + JSON save), buka dari folder Draf, kirim: payload /api/send membawa footer.png (inline CID) + lampiran.pdf + body + penerima; undo via toast 'Urungkan' dan doveadm membuktikan 0 delivery. (B) export .eml menangkap BUG NYATA: buildEml menulis part CID tanpa Content-ID dan flat di multipart/mixed → cid: tetap tidak ter-resolve di client penerima. Fix: buildEml struktur mixed[alternative/related, attachment…] + header Content-ID + disposition inline; extractAttachments mengekspos contentId/inline; reader mengoper keduanya.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M scripts/e2e-browser-runner.sh
+-  M scripts/test-eml-sendqueue.mjs
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/emlUtils.js
+-  M src/lib/messageHtml.js
+- ?? docs/ai/tasks/20260923-012329-321379.previous.md
+- ?? docs/ai/tasks/20260923-014649-923291.previous.md
+- ?? scripts/e2e-datapaths-browser.mjs

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-09-23T01:40:36Z",
+  "last_session": "2026-09-23T02:04:59Z",
   "context": "PCP Express Webmail — freshness pipeline complete & live: (1) auto-refresh daftar pesan (refetchOnWindowFocus + invalidate saat unseenCount naik, poll 60s), (2) cross-tab sync domain 'mail' (bump di layer api.js setelah mutasi sukses, watcher di MailPage invalidate messages/unseen/folders), (3) extraMessages lazy-load divalidasi vs uids fresh SOGo. Root cause jaringan GitLab: trafik diroute via wg0 (WireGuard) yang sedang down — 32 commit lokal menunggu push. Deploy produksi 2x PASS via SERVER=deploy-mail ./deploy.sh.",
   "modules": {
     "api-native-endpoints": {
@@ -516,15 +516,20 @@
       "what": "Audit E2E live fitur conversation (sortAsc, expand-all, pagination) — TIDAK ada bug aplikasi baru. Bukti live terhadap produksi: (1) sortAsc membalik urutan grup A-first→B-first sementara preview thread tetap pesan terbaru (jam preview tidak berubah) — kontrak 'hanya urutan grup' terpenuhi; (2) expand-all membuka semua thread dan anggota berlampiran menampilkan 📎 per-baris; (3) pagination dua fase terbukti: 113 email di-seed, /view prefetch ~100, scroll memuat sisanya via /headers sampai chip count penuh & footer window muncul, grouping thread tetap utuh.",
       "status": "done",
       "updated_at": "2026-09-23T01:40:36Z"
+    },
+    {
+      "what": "E2E live jalur data: (A) restore draft berlampiran TERBUKTI — seed draft via protokol asli SOGo (multipart attachments + JSON save), buka dari folder Draf, kirim: payload /api/send membawa footer.png (inline CID) + lampiran.pdf + body + penerima; undo via toast 'Urungkan' dan doveadm membuktikan 0 delivery. (B) export .eml menangkap BUG NYATA: buildEml menulis part CID tanpa Content-ID dan flat di multipart/mixed → cid: tetap tidak ter-resolve di client penerima. Fix: buildEml struktur mixed[alternative/related, attachment…] + header Content-ID + disposition inline; extractAttachments mengekspos contentId/inline; reader mengoper keduanya.",
+      "status": "done",
+      "updated_at": "2026-09-23T02:04:59Z"
     }
   ],
   "active_task": {
-    "id": "20260923-012329-321379",
+    "id": "20260923-014649-923291",
     "status": "COMPLETED",
-    "objective": "20260922-CONV-AUDIT: audit E2E live fitur conversation (sortAsc, expand-all, pagination) yang dijaga test statis",
+    "objective": "20260922-DATA-E2E: E2E live jalur data (restore draft berlampiran via kirim ulang + export .eml) di produksi",
     "next_step": "",
     "goal_id": "TBD",
     "sub_goal_id": "TBD",
-    "updated_at": "2026-09-23T01:40:36Z"
+    "updated_at": "2026-09-23T02:04:59Z"
   }
 }

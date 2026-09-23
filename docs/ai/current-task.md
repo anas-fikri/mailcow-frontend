@@ -1,13 +1,13 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260923-012329-321379
-Started At: 2026-09-23T01:23:29Z
-Updated At: 2026-09-23T01:40:36Z
+Task ID: 20260923-014649-923291
+Started At: 2026-09-23T01:46:49Z
+Updated At: 2026-09-23T02:04:59Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-20260922-CONV-AUDIT: audit E2E live fitur conversation (sortAsc, expand-all, pagination) yang dijaga test statis
+20260922-DATA-E2E: E2E live jalur data (restore draft berlampiran via kirim ulang + export .eml) di produksi
 
 ## Goal Link
 Goal ID: TBD
@@ -23,18 +23,18 @@ Sub-goal ID: TBD
 
 ## Risk Analysis
 - Status: COMPLETE
-- Risk level: LOW (audit; perubahan kode hanya bila bug terbukti)
-- Impact surface: E2E live baca-utama terhadap PRODUKSI via akun diag2 (mailbox uji); seed ~105 email plain ke INBOX diag2 utk pagination, expunge by-subject di finally + expunge ALL oleh runner cleanup. Tidak menyentuh akun user nyata.
-- Security concerns: kredensial diag2 statis (sudah baku di repo); tidak ada payload berbahaya.
-- Compatibility concerns: sortAsc/expand-all hanya diubah state UI diag2; preferensi dikembalikan (toggle-back) di finally.
-- Failure modes/edge cases: seed 105 bisa lambat (mitigasi: 1 ssh loop); refetchOnWindowFocus bisa mengubah DOM saat assert (mitigasi: sleep settle); leftover email (mitigasi: expunge idempoten).
-- Mitigations: cleanup double-layer (test finally + runner trap); assertions dgn diagnostik dump saat gagal.
-- Validation plan: node --check, unit conversation contracts hijau, E2E live PASS terhadap bundle produksi; fix+deploy bila bug app ditemukan.
-- Open risks/assumptions: prefetch /view ≈100 header (asumsi dari komentar kode) — di-verifikasi empiris di E2E.
+- Risk level: MEDIUM (E2E live mengirim email nyata dari akun diag2 ke dirinya sendiri — email uji berlabel E2E, dibersihkan otomatis)
+- Impact surface: akun diag2 saja (compose→kirim→INBOX diag2); unduhan .eml via CDP ke /tmp lokal; tidak menyentuh akun user lain.
+- Security concerns: lampiran uji = PDF/PNG buatan sendiri (bukan data sensitif); kredensial diag statis baku.
+- Compatibility concerns: state UI diag2 (draft folder, tombol aksi) dikembalikan via cleanup expunge + pre-cleanup.
+- Failure modes/edge cases: SOGo send bisa lambat/429 (mitigasi: waitForFunction timeout besar + retry cek INBOX); unduhan .eml bisa tak terpicu (mitigasi: await Promise.all dgn waitForTimeout fallback); leftover (mitigasi: expunge by-subject idempoten di finally + runner trap).
+- Mitigations: cleanup double-layer; semua asersi pakai ground truth doveadm/MIME, bukan hanya DOM.
+- Validation plan: node --check; E2E live PASS; bila bug app ditemukan → fix + test + deploy.
+- Open risks/assumptions: delivery SMTP lokal biasanya <5 detik; asumsi tombol 'Unduh .eml' memicu download browser (diverifikasi saat implementasi).
 
 ## Risks
 - (tercatat di atas)
 
 ## Validation
 - Risk analysis: COMPLETE
-- Tests/checks: Belum dijalankan (E2E menyusul implementasi skrip)
+- Tests/checks: Belum dijalankan
