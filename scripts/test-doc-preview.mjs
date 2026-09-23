@@ -49,3 +49,12 @@ ok(conv.html.includes('Halo docx'), 'konversi docx riil menghasilkan teks');
 ok(!conv.html.includes('<script'), 'hasil konversi tersanitasi');
 
 console.log(`test-doc-preview: ${pass} assertion OK`);
+
+// ── Kontrak render di MessageReader (regresi bug "tag tampil mentah") ────────
+// HTML tersanitasi HARUS dirender sbg HTML via dangerouslySetInnerHTML — React
+// meng-escape string interpolasi `{html}` → tag tampil sebagai teks mentah.
+const fs = await import('node:fs');
+const readerSrc = fs.readFileSync(new URL('../src/components/mailer/MessageReader.jsx', import.meta.url), 'utf8');
+ok(readerSrc.includes('dangerouslySetInnerHTML={{ __html: docPreview.html }}'), 'reader: docx html dirender sbg HTML (ter-sanitasi di lib)');
+ok(!readerSrc.includes('>{docPreview.html}</div>'), 'reader: docx html TIDAK dirender sbg teks interpolasi');
+console.log(`test-doc-preview: total ${pass} assertion OK`);

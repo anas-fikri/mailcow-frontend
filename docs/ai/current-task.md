@@ -1,5 +1,11 @@
 # Current Task
 
+## 2026-09-23 — Fix pratinjau Word: HTML tampil mentah (round-57)
+
+Status: DEPLOYED & LIVE (build-version 1790154373121-z37k8a).
+Render docx-preview kini dangerouslySetInnerHTML (HTML tersanitasi di lib);
+tipografi tabel MoM dirapikan (p di td/li, align-top, sup kecil).
+
 ## 2026-09-23 — Pratinjau PowerPoint + ZIP in-app (round-56)
 
 Status: DEPLOYED & LIVE (deploy PASS; build-version 1790154046218-jqauwi,

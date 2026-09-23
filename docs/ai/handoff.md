@@ -1,3 +1,17 @@
+## 2026-09-23 — Fix pratinjau Word: tag HTML tampil mentah (round-57)
+
+Laporan user: pratinjau Word menampilkan kode HTML mentah (`<p>`, `<strong>`,
+`<ol>`) — sulit dibaca.
+**Akar**: HTML tersanitasi dirender via interpolasi `{docPreview.html}` → React
+meng-escape string → tag tampil sbg teks. Konversi mammoth & sanitasi sudah
+benar sejak round-55 (bukti: HTML di laporan user valid & bersih).
+**Fix**: render via `dangerouslySetInnerHTML={{ __html: docPreview.html }}` —
+pola sama dengan body email (yang juga berisi HTML tersanitasi). Tipografi
+MoM dengan tabel dirapikan: `[&_td_p]:my-0.5 [&_th_p]:my-0 [&_li_p]:my-0
+[&_td]:align-top [&_sup]:text-[0.7em]` (p ganda di dalam td/li bikin renggang).
+Kontrak regresi baru di test:doc-preview (render path harus __html, bukan
+interpolasi; tidak boleh kembali ke `{docPreview.html}`). Suite 63 hijau.
+
 ## 2026-09-23 — Pratinjau PowerPoint (.pptx) + arsip (.zip) in-app (round-56)
 
 Lanjutan fitur lampiran: pratinjau **PowerPoint** & **arsip ZIP**.
