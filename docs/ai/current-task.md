@@ -2,7 +2,8 @@
 
 ## 2026-09-23 — Pratinjau PDF + Word (.docx) in-app (round-55)
 
-Status: SIAP DEPLOY — implement selesai, 62 test hijau, build OK.
+Status: DEPLOYED & LIVE (commit fd69395, deploy PASS, bundle live terverifikasi:
+build-version 1790150151641-o7k7rq, MailPage-BMEV4t9A + chunk lib-DSgfseC 200).
 - PDF → lightbox iframe (toolbar Unduh/Tab baru), Word .docx → modal konversi
   mammoth + sanitasi DOMPurify ketat (`src/lib/docPreview.js`), post-strip
   `data:` non-image. Chunk dynamic (mammoth cuma ke-load saat preview dibuka).
