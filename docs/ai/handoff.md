@@ -1,3 +1,21 @@
+## 2026-09-23 — Pratinjau PDF + Word (.docx) in-app (round-55)
+
+Permintaan user: tambah pratinjau utk PDF & dokumen Word di lampiran.
+- **PDF**: sudah dirender via iframe viewer browser sebelumnya; kini dijelasin
+  komentar + tetap satu jalur lightbox (Unduh/Tab baru sudah ada).
+- **Word .docx baru**: klik kartu → modal pratinjau — konversi via **mammoth**
+  1.12.3 (dynamic import → chunk `lib-*.js` terpisah 390 kB, ke-load hanya saat
+  pratinjau dibuka; bundle awal tak bertambah) → **sanitasi ketat** di
+  `src/lib/docPreview.js` (`DOC_PURIFY_CONFIG` whitelist tag/attr + post-strip
+  `data:` non-image — DOMPurify meng-allow semua data: pada <img> via
+  DATA_URI_TAGS sebelum ALLOWED_URI_REGEXP, kebijakan kita hanya data:image/*).
+  `.doc` biner lama TIDAK didukung mammoth → tetap rute unduh/tab baru.
+- Escape chain reader: lightbox → docPreview → reader (kontrak test:a11y
+  di-update). Gotcha: build Node mammoth hanya terima `buffer`, browser
+  `arrayBuffer` → dipilih otomatis di `convertDocxToHtml`.
+- Test baru `test:doc-preview` (8 assertion, termasuk konversi docx fixture
+  JSZip riil). Suite penuh 62 test hijau + build OK.
+
 ## 2026-09-23 — "Preview gak muncul" = stale tab, bukan bug kode (round-54)
 
 User: "masih belum ada review, langsung download doang" — investigasi nginx log:

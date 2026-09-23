@@ -1,5 +1,13 @@
 # Current Task
 
+## 2026-09-23 — Pratinjau PDF + Word (.docx) in-app (round-55)
+
+Status: SIAP DEPLOY — implement selesai, 62 test hijau, build OK.
+- PDF → lightbox iframe (toolbar Unduh/Tab baru), Word .docx → modal konversi
+  mammoth + sanitasi DOMPurify ketat (`src/lib/docPreview.js`), post-strip
+  `data:` non-image. Chunk dynamic (mammoth cuma ke-load saat preview dibuka).
+- Escape: lightbox → docPreview → reader.
+
 ## 2026-09-23 — Lampiran: verifikasi "preview gak muncul" (round-54)
 
 Status: TIDAK ADA BUG KODE — stale tab (SPA lama di memori sampai reload).

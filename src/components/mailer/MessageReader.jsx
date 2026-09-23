@@ -18,6 +18,7 @@ import { extractHtml, extractAttachments, isInlineBodyImage } from '../../lib/me
 import { proxyExternalImages } from '../../lib/imageProxy';
 import { resolveCidReferences } from '../../lib/cidImages';
 import { getFileKind, fileExtension, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
+import { convertDocxToHtml } from '../../lib/docPreview';
 import { buildEml, htmlToText, collectInlineCids } from '../../lib/emlUtils';
 import { analyzePhishing, RISK_LEVELS } from '../../lib/phishingDetection';
 
@@ -129,6 +130,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const [moveOpen, setMoveOpen] = React.useState(false);
   // Preview lampiran (gambar/PDF) — lightbox full-screen.
   const [lightbox, setLightbox] = React.useState(null); // { name, url, kind } | null
+  // Pratinjau dokumen Word (.docx) in-app: { name, url, loading, html?, error? }.
+  const [docPreview, setDocPreview] = React.useState(null);
   // Preview spreadsheet/teks in-app: { name, kind } saat loading, lalu + data.
   const [sheetPreview, setSheetPreview] = React.useState(null); // { name, kind, url, sheets:[{name, rows}], error? }
   const [sheetTab, setSheetTab] = React.useState(0);
@@ -286,7 +289,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       else if (e.key.toLowerCase() === 'f') { e.preventDefault(); handleForward(); }
       else if (e.key === 'Delete') { e.preventDefault(); if (!deleteMutation.isPending) deleteMutation.mutate(); }
       else if (e.key.toLowerCase() === 's') { e.preventDefault(); flagMutation.mutate(!(msg.isFlagged)); }
-      else if (e.key === 'Escape') { e.preventDefault(); if (lightbox) setLightbox(null); else onClose(); }
+      else if (e.key === 'Escape') { e.preventDefault(); if (lightbox) setLightbox(null); else if (docPreview) setDocPreview(null); else onClose(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -494,7 +497,12 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     if (!url) return;
     const kind = getFileKind(att.name, att.contentType);
     if (kind === 'image' || kind === 'pdf') {
+      // PDF & gambar → lightbox (PDF dirender iframe + toolbar Unduh/Tab baru).
       setLightbox({ name: att.name, url, kind });
+      return;
+    }
+    if (kind === 'document' && fileExtension(att.name) === 'docx') {
+      openDocPreview(att, url);
       return;
     }
     if (kind === 'spreadsheet' || kind === 'code' || (kind === 'document' && ['txt', 'md', 'csv'].includes(fileExtension(att.name)))) {
@@ -530,6 +538,21 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       }
     } catch (err) {
       setSheetPreview({ name: att.name, kind, url, error: err?.message || 'Gagal memuat pratinjau.' });
+    }
+  }
+
+  // ── Pratinjau dokumen Word (.docx) in-app ──────────────────────────────
+  // Konversi via mammoth (dynamic import → chunk terpisah, cuma ke-load saat
+  // pratinjau dibuka) + sanitasi ketat di docPreview.js sebelum render.
+  async function openDocPreview(att, url) {
+    setDocPreview({ name: att.name, url, loading: true });
+    try {
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { html } = await convertDocxToHtml(await res.arrayBuffer());
+      setDocPreview({ name: att.name, url, html });
+    } catch (err) {
+      setDocPreview({ name: att.name, url, error: err?.message || 'Gagal memuat pratinjau dokumen.' });
     }
   }
 
@@ -879,6 +902,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               {lightbox.kind === 'image' ? (
                 <img src={lightbox.url} alt={lightbox.name} className="w-full h-[80vh] object-contain" />
               ) : (
+                /* PDF: iframe viewer bawaan browser — render cepat, zoom/scroll native. */
                 <iframe src={lightbox.url} title={lightbox.name} className="w-full h-[80vh] bg-white" />
               )}
             </div>
@@ -967,6 +991,57 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               )}
               {!sheetPreview.loading && !sheetPreview.error && sheetPreview.text !== undefined && (
                 <pre className="p-4 text-xs whitespace-pre-wrap break-words font-mono text-foreground">{sheetPreview.text}</pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pratinjau dokumen Word (.docx) in-app ─────────────────────────── */}
+      {docPreview && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/85 flex flex-col items-center justify-center p-4"
+          onClick={() => setDocPreview(null)}
+        >
+          <div
+            className="flex flex-col w-full max-w-4xl max-h-[85vh] bg-card rounded-2xl overflow-hidden border border-border shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+              <FileText size={16} className="text-primary shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-foreground truncate">{docPreview.name}</div>
+                <div className="text-xs text-muted-foreground">Pratinjau dokumen Word — tampilan ringkas (format & gambar asli bisa berbeda)</div>
+              </div>
+              <button
+                onClick={() => downloadFileBlob(docPreview.url, docPreview.name).catch(() => {})}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+              >
+                <Download size={14} /> Unduh
+              </button>
+              <button
+                onClick={() => setDocPreview(null)}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                aria-label="Tutup pratinjau"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
+              {docPreview.loading && (
+                <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
+                  <Loader2 size={18} className="animate-spin" /> Memuat pratinjau dokumen…
+                </div>
+              )}
+              {docPreview.error && (
+                <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
+                  <TriangleAlert size={22} className="text-amber-500" /> {docPreview.error}
+                </div>
+              )}
+              {!docPreview.loading && !docPreview.error && docPreview.html !== undefined && (
+                docPreview.html.trim()
+                  ? <div className="docx-preview max-w-none text-sm [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:font-bold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_table]:w-full [&_table]:text-xs [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:font-semibold [&_th]:bg-muted/60 [&_img]:max-w-full [&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_a]:text-primary [&_a]:underline">{docPreview.html}</div>
+                  : <div className="py-16 text-center text-sm text-muted-foreground">Dokumen kosong / tidak berisi teks yang bisa dipratinjau.</div>
               )}
             </div>
           </div>
