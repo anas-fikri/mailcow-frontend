@@ -1,5 +1,13 @@
 # Current Task
 
+## 2026-09-23 — UX inbox: pencarian lintas folder + empty state pintar (round-58)
+
+Status: DEPLOYED & LIVE (build-version 1790157122393-raf8yk).
+Search folder aktif → kosong → otomatis semua folder (maks 12, paralel);
+hasil di-merge dgn chip folder, reader buka folder asal, bar "N hasil",
+empty state pintar dgn reset filter/bersihkan. test:mail-search 13 OK;
+64 suite hijau.
+
 ## 2026-09-23 — Fix pratinjau Word: HTML tampil mentah (round-57)
 
 Status: DEPLOYED & LIVE (build-version 1790154373121-z37k8a).

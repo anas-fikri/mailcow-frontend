@@ -32,6 +32,7 @@
     "test:attachments": "node scripts/test-attachments.mjs",
     "test:doc-preview": "node scripts/test-doc-preview.mjs",
     "test:pack-preview": "node scripts/test-pack-preview.mjs",
+    "test:mail-search": "node scripts/test-mail-search.mjs",
     "test:attach-fallback": "node scripts/test-attach-fallback.mjs",
     "test:ssrf-guard": "node scripts/test-ssrf-guard.mjs",
     "test:image-proxy": "node scripts/test-image-proxy.mjs",

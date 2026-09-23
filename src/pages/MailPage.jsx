@@ -38,6 +38,7 @@ import { updateFaviconBadge, __resetFaviconBadge } from '../lib/faviconBadge';
 import { loadNotifyPrefs, saveNotifyPrefs } from '../lib/notifyPrefs';
 import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate, applyMessageWindow } from '../lib/dateGroups';
 import { groupConversations, normalizeSubject as normalizeConversationSubject } from '../lib/conversations';
+import { searchAllFolders, mergeSearchResults, folderChipLabel, analyzeEmptyList, FILTER_LABELS_ID } from '../lib/mailSearch';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 const MESSAGE_WINDOW_MONTHS = 5;
@@ -268,6 +269,23 @@ export default function MailPage() {
   const [categoryFilter, setCategoryFilter] = useState(null); // EMAIL_CATEGORIES key or null
   const [unreadOnly, setUnreadOnly] = useState(false); // filter hanya belum dibaca
   const [hasAttachmentOnly, setHasAttachmentOnly] = useState(false); // filter hanya yang berlampiran
+  // Pencarian global: folder aktif dulu; hasil 0 → otomatis paralel ke semua
+  // folder. searchedAll menandai bahwa hasil berasal dari seluruh folder
+  // (badge folder per baris + scope note di empty state).
+  const [searchedAll, setSearchedAll] = useState(false);
+  const [globalResults, setGlobalResults] = useState(null); // array merged saat pencarian global aktif
+  const [fetchingGlobal, setFetchingGlobal] = useState(false);
+  const globalSearchTimerRef = useRef(null);
+  // Guard anti-loop: tandai query (folder|query|criteria) yang SUDAH di-fan-out;
+  // refetch react-query (identitas array baru) tidak boleh memicu fan-out ulang.
+  const lastGlobalQueryRef = useRef(null);
+
+  // Label chip folder per hasil pencarian (folderId → segmen terakhir path).
+  const folderLabelById = useMemo(() => {
+    const map = new Map();
+    for (const f of Array.isArray(folders) ? folders : []) map.set(f.id, folderChipLabel(f));
+    return map;
+  }, [folders]);
   const [snoozePicker, setSnoozePicker] = useState(null); // { uid, x, y } — pilih durasi snooze
   const [quickRuleSender, setQuickRuleSender] = useState(null); // sender label utk QuickRuleModal
   const [snoozeTick, setSnoozeTick] = useState(0); // bump utk re-render setelah prune
@@ -467,6 +485,42 @@ export default function MailPage() {
     if (searchQuery || selectedFolder !== 'folderINBOX') return messages;
     return applyMessageWindow(messages, { months: MESSAGE_WINDOW_MONTHS });
   }, [messages, selectedFolder, searchQuery]);
+
+  // Pencarian global otomatis: folder aktif dulu → kosong → semua folder.
+  // Live search (getHighlightedDates pattern): query GET sudah jalan per
+  // keystroke via queryKey; expand global di-schedule dengan delay pendek
+  // supaya mengetik cepat tidak memicu fan-out 12 folder per huruf.
+  useEffect(() => {
+    if (globalSearchTimerRef.current) { clearTimeout(globalSearchTimerRef.current); globalSearchTimerRef.current = null; }
+    if (!searchQuery || !user?.sogoToken || !selectedFolder || !folders || folders === DEFAULT_FOLDERS) {
+      setSearchedAll(false);
+      setGlobalResults(null);
+      lastGlobalQueryRef.current = null;
+      return;
+    }
+    if ((messages?.length || 0) > 0) { setSearchedAll(false); setGlobalResults(null); lastGlobalQueryRef.current = null; return; }
+    // Folder aktif 0 hasil → jadwalkan pencarian global setelah delay.
+    const qKey = `${selectedFolder}|${searchQuery}|${searchCriteria}`;
+    if (lastGlobalQueryRef.current === qKey || fetchingGlobal) return;
+    globalSearchTimerRef.current = setTimeout(async () => {
+      globalSearchTimerRef.current = null;
+      try {
+        setFetchingGlobal(true);
+        lastGlobalQueryRef.current = qKey;
+        const { messages: all, searchedAll: flag } = await searchAllFolders(
+          user.sogoToken, selectedFolder, searchQuery, searchCriteria, folders
+        );
+        setGlobalResults(mergeSearchResults(all));
+        setSearchedAll(flag);
+      } catch {
+        setGlobalResults([]);
+        setSearchedAll(false);
+      } finally {
+        setFetchingGlobal(false);
+      }
+    }, 900);
+    return () => { if (globalSearchTimerRef.current) { clearTimeout(globalSearchTimerRef.current); globalSearchTimerRef.current = null; } };
+  }, [messages, searchQuery, searchCriteria, selectedFolder, user?.sogoToken, folders, fetchingGlobal]);
 
   // Simpan email terbaru (urutan sort desc) utk notifikasi rich — ref agar
   // tidak memicu re-render; effect notifikasi membaca saat email baru masuk.
@@ -701,7 +755,18 @@ export default function MailPage() {
     () => messagesInWindow.filter(filterMessage),
     [messagesInWindow, searchQuery, snoozedUids, flagFilter, user?.email, categoryFilter, unreadOnly, hasAttachmentOnly]
   );
-  const displayMessages = filteredLoadedMessages.slice(0, visibleCount);
+  // Pencarian global: saat folder aktif 0 hasil & globalResults terisi,
+  // gabungkan ke daftar (hasil lintas folder diberi chip folder per baris).
+  const searchEffectiveMessages = useMemo(() => {
+    if (!searchQuery) return filteredLoadedMessages;
+    if (globalResults && globalResults.length > 0) {
+      const merged = mergeSearchResults([...filteredLoadedMessages, ...globalResults]);
+      return merged;
+    }
+    return filteredLoadedMessages;
+  }, [searchQuery, filteredLoadedMessages, globalResults]);
+
+  const displayMessages = searchEffectiveMessages.slice(0, visibleCount);
 
   // Conversation dibentuk dari SEMUA pesan yang sudah dimuat dan lolos filter
   // (bukan hasil slice paginasi) — thread tetap stabil saat infinite-scroll
@@ -1514,6 +1579,8 @@ export default function MailPage() {
         } else if (selectionMode) {
           setSelectionMode(false);
           setSelectedUids([]);
+        } else if (searchQuery) {
+          clearSearch();
         } else {
           setSelectedUids([]);
         }
@@ -1662,6 +1729,36 @@ export default function MailPage() {
   }, [focusIdx, sortedMessages]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  // Jumlah filter aktif (belum-dibaca/lampiran/kategori/bintang) — dipakai
+  // empty-state pintar & tombol reset.
+  const activeFilterCount = [
+    unreadOnly, hasAttachmentOnly, !!categoryFilter, !!flagFilter,
+  ].filter(Boolean).length;
+
+  // Pesan yang sedang dibuka di reader — dipakai utk menerka folder asal
+  // hasil pencarian lintas folder (reader butuh folder yg benar).
+  const activeMessage = useMemo(
+    () => searchEffectiveMessages.find((m) => m.uid === selectedMsgId)
+      || (sortedMessages || []).find((m) => m.uid === selectedMsgId)
+      || null,
+    [searchEffectiveMessages, sortedMessages, selectedMsgId]
+  );
+
+  const resetAllFilters = () => {
+    setUnreadOnly(false);
+    setHasAttachmentOnly(false);
+    setCategoryFilter(null);
+    setFlagFilter(null);
+  };
+
+  // Bersihkan pencarian lengkap: input, hasil global, state scope.
+  const clearSearch = () => {
+    setSearchInput('');
+    setSearchQuery('');
+    setGlobalResults(null);
+    setSearchedAll(false);
+  };
+
   const selectedFolderMeta = folders.find((f) => f.id === selectedFolder) || {
     label: selectedFolder,
     type: 'custom',
@@ -1980,6 +2077,11 @@ export default function MailPage() {
               </div>
             </div>
             <div className={`text-sm truncate ${msg.isRead ? 'text-muted-foreground' : 'text-primary font-medium'}`} title={typeof msg.subject === 'string' ? msg.subject : ''}>
+              {searchedAll && msg.folderId && msg.folderId !== selectedFolder && folderLabelById.get(msg.folderId) && (
+                <span className="inline-flex items-center mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground align-middle" title={`Dari folder ${folderLabelById.get(msg.folderId)}`}>
+                  {folderLabelById.get(msg.folderId)}
+                </span>
+              )}
               {typeof msg.subject === 'string' && msg.subject ? msg.subject : '(Tanpa Subjek)'}
             </div>
             <div className="mt-1 flex items-center gap-1.5">
@@ -2339,6 +2441,21 @@ export default function MailPage() {
             />
           )}
 
+          {/* Info hasil pencarian: jumlah + scope + clear cepat */}
+          {searchQuery && (
+            <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+              <span>
+                {sortedMessages.length} hasil
+                {fetchingGlobal && !searchedAll
+                  ? ' • mencari folder lain…'
+                  : searchedAll ? ' • semua folder' : ` • di ${selectedFolderMeta.label}`}
+              </span>
+              <button type="button" onClick={clearSearch} className="text-primary hover:underline min-h-11">
+                Bersihkan
+              </button>
+            </div>
+          )}
+
           {/* Soft-ask notifikasi — sekali, bisa ditutup; klik = enable */}
           {notifAsk && (
             <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-xl bg-primary/10 border border-primary/20 text-sm">
@@ -2381,9 +2498,9 @@ export default function MailPage() {
                 {searchInput && (
                   <button
                     type="button"
-                    onClick={() => { setSearchInput(''); setSearchQuery(''); }}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
-                    aria-label="Bersihkan pencarian"
+                  onClick={clearSearch}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                  aria-label="Bersihkan pencarian"
                   >
                     <X size={14} />
                   </button>
@@ -2547,25 +2664,66 @@ export default function MailPage() {
               </button>
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground gap-4 px-6">
-              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
-                {searchQuery ? (
-                  <Search size={24} className="opacity-40" />
-                ) : (
-                  <Mail size={24} className="opacity-40" />
-                )}
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-medium">
-                  {searchQuery ? 'Tidak ada hasil pencarian' : 'Belum ada pesan'}
-                </p>
-                <p className="text-xs mt-1">
-                  {searchQuery
-                    ? `Coba ubah kata kunci "${searchQuery}"`
-                    : `Folder ${selectedFolderMeta.label} kosong`}
-                </p>
-              </div>
-            </div>            ) : (
+            (() => {
+              // Empty state pintar: bedakan "folder kosong", "filter terlalu
+              // sempit", dan "pencarian tanpa hasil" — beri jalan keluar satu
+              // klik untuk masing-masing.
+              const empty = analyzeEmptyList({
+                searchQuery,
+                activeFilters: {
+                  unread: unreadOnly,
+                  attachment: hasAttachmentOnly,
+                  category: !!categoryFilter,
+                  flag: !!flagFilter,
+                },
+                scopeNote: searchedAll ? 'Sudah dicari di semua folder.' : null,
+              });
+              const filterNames = empty.filters.map((f) => FILTER_LABELS_ID[f] || f).join(', ');
+              return (
+                <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground gap-4 px-6">
+                  <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+                    {searchQuery ? <Search size={24} className="opacity-40" /> : <Mail size={24} className="opacity-40" />}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium">
+                      {empty.kind === 'search' ? 'Tidak ada hasil pencarian'
+                        : empty.kind === 'filters' ? 'Tidak ada pesan yang cocok dengan filter'
+                        : 'Belum ada pesan'}
+                    </p>
+                    <p className="text-xs mt-1">
+                      {empty.kind === 'search'
+                        ? `Tidak ada hasil untuk "${searchQuery}"${empty.scopeNote ? ' — ' + empty.scopeNote : ''}`
+                        : empty.kind === 'filters'
+                        ? `Filter aktif: ${filterNames}`
+                        : `Folder ${selectedFolderMeta.label} kosong`}
+                    </p>
+                    {fetchingGlobal && empty.kind === 'search' && (
+                      <p className="text-xs mt-1 inline-flex items-center gap-1 justify-center">
+                        <Loader2 size={12} className="animate-spin" /> Mencari di semua folder…
+                      </p>
+                    )}
+                  </div>
+                  {empty.kind === 'search' && (
+                    <div className="flex items-center gap-2 flex-wrap justify-center">
+                      <button
+                        onClick={clearSearch}
+                        className="px-3 min-h-11 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        Bersihkan pencarian
+                      </button>
+                    </div>
+                  )}
+                  {empty.kind === 'filters' && (
+                    <button
+                      onClick={resetAllFilters}
+                      className="px-3 min-h-11 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      Reset semua filter
+                    </button>
+                  )}
+                </div>
+              );
+            })()            ) : (
             <div className="divide-y divide-border">
               {conversationView && visibleConversationGroups.length > 0
                 ? visibleConversationGroups.map((group) => {
@@ -2754,7 +2912,7 @@ export default function MailPage() {
       <div className={`flex-1 bg-background flex-col min-w-0 ${selectedMsgId ? 'flex' : 'hidden md:flex'}`}>
         {selectedMsgId ? (
           <MessageReader
-            folder={selectedFolder}
+            folder={searchQuery && activeMessage?.folderId ? activeMessage.folderId : selectedFolder}
             msgId={selectedMsgId}
             siblingUids={visibleOrderUids}
             onNavigateTo={(uid) => setSelectedMsgId(uid)}

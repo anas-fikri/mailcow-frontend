@@ -1,3 +1,25 @@
+## 2026-09-23 — UX inbox: pencarian lintas folder otomatis + empty state pintar (round-58)
+
+Permintaan user: analisis ulang UI/UX inbox agar user "dimanjakan". Analisis
+gap → prio tertinggi: pencarian (scope 1 folder + window 5 bulan, tanpa
+feedback). Dipilih user: Paket Pencarian + auto-expand semua folder.
+- Lib baru `src/lib/mailSearch.js` (pure, DI `searchFn` utk test):
+  `searchAllFolders()` (folder aktif dulu → kosong 900ms → fan-out paralel maks
+  12 folder, allSettled — folder gagal = 0 hasil bukan error global),
+  `mergeSearchResults()` (dedupe folder+uid+date+subject, sort desc),
+  `pickSearchableFolders()`, `analyzeEmptyList()` + `FILTER_LABELS_ID`.
+- MailPage: effect auto-expand dgn guard anti-loop (`lastGlobalQueryRef` —
+  refetch react-query tidak memicu fan-out ulang); hasil global di-merge ke
+  daftar (`searchEffectiveMessages` → `sortedMessages` → j/k, bulk, infinite
+  scroll otomatis ikut); chip folder per baris hasil; reader membuka folder
+  asal pesan (`activeMessage.folderId`); Escape: reader → seleksi → clear
+  search; bar "N hasil • semua folder/folder aktif + Bersihkan"; empty state
+  pintar: bedakan folder kosong / filter terlalu sempit (sebut filter aktif +
+  tombol Reset) / search tanpa hasil (tombol Bersihkan + indikator
+  "Mencari di semua folder…").
+- Test baru `test:mail-search` 13 assertion (expand, no-expand, folder gagal,
+  dedupe/sort, empty-state). Suite penuh 64 hijau; entry bundle +0.08 kB.
+
 ## 2026-09-23 — Fix pratinjau Word: tag HTML tampil mentah (round-57)
 
 Laporan user: pratinjau Word menampilkan kode HTML mentah (`<p>`, `<strong>`,
