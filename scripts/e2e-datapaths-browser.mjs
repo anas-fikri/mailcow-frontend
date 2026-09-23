@@ -364,6 +364,7 @@ MAILEOF
   assert.ok(existsSync(emlPath), `file .eml tidak ada di ${emlPath}`);
   await sleep(500);
   const eml = readFileSync(emlPath, 'utf8');
+  // console.error('[e2e-datapaths] EML HEAD:\n' + eml.slice(0, 2000)); // debug
   assert.ok(eml.includes(`Subject: ${SUBJECT}`), 'Subject hilang dari .eml');
   assert.ok(eml.includes(MARKER), 'body (marker) hilang dari .eml');
   assert.ok(eml.includes(`filename="${PDF_NAME}"`), 'lampiran PDF hilang dari .eml');

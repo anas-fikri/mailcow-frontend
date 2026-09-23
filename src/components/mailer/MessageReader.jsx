@@ -17,7 +17,7 @@ import { extractHtml, extractAttachments } from '../../lib/messageHtml';
 import { proxyExternalImages } from '../../lib/imageProxy';
 import { resolveCidReferences } from '../../lib/cidImages';
 import { getFileKind, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
-import { buildEml, htmlToText } from '../../lib/emlUtils';
+import { buildEml, htmlToText, findCidForFilename } from '../../lib/emlUtils';
 import { analyzePhishing, RISK_LEVELS } from '../../lib/phishingDetection';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
@@ -306,7 +306,14 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         if (!a.downloadURL) continue;
         try {
           const data = await fetchAttachmentData(a.downloadURL);
-          if (data) atts.push({ filename: a.name, contentType: a.contentType, data, contentId: a.contentId, inline: a.inline });
+          if (data) {
+            // SOGo /view tidak mengekspos Content-ID → turunkan dari token cid:
+            // di RAW html (sebelum resolver CID mengganti src). rawHtml memakai
+            // cid: asli; htmlBody/renderHtml sudah berisi URL absolut → selalu
+            // kosong di situ (bug tertangkap E2E live 2026-09-23).
+            const cid = a.contentId || findCidForFilename(rawHtml, a.name);
+            atts.push({ filename: a.name, contentType: a.contentType, data, contentId: cid, inline: a.inline || !!cid });
+          }
         } catch { /* lampiran gagal diunduh — lewati, .eml tetap terunduh */ }
       }
       const eml = buildEml({

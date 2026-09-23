@@ -1778,3 +1778,18 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 20260922-115707-317695
 - Status: COMPLETED
 - Finding: groupConversations kini menghasilkan hasAttachment/attachmentCount per grup (agregat hasAtt); header conversation harus punya chip lampiran karena collapsed hanya merender pesan terbaru — pola yang sama berlaku utk field agregat lain (mis. flag) yang mungkin diinginkan per-thread
+
+## 2026-09-23T00:47:47Z
+- Task: 20260922-122203-130733
+- Status: COMPLETED
+- Finding: Kontrak test statis di scripts/test-conversation-*.mjs bisa MENGUNCI BUG (assert.match terhadap struktur kode, bukan perilaku) — 3 di antaranya mengunci truncation anggota grup ke uid preview. Ground truth debugging UI: capture network response /view via page.on('response') + bandingkan dgn DOM innerText — kontradiksi 'chip 3 percakapan tapi 0 header' langsung terjawab. page.evaluate tidak bisa melihat variabel Node (harus di-pass sbg argumen). E2E live wajib jadi gerbang untuk fitur UI yang dijaga test statis.
+
+## 2026-09-23T01:40:36Z
+- Task: 20260923-012329-321379
+- Status: COMPLETED
+- Finding: E2E live pagination: prefetch /view di infra ini = 100 header (empiris, bukan asumsi); fase-2 via /headers dipicu IntersectionObserver saat scroll list container (bukan window) — E2E harus scroll elemen dgn overflowY auto/scroll terbesar. aria-label toggle = STATE saat ini bukan aksi ('Urutkan terbaru dulu' berarti sedang desc). Variabel bash UID readonly — jangan dipakai di remote script doveadm. Assert dgn nilai kosong/undefined adalah vacuous pass: E2E harus assert nilai terbaca valid dulu (regex ^\d{2}:\d{2}$) sebelum membandingkan.
+
+## 2026-09-23T02:04:59Z
+- Task: 20260923-014649-923291
+- Status: COMPLETED
+- Finding: buildEml (emlUtils.js): part dgn Content-ID WAJIB satu multipart/related bersama htmlBody — flat di mixed membuat cid: tak ter-resolve di Outlook/Thunderbird walau datanya ada. SOGo draft save protokol = 2 POST ke folderDrafts/{id}/save: multipart field 'attachments' DULU, lalu JSON headers (json saja = draft tanpa lampiran). Kirim dgn lampiran selalu via /api/send SMTP proxy (bukan SOGo /send) + masuk queue undo SMTP_SEND_UNDO_SECONDS=180 — E2E bisa intercept payload & batalkan via toast 'Urungkan' agar nol delivery nyata. Toast undo hanya muncul SETELAH response /api/send — tunggu dgn waitForFunction, bukan cek seketika (race/flaky).

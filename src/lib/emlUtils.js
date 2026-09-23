@@ -291,3 +291,23 @@ export function buildEml(opts = {}) {
 
   return header.join('\r\n') + '\r\n\r\n' + bodyBlock;
 }
+
+/**
+ * Cari token cid: di htmlBody yang cocok dgn filename lampiran. Dipakai export
+ * .eml untuk menandai part inline — SOGo /view TIDAK mengekspos Content-ID
+ * (fixture golden), satu-satunya petunjuk adalah referensi cid: di body.
+ * Matching by stem tanpa ekstensi/@uuid, case-insensitive: 'footer.png' ↔
+ * 'footer@uuid' ↔ 'Footer'.
+ * @returns {string|null} token cid (tanpa prefix cid:) atau null
+ */
+export function findCidForFilename(htmlBody, filename) {
+  if (!htmlBody || !filename) return null;
+  const tokens = [...String(htmlBody).matchAll(/cid:([^"'>\s)]+)/gi)].map((m) => m[1]);
+  if (tokens.length === 0) return null;
+  const stem = (s) => String(s).toLowerCase().split('@')[0].replace(/\.[^.]*$/i, '').trim();
+  const f = stem(filename);
+  return tokens.find((t) => {
+    const ts = stem(t);
+    return ts && f && (ts === f || ts.includes(f) || f.includes(ts));
+  }) || null;
+}

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSendQueue, buildQueueEntry, dueEntries, pendingForUser, canCancel, encryptCredentials, decryptCredentials, maxScheduleMs, SEND_QUEUE_STATUS } from '../src/lib/sendQueue.js';
-import { parseEmlContent, buildEml, htmlToText } from '../src/lib/emlUtils.js';
+import { parseEmlContent, buildEml, htmlToText, findCidForFilename } from '../src/lib/emlUtils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -202,6 +202,18 @@ const ok = (cond, name) => { assert.ok(cond, name); pass++; console.log(`  ✓ $
   });
   ok(!plain.includes('multipart/related'), 'tanpa CID → tidak ada multipart/related');
   ok(!plain.includes('Content-ID:'), 'tanpa CID → tidak ada header Content-ID');
+}
+
+// ── 11c. findCidForFilename: SOGo /view tanpa Content-ID → turun dr token cid: ──
+{
+  const html = '<p>x</p><img src="cid:footer@e2e">';
+  ok(findCidForFilename(html, 'footer.png') === 'footer@e2e', 'cid token match by stem dgn filename');
+  ok(findCidForFilename(html, 'Footer.PNG') === 'footer@e2e', 'match case-insensitive + ekstensi bebas');
+  ok(findCidForFilename(html, 'banner.png') === null, 'filename tanpa token cid → null');
+  ok(findCidForFilename('', 'footer.png') === null, 'html kosong → null');
+  ok(findCidForFilename('<img src="cid:a.b@u"><img src="cid:c@u">', 'b.png') === null, 'token cid beda nama → null (anti false-positive)');
+  ok(findCidForFilename('<img src="cid:image001.png@01D8A123.4B5C6D8E">', 'image001.png') === 'image001.png@01D8A123.4B5C6D8E', 'pola Outlook image001.png@uuid → match');
+  ok(findCidForFilename('<img src="cid:logo@u"><img src="cid:footer@u">', 'footer.png') === 'footer@u', 'multi token: pilih token yg match');
 }
 
 // ── 12. emlUtils: htmlToText ─────────────────────────────────────────────────
