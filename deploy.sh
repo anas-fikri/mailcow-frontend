@@ -1,31 +1,28 @@
 #!/bin/bash
-# deploy.sh — Build, commit, push & deploy SOGo Frontend ke production
+# deploy.sh — Deploy SOGo Frontend dari GitLab ke production
+# Aman: build di server langsung dari GitLab, workspace lokal bebas WIP.
+#
 # Usage:
-#   ./deploy.sh                           # build + deploy (skip commit/push)
-#   ./deploy.sh "feat(x): pesan commit"   # build + commit + push + deploy
+#   ./deploy.sh                           # deploy dari GitLab main
+#   ./deploy.sh "feat(x): pesan commit"   # commit + push + deploy dari GitLab
 #
 # Prasyarat:
-#   - GitLab credential tersimpan di macOS Keychain (sudah ada)
-#   - SSH alias 'mailserver' mengarah ke 192.168.10.200 (sudah ada di ~/.ssh/config)
-#   - SSH alias 'mail-tunnel' + dashboard/scripts/tunnel-ctl.sh utk fallback
-#     (IP publik mailserver flapping/drop — tunnel MikroTik jadi jalur andal)
-#   - NPM dependencies sudah diinstall
+#   - SSH alias 'mailserver' mengarah ke 192.168.10.200
+#   - GitLab token di macOS Keychain (untuk commit/push dari workspace)
+#   - Mailserver punya: node, npm, git, akses ke gitlab.pcpexpress.com
 
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DIST_DIR="$PROJECT_DIR/dist"
-REMOTE_DIR="${REMOTE_DIR:-/data/docker-data/mailcow/data/web/webmail}"
+REMOTE_WEB_DIR="${REMOTE_DIR:-/data/docker-data/mailcow/data/web/webmail}"
 NGINX_DIR="${NGINX_DIR:-/data/docker-data/mailcow/data/conf/nginx}"
 NGINX_FILE="site.webmail.custom"
-# SERVER: SSH alias tujuan. DEPLOY_SSH_HOST diprioritaskan (set DEPLOY_SSH_HOST=mail-tunnel
-# utk pakai tunnel manual). Tanpa override: probe mailserver → auto-fallback tunnel.
 SERVER="${SERVER:-${DEPLOY_SSH_HOST:-mailserver}}"
 BRANCH="${BRANCH:-main}"
-SOGO_API_PORT="${SOGO_API_PORT:-3005}"
 WEBMAIL_URL="${WEBMAIL_URL:-https://mail.pcpexpress.co.id/webmail/}"
 GITLAB_URL="https://${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git"
 GITLAB_USER="${GITLAB_USER:-}"
+REMOTE_REPO_DIR="${REMOTE_REPO_DIR:-/home/anas.fikri/mailcow-frontend}"
 
 # ── Tunnel MikroTik fallback (IP publik flapping) ─────────────────────────────
 # Lokasi tunnel-ctl.sh: cari di project ini dulu, fallback ke dashboard (sibling).
@@ -47,6 +44,7 @@ TUNNEL_USED=0
 # GITLAB_HOST    - GitLab host (default: gitlab.pcpexpress.com)
 # GITLAB_PROJECT - GitLab project path (default: devops-team/mailcow-frontend)
 # GITLAB_USER    - GitLab user (URL-encoded)
+# REMOTE_REPO_DIR - Remote clone path (default: /home/anas.fikri/mailcow-frontend)
 # WEBMAIL_URL    - URL for deploy verification (default: https://mail.pcpexpress.co.id/webmail/)
 
 # ── Runtime config maintenance (server .env) ─────────────────────────────────
@@ -66,98 +64,23 @@ ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()   { echo -e "${RED}[ERROR]${NC} $*"; }
 
-# ── SSH dengan fallback tunnel MikroTik ────────────────────────────────────
+# ── SSH ────────────────────────────────────────────────────────────────────
 ensure_ssh() {
-    if [ -n "${DEPLOY_SSH_HOST:-}" ]; then
-        info "DEPLOY_SSH_HOST diset — pakai $SERVER langsung (tunnel dikelola manual)."
-        return 0
-    fi
     if ssh -o ConnectTimeout=8 -o BatchMode=yes "$SERVER" 'true' 2>/dev/null; then
         ok "SSH ke $SERVER OK."
         return 0
     fi
-    if [ -z "$TUNNEL_CTL" ] || [ ! -x "$TUNNEL_CTL" ]; then
-        err "SSH langsung ke $SERVER gagal dan tunnel-ctl.sh tidak ditemukan."
-        err "Cek ~/.ssh/config (mailserver/mail-tunnel) atau set DEPLOY_SSH_HOST."
-        return 1
-    fi
-    warn "SSH langsung $SERVER gagal — pasang tunnel MikroTik (auto)..."
-    if ! "$TUNNEL_CTL" on; then
-        err "Tunnel gagal aktif. Perbaiki dulu: $TUNNEL_CTL on"
-        return 1
-    fi
-    TUNNEL_USED=1
-    SERVER="mail-tunnel"
-    ok "SSH via tunnel: mail-tunnel."
+    err "SSH ke $SERVER gagal. Cek ~/.ssh/config atau koneksi jaringan."
+    exit 1
 }
 
-cleanup_tunnel() {
-    if [ "$TUNNEL_USED" = "1" ]; then
-        info "Matikan tunnel MikroTik (auto-clean)..."
-        "$TUNNEL_CTL" off >/dev/null 2>&1 || true
-    fi
-}
-trap cleanup_tunnel EXIT
-
-# ── Ambil GitLab token dari macOS Keychain ─────────────────────────────────
+# ── Git credential dari Keychain (untuk commit/push lokal) ────────────────
 get_gitlab_token() {
     local gitlab_host="${GITLAB_HOST:-gitlab.pcpexpress.com}"
     security find-internet-password -s "$gitlab_host" -w 2>/dev/null
 }
 
-# ── Build ──────────────────────────────────────────────────────────────────
-validate_config() {
-    if ! [[ "$SOGO_API_PORT" =~ ^[0-9]+$ ]]; then
-        err "SOGO_API_PORT harus berupa angka."
-        exit 1
-    fi
-}
-
-preflight_sogo_proxy() {
-    info "Preflight SOGo SMTP proxy..."
-    if ! ssh "$SERVER" "SOGO_API_PORT=$SOGO_API_PORT bash -s" <<'REMOTE_PREFLIGHT'
-set -euo pipefail
-api_key="$(awk -F= '/^API_KEY=/{print substr($0, index($0, "=") + 1); exit}' /home/anas.fikri/sogo-proxy/.env)"
-[ -n "$api_key" ]
-code="$(curl -sS -o /dev/null -w '%{http_code}' -H "X-Api-Key: $api_key" "http://127.0.0.1:${SOGO_API_PORT}/api/health" || true)"
-[ "$code" = "200" ]
-REMOTE_PREFLIGHT
-    then
-        err "SOGo SMTP proxy tidak sehat di $SERVER:$SOGO_API_PORT. Deploy dibatalkan; service production tidak diubah."
-        exit 1
-    fi
-    ok "SOGo SMTP proxy sehat."
-}
-
-get_production_api_key() {
-    if [ -n "${VITE_API_KEY:-}" ]; then
-        printf '%s' "$VITE_API_KEY"
-        return 0
-    fi
-    # Read only during build; never print or write the key to the repository.
-    # Pakai heredoc (bukan string inline) agar quoting awk tidak rusak oleh shell.
-    ssh "$SERVER" bash -s <<'REMOTE_KEY'
-awk -F= '/^API_KEY=/{print substr($0, index($0, "=") + 1); exit}' /home/anas.fikri/sogo-proxy/.env
-REMOTE_KEY
-}
-
-build() {
-    info "Building Vite project..."
-    cd "$PROJECT_DIR"
-    local api_key
-    api_key="$(get_production_api_key)"
-    if [ -z "$api_key" ]; then
-        err "VITE_API_KEY tidak tersedia. Set VITE_API_KEY atau pastikan API_KEY ada di $SERVER:/home/anas.fikri/sogo-proxy/.env."
-        exit 1
-    fi
-    VITE_API_KEY="$api_key" \
-        VITE_SOGO_BASE_URL="${VITE_SOGO_BASE_URL:-}" \
-        npm run build
-    unset api_key
-    ok "Build selesai → dist/"
-}
-
-# ── Git commit + push ──────────────────────────────────────────────────────
+# ── Commit + push lokal (opsional) ─────────────────────────────────────────
 git_commit_push() {
     local msg="$1"
     local token
@@ -165,13 +88,10 @@ git_commit_push() {
     token=$(get_gitlab_token)
     if [ -z "$token" ]; then
         err "GitLab credential tidak ditemukan di Keychain."
-        err "Jalankan: security add-internet-password -s gitlab.pcpexpress.com -w \"TOKEN_ANDA\""
         exit 1
     fi
 
-    # Gunakan environment variable agar token tidak muncul di ps aux
     cd "$PROJECT_DIR"
-
     if git diff --quiet && git diff --cached --quiet && test -z "$(git status --porcelain)"; then
         info "Tidak ada perubahan untuk di-commit."
         return
@@ -186,7 +106,7 @@ git_commit_push() {
     ok "Push selesai: $msg"
 }
 
-# ── Setup Nginx config (pertama kali) ──────────────────────────────────────
+# ── Setup Nginx config ───────────────────────────────────────────────────────
 setup_nginx() {
     info "Pasang Nginx config (single source: configs/$NGINX_FILE)..."
     local nginx_config src_file
@@ -201,23 +121,68 @@ setup_nginx() {
     ok "Nginx config diperbarui."
 }
 
-# ── Deploy ke server ───────────────────────────────────────────────────────
-deploy() {
-    info "Buat direktori remote jika belum ada..."
-    local remote_dir_q
-    remote_dir_q=$(printf "'%s'" "${REMOTE_DIR//\'/\'\\\'\'}")
-    ssh "$SERVER" "mkdir -p -- $remote_dir_q"
+# ── Build + deploy DI SERVER (dari GitLab) ────────────────────────────────
+server_deploy() {
+    info "Sync repo + build + deploy di $SERVER..."
 
-    info "Sync dist/ ke server..."
-    rsync -av --delete "$DIST_DIR/" "${SERVER}:${REMOTE_DIR}/"
-    ok "Sync selesai."
+    ssh "$SERVER" bash -s <<'REMOTE_DEPLOY'
+set -euo pipefail
 
-    setup_nginx
+REMOTE_REPO_DIR="${REMOTE_REPO_DIR:-/home/anas.fikri/mailcow-frontend}"
+REMOTE_WEB_DIR="${REMOTE_WEB_DIR:-/data/docker-data/mailcow/data/web/webmail}"
+NGINX_DIR="${NGINX_DIR:-/data/docker-data/mailcow/data/conf/nginx}"
+NGINX_FILE="site.webmail.custom"
+BRANCH="${BRANCH:-main}"
+SOGO_API_PORT="${SOGO_API_PORT:-3005}"
+GITLAB_URL="https://${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git"
 
-    info "Restart Nginx Mailcow..."
-    ssh "$SERVER" "docker exec mailcow-nginx-mailcow-1 nginx -s reload" 2>/dev/null \
-        || ssh "$SERVER" "docker restart mailcow-nginx-mailcow-1"
-    ok "Nginx reloaded."
+# 1. Clone pertama / pull
+if [ -d "$REMOTE_REPO_DIR/.git" ]; then
+    echo "  → Repo sudah ada: git pull $BRANCH"
+    cd "$REMOTE_REPO_DIR"
+    git fetch origin "$BRANCH"
+    git reset --hard "origin/$BRANCH"
+else
+    echo "  → Repo belum ada: git clone"
+    git clone --branch "$BRANCH" "$GITLAB_URL" "$REMOTE_REPO_DIR"
+    cd "$REMOTE_REPO_DIR"
+fi
+
+echo "  → HEAD: $(git log -1 --oneline)"
+
+# 2. Install dependencies
+echo "  → npm ci..."
+npm ci --omit=dev 2>&1 | tail -2
+
+# 3. Ambil API_KEY dari sogo-proxy
+API_KEY="$(awk -F= '/^API_KEY=/{print substr($0, index($0, "=") + 1); exit}' /home/anas.fikri/sogo-proxy/.env)"
+if [ -z "$API_KEY" ]; then
+    echo "[ERROR] API_KEY tidak ditemukan di /home/anas.fikri/sogo-proxy/.env"
+    exit 1
+fi
+
+# 4. Build
+echo "  → Build..."
+VITE_API_KEY="$API_KEY" VITE_SOGO_BASE_URL="" npm run build 2>&1 | tail -3
+echo "  → Build OK: dist/"
+
+# 5. Rsync ke direktori nginx
+echo "  → Rsync ke $REMOTE_WEB_DIR"
+mkdir -p "$REMOTE_WEB_DIR"
+rsync -av --delete dist/ "$REMOTE_WEB_DIR/" 2>&1 | tail -3
+
+# 6. Rsync nginx config
+echo "  → Pasang nginx config"
+cp -f configs/site.webmail.custom "$NGINX_DIR/$NGINX_FILE" 2>/dev/null || true
+
+# 7. Nginx reload
+echo "  → Nginx reload..."
+docker exec mailcow-nginx-mailcow-1 nginx -s reload 2>/dev/null || docker restart mailcow-nginx-mailcow-1
+echo "  → Nginx reloaded"
+
+REMOTE_DEPLOY
+
+    ok "Server deploy selesai."
 }
 
 # ── Deploy backend (server.js SMTP proxy) ──────────────────────────────────
@@ -309,7 +274,7 @@ verify() {
     # publik (sedang migrasi IP) maupun hairpin NAT di firewall.
     http_code=$(ssh "$SERVER" "curl -sk --resolve ${host}:443:127.0.0.1 -o /dev/null -w '%{http_code}' -- $webmail_url_q")
     if [ "$http_code" = "200" ]; then
-        ok "Webmail siap: $webmail_url (HTTP $http_code)"
+        ok "Webmail siap: ${WEBMAIL_URL} (HTTP $http_code)"
     else
         err "Webmail mengembalikan HTTP $http_code — cek konfigurasi."
     fi
@@ -375,24 +340,21 @@ main() {
 
     echo ""
     echo "╔══════════════════════════════════════════╗"
-    echo "║  SOGo Frontend — Build & Deploy          ║"
+    echo "║  SOGo Frontend — Deploy dari GitLab       ║"
     echo "╚══════════════════════════════════════════╝"
     echo ""
 
-    ensure_ssh || exit 1
-    validate_config
-    preflight_sogo_proxy
-    build
+    ensure_ssh
 
+    # Commit + push lokal dulu (opsional)
     if [ -n "$commit_msg" ]; then
-        echo ""
         git_commit_push "$commit_msg"
     else
-        info "Skip commit/push (tidak ada pesan commit)."
+        info "Skip commit/push. Deploy langsung dari GitLab main."
     fi
 
     echo ""
-    deploy
+    server_deploy
 
     echo ""
     deploy_backend
@@ -402,6 +364,7 @@ main() {
 
     echo ""
     ok "Deploy selesai! 🚀"
+    echo "  Source: GitLab $BRANCH → $SERVER"
 }
 
 main "$@"
