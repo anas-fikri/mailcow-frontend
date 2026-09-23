@@ -1,5 +1,14 @@
 # Current Task
 
+## 2026-09-23 — Pratinjau PowerPoint + ZIP in-app (round-56)
+
+Status: DEPLOYED & LIVE (deploy PASS; build-version 1790154046218-jqauwi,
+MailPage-DjwLX6b- + chunk jszip.min terverifikasi di server).
+- PPTX → outline slide (judul + bullet), ZIP → tabel entri (nama/ukuran/tanggal,
+  tanpa ekstraksi). `src/lib/packPreview.js` + modal `packPreview` di reader.
+- jszip direct dep, chunk lazy 96 kB; bundle entry tak bertambah. Escape:
+  lightbox → docx → pack → reader. test:pack-preview 12 OK; 63 suite hijau.
+
 ## 2026-09-23 — Pratinjau PDF + Word (.docx) in-app (round-55)
 
 Status: DEPLOYED & LIVE (commit fd69395, deploy PASS, bundle live terverifikasi:

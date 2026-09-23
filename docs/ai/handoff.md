@@ -1,3 +1,25 @@
+## 2026-09-23 — Pratinjau PowerPoint (.pptx) + arsip (.zip) in-app (round-56)
+
+Lanjutan fitur lampiran: pratinjau **PowerPoint** & **arsip ZIP**.
+- Lib baru `src/lib/packPreview.js`: `parsePptx()` (outline slide — judul dari
+  placeholder title/ctrTitle + bullet body, DOMParser; tanpa title → teks shape
+  pertama jadi judul) dan `listZip()` (listing central directory: nama/ukuran/
+  tanggal, file dulu baru folder, tanpa ekstraksi). Batas: 30 slide, 15 bullet,
+  500 entri (truncate jujur di UI).
+- Parser **jszip** 3.10.2 jadi direct dep; dynamic import → chunk
+  `jszip.min-*.js` (96 kB) terpisah, hanya ke-load saat pratinjau dibuka —
+  bundle entry TIDAK bertambah (390.56 kB tetap).
+- Modal `packPreview` di MessageReader: pptx → outline slide; zip → tabel
+  entri. Output TEKS polos via interpolasi React (bukan dangerouslySetInnerHTML
+  → tanpa jalur XSS). Escape chain: lightbox → docx → pack → reader.
+- `.ppt` biner lama TIDAK didukung (tetap jalur unduh). Kontrak test:a11y
+  Escape di-update. Test baru `test:pack-preview` 12 assertion (fixture pptx/
+  zip dibangun via JSZip riil, termasuk truncation & file bukan-zip). Suite
+  penuh 63 test hijau.
+- Gotcha kecil: import lib gak boleh tanpa ekstensi `.js` (Node ESM test
+  gagal resolve; Vite toleran). Entri folder kosong JSZip tetap ditulis sbg
+  `dir/` entri.
+
 ## 2026-09-23 — Pratinjau PDF + Word (.docx) in-app (round-55)
 
 Permintaan user: tambah pratinjau utk PDF & dokumen Word di lampiran.

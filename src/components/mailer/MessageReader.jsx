@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, FileDown, Paperclip,
   Flag, Printer, FolderOpen, Star, AlertTriangle, UserPlus, ExternalLink, Eye, X, ShieldCheck,
-  Table2, ChevronLeft, ChevronRight, TriangleAlert,
+  Table2, ChevronLeft, ChevronRight, TriangleAlert, Folder,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, markMessagesAsNotJunk, createContact, fetchAttachmentData } from '../../lib/api';
@@ -19,6 +19,7 @@ import { proxyExternalImages } from '../../lib/imageProxy';
 import { resolveCidReferences } from '../../lib/cidImages';
 import { getFileKind, fileExtension, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
 import { convertDocxToHtml } from '../../lib/docPreview';
+import { parsePptx, listZip } from '../../lib/packPreview';
 import { buildEml, htmlToText, collectInlineCids } from '../../lib/emlUtils';
 import { analyzePhishing, RISK_LEVELS } from '../../lib/phishingDetection';
 
@@ -132,6 +133,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const [lightbox, setLightbox] = React.useState(null); // { name, url, kind } | null
   // Pratinjau dokumen Word (.docx) in-app: { name, url, loading, html?, error? }.
   const [docPreview, setDocPreview] = React.useState(null);
+  // Pratinjau paket (PowerPoint .pptx / arsip .zip) in-app.
+  const [packPreview, setPackPreview] = React.useState(null); // { name, url, type, ... }
   // Preview spreadsheet/teks in-app: { name, kind } saat loading, lalu + data.
   const [sheetPreview, setSheetPreview] = React.useState(null); // { name, kind, url, sheets:[{name, rows}], error? }
   const [sheetTab, setSheetTab] = React.useState(0);
@@ -289,7 +292,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       else if (e.key.toLowerCase() === 'f') { e.preventDefault(); handleForward(); }
       else if (e.key === 'Delete') { e.preventDefault(); if (!deleteMutation.isPending) deleteMutation.mutate(); }
       else if (e.key.toLowerCase() === 's') { e.preventDefault(); flagMutation.mutate(!(msg.isFlagged)); }
-      else if (e.key === 'Escape') { e.preventDefault(); if (lightbox) setLightbox(null); else if (docPreview) setDocPreview(null); else onClose(); }
+      else if (e.key === 'Escape') { e.preventDefault(); if (lightbox) setLightbox(null); else if (docPreview) setDocPreview(null); else if (packPreview) setPackPreview(null); else onClose(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -505,6 +508,14 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       openDocPreview(att, url);
       return;
     }
+    if (kind === 'presentation' && fileExtension(att.name) === 'pptx') {
+      openPackPreview(att, url, 'pptx');
+      return;
+    }
+    if (kind === 'archive' && fileExtension(att.name) === 'zip') {
+      openPackPreview(att, url, 'zip');
+      return;
+    }
     if (kind === 'spreadsheet' || kind === 'code' || (kind === 'document' && ['txt', 'md', 'csv'].includes(fileExtension(att.name)))) {
       openSheetPreview(att, url, kind);
       return;
@@ -553,6 +564,27 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       setDocPreview({ name: att.name, url, html });
     } catch (err) {
       setDocPreview({ name: att.name, url, error: err?.message || 'Gagal memuat pratinjau dokumen.' });
+    }
+  }
+
+  // ── Pratinjau paket: PowerPoint (.pptx) & arsip (.zip) in-app ──────────
+  // Parse via JSZip (dynamic import → chunk terpisah). Output berupa TEKS
+  // polos → dirender React (bukan dangerouslySetInnerHTML → tanpa XSS jalur).
+  async function openPackPreview(att, url, type) {
+    setPackPreview({ name: att.name, url, type, loading: true });
+    try {
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = await res.arrayBuffer();
+      if (type === 'pptx') {
+        const { slides, slideCount } = await parsePptx(buf);
+        setPackPreview({ name: att.name, url, type, slides, slideCount });
+      } else {
+        const { entries, totalCount, truncated } = await listZip(buf);
+        setPackPreview({ name: att.name, url, type, entries, totalCount, truncated });
+      }
+    } catch (err) {
+      setPackPreview({ name: att.name, url, type, error: err?.message || 'Gagal memuat pratinjau.' });
     }
   }
 
@@ -1042,6 +1074,119 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 docPreview.html.trim()
                   ? <div className="docx-preview max-w-none text-sm [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2 [&_h3]:font-bold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_table]:w-full [&_table]:text-xs [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:font-semibold [&_th]:bg-muted/60 [&_img]:max-w-full [&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_a]:text-primary [&_a]:underline">{docPreview.html}</div>
                   : <div className="py-16 text-center text-sm text-muted-foreground">Dokumen kosong / tidak berisi teks yang bisa dipratinjau.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pratinjau paket: PowerPoint (.pptx) & arsip (.zip) in-app ─────── */}
+      {packPreview && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/85 flex flex-col items-center justify-center p-4"
+          onClick={() => setPackPreview(null)}
+        >
+          <div
+            className="flex flex-col w-full max-w-4xl max-h-[85vh] bg-card rounded-2xl overflow-hidden border border-border shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+              {packPreview.type === 'pptx' ? (
+                <Table2 size={16} className="text-primary shrink-0" />
+              ) : (
+                <Folder size={16} className="text-primary shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-foreground truncate">{packPreview.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {packPreview.type === 'pptx'
+                    ? `Pratinjau PowerPoint — outline ${packPreview.slides?.length ?? 0} dari ${packPreview.slideCount ?? 0} slide`
+                    : `Pratinjau arsip — ${packPreview.totalCount ?? 0} entri`}
+                </div>
+              </div>
+              <button
+                onClick={() => downloadFileBlob(packPreview.url, packPreview.name).catch(() => {})}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+              >
+                <Download size={14} /> Unduh
+              </button>
+              <button
+                onClick={() => setPackPreview(null)}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                aria-label="Tutup pratinjau"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              {packPreview.loading && (
+                <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
+                  <Loader2 size={18} className="animate-spin" /> Memuat pratinjau…
+                </div>
+              )}
+              {packPreview.error && (
+                <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
+                  <TriangleAlert size={22} className="text-amber-500" /> {packPreview.error}
+                </div>
+              )}
+              {/* PPTX: outline slide (judul + bullet) */}
+              {!packPreview.loading && !packPreview.error && packPreview.slides && (
+                packPreview.slides.length === 0 ? (
+                  <div className="py-16 text-center text-sm text-muted-foreground">Tidak ada slide berisi teks.</div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {packPreview.slides.map((s) => (
+                      <div key={s.number} className="px-5 py-4">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs font-semibold text-muted-foreground bg-muted rounded-md px-1.5 py-0.5">{s.number}</span>
+                          <div className="text-sm font-semibold text-foreground">{s.title || '(tanpa judul)'}</div>
+                        </div>
+                        {s.bullets.length > 0 && (
+                          <ul className="mt-2 ml-8 list-disc marker:text-muted-foreground/60 space-y-1">
+                            {s.bullets.map((b, bi) => (
+                              <li key={bi} className="text-sm text-foreground/90">{b}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+              {/* ZIP: daftar entri central directory (tanpa ekstraksi) */}
+              {!packPreview.loading && !packPreview.error && packPreview.entries && (
+                packPreview.entries.length === 0 ? (
+                  <div className="py-16 text-center text-sm text-muted-foreground">Arsip kosong.</div>
+                ) : (
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-muted/60 text-left">
+                        <th className="px-4 py-2 font-semibold text-foreground">Nama</th>
+                        <th className="px-3 py-2 font-semibold text-foreground w-24">Ukuran</th>
+                        <th className="px-3 py-2 font-semibold text-foreground w-28">Tanggal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {packPreview.entries.map((en, i) => (
+                        <tr key={i} className={i % 2 ? 'bg-muted/20' : ''}>
+                          <td className="px-4 py-1.5 border-b border-border/60 text-foreground">
+                            <span className="inline-flex items-center gap-1.5 min-w-0">
+                              {!en.dir && <FileText size={12} className="text-muted-foreground shrink-0" />}
+                              <span className="truncate">{en.name}</span>
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5 border-b border-border/60 text-muted-foreground whitespace-nowrap">{en.dir ? '—' : (en.size || '—')}</td>
+                          <td className="px-3 py-1.5 border-b border-border/60 text-muted-foreground whitespace-nowrap">{en.date || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              )}
+              {!packPreview.loading && packPreview.truncated && (
+                <div className="px-4 py-2 text-xs text-muted-foreground border-t border-border">
+                  Menampilkan 500 entri pertama dari {packPreview.totalCount}.
+                </div>
               )}
             </div>
           </div>
