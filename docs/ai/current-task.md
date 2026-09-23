@@ -1,13 +1,13 @@
 # Current Task
 
 Status: COMPLETED
-Task ID: 20260922-122203-130733
-Started At: 2026-09-22T12:22:03Z
-Updated At: 2026-09-23T00:47:47Z
+Task ID: 20260923-012329-321379
+Started At: 2026-09-23T01:23:29Z
+Updated At: 2026-09-23T01:40:36Z
 Project Root: /home/anas.fikri/mailcow-frontend
 
 ## Objective
-20260922-CONV-HEADER-AGG: agregat belum-dibaca & flag di header conversation + verifikasi E2E live thread berlampiran
+20260922-CONV-AUDIT: audit E2E live fitur conversation (sortAsc, expand-all, pagination) yang dijaga test statis
 
 ## Goal Link
 Goal ID: TBD
@@ -22,19 +22,19 @@ Sub-goal ID: TBD
 - Update handoff notes before switching tools
 
 ## Risk Analysis
-- Status: REQUIRED BEFORE IMPLEMENTATION
-- Risk level: UNASSESSED
-- Impact surface: Not assessed
-- Security concerns: Not assessed
-- Compatibility concerns: Not assessed
-- Failure modes/edge cases: Not assessed
-- Mitigations: Not assessed
-- Validation plan: Not assessed
-- Open risks/assumptions: Not assessed
+- Status: COMPLETE
+- Risk level: LOW (audit; perubahan kode hanya bila bug terbukti)
+- Impact surface: E2E live baca-utama terhadap PRODUKSI via akun diag2 (mailbox uji); seed ~105 email plain ke INBOX diag2 utk pagination, expunge by-subject di finally + expunge ALL oleh runner cleanup. Tidak menyentuh akun user nyata.
+- Security concerns: kredensial diag2 statis (sudah baku di repo); tidak ada payload berbahaya.
+- Compatibility concerns: sortAsc/expand-all hanya diubah state UI diag2; preferensi dikembalikan (toggle-back) di finally.
+- Failure modes/edge cases: seed 105 bisa lambat (mitigasi: 1 ssh loop); refetchOnWindowFocus bisa mengubah DOM saat assert (mitigasi: sleep settle); leftover email (mitigasi: expunge idempoten).
+- Mitigations: cleanup double-layer (test finally + runner trap); assertions dgn diagnostik dump saat gagal.
+- Validation plan: node --check, unit conversation contracts hijau, E2E live PASS terhadap bundle produksi; fix+deploy bila bug app ditemukan.
+- Open risks/assumptions: prefetch /view ≈100 header (asumsi dari komentar kode) — di-verifikasi empiris di E2E.
 
 ## Risks
-- Complete  before changing implementation files.
+- (tercatat di atas)
 
 ## Validation
-- Risk analysis: REQUIRED
-- Tests/checks: Not run
+- Risk analysis: COMPLETE
+- Tests/checks: Belum dijalankan (E2E menyusul implementasi skrip)

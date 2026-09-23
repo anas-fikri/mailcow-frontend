@@ -1,3 +1,10 @@
+## 2026-09-23 — Audit E2E live conversation: sortAsc, expand-all, pagination (tanpa bug baru)
+
+T-20260923-012329: audit 3 fitur conversation yang dijaga test statis, kini dengan gerbang E2E live terhadap produksi.
+Implement: Buffy (Codebuff) · Hasil: TIDAK ADA bug aplikasi baru — ketiga kontrak terbukti hidup di produksi.
+→ E2E baru `e2e-conversation-features-browser.mjs` (pilihan `convfeatures` di runner): seed 113 email (thread A 3 pesan dgn lampiran+flag di tengah, thread B 3, filler 105). Bukti live: (1) sortAsc membalik urutan grup A-first→B-first sementara preview thread tetap pesan terbaru (07:39 konsisten); (2) expand-all membuka semua thread, anggota berlampiran tampil 📎 per-baris; (3) pagination empiris: prefetch /view = 100 header, scroll memuat 13 sisanya via /headers (chip count 113 penuh, footer window muncul, grouping utuh).
+- Kontrak test statis conversation (6 suite) tetap valid tanpa perubahan. Pelajaran metodologi (vacuous assert, scroll container bukan window, aria-label=state) tercatat di knowledge.
+
 ## 2026-09-22 — Fix conversation: grup dipotong ke uid preview (header/chip tak pernah tampil) + agregat unread/flag
 
 T-20260922-CONV-HEADER-AGG (lanjutan): E2E live menangkap bug produksi pre-existing — `visibleConversationGroups` memotong anggota grup ke uid preview saja → tiap grup selalu 1 pesan: header thread, tombol expand, dan chip agregat (jumlah pesan/unread/flag/lampiran) TIDAK PERNAH tampil walau data server lengkap (bukti: /view kirim 5 baris convRows=3, DOM hanya 1 subjek + toolbar "0 thread").
@@ -589,3 +596,17 @@ search aktif (by design).
 -  M scripts/test-conversation-toolbar-regression.mjs
 -  M scripts/test-conversation-visible-filter.mjs
 -  M src/pages/MailPage.jsx
+
+## 2026-09-23T01:40:36Z
+- Status: COMPLETED
+- Objective: 20260922-CONV-AUDIT: audit E2E live fitur conversation (sortAsc, expand-all, pagination) yang dijaga test statis
+- Summary: Audit E2E live fitur conversation (sortAsc, expand-all, pagination) — TIDAK ada bug aplikasi baru. Bukti live terhadap produksi: (1) sortAsc membalik urutan grup A-first→B-first sementara preview thread tetap pesan terbaru (jam preview tidak berubah) — kontrak 'hanya urutan grup' terpenuhi; (2) expand-all membuka semua thread dan anggota berlampiran menampilkan 📎 per-baris; (3) pagination dua fase terbukti: 113 email di-seed, /view prefetch ~100, scroll memuat sisanya via /headers sampai chip count penuh & footer window muncul, grouping thread tetap utuh.
+- Branch: main
+- Changed Files:
+-  M ai-state.json
+-  M docs/ai/current-task.md
+-  M docs/ai/knowledge.md
+-  M docs/ai/next-tasks.md
+-  M scripts/e2e-browser-runner.sh
+- ?? docs/ai/tasks/20260923-012329-321379.previous.md
+- ?? scripts/e2e-conversation-features-browser.mjs
