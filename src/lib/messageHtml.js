@@ -107,6 +107,38 @@ export function parseAttachmentCard(content) {
 }
 
 /**
+ * Deteksi gambar BODY email yang salah masuk daftar lampiran.
+ *
+ * Latar (keluhan user round-53): gambar footer/banner/tanda-tangan yang
+ * dirender di body tetap muncul sbg "Lampiran". Penyebab: SOGo menandai
+ * gambar tsb `shouldDisplayAttachment=1` (padahal src-nya di-rewrite ke URL
+ * part di body), jadi filter flag-0 saja tidak cukup. Juga menangkap bentuk
+ * klasik CID (`cid:image001.jpg@uuid`) kalau body masih memuat token mentah.
+ *
+ * Aturan: image/* yang nama file-nya (utuh, incl. bentuk URL-encoded)
+ * ter-refer di body HTML = bagian body → BUKAN lampiran. Match filename
+ * UTUH (bukan stem) supaya teks email yang kebetulan menyebut kata sama
+ * tidak ikut menyembunyikan lampiran asli.
+ *
+ * @param {{name?:string, filename?:string, contentType?:string, inline?:boolean}} att
+ * @param {string} bodyHtml - HTML body (hasil extractHtml)
+ * @returns {boolean} true = gambar inline body, jangan tampilkan sbg lampiran
+ */
+export function isInlineBodyImage(att, bodyHtml) {
+  if (!att) return false;
+  if (att.inline === true) return true; // sudah ditandai inline (flag 0)
+  if (!bodyHtml) return false;
+  if (!String(att.contentType || '').startsWith('image/')) return false;
+  const name = att.name || att.filename || '';
+  if (!name) return false;
+  let decoded = name;
+  try { decoded = decodeURIComponent(name); } catch { /* nama non-URL — pakai apa adanya */ }
+  const lower = bodyHtml.toLowerCase();
+  const candidates = [name, decoded, encodeURIComponent(decoded)];
+  return candidates.some((c) => c && lower.includes(String(c).toLowerCase()));
+}
+
+/**
  * Kumpulkan lampiran (part non-inline dengan downloadURL) dari tree parts.
  *
  * Aturan tampil (sama dengan SOGo native Message.service.js:464):

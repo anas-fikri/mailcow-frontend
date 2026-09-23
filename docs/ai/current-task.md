@@ -1,5 +1,16 @@
 # Current Task
 
+## 2026-09-23 — Lampiran: tombol Unduh per-kartu + filter gambar body — round-53 lanjutan
+
+Status: COMPLETED (menunggu verifikasi live pasca-deploy)
+
+- Tombol **Unduh** eksplisit per kartu lampiran non-image (blob, nama file
+  terjaga, spinner per-kartu).
+- Gambar footer/banner/signature yang ke-refer di body HTML tidak lagi masuk
+  daftar Lampiran: `isInlineBodyImage()` (SOGo menandai gambar inline-rewrite
+  `shouldDisplayAttachment=1`, filter flag-0 saja tak cukup).
+- Validasi: test:attach-fallback +8 kasus, suite penuh hijau, build OK.
+
 ## 2026-09-23 — Fix lampiran non-image hilang (fallback card SOGo) — round-53
 
 Status: COMPLETED (menunggu verifikasi live pasca-deploy)

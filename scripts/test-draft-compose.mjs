@@ -67,7 +67,7 @@ ok(mail.includes("fetchAttachmentData,") || mail.includes('fetchAttachmentData,'
 
 // ── extractHtml dipindah ke lib + dipakai reader & mail (dedup) ──────────────
 ok(lib.includes('export function extractHtml(parts)'), 'extractHtml harus ada di messageHtml.js');
-ok(/import \{ extractHtml, extractAttachments \} from '..\/..\/lib\/messageHtml'/.test(reader), 'MessageReader harus import dari lib');
+ok(/import \{ extractHtml, extractAttachments(, [A-Za-z]+)* \} from '..\/..\/lib\/messageHtml'/.test(reader), 'MessageReader harus import dari lib (extractHtml/extractAttachments, boleh + helper lain)');
 ok(!reader.includes('function extractHtml(parts)'), 'MessageReader tidak boleh punya duplikat extractHtml lokal');
 // Preferensi html di kedalaman mana pun (bug latent: plain bisa menang bila
 // text/plain ada di urutan part lebih awal dari html yang bersarang).

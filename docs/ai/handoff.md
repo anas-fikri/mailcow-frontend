@@ -1,3 +1,18 @@
+## 2026-09-23 — Lampiran: tombol Unduh per-kartu + filter gambar body (footer/banner) dari daftar
+
+Round-53 lanjutan (feedback user pasca-fix fallback): (1) tombol **Unduh**
+eksplisit per kartu lampiran non-image (blob download, nama file terjaga,
+spinner per-kartu via `downloadingIdx`) — sebelumnya klik kartu = buka tab
+baru; (2) gambar footer/banner/signature yang dirender di body tidak lagi
+masuk daftar Lampiran: `isInlineBodyImage(att, bodyHtml)` (messageHtml.js,
+murni & testable) — image/* yang filename-nya (utuh/URL-encoded, atau bentuk
+CID `name@uuid`) ke-refer di body HTML = bagian body. Root cause keluhan:
+SOGo menandai gambar inline-rewrite `shouldDisplayAttachment=1`, jadi filter
+flag-0 saja tak cukup (kasus nyata: image001/image002.jpg pesan herlina).
+`handleDownloadAll` otomatis ikut filter (satu sumber `attachments`).
+- Validasi: 8 kasus assert baru di test:attach-fallback, seluruh suite test:*
+hijau, build OK. Deploy + verifikasi live menyusul.
+
 ## 2026-09-23 — Fix lampiran non-image hilang di UI (fallback metadata dari card SOGo)
 
 Round-53 (kolaborasi dgn repo mailcow-dashboard): keluhan "webmail cuma menampilkan lampiran gambar" (kasus nyata: ICT.xlsx dari herlina.bunyamin tampil di mail client, hilang di webmail).

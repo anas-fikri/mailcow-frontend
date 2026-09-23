@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { extractAttachments, parseAttachmentCard } from '../src/lib/messageHtml.js';
+import { extractAttachments, parseAttachmentCard, isInlineBodyImage } from '../src/lib/messageHtml.js';
 
 // ── parseAttachmentCard: card HTML asli dari serializer JSON SOGo 5.12.9 ─────
 // (sample diambil live dari /view?Accept:application/json, part xlsx tanpa
@@ -104,5 +104,41 @@ function withInlineTree() {
 // Part tanpa metadata & tanpa card → tetap gak muncul (bukan lampiran).
 const noCard = extractAttachments({ contentType: 'application/zip', filename: 'x.zip', content: 'raw-garbage' });
 assert.equal(noCard.length, 0);
+
+// ── isInlineBodyImage: gambar body (footer/banner/signature) bukan lampiran ──
+const BODY_HTML = '<img src="/SOGo/so/u/Mail/0/f/1/2/image001.jpg"><p>footer</p><img src="https://x/logo.png">';
+
+// 1. Nama file ke-refer utuh di body → inline (sembunyikan)
+assert.equal(isInlineBodyImage({ name: 'image001.jpg', contentType: 'image/jpeg' }, BODY_HTML), true);
+// 2. Nama TIDAK ada di body → lampiran asli (tetap tampil) — juga memastikan
+//    substring tidak salah match ("logo.png" ≠ "foto-lain.png"; "lain.png" pun
+//    tidak match karena match harus filename UTUH sbg substring).
+assert.equal(isInlineBodyImage({ name: 'ICT.xlsx', contentType: 'application/vnd.ms-excel' }, BODY_HTML), false);
+assert.equal(isInlineBodyImage({ name: 'foto-lain.png', contentType: 'image/png' }, BODY_HTML), false);
+
+// 3. CID klasik Outlook di body (token mentah) → inline
+assert.equal(isInlineBodyImage(
+  { name: 'image002.jpg', contentType: 'image/jpeg' },
+  '<img src="cid:image002.jpg@01DD49E3.1FC745E0">',
+), true);
+
+// 4. URL-encoded filename di body → inline
+assert.equal(isInlineBodyImage(
+  { name: 'banner%20atas.png', contentType: 'image/png' },
+  '<img src="/SOGo/so/u/Mail/0/f/1/4/banner%20atas.png">',
+), true);
+
+// 5. Stem-saja TIDAK cukup: body menyebut kata "report" tapi file report-final.pdf beda
+assert.equal(isInlineBodyImage({ name: 'report-final.pdf', contentType: 'application/pdf' }, '<p>kirim report segera</p>'), false);
+
+// 6. Non-image selalu false (walaupun nama ke-refer)
+assert.equal(isInlineBodyImage({ name: 'image001.jpg', contentType: 'application/octet-stream' }, BODY_HTML), false);
+
+// 7. inline=true dari flag 0 (part CID) → true tanpa perlu body match
+assert.equal(isInlineBodyImage({ name: 'footer.png', contentType: 'image/png', inline: true }, ''), true);
+
+// 8. body kosong/att kosong → false (aman)
+assert.equal(isInlineBodyImage({ name: 'a.jpg', contentType: 'image/jpeg' }, ''), false);
+assert.equal(isInlineBodyImage(null, BODY_HTML), false);
 
 console.log('attach-fallback assertions passed');

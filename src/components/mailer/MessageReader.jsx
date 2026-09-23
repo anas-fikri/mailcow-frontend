@@ -13,7 +13,7 @@ import { MessageReaderSkeleton } from '../Skeleton';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
 import { formatAddresses } from '../../lib/format';
-import { extractHtml, extractAttachments } from '../../lib/messageHtml';
+import { extractHtml, extractAttachments, isInlineBodyImage } from '../../lib/messageHtml';
 import { proxyExternalImages } from '../../lib/imageProxy';
 import { resolveCidReferences } from '../../lib/cidImages';
 import { getFileKind, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
@@ -137,6 +137,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const contactPhoneRef = React.useRef(null);
   // Unduh semua lampiran.
   const [downloadingAll, setDownloadingAll] = React.useState(false);
+  // idx lampiran yang sedang diunduh via tombol Unduh per-kartu (spinner).
+  const [downloadingIdx, setDownloadingIdx] = React.useState(null);
   const [downloadProgress, setDownloadProgress] = React.useState('');
 
   const { data: msg, isLoading } = useQuery({
@@ -394,7 +396,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const date = msg.date || '';
 
   const rawHtml = extractHtml(msg.parts);
-  const attachments = extractAttachments(msg.parts);
+  // Gambar yang ke-refer di body (footer/banner/signature — CID atau URL hasil
+  // rewrite SOGo) bukan lampiran: sembunyikan dari daftar.
+  const attachments = extractAttachments(msg.parts)
+    .filter((att) => !isInlineBodyImage(att, rawHtml));
   const inlineImages = extractInlineImages(msg.parts);
   const cleanHtml = rawHtml
     ? prepareHtmlContent(rawHtml, inlineImages)
@@ -755,27 +760,39 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 }
 
                 // Non-image attachments: file card (PDF → preview lightbox)
+                // + tombol Unduh eksplisit (blob download, nama file terjaga).
                 return (
-                  <a
+                  <div
                     key={idx}
-                    href={attUrl || undefined}
-                    target={isPdf ? undefined : '_blank'}
-                    rel={isPdf ? undefined : 'noreferrer'}
-                    onClick={isPdf ? (e) => { e.preventDefault(); openPreview(att); } : undefined}
                     className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-muted transition-colors group"
-                    title={isPdf ? 'Pratinjau PDF' : undefined}
                   >
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                      <FileText size={20} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-foreground truncate">{att.name}</div>
-                      <div className="text-xs text-muted-foreground">{formatFileSize(att.size) || att.contentType || ''}</div>
-                    </div>
-                    {isPdf
-                      ? <Eye size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />
-                      : <Download size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />}
-                  </a>
+                    <a
+                      href={attUrl || undefined}
+                      target={isPdf ? undefined : '_blank'}
+                      rel={isPdf ? undefined : 'noreferrer'}
+                      onClick={isPdf ? (e) => { e.preventDefault(); openPreview(att); } : undefined}
+                      className="flex items-center gap-3 flex-1 min-w-0"
+                      title={isPdf ? 'Pratinjau PDF' : undefined}
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                        <FileText size={20} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">{att.name}</div>
+                        <div className="text-xs text-muted-foreground">{formatFileSize(att.size) || att.contentType || ''}</div>
+                      </div>
+                      {isPdf && <Eye size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />}
+                    </a>
+                    <button
+                      onClick={() => { setDownloadingIdx(idx); downloadFileBlob(attUrl, att.name).catch(() => toast.error('Gagal mengunduh lampiran.')).finally(() => setDownloadingIdx(null)); }}
+                      className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary shrink-0 transition-colors"
+                      title="Unduh lampiran"
+                      aria-label={`Unduh ${att.name}`}
+                      disabled={downloadingIdx === idx}
+                    >
+                      {downloadingIdx === idx ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                    </button>
+                  </div>
                 );
               })}
             </div>
