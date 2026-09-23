@@ -2,7 +2,7 @@
 
 ## 2026-09-23 — Lampiran: tombol Unduh per-kartu + filter gambar body — round-53 lanjutan
 
-Status: COMPLETED (menunggu verifikasi live pasca-deploy)
+Status: DEPLOYED & LIVE (commit e6c9973, deploy PASS, bundle live terverifikasi)
 
 - Tombol **Unduh** eksplisit per kartu lampiran non-image (blob, nama file
   terjaga, spinner per-kartu).
