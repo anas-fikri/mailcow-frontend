@@ -1,5 +1,11 @@
 # Current Task
 
+## 2026-09-23 — Lampiran: verifikasi "preview gak muncul" (round-54)
+
+Status: TIDAK ADA BUG KODE — stale tab (SPA lama di memori sampai reload).
+Nginx log membuktikan user reload & dapat build preview (MailPage-BZWxJK9m)
+jam 14:24–14:25; deploy-check auto-reload bekerja (poll ?bv= → reload).
+
 ## 2026-09-23 — Lampiran: tombol Unduh per-kartu + filter gambar body — round-53 lanjutan
 
 Status: DEPLOYED & LIVE (commit e6c9973, deploy PASS, bundle live terverifikasi)

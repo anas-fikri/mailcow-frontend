@@ -1,3 +1,18 @@
+## 2026-09-23 — "Preview gak muncul" = stale tab, bukan bug kode (round-54)
+
+User: "masih belum ada review, langsung download doang" — investigasi nginx log:
+- IP user load `MailPage-CPotejRm` (build download-only) jam 13:49 — **sebelum**
+  deploy build preview; baru 14:24–14:25 dapat `MailPage-BZWxJK9m` (Pratinjau).
+- Deploy-check auto-reload **terbukti bekerja**: poll `?bv=` 14:24:57 → reload
+  penuh 14:25:00 → chunk `xlsx-BivLitlN.js` tersedia & ke-refer bundle live.
+- Diverifikasi dari server: `index.html` (meta `build-version
+  1790147224461-nqtx8a`), `MailPage-BZWxJK9m.js` (11× "spreadsheet", ref xlsx
+  chunk), nginx cache headers (HTML no-store, asset immutable) — semua benar.
+Kesimpulan: tab browser menjalankan SPA lama sampai reload terjadi (SPA tidak
+mengganti kode sendiri di memori; poll 60s + reload deploy-check sudah menutup
+ini). Tidak ada perubahan kode diperlukan. Pelajaran: setelah deploy, tunggu
+reload otomatis ≤60s (atau manual reload) sebelum menilai fitur.
+
 ## 2026-09-23 — Pratinjau lampiran in-app (spreadsheet → tabel interaktif)
 
 Feedback user: "masih belum ada review, langsung download doang" — klik kartu
