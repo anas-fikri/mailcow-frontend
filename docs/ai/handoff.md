@@ -1,3 +1,10 @@
+## 2026-09-23 — Fix lampiran non-image hilang di UI (fallback metadata dari card SOGo)
+
+Round-53 (kolaborasi dgn repo mailcow-dashboard): keluhan "webmail cuma menampilkan lampiran gambar" (kasus nyata: ICT.xlsx dari herlina.bunyamin tampil di mail client, hilang di webmail).
+Diagnosa di repo dashboard membuktikan lewat eksperimen diskriminatif (7 varian pesan di mailbox test): serializer JSON SOGo 5.12.9 (`GET .../uid/view`, Accept: application/json) TIDAK meng-emit `viewURL`/`downloadURL`/`size`/`shouldDisplayAttachment` untuk part top-level `application/*` ("found no viewer" → metadata kosong) — hanya text/image yang ter-emit. `extractAttachments` (messageHtml.js) hanya menampung part dengan URL → semua attachment non-image hilang dari daftar Lampiran. Endpoint download server sendiri sehat: URL `asAttachment` manual → 200, file utuh.
+→ Fix (repo ini): fallback murni `parseAttachmentCard(content)` — SOGo meng-embed card Angular (md-card) di field `content` part tanpa-viewer, berisi href `asAttachment` + ukuran; helper meng-ekstrak URL (direlatifkan, entity di-unescape) + size. `extractAttachments` memakainya saat `downloadURL/viewURL` kosong untuk part non-text/image (bukan inline) — metadata normal tetap diutamakan, flag `shouldDisplayAttachment===0` (inline CID) tetap dikecualikan.
+- Validasi: test:attach-fallback BARU (card asli produksi sebagai sample), seluruh suite test:* hijau, build OK. Deploy + verifikasi live menyusul commit ini.
+
 ## 2026-09-23 — E2E jalur data FASE 2: akar cid: terpecahkan (SOGo rewrite server-side)
 
 T-20260923 (lanjutan 014649): E2E datapaths masih gagal di assertion Content-ID walau bundle live terbukti memuat fix → dump EML runtime membongkar asumsi salah: token cid: TIDAK PERNAH ada di html frontend (SOGo /view me-rewrite jadi URL absolut server-side; contentId tak diekspos).

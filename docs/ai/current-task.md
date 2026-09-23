@@ -1,5 +1,28 @@
 # Current Task
 
+## 2026-09-23 — Fix lampiran non-image hilang (fallback card SOGo) — round-53
+
+Status: COMPLETED (menunggu verifikasi live pasca-deploy)
+
+- **Keluhan**: webmail `/webmail/mail` hanya menampilkan lampiran gambar;
+  attachment lain (xlsx/pdf) hilang — kasus nyata: ICT.xlsx dari
+  herlina.bunyamin (tampil di mail client, hilang di UI).
+- **Akar masalah** (diagnosa penuh di repo mailcow-dashboard, round-53):
+  serializer JSON SOGo 5.12.9 tidak meng-emit
+  `viewURL/downloadURL/size/shouldDisplayAttachment` untuk part top-level
+  `application/*` — `extractAttachments` hanya menampung part ber-URL →
+  attachment non-image hilang dari daftar Lampiran.
+- **Fix repo ini**: `parseAttachmentCard()` (messageHtml.js) — ekstrak URL
+  `asAttachment` + ukuran dari card Angular yang SOGo embed di field `content`
+  part tanpa-viewer; dipakai sbg fallback saat metadata kosong (part non-text,
+  non-html). Perilaku lama (metadata lengkap, flag 0 inline CID) tak berubah.
+- **Validasi**: test:attach-fallback baru (sample card produksi asli), seluruh
+  suite test:* hijau, build OK.
+- **Deploy**: `./deploy.sh` (DEPLOY_SSH_HOST=deploy-mail) → verifikasi
+  bundle live + buka pesan herlina di webmail (lampiran ICT.xlsx harus tampil).
+
+---
+
 Status: COMPLETED
 Task ID: 20260923-014649-923291
 Started At: 2026-09-23T01:46:49Z

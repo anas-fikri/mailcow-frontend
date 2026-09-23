@@ -30,6 +30,7 @@
     "test:snooze": "node scripts/test-snooze.mjs",
     "test:date-groups": "node scripts/test-date-groups.mjs",
     "test:attachments": "node scripts/test-attachments.mjs",
+    "test:attach-fallback": "node scripts/test-attach-fallback.mjs",
     "test:ssrf-guard": "node scripts/test-ssrf-guard.mjs",
     "test:image-proxy": "node scripts/test-image-proxy.mjs",
     "test:tracking-pixel": "node scripts/test-tracking-pixel.mjs",

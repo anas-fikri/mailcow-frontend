@@ -6,6 +6,12 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-09-23 — Serializer JSON SOGo 5.12.9 tidak emit metadata part non-text/image
+
+- Bukti eksperimen diskriminatif (7 varian pesan, mailbox test, JSON view): part top-level `application/*` (octet-stream, xlsx, dgn/tanpa Content-Disposition, dgn/tanpa CTE base64) SELALU tanpa `viewURL`/`downloadURL`/`size`/`shouldDisplayAttachment` di JSON — log "found no viewer for MIME type". Part image/* dan text/plain TER-EMIT lengkap. Ini akar masalah "webmail hanya menampilkan lampiran gambar" (bug serializer SOGo, bukan bug aplikasi).
+- Untungnya SOGo tetap meng-embed card Angular (md-card) di field `content` part tsb berisi href view (`/{part}/{filename}`) + save (`/{part}/asAttachment/{filename}`) + ukuran — endpoint download sendiri SEHAT (200, file utuh, MIME benar). Fallback frontend: `parseAttachmentCard` (messageHtml.js) ekstrak URL/size dari card, dipakai saat metadata kosong.
+- Gotcha investigasi server: (1) file fisik Maildir mailcow terenkripsi mail_crypt (`CRYPTED…` header) — copy raw via pipe menghasilkan pesan korup; ekstrak logis via `doveadm fetch text` (dekrip transparan). (2) `doveadm search -u X mailbox M ALL` mengembalikan mailbox-guid + uid, bukan digest. (3) expunge+save berulang di mailbox yang sama dapat membuat view SOGo 500 "the called object returned no result" (cache folder) — pakai folder fresh utk eksperimen. (4) Sintaks fetch valid: `doveadm fetch -u X "uid hdr.subject size.virtual" mailbox M ALL`.
+
 ## 2026-09-23 — Export .eml: SOGo /view me-rewrite cid: → URL absolut SEBELUM frontend
 
 - Bukti dari dump .eml runtime (E2E live): html body pesan dari SOGo /view TIDAK pernah berisi token cid: — server me-rewrite `<img src="cid:…">` menjadi URL absolut `https://host/SOGo/so/<user>/Mail/0/folderINBOX/<uid>/<part>/<filename>` sebelum response sampai ke frontend, dan field `contentId` juga tidak diekspos. Karena itu strategi "turunkan Content-ID dari token cid: di rawHtml" mustahil berhasil di produksi (dua iterasi fix sebelumnya gagal karena masih berasumsi token cid: ada).

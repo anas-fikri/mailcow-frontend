@@ -82,6 +82,31 @@ export function extractHtml(parts) {
 }
 
 /**
+ * Fallback metadata lampiran utk bug serializer JSON SOGo 5.12.9: part
+ * non-text/image (xlsx, pdf, dll) TIDAK mendapat viewURL/downloadURL/size
+ * ("found no viewer" → metadata kosong), padahal SOGo meng-embed card Angular
+ * (md-card) di field `content` berisi URL asAttachment + ukuran file.
+ * Diagnosa round-53 repo mailcow-dashboard (2026-09-23); jalur download via
+ * URL asAttachment terbukti berfungsi normal.
+ *
+ * @returns {{downloadURL:string, size:*}|null}
+ */
+export function parseAttachmentCard(content) {
+  if (typeof content !== 'string') return null;
+  const url = content.match(/href="([^"]*\/asAttachment\/([^"]*))"/);
+  if (!url) return null;
+  const size = content.match(/sg-attachment-size[^>]*>\s*([\d.,]+\s*[KMG]?i?B)\s*</);
+  return {
+    // Unescape HTML entities (&amp;) dan relatifkan URL absolut agar konsisten
+    // dgn format downloadURL part biasa (path tanpa origin; fetchAttachmentData
+    // yang menambahkan SOGO_BASE).
+    downloadURL: url[1].replace(/&amp;/g, '&').replace(/^https?:\/\/[^/]+/, ''),
+    filename: url[2].replace(/&amp;/g, '&'),
+    size: size ? size[1] : 0,
+  };
+}
+
+/**
  * Kumpulkan lampiran (part non-inline dengan downloadURL) dari tree parts.
  *
  * Aturan tampil (sama dengan SOGo native Message.service.js:464):
@@ -108,19 +133,33 @@ export function extractAttachments(parts, result = [], opts = {}) {
   if (!opts.includeHidden && parts.shouldDisplayAttachment === 0) return result;
   const ct = parts.contentType || '';
   const isInline = ct === 'text/html' || ct === 'text/plain';
-  if ((parts.downloadURL || parts.viewURL) && !isInline) {
+  let downloadURL = parts.downloadURL || parts.viewURL || '';
+  let size = parts.size || 0;
+  let shouldDisplay = parts.shouldDisplayAttachment;
+  // Fallback: part lampiran tanpa metadata (bug serializer JSON SOGo utk
+  // tipe non-text/image) — ekstrak URL & size dari card yang di-embed di
+  // content. Tanpa ini attachment xlsx/pdf hilang dari daftar Lampiran.
+  if (!downloadURL && !isInline) {
+    const card = parseAttachmentCard(parts.content);
+    if (card) {
+      downloadURL = card.downloadURL;
+      size = size || card.size;
+      if (shouldDisplay === undefined) shouldDisplay = 1;
+    }
+  }
+  if (downloadURL && !isInline) {
     result.push({
       name: parts.filename || parts.name || 'attachment',
-      size: parts.size || 0,
+      size,
       contentType: ct,
-      downloadURL: parts.downloadURL || parts.viewURL,
+      downloadURL,
       // viewURL utk preview lightbox (SOGo viewPart) — preview aman di iframe/img.
-      viewURL: parts.viewURL || parts.downloadURL,
+      viewURL: parts.viewURL || downloadURL,
       // Content-ID + inline utk export .eml: part CID ikut di-export
       // (includeHidden) dan harus ditulis sbg inline dgn Content-ID di
       // multipart/related agar cid: ter-resolve di client penerima.
       contentId: parts.contentId || parts.contentID || parts.cId || '',
-      inline: parts.shouldDisplayAttachment === 0,
+      inline: shouldDisplay === 0,
     });
   }
   if (Array.isArray(parts.content)) {
