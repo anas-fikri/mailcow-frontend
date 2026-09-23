@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, FileDown, Paperclip,
   Flag, Printer, FolderOpen, Star, AlertTriangle, UserPlus, ExternalLink, Eye, X, ShieldCheck,
+  Table2, ChevronLeft, ChevronRight, TriangleAlert,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, markMessagesAsNotJunk, createContact, fetchAttachmentData } from '../../lib/api';
@@ -16,7 +17,7 @@ import { formatAddresses } from '../../lib/format';
 import { extractHtml, extractAttachments, isInlineBodyImage } from '../../lib/messageHtml';
 import { proxyExternalImages } from '../../lib/imageProxy';
 import { resolveCidReferences } from '../../lib/cidImages';
-import { getFileKind, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
+import { getFileKind, fileExtension, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
 import { buildEml, htmlToText, collectInlineCids } from '../../lib/emlUtils';
 import { analyzePhishing, RISK_LEVELS } from '../../lib/phishingDetection';
 
@@ -128,6 +129,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const [moveOpen, setMoveOpen] = React.useState(false);
   // Preview lampiran (gambar/PDF) — lightbox full-screen.
   const [lightbox, setLightbox] = React.useState(null); // { name, url, kind } | null
+  // Preview spreadsheet/teks in-app: { name, kind } saat loading, lalu + data.
+  const [sheetPreview, setSheetPreview] = React.useState(null); // { name, kind, url, sheets:[{name, rows}], error? }
+  const [sheetTab, setSheetTab] = React.useState(0);
   // Tambah ke kontak.
   const [contactOpen, setContactOpen] = React.useState(false);
   const [contactSaving, setContactSaving] = React.useState(false);
@@ -483,15 +487,49 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     }
   }
 
-  // Buka preview lightbox utk gambar/PDF; file lain → unduh di tab baru.
+  // Buka preview lightbox utk gambar/PDF; spreadsheet/teks → in-app preview;
+  // file lain → unduh di tab baru.
   function openPreview(att) {
     const url = toSafeUrl(att.viewURL || att.downloadURL, { base: SOGO_BASE, allowExternal: false });
     if (!url) return;
     const kind = getFileKind(att.name, att.contentType);
     if (kind === 'image' || kind === 'pdf') {
       setLightbox({ name: att.name, url, kind });
-    } else {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    if (kind === 'spreadsheet' || kind === 'code' || (kind === 'document' && ['txt', 'md', 'csv'].includes(fileExtension(att.name)))) {
+      openSheetPreview(att, url, kind);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  // ── Preview spreadsheet/teks in-app ─────────────────────────────────────
+  // Spreadsheet di-parse via SheetJS (dynamic import — chunk terpisah, cuma
+  // ke-load saat preview dibuka). Text-like file dibaca sbg teks (dibatasi).
+  async function openSheetPreview(att, url, kind) {
+    setSheetTab(0);
+    setSheetPreview({ name: att.name, kind, url, loading: true });
+    try {
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (kind === 'spreadsheet') {
+        const XLSX = await import('xlsx');
+        const buf = await res.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array', dense: true });
+        const sheets = wb.SheetNames.slice(0, 12).map((nm) => {
+          const ws = wb.Sheets[nm];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, raw: false });
+          const clean = rows.slice(0, 200).map((r) => (Array.isArray(r) ? r.map((v) => (v == null ? '' : String(v))) : []));
+          return { name: nm, rows: clean };
+        });
+        setSheetPreview({ name: att.name, kind, url, sheets });
+      } else {
+        const text = await res.text();
+        setSheetPreview({ name: att.name, kind, url, text: text.slice(0, 60000) });
+      }
+    } catch (err) {
+      setSheetPreview({ name: att.name, kind, url, error: err?.message || 'Gagal memuat pratinjau.' });
     }
   }
 
@@ -759,8 +797,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                   );
                 }
 
-                // Non-image attachments: file card (PDF → preview lightbox)
-                // + tombol Unduh eksplisit (blob download, nama file terjaga).
+                // Non-image attachments: klik kartu = pratinjau in-app
+                // (PDF lightbox; spreadsheet/teks parser tabel), tombol
+                // Unduh terpisah (blob download, nama file terjaga).
+                const previewable = isPdf || kind === 'spreadsheet' || kind === 'code'
+                  || (kind === 'document' && ['txt', 'md', 'csv'].includes(fileExtension(att.name)));
                 return (
                   <div
                     key={idx}
@@ -768,11 +809,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                   >
                     <a
                       href={attUrl || undefined}
-                      target={isPdf ? undefined : '_blank'}
-                      rel={isPdf ? undefined : 'noreferrer'}
-                      onClick={isPdf ? (e) => { e.preventDefault(); openPreview(att); } : undefined}
+                      onClick={(e) => { e.preventDefault(); openPreview(att); }}
                       className="flex items-center gap-3 flex-1 min-w-0"
-                      title={isPdf ? 'Pratinjau PDF' : undefined}
+                      title={previewable ? 'Pratinjau' : 'Buka di tab baru'}
                     >
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
                         <FileText size={20} />
@@ -781,7 +820,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                         <div className="text-sm font-medium text-foreground truncate">{att.name}</div>
                         <div className="text-xs text-muted-foreground">{formatFileSize(att.size) || att.contentType || ''}</div>
                       </div>
-                      {isPdf && <Eye size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />}
+                      {previewable && <Eye size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />}
                     </a>
                     <button
                       onClick={() => { setDownloadingIdx(idx); downloadFileBlob(attUrl, att.name).catch(() => toast.error('Gagal mengunduh lampiran.')).finally(() => setDownloadingIdx(null)); }}
@@ -841,6 +880,93 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 <img src={lightbox.url} alt={lightbox.name} className="w-full h-[80vh] object-contain" />
               ) : (
                 <iframe src={lightbox.url} title={lightbox.name} className="w-full h-[80vh] bg-white" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Preview spreadsheet/teks (in-app) ─────────────────────────────── */}
+      {sheetPreview && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/85 flex flex-col items-center justify-center p-4"
+          onClick={() => setSheetPreview(null)}
+        >
+          <div
+            className="flex flex-col w-full max-w-6xl max-h-[85vh] bg-card rounded-2xl overflow-hidden border border-border shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+              <FileText size={16} className="text-primary shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-foreground truncate">{sheetPreview.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  Pratinjau {sheetPreview.kind === 'spreadsheet' ? 'spreadsheet' : 'teks'} — maks 200 baris & 12 sheet
+                </div>
+              </div>
+              <button
+                onClick={() => downloadFileBlob(sheetPreview.url, sheetPreview.name).catch(() => {})}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+              >
+                <Download size={14} /> Unduh
+              </button>
+              <button
+                onClick={() => setSheetPreview(null)}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                aria-label="Tutup pratinjau"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              {sheetPreview.loading && (
+                <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
+                  <Loader2 size={18} className="animate-spin" /> Memuat pratinjau…
+                </div>
+              )}
+              {sheetPreview.error && (
+                <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
+                  <TriangleAlert size={22} className="text-amber-500" /> {sheetPreview.error}
+                </div>
+              )}
+              {!sheetPreview.loading && !sheetPreview.error && sheetPreview.sheets && (
+                <div>
+                  {sheetPreview.sheets.length > 1 && (
+                    <div className="flex gap-1 px-3 pt-2 pb-1 border-b border-border overflow-x-auto">
+                      {sheetPreview.sheets.map((s, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setSheetTab(i)}
+                          className={`px-3 py-1.5 text-xs rounded-t-lg whitespace-nowrap transition-colors ${i === sheetTab ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'}`}
+                        >
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {sheetPreview.sheets[sheetTab] && (
+                    sheetPreview.sheets[sheetTab].rows.length === 0 ? (
+                      <div className="py-16 text-center text-sm text-muted-foreground">Sheet kosong.</div>
+                    ) : (
+                      <table className="w-full text-xs border-collapse">
+                        <tbody>
+                          {sheetPreview.sheets[sheetTab].rows.map((row, r) => (
+                            <tr key={r} className={r === 0 ? 'bg-muted/60 font-medium' : r % 2 ? 'bg-muted/20' : ''}>
+                              {row.map((cell, c) => (
+                                <td key={c} className="px-3 py-1.5 border-b border-border/60 whitespace-nowrap max-w-[320px] overflow-hidden text-ellipsis text-foreground">
+                                  {cell}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
+                  )}
+                </div>
+              )}
+              {!sheetPreview.loading && !sheetPreview.error && sheetPreview.text !== undefined && (
+                <pre className="p-4 text-xs whitespace-pre-wrap break-words font-mono text-foreground">{sheetPreview.text}</pre>
               )}
             </div>
           </div>
