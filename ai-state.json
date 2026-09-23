@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_session": "2026-09-23T02:04:59Z",
+  "last_session": "2026-09-23T03:20:08Z",
   "context": "PCP Express Webmail — freshness pipeline complete & live: (1) auto-refresh daftar pesan (refetchOnWindowFocus + invalidate saat unseenCount naik, poll 60s), (2) cross-tab sync domain 'mail' (bump di layer api.js setelah mutasi sukses, watcher di MailPage invalidate messages/unseen/folders), (3) extraMessages lazy-load divalidasi vs uids fresh SOGo. Root cause jaringan GitLab: trafik diroute via wg0 (WireGuard) yang sedang down — 32 commit lokal menunggu push. Deploy produksi 2x PASS via SERVER=deploy-mail ./deploy.sh.",
   "modules": {
     "api-native-endpoints": {
@@ -521,6 +521,11 @@
       "what": "E2E live jalur data: (A) restore draft berlampiran TERBUKTI — seed draft via protokol asli SOGo (multipart attachments + JSON save), buka dari folder Draf, kirim: payload /api/send membawa footer.png (inline CID) + lampiran.pdf + body + penerima; undo via toast 'Urungkan' dan doveadm membuktikan 0 delivery. (B) export .eml menangkap BUG NYATA: buildEml menulis part CID tanpa Content-ID dan flat di multipart/mixed → cid: tetap tidak ter-resolve di client penerima. Fix: buildEml struktur mixed[alternative/related, attachment…] + header Content-ID + disposition inline; extractAttachments mengekspos contentId/inline; reader mengoper keduanya.",
       "status": "done",
       "updated_at": "2026-09-23T02:04:59Z"
+    },
+    {
+      "what": "E2E live jalur data: dump EML membongkar akar sebenarnya — SOGo /view me-rewrite cid: → URL absolut server-side (token cid: tak pernah sampai ke frontend, contentId tak diekspos). Helper collectInlineCids menangani dua bentuk html: token cid: (map by stem) atau URL absolut (deteksi by basename + rewrite balik ke cid: + generate Content-ID) — sekaligus menutup kebocoran URL session SOGo di file .eml. Reader kirim htmlWithCid + cidMap ke buildEml. Validasi: eml 77 (+10), message-html, attachments, draft-compose 49, build, E2E live PASS.",
+      "status": "done",
+      "updated_at": "2026-09-23T03:20:08Z"
     }
   ],
   "active_task": {
@@ -530,6 +535,6 @@
     "next_step": "",
     "goal_id": "TBD",
     "sub_goal_id": "TBD",
-    "updated_at": "2026-09-23T02:04:59Z"
+    "updated_at": "2026-09-23T03:20:08Z"
   }
 }

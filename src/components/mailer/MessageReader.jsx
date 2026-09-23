@@ -17,7 +17,7 @@ import { extractHtml, extractAttachments } from '../../lib/messageHtml';
 import { proxyExternalImages } from '../../lib/imageProxy';
 import { resolveCidReferences } from '../../lib/cidImages';
 import { getFileKind, formatFileSize, totalAttachmentSize } from '../../lib/attachments';
-import { buildEml, htmlToText, findCidForFilename } from '../../lib/emlUtils';
+import { buildEml, htmlToText, collectInlineCids } from '../../lib/emlUtils';
 import { analyzePhishing, RISK_LEVELS } from '../../lib/phishingDetection';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
@@ -298,20 +298,22 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   async function handleDownloadEml() {
     try {
       const plainBody = htmlToText(rawHtml || '');
-      const htmlBody = rawHtml || '';
       const atts = [];
       // includeHidden: part inline CID (flag 0) ikut di-export — tanpa itu
       // gambar di body (cid:) tidak ter-resolve di email client penerima .eml.
-      for (const a of extractAttachments(msg.parts, [], { includeHidden: true })) {
+      const hidden = extractAttachments(msg.parts, [], { includeHidden: true });
+      // SOGo /view me-rewrite cid: → URL absolut SEBELUM html sampai ke
+      // frontend, dan TIDAK mengekspos Content-ID → collectInlineCids
+      // memetakan part ↔ src by basename dan me-rewrite balik ke cid:
+      // (bug tertangkap E2E live 2026-09-23: token cid: tak pernah ada di
+      // rawHtml, PNG ter-export jadi attachment biasa + URL session bocor).
+      const { html: htmlWithCid, cidMap } = collectInlineCids(rawHtml || '', hidden);
+      for (const a of hidden) {
         if (!a.downloadURL) continue;
         try {
           const data = await fetchAttachmentData(a.downloadURL);
           if (data) {
-            // SOGo /view tidak mengekspos Content-ID → turunkan dari token cid:
-            // di RAW html (sebelum resolver CID mengganti src). rawHtml memakai
-            // cid: asli; htmlBody/renderHtml sudah berisi URL absolut → selalu
-            // kosong di situ (bug tertangkap E2E live 2026-09-23).
-            const cid = a.contentId || findCidForFilename(rawHtml, a.name);
+            const cid = cidMap.get(a.name) || a.contentId || null;
             atts.push({ filename: a.name, contentType: a.contentType, data, contentId: cid, inline: a.inline || !!cid });
           }
         } catch { /* lampiran gagal diunduh — lewati, .eml tetap terunduh */ }
@@ -321,7 +323,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         subject: msg.subject || '',
         date,
         textBody: plainBody,
-        htmlBody,
+        htmlBody: htmlWithCid,
         attachments: atts,
       });
       const blob = new Blob([eml], { type: 'message/rfc822' });

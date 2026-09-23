@@ -294,10 +294,8 @@ export function buildEml(opts = {}) {
 
 /**
  * Cari token cid: di htmlBody yang cocok dgn filename lampiran. Dipakai export
- * .eml untuk menandai part inline — SOGo /view TIDAK mengekspos Content-ID
- * (fixture golden), satu-satunya petunjuk adalah referensi cid: di body.
- * Matching by stem tanpa ekstensi/@uuid, case-insensitive: 'footer.png' ↔
- * 'footer@uuid' ↔ 'Footer'.
+ * .eml untuk menandai part inline — matching by stem tanpa ekstensi/@uuid,
+ * case-insensitive: 'footer.png' ↔ 'footer@uuid' ↔ 'Footer'.
  * @returns {string|null} token cid (tanpa prefix cid:) atau null
  */
 export function findCidForFilename(htmlBody, filename) {
@@ -310,4 +308,59 @@ export function findCidForFilename(htmlBody, filename) {
     const ts = stem(t);
     return ts && f && (ts === f || ts.includes(f) || f.includes(ts));
   }) || null;
+}
+
+/**
+ * Kumpulkan referensi inline (CID) untuk export .eml — menangani DUA bentuk
+ * html yang mungkin diterima frontend:
+ *   1. HTML asli dengan token cid: (dari draft lokal / beberapa sumber) →
+ *      dipetakan via findCidForFilename, html tidak diubah.
+ *   2. HTML hasil rewrite SOGo: /view mengganti cid: → URL absolut
+ *      (…/folderINBOX/<uid>/<part>/<filename>) SEBELUM html sampai ke
+ *      frontend — token cid: sudah tidak ada. Deteksi part inline via
+ *      basename URL ↔ filename, lalu src URL di-rewrite BALIK ke cid:<token>
+ *      agar client penerima menampilkan gambar inline, bukan pecah jadi
+ *      lampiran biasa (bug tertangkap E2E live 2026-09-23: URL absolut
+ *      juga bocor URL session SOGo ke file .eml yang dibagikan).
+ *
+ * @param {string} htmlBody html mentah pesan (sebelum resolver CID render)
+ * @param {Array<{name:string}>} attachments hasil extractAttachments(includeHidden)
+ * @returns {{ html: string, cidMap: Map<string,string> }} html final utk
+ *          buildEml + map filename → token cid (part tanpa pasangan = tidak
+ *          inline; akan diekspor sebagai attachment biasa).
+ */
+export function collectInlineCids(htmlBody, attachments = []) {
+  let html = String(htmlBody || '');
+  const cidMap = new Map();
+  if (!html || !Array.isArray(attachments) || attachments.length === 0) {
+    return { html, cidMap };
+  }
+
+  // Bentuk 1 — token cid: masih ada di html.
+  for (const a of attachments) {
+    const cid = a.contentId || findCidForFilename(html, a.name);
+    if (cid) cidMap.set(a.name, String(cid).replace(/^<|>$/g, ''));
+  }
+  if (cidMap.size > 0) return { html, cidMap };
+
+  // Bentuk 2 — cid: sudah di-rewrite jadi URL absolut oleh SOGo. Cocokkan
+  // basename URL dengan filename part (case-insensitive, URL-decoded).
+  const BASENAME_RE = /src="([^"]*\/([^"\/?#]+))"/gi;
+  const stemOf = (s) =>
+    String(s).toLowerCase().split('@')[0].replace(/\.[^.]*$/i, '').trim();
+  const matches = [...html.matchAll(BASENAME_RE)];
+  for (const a of attachments) {
+    const f = stemOf(a.name);
+    if (!f) continue;
+    for (const m of matches) {
+      const base = stemOf(decodeURIComponent(m[2]));
+      if (base && (base === f || base.includes(f) || f.includes(base))) {
+        const cid = a.contentId || `e2e-inline-${f}`;
+        cidMap.set(a.name, cid);
+        html = html.replace(m[1], `cid:${cid}`);
+        break;
+      }
+    }
+  }
+  return { html, cidMap };
 }

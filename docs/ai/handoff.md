@@ -1,3 +1,10 @@
+## 2026-09-23 — E2E jalur data FASE 2: akar cid: terpecahkan (SOGo rewrite server-side)
+
+T-20260923 (lanjutan 014649): E2E datapaths masih gagal di assertion Content-ID walau bundle live terbukti memuat fix → dump EML runtime membongkar asumsi salah: token cid: TIDAK PERNAH ada di html frontend (SOGo /view me-rewrite jadi URL absolut server-side; contentId tak diekspos).
+Implement: Buffy (Codebuff) · Hasil: fix final `collectInlineCids` (emlUtils) — dua bentuk html: token cid: (map by stem) ATAU URL absolut (deteksi by basename ↔ filename, generate Content-ID, rewrite src balik ke cid:). Bonus keamanan: URL session SOGo tidak lagi bocor ke file .eml. Reader kirim htmlWithCid + cidMap ke buildEml.
+- Validasi: test:eml-sendqueue 77 (+10), message-html, attachments, draft-compose 49, build, E2E live datapaths PASS terhadap produksi.
+- Lesson meta tercatat di knowledge: assertion gagal pada bundle terbukti benar = asumsi level data; dump runtime dulu.
+
 ## 2026-09-23 — E2E jalur data: restore draft + export .eml (1 bug buildEml ditemukan & di-fix)
 
 T-20260923-014649: E2E live `datapaths` (pilihan baru di runner) — jalur DATA bukan sekadar tampilan.
@@ -636,3 +643,15 @@ search aktif (by design).
 - ?? docs/ai/tasks/20260923-012329-321379.previous.md
 - ?? docs/ai/tasks/20260923-014649-923291.previous.md
 - ?? scripts/e2e-datapaths-browser.mjs
+
+## 2026-09-23T03:20:08Z
+- Status: COMPLETED
+- Objective: 20260922-DATA-E2E: E2E live jalur data (restore draft berlampiran via kirim ulang + export .eml) di produksi
+- Summary: E2E live jalur data: dump EML membongkar akar sebenarnya — SOGo /view me-rewrite cid: → URL absolut server-side (token cid: tak pernah sampai ke frontend, contentId tak diekspos). Helper collectInlineCids menangani dua bentuk html: token cid: (map by stem) atau URL absolut (deteksi by basename + rewrite balik ke cid: + generate Content-ID) — sekaligus menutup kebocoran URL session SOGo di file .eml. Reader kirim htmlWithCid + cidMap ke buildEml. Validasi: eml 77 (+10), message-html, attachments, draft-compose 49, build, E2E live PASS.
+- Branch: main
+- Changed Files:
+-  M docs/ai/knowledge.md
+-  M scripts/e2e-datapaths-browser.mjs
+-  M scripts/test-eml-sendqueue.mjs
+-  M src/components/mailer/MessageReader.jsx
+-  M src/lib/emlUtils.js

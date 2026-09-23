@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSendQueue, buildQueueEntry, dueEntries, pendingForUser, canCancel, encryptCredentials, decryptCredentials, maxScheduleMs, SEND_QUEUE_STATUS } from '../src/lib/sendQueue.js';
-import { parseEmlContent, buildEml, htmlToText, findCidForFilename } from '../src/lib/emlUtils.js';
+import { parseEmlContent, buildEml, htmlToText, findCidForFilename, collectInlineCids } from '../src/lib/emlUtils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -214,6 +214,33 @@ const ok = (cond, name) => { assert.ok(cond, name); pass++; console.log(`  ✓ $
   ok(findCidForFilename('<img src="cid:a.b@u"><img src="cid:c@u">', 'b.png') === null, 'token cid beda nama → null (anti false-positive)');
   ok(findCidForFilename('<img src="cid:image001.png@01D8A123.4B5C6D8E">', 'image001.png') === 'image001.png@01D8A123.4B5C6D8E', 'pola Outlook image001.png@uuid → match');
   ok(findCidForFilename('<img src="cid:logo@u"><img src="cid:footer@u">', 'footer.png') === 'footer@u', 'multi token: pilih token yg match');
+}
+
+// ── 11d. collectInlineCids: dua bentuk html (token cid: vs URL absolut SOGo) ──
+{
+  const atts = [{ name: 'footer.png' }, { name: 'lampiran.pdf' }];
+
+  // Bentuk 1 — token cid: masih ada di html: dipetakan, html tak berubah.
+  const r1 = collectInlineCids('<p>x</p><img src="cid:footer@e2e">', atts);
+  ok(r1.cidMap.get('footer.png') === 'footer@e2e', 'bentuk cid: → token dipetakan by stem');
+  ok(!r1.cidMap.has('lampiran.pdf'), 'part tanpa referensi di html → tidak inline');
+  ok(r1.html.includes('cid:footer@e2e'), 'bentuk cid: → html tidak diubah');
+
+  // Bentuk 2 — cid: sudah di-rewrite SOGo jadi URL absolut: src → cid:.
+  const html2 = '<p>y</p><img src="https://mail.example.com/SOGo/so/u@d/Mail/0/folderINBOX/1115/1/2/footer.png"/>';
+  const r2 = collectInlineCids(html2, atts);
+  ok(r2.cidMap.get('footer.png') === 'e2e-inline-footer', 'URL absolut → Content-ID digenerate by basename');
+  ok(r2.html.includes('src="cid:e2e-inline-footer"'), 'URL absolut → src di-rewrite balik ke cid:');
+  ok(!r2.html.includes('https://mail.example.com'), 'URL session SOGo tidak bocor ke .eml');
+
+  // Prioritas: token cid: diperiksa dulu sebelum pendeteksian URL.
+  const r3 = collectInlineCids('<img src="https://x/SOGo/footer.png"><img src="cid:footer@u">', atts);
+  ok(r3.cidMap.get('footer.png') === 'footer@u', 'token cid: diprioritaskan di atas URL absolut');
+
+  // Guard.
+  ok(collectInlineCids('', atts).cidMap.size === 0, 'html kosong → map kosong');
+  ok(collectInlineCids('<p>tanpa img</p>', atts).cidMap.size === 0, 'html tanpa src → map kosong');
+  ok(collectInlineCids(null, []).cidMap.size === 0, 'input kosong → map kosong');
 }
 
 // ── 12. emlUtils: htmlToText ─────────────────────────────────────────────────

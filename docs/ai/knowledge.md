@@ -6,6 +6,14 @@ bugs, and validation knowledge. Do not record secrets or transient debug logs.
 
 ## Entries
 
+## 2026-09-23 — Export .eml: SOGo /view me-rewrite cid: → URL absolut SEBELUM frontend
+
+- Bukti dari dump .eml runtime (E2E live): html body pesan dari SOGo /view TIDAK pernah berisi token cid: — server me-rewrite `<img src="cid:…">` menjadi URL absolut `https://host/SOGo/so/<user>/Mail/0/folderINBOX/<uid>/<part>/<filename>` sebelum response sampai ke frontend, dan field `contentId` juga tidak diekspos. Karena itu strategi "turunkan Content-ID dari token cid: di rawHtml" mustahil berhasil di produksi (dua iterasi fix sebelumnya gagal karena masih berasumsi token cid: ada).
+- Konsekuensi keamanan: URL absolut itu membawa path session SOGo user — ikut ter-export ke file .eml yang dibagikan ke pihak lain.
+- Fix: helper murni `collectInlineCids(htmlBody, attachments)` di emlUtils menangani DUA bentuk html — (1) token cid: masih ada → map by stem, html tak diubah; (2) cid: sudah di-rewrite → deteksi part inline via basename URL ↔ filename (case-insensitive, URL-decoded), generate Content-ID, dan rewrite src URL balik ke `cid:<token>`. Reader mengoper `htmlWithCid` ke buildEml sehingga part inline masuk multipart/related dengan Content-ID benar.
+- Lesson meta: assertion E2E yang gagal pada bundle yang SUDAH terbukti memuat fix = asumsi level data yang salah, bukan masalah deploy. Dump output aktual runtime (EML HEAD + img src) sebelum mengubah teori; perbedaan hash bundle antar build disebabkan VITE_API_KEY yang di-inline (build deploy.sh ≠ build manual — bandingkan via output build deploy.sh, bukan md5 manual).
+- Validasi: test:eml-sendqueue 77 (+10 collectInlineCids), test:message-html, test:attachments, test:draft-compose 49, build OK, E2E live datapaths PASS terhadap produksi (restore draft + undo + export .eml dgn Content-ID).
+
 ## 2026-09-22 — Regresi lampiran: guard array + flag shouldDisplayAttachment hilang saat restorasi
 
 - Gejala produksi: lampiran asli tidak tampil di webmail (tampil di mail client lain), yang muncul justru gambar footer/banner email di daftar Lampiran. Regresi dari restorasi 08bef9c (26 Agu) yang memulihkan MessageReader pra-19 Agu — menghapus fix commit 200b250 (guard Array.isArray(parts) di extract functions + hormati shouldDisplayAttachment).
@@ -1793,3 +1801,8 @@ Ini mencegah konten meluber + tombol aksi terpotong pada lebar minimum panel (24
 - Task: 20260923-014649-923291
 - Status: COMPLETED
 - Finding: buildEml (emlUtils.js): part dgn Content-ID WAJIB satu multipart/related bersama htmlBody — flat di mixed membuat cid: tak ter-resolve di Outlook/Thunderbird walau datanya ada. SOGo draft save protokol = 2 POST ke folderDrafts/{id}/save: multipart field 'attachments' DULU, lalu JSON headers (json saja = draft tanpa lampiran). Kirim dgn lampiran selalu via /api/send SMTP proxy (bukan SOGo /send) + masuk queue undo SMTP_SEND_UNDO_SECONDS=180 — E2E bisa intercept payload & batalkan via toast 'Urungkan' agar nol delivery nyata. Toast undo hanya muncul SETELAH response /api/send — tunggu dgn waitForFunction, bukan cek seketika (race/flaky).
+
+## 2026-09-23T03:20:08Z
+- Task: 20260923-014649-923291
+- Status: COMPLETED
+- Finding: SOGo /view me-rewrite cid: menjadi URL absolut ber-path session sebelum html sampai ke frontend dan tidak mengekspos contentId — deteksi part inline utk export .eml harus via basename URL dengan rewrite balik ke cid: (collectInlineCids di emlUtils); assertion E2E gagal pada bundle yang terbukti memuat fix = asumsi level data salah, dump output runtime dulu sebelum ganti teori
