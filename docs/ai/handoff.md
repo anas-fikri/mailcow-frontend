@@ -1,3 +1,11 @@
+## 2026-09-22 — Fix conversation: grup dipotong ke uid preview (header/chip tak pernah tampil) + agregat unread/flag
+
+T-20260922-CONV-HEADER-AGG (lanjutan): E2E live menangkap bug produksi pre-existing — `visibleConversationGroups` memotong anggota grup ke uid preview saja → tiap grup selalu 1 pesan: header thread, tombol expand, dan chip agregat (jumlah pesan/unread/flag/lampiran) TIDAK PERNAH tampil walau data server lengkap (bukti: /view kirim 5 baris convRows=3, DOM hanya 1 subjek + toolbar "0 thread").
+Implement: Buffy (Codebuff) · Review: E2E live sebagai gerbang (seed 3-pesan thread via doveadm, assert chip collapsed + expand) — fail 4× sampai akar masalah ketemu.
+→ IMPLEMENTED: grup dirender UTUH (preview = group.messages[0], anggota lama saat expand; paginasi tetap lewat sumber filteredMessages). 3 test kontrak statis di-update (visible-filter, new-preview, toolbar-regression) + init-order. Suite hijau: 6 conversation contracts, test:conversations 44, mail-golden, a11y 169, draft-compose 49, build OK. DEPLOY + verifikasi E2E live menyusul commit ini.
+
+- Pelajaran: test statis (assert.match struktur) bisa MENGUNCI BUG — ia mengunci truncation sebagai "kontrak". Gerbang kebenaran utk UI = E2E live dgn data nyata.
+
 ## 2026-09-22 — Indikator lampiran per-thread di header conversation
 
 T-20260922-115707: lampiran terlihat di conversation meski pesan berlampiran bukan terbaru
@@ -568,3 +576,16 @@ search aktif (by design).
 -  M src/lib/conversations.js
 -  M src/pages/MailPage.jsx
 - ?? docs/ai/tasks/20260922-115707-317695.previous.md
+
+## 2026-09-23T00:47:47Z
+- Status: COMPLETED
+- Objective: 20260922-CONV-HEADER-AGG: agregat belum-dibaca & flag di header conversation + verifikasi E2E live thread berlampiran
+- Summary: Fix bug conversation produksi (tertangkap E2E live): visibleConversationGroups memotong anggota grup ke uid preview saja → tiap grup selalu 1 pesan → header thread, expand, dan chip agregat tidak pernah tampil walau data server lengkap. Fix: grup dirender utuh (preview = group.messages[0], anggota lama saat expand; paginasi lewat sumber filteredMessages). 3 test kontrak statis di-update.
+- Branch: main
+- Changed Files:
+-  M scripts/e2e-conversation-header-browser.mjs
+-  M scripts/test-conversation-init-order.mjs
+-  M scripts/test-conversation-new-preview.mjs
+-  M scripts/test-conversation-toolbar-regression.mjs
+-  M scripts/test-conversation-visible-filter.mjs
+-  M src/pages/MailPage.jsx

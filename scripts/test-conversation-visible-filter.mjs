@@ -13,10 +13,17 @@ assert.match(src, /filteredLoadedMessages\.slice\(0, visibleCount\)/,
   'pagination slices the FILTERED list (filter before pagination)');
 assert.match(src, /groupConversations\(filteredMessages,/,
   'conversation groups all loaded filtered messages');
-assert.match(src, /const visibleConversationUids = useMemo\(/,
-  'conversation tracks the currently rendered message UIDs');
-assert.match(src, /messages: group\.messages\.filter\(\(message\) => visibleConversationUids\.has\(String\(message\.uid\)\)\)/,
-  'conversation groups only render messages visible after pagination');
-assert.match(src, /visibleConversationGroups\.map\(\(group\) =>/,
+
+// Fix 2026-09-22 (tertangkap E2E live): grup percakapan dirender UTUH —
+// preview = group.messages[0] (pesan terbaru), anggota lama tampil saat
+// expand. Versi lama memotong anggota grup ke uid preview saja → tiap grup
+// selalu berisi 1 pesan: header thread, expand, dan chip agregat tidak pernah
+// tampil. Paginasi tetap berlaku lewat SUMBER (filteredMessages = window
+// 5-bulan INBOX + header hasil scroll), bukan pemotongan anggota per-grup.
+assert.doesNotMatch(src, /visibleConversationUids/,
+  'group membership is NOT truncated to preview uids (fix 2026-09-22)');
+assert.match(src, /const visibleConversationGroups = useMemo\(/,
   'conversation renders the visible group projection');
-console.log('conversation-visible-filter: 5 assertions PASS');
+assert.doesNotMatch(src, /messages: group\.messages\.filter\(\(message\) => visibleConversationUids\.has/,
+  'obsolete member-truncation must stay removed');
+console.log('conversation-visible-filter: assertions PASS');

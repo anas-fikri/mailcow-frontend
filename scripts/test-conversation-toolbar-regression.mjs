@@ -8,10 +8,10 @@ assert.match(source, /data-mailbox-toolbar="actions"/,
   'mailbox actions have a dedicated layout container');
 assert.match(source, /col-span-2 flex items-center gap-1 min-w-0 max-w-full overflow-x-auto/,
   'mailbox action icons scroll in their own non-overlapping row');
-assert.match(source, /groupConversations\(filteredMessages, false/,
-  'conversation preview is based on all loaded filtered messages');
-assert.match(source, /\.map\(\(group\) => group\.latest\)/,
-  'conversation preview includes one latest row for every group');
+assert.match(source, /groupConversations\(filteredMessages, sortAsc/,
+  'conversation groups are based on all loaded filtered messages');
+assert.match(source, /const visibleConversationGroups = useMemo\(\(\) => \{\n    if \(!conversationView\) return \[\];\n    return conversationGroups;/s,
+  'visible projection renders full groups (preview = group.messages[0] via renderMessageRow)');
 assert.match(source, /expandableConversationGroups\.map\(\(g\) => g\.key\)/,
   'expand-all only targets visible expandable threads');
 assert.match(source, /\{visibleConversationGroups\.length\} percakapan/,

@@ -5,7 +5,7 @@
  *      - pesan lama   : plain, \Seen (dibaca)
  *      - pesan tengah : PDF attachment + \Flagged
  *      - pesan terbaru: plain, unread
- *   2. Login UI → aktifkan conversation view (aria-label="Aktifkan conversation").
+ *   2. Login UI → aktifkan conversation view.
  *   3. ASSERT collapsed: chip "{n} belum dibaca" (n=2) + chip bintang (flag=1)
  *      + chip paperclip (lampiran=1 — di pesan TENGAH, bukan baris terbaru:
  *      bukti agregat lintas pesan, bukan sekadar properti pesan terbaru).
@@ -16,7 +16,6 @@
  *   5. Cleanup: expunge by subject via doveadm — dijamin jalan via finally.
  *
  * Run (opt-in, perlu diag2 aktif — lihat e2e-browser-runner.sh):
- *   node scripts/e2e-conversation-header-browser.mjs
  *   SERVER=deploy-mail scripts/e2e-browser-runner.sh conversation
  */
 import assert from 'node:assert/strict';
@@ -53,7 +52,6 @@ function sshRemote(script) {
   });
 }
 
-/** PDF 1 halaman minimal, dibangun sebagai teks → base64 deterministik. */
 function pdfBase64() {
   const pdf = [
     '%PDF-1.4',
@@ -206,6 +204,29 @@ try {
   const consoleErrors = [];
   page.on('pageerror', (err) => consoleErrors.push(String(err)));
 
+  // Capture semua response /view (daftar pesan) — ground truth yang diterima UI.
+  const viewResponses = [];
+  page.on('response', async (res) => {
+    try {
+      const url = res.url();
+      if (!url.includes('/Mail/0/') || !url.endsWith('/view')) return;
+      const text = await res.text();
+      const info = { status: res.status(), len: text.length, uids: null, rows: 0, convRows: 0 };
+      try {
+        const j = JSON.parse(text);
+        info.uids = Array.isArray(j.uids) ? j.uids.length : null;
+        const headers = Array.isArray(j.headers) ? j.headers : [];
+        const cols = (headers[0] || []).map((c) => String(c).toLowerCase());
+        const iSubj = cols.indexOf('subject');
+        info.rows = headers.length - 1;
+        info.convRows = headers
+          .slice(1)
+          .filter((row) => Array.isArray(row) && String(row[iSubj]).includes('E2E Conv')).length;
+      } catch {}
+      viewResponses.push(info);
+    } catch {}
+  });
+
   await page.goto(`${HOST}/webmail/`, { waitUntil: 'networkidle2' });
   await page.waitForSelector('input[type="email"]');
   await page.locator('input[type="email"]').fill(USER);
@@ -218,6 +239,7 @@ try {
   log('login OK →', await page.url());
 
   // ── 3. Mail page → aktifkan conversation view (idempoten) ─────────────────
+  // aria-label tombol: 'Tampilan percakapan' (OFF) / 'Tampilan biasa' (ON).
   await page.goto(`${HOST}/webmail/mail`, { waitUntil: 'networkidle2' });
   await page.waitForFunction(() => !document.querySelector('.animate-pulse'), { timeout: 45_000 }).catch(() => {});
   await sleep(800);
@@ -227,13 +249,13 @@ try {
   if (!convAlreadyOn) {
     const toggled = await page.evaluate(() => {
       const b = [...document.querySelectorAll('button')].find(
-        (el) => el.getAttribute('aria-label') === 'Aktifkan conversation',
+        (el) => el.getAttribute('aria-label') === 'Tampilan percakapan',
       );
       if (!b) return false;
       b.click();
       return true;
     });
-    assert.ok(toggled, 'tombol "Aktifkan conversation" tidak ditemukan di toolbar');
+    assert.ok(toggled, 'tombol conversation (aria-label="Tampilan percakapan") tidak ditemukan di toolbar');
     await page.waitForFunction(
       () => [...document.querySelectorAll('button')].some((el) => el.getAttribute('aria-label') === 'Tampilan biasa'),
       { timeout: 10_000 },
@@ -243,7 +265,28 @@ try {
 
   // ── 4. Collapsed: chip agregat di header thread ────────────────────────────
   await page.waitForFunction((t) => document.body.textContent.includes(t), { timeout: 45_000 }, SUBJECT);
+  // Beri waktu fetch lanjutan (refetch focus/unseen) mereda sebelum asersi.
+  await sleep(1500);
   const header = await headerThreadLocator(page);
+  if (!header || !header.asElement()) {
+    const diag = await page.evaluate((t, viewResponses) => {
+      const inner = document.body.innerText;
+      return {
+        viewResponses,
+        countChip: (document.querySelector('span.tabular-nums')?.textContent || '').trim(),
+        threadHeaderButtons: [...document.querySelectorAll('button[aria-label*="percakapan"]')]
+          .map((el) => el.getAttribute('aria-label')),
+        convOccurrence: inner.split('E2E Conv').length - 1,
+        subjectOccurrence: inner.split(t).length - 1,
+        anyAttachChip: !!document.querySelector('span[title*="berlampiran dalam percakapan"]'),
+        listSnippet: inner.slice(0, 6000),
+        sogoViewNote: 'lihat viewResponses di atas',
+      };
+    }, SUBJECT, viewResponses);
+    console.error('[e2e-conv-header] DIAG:', JSON.stringify(diag, null, 2));
+    console.error('[e2e-conv-header] PAGEERRORS:', JSON.stringify(consoleErrors));
+    await page.screenshot({ path: '/tmp/conv-diag.png' }).catch(() => {});
+  }
   assert.ok(header && header.asElement(), 'header thread (dgn chip lampiran) tidak ditemukan');
   const chips = await page.evaluate((el) => {
     const clip = el.querySelector('span[title*="pesan berlampiran dalam percakapan"]');

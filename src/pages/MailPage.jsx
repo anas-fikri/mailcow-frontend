@@ -709,16 +709,9 @@ export default function MailPage() {
   // luar window 5-bulan INBOX tidak boleh muncul lewat jalur conversation.
   const filteredMessages = filteredLoadedMessages;
 
-  // Conversation mode memakai satu preview terbaru per grup pada halaman awal.
-  // Preview diambil dari hasil grouping yang sudah diurutkan berdasarkan date,
-  // sehingga urutan response SOGo tidak dapat menyembunyikan email baru.
-  const conversationPreviewMessages = useMemo(() => {
-    if (!conversationView) return displayMessages;
-    return groupConversations(filteredMessages, false, user?.email || '', {
-      labelField: isSentOrDraft ? 'to' : 'from',
-    }).map((group) => group.latest).filter(Boolean);
-  }, [conversationView, displayMessages, filteredMessages, user?.email, isSentOrDraft]);
-
+  // Conversation mode memakai satu preview terbaru per grup: baris preview =
+  // group.messages[0] (urutan pesan dijamin oleh sort di conversations.js),
+  // sehingga email baru selalu tampil tanpa tergantung urutan response SOGo.
   const conversationGroups = useMemo(() => {
     if (!conversationView) return [];
     return groupConversations(filteredMessages, sortAsc, user?.email || '', {
@@ -726,20 +719,18 @@ export default function MailPage() {
     });
   }, [filteredMessages, conversationView, sortAsc, user?.email, isSentOrDraft]);
 
-  const visibleConversationUids = useMemo(
-    () => new Set((conversationView ? conversationPreviewMessages : displayMessages).map((message) => String(message.uid))),
-    [conversationView, conversationPreviewMessages, displayMessages]
-  );
-
+  // Grup yang dirender = grup PENUH dari conversationGroups (preview = pesan
+  // terbaru; anggota lama tampil saat expand — pola Gmail/Outlook). Versi lama
+  // memotong anggota grup ke uid preview saja → setiap grup selalu berisi 1
+  // pesan: header thread, tombol expand, dan chip agregat (jumlah pesan/
+  // unread/flag/lampiran) TIDAK PERNAH tampil di produksi (tertangkap E2E
+  // live 2026-09-22). Paginasi tetap berlaku lewat SUMBER data —
+  // conversationGroups dibangun dari filteredMessages (window 5-bulan INBOX +
+  // header hasil infinite-scroll) — bukan lewat pemotongan anggota per-grup.
   const visibleConversationGroups = useMemo(() => {
     if (!conversationView) return [];
-    return conversationGroups
-      .map((group) => ({
-        ...group,
-        messages: group.messages.filter((message) => visibleConversationUids.has(String(message.uid))),
-      }))
-      .filter((group) => group.messages.length > 0);
-  }, [conversationView, conversationGroups, visibleConversationUids]);
+    return conversationGroups;
+  }, [conversationView, conversationGroups]);
 
   function handleSnooze(uid, hours) {
     if (!user?.email) return;
