@@ -1,28 +1,18 @@
 # Suggested Next Tasks
 
-Project: mailcow-frontend
-Generated At: 2026-09-23T03:20:08Z
+Project: sogo-frontend
+Generated At: 2026-09-23T14:30:00Z
 
-Suggestions are evidence-based from current task state, goals, validation, risks, and repository state. Review before starting work.
-
-## 1. [HIGH] Resolve risk: (tercatat di atas)
-- Why: Risk was recorded but not marked resolved.
+## 1. [MEDIUM] Verifikasi 10 fitur baru yang sudah LIVE di production
+- Why: Production memiliki 10 commits baru dari rebuild hari ini (pratinjau lampiran
+  PDF/Word/Excel/PPT/ZIP/text, unduh per lampiran, cross-folder search).
+  Source code ada di GitLab tapi belum diverifikasi dari workspace.
 - Source: current-task.md
 
-## 2. [HIGH] Run or verify validation: Risk analysis: COMPLETE
-- Why: Current task contains validation work that still needs explicit confirmation.
-- Source: current-task.md
+## 2. [LOW] Jalankan `./deploy.sh` untuk konfirmasi flow GitLab-based
+- Why: deploy.sh sudah diubah untuk build di server dari GitLab.
+  Perlu test run sekali untuk verifikasi SSH + npm ci + build + rsync jalan.
 
-## 3. [MEDIUM] Follow up on discovered knowledge: SOGo /view me-rewrite cid: menjadi URL absolut ber-path session sebelum html sampai ke frontend dan tidak mengekspos contentId — deteksi part inline utk export .eml harus via basename URL dengan rewrite balik ke cid: (collectInlineCids di emlUtils); assertion E2E gagal pada bundle yang terbukti memuat fix = asumsi level data salah, dump output runtime dulu sebelum ganti teori
-- Why: Latest completed-task finding may imply documentation, validation, or follow-up work.
-- Source: knowledge.md
-
-## 4. [LOW] Review and commit current changes
-- Why: 8 uncommitted file entries remain in the project.
-- Source: git status
-
-## Agent Use
-
-Select one suggestion only after checking dependencies and user priority. Start it with:
-
-ai-start "<selected task>"
+## 3. [LOW] Update docs/ai konteks dengan 10 fitur baru
+- Why: application-map.md, goals.md, knowledge.md belum mencakup fitur
+  pratinjau lampiran dan cross-folder search.
