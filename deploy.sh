@@ -174,9 +174,9 @@ unset GIT_CRED_HELPER GIT_TOKEN
 
 echo "  → HEAD: $(git log -1 --oneline)"
 
-# 2. Install dependencies
+# 2. Install dependencies (termasuk devDeps — vite adalah devDependency)
 echo "  → npm ci..."
-npm ci --omit=dev 2>&1 | tail -2
+npm ci 2>&1 | tail -3
 
 # 3. Ambil API_KEY dari sogo-proxy
 API_KEY="$(awk -F= '/^API_KEY=/{print substr($0, index($0, "=") + 1); exit}' /home/anas.fikri/sogo-proxy/.env)"
