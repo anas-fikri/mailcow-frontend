@@ -352,37 +352,6 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     }
   }
 
-  function handlePrint() {
-    if (!msg) return;
-    const win = window.open('', '_blank');
-    if (!win) return;
-    // Semua nilai yang diinterpolasi ke document.write harus di-escape:
-    // jendela print (about:blank) berbagi origin dengan opener, jadi HTML
-    // berbahaya di sini bisa mengakses halaman induk (cookie/opener).
-    const safeSubject = escapeHtml(msg.subject);
-    const safeFrom    = escapeHtml(formatAddresses(msg.from));
-    const safeTo      = escapeHtml(formatAddresses(msg.to));
-    const safeCc      = escapeHtml(formatAddresses(msg.cc));
-    const safeDate    = escapeHtml(msg.date || '');
-    win.document.write(`
-      <html><head><title>${safeSubject || 'Email'}</title>
-      <style>body{font-family:sans-serif;padding:40px;max-width:800px;margin:auto;line-height:1.6}
-      h1{font-size:1.5em;margin-bottom:20px}.meta{color:#666;font-size:.9em;margin-bottom:30px}
-      hr{border:none;border-top:1px solid #ddd;margin:20px 0}
-      img{max-width:100%}</style></head><body>
-      <h1>${safeSubject || '(Tanpa Subjek)'}</h1>
-      <div class="meta">
-        <p><strong>Dari:</strong> ${safeFrom}</p>
-        <p><strong>Kepada:</strong> ${safeTo}</p>
-        ${msg.cc ? `<p><strong>Cc:</strong> ${safeCc}</p>` : ''}
-        <p><strong>Tanggal:</strong> ${safeDate}</p>
-      </div>
-      <hr>
-      ${renderHtml}
-    </body></html>`);
-    win.document.close();
-    win.print();
-  }
 
   if (!msgId) return null;
 
@@ -419,6 +388,37 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // asli — konten itu dikirim sebagai email dan harus punya URL valid utk
   // penerima (lihat catatan di src/lib/imageProxy.js).
   const renderHtml = rawHtml ? proxyExternalImages(cleanHtml) : cleanHtml;
+
+  function handlePrint() {
+    const win = window.open('', '_blank');
+    if (!win) return;
+    // Semua nilai yang diinterpolasi ke document.write harus di-escape:
+    // jendela print (about:blank) berbagi origin dengan opener, jadi HTML
+    // berbahaya di sini bisa mengakses halaman induk (cookie/opener).
+    const safeSubject = escapeHtml(msg.subject);
+    const safeFrom    = escapeHtml(formatAddresses(msg.from));
+    const safeTo      = escapeHtml(formatAddresses(msg.to));
+    const safeCc      = escapeHtml(formatAddresses(msg.cc));
+    const safeDate    = escapeHtml(msg.date || '');
+    win.document.write(`
+      <html><head><title>${safeSubject || 'Email'}</title>
+      <style>body{font-family:sans-serif;padding:40px;max-width:800px;margin:auto;line-height:1.6}
+      h1{font-size:1.5em;margin-bottom:20px}.meta{color:#666;font-size:.9em;margin-bottom:30px}
+      hr{border:none;border-top:1px solid #ddd;margin:20px 0}
+      img{max-width:100%}</style></head><body>
+      <h1>${safeSubject || '(Tanpa Subjek)'}</h1>
+      <div class="meta">
+        <p><strong>Dari:</strong> ${safeFrom}</p>
+        <p><strong>Kepada:</strong> ${safeTo}</p>
+        ${msg.cc ? `<p><strong>Cc:</strong> ${safeCc}</p>` : ''}
+        <p><strong>Tanggal:</strong> ${safeDate}</p>
+      </div>
+      <hr>
+      ${renderHtml}
+    </body></html>`);
+    win.document.close();
+    win.print();
+  }
 
   function handleReply() {
     // Semua header email (from/to/date/subject) adalah input dari pengirim dan
