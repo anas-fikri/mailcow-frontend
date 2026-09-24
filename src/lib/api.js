@@ -883,8 +883,8 @@ export async function fetchSmtpSessionStatus() {
     credentials: 'include',
     headers: withApiKey(),
   });
-  // 401/403 = sesi SMTP berakhir/akun mismatch → trigger auto-logout.
-  throwIfAuthError(res);
+  // 401 = sesi SMTP berakhir → trigger auto-logout. 403 (forbidden API key) tidak menendang sesi SOGo.
+  if (res.status === 401) throwIfAuthError(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || `Gagal membaca status sesi (${res.status}).`);
