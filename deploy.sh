@@ -22,6 +22,16 @@ BRANCH="${BRANCH:-main}"
 WEBMAIL_URL="${WEBMAIL_URL:-https://mail.pcpexpress.co.id/webmail/}"
 GITLAB_URL="https://${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git"
 GITLAB_USER="${GITLAB_USER:-}"
+
+# Auto-detect GitLab username dari keychain biar token cocok
+# (token terikat ke user, bukan generic 'git').
+if [ -z "$GITLAB_USER" ]; then
+    GITLAB_USER="$(security find-internet-password -s "${GITLAB_HOST:-gitlab.pcpexpress.com}" 2>/dev/null | grep '"acct"' | sed 's/.*"acct"<blob>="\([^"]*\)".*/\1/')"
+fi
+if [ -z "$GITLAB_USER" ]; then
+    warn "GITLAB_USER tidak terdeteksi dari Keychain. Fallback ke 'git'."
+    GITLAB_USER="git"
+fi
 REMOTE_REPO_DIR="${REMOTE_REPO_DIR:-/home/anas.fikri/mailcow-frontend}"
 
 # ── Tunnel MikroTik fallback (IP publik flapping) ─────────────────────────────
