@@ -283,12 +283,6 @@ export default function MailPage() {
   // refetch react-query (identitas array baru) tidak boleh memicu fan-out ulang.
   const lastGlobalQueryRef = useRef(null);
 
-  // Label chip folder per hasil pencarian (folderId → segmen terakhir path).
-  const folderLabelById = useMemo(() => {
-    const map = new Map();
-    for (const f of Array.isArray(folders) ? folders : []) map.set(f.id, folderChipLabel(f));
-    return map;
-  }, [folders]);
   const [snoozePicker, setSnoozePicker] = useState(null); // { uid, x, y } — pilih durasi snooze
   const [quickRuleSender, setQuickRuleSender] = useState(null); // sender label utk QuickRuleModal
   const [snoozeTick, setSnoozeTick] = useState(0); // bump utk re-render setelah prune
@@ -384,6 +378,13 @@ export default function MailPage() {
       const parentId = 'folder' + p.slice(0, slash).replace(/\//g, '%2F');
       (map[parentId] ||= []).push(f);
     }
+    return map;
+  }, [folders]);
+
+  // Label chip folder per hasil pencarian (folderId → segmen terakhir path).
+  const folderLabelById = useMemo(() => {
+    const map = new Map();
+    for (const f of Array.isArray(folders) ? folders : []) map.set(f.id, folderChipLabel(f));
     return map;
   }, [folders]);
 
