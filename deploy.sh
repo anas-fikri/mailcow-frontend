@@ -174,9 +174,11 @@ unset GIT_CRED_HELPER GIT_TOKEN
 
 echo "  → HEAD: $(git log -1 --oneline)"
 
-# 2. Install dependencies (termasuk devDeps — vite adalah devDependency)
-echo "  → npm ci..."
-npm ci 2>&1 | tail -3
+# 2. Install dependencies (termasuk devDeps — vite di devDependencies)
+# PUPPETEER_SKIP_DOWNLOAD: server tidak punya Chrome dan puppeteer postinstall
+# gagal mencoba download. Kita cuma build (tidak pakai puppeteer di runtime).
+echo "  → npm ci (PUPPETEER_SKIP_DOWNLOAD=true)..."
+PUPPETEER_SKIP_DOWNLOAD=true npm ci 2>&1 | tail -3
 
 # 3. Ambil API_KEY dari sogo-proxy
 API_KEY="$(awk -F= '/^API_KEY=/{print substr($0, index($0, "=") + 1); exit}' /home/anas.fikri/sogo-proxy/.env)"
