@@ -244,12 +244,15 @@ export default function MailPage() {
   const { user, sortAsc, setSortAsc, conversationView, setConversationView } = useAuthStore();
   const queryClient = useQueryClient();
 
+  const [selectedFolder, setSelectedFolder] = useState('folderINBOX');
+
   // Helper flag-color terikat folder aktif — WAJIB di dalam komponen karena
   // user/selectedFolder adalah state komponen (bukan module scope; bug 2026-09-05).
+  // NOTE: selectedFolder WAJIB dideklarasikan SEBELUM helper ini — default
+  // parameter `folder = selectedFolder` menghasilkan TDZ bila dibalik
+  // (ReferenceError: Cannot access 'q' before initialization, outage 2026-09-24).
   const flagColorOf = (uid, folder = selectedFolder) => getFlagColor(user?.email, uid, folder);
   const setFlagColorOf = (uid, color, folder = selectedFolder) => setFlagColor(user?.email, uid, color, folder);
-
-  const [selectedFolder, setSelectedFolder] = useState('folderINBOX');
   const [selectedMsgId, setSelectedMsgId] = useState(null);
   const [folderPanelOpen, setFolderPanelOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);

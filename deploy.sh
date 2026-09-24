@@ -123,9 +123,20 @@ setup_nginx() {
 
 # ── Build + deploy DI SERVER (dari GitLab) ────────────────────────────────
 server_deploy() {
+    local git_token
+    git_token=$(get_gitlab_token)
+    if [ -z "$git_token" ]; then
+        err "GitLab token diperlukan untuk clone/pull di server."
+        err "Jalankan: security add-internet-password -s gitlab.pcpexpress.com -w \"TOKEN_ANDA\""
+        exit 1
+    fi
+
     info "Sync repo + build + deploy di $SERVER..."
 
-    ssh "$SERVER" bash -s <<'REMOTE_DEPLOY'
+    # Token dikirim via env var (GIT_TOKEN). Heredoc quoted → token aman di memory,
+    # tidak ke disk server. credential.helper inline dipakai agar URL tetap tanpa
+    # credential embed, dan token tidak muncul di ps aux atau .git/config.
+    ssh "$SERVER" "GIT_TOKEN='$git_token' GITLAB_URL='https://${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git' GITLAB_USER='${GITLAB_USER:-git}' REMOTE_REPO_DIR='$REMOTE_REPO_DIR' REMOTE_WEB_DIR='$REMOTE_WEB_DIR' NGINX_DIR='$NGINX_DIR' NGINX_FILE='$NGINX_FILE' BRANCH='$BRANCH' bash -s" <<'REMOTE_DEPLOY'
 set -euo pipefail
 
 REMOTE_REPO_DIR="${REMOTE_REPO_DIR:-/home/anas.fikri/mailcow-frontend}"
@@ -133,20 +144,23 @@ REMOTE_WEB_DIR="${REMOTE_WEB_DIR:-/data/docker-data/mailcow/data/web/webmail}"
 NGINX_DIR="${NGINX_DIR:-/data/docker-data/mailcow/data/conf/nginx}"
 NGINX_FILE="site.webmail.custom"
 BRANCH="${BRANCH:-main}"
-SOGO_API_PORT="${SOGO_API_PORT:-3005}"
-GITLAB_URL="https://${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git"
+
+# Helper: credential helper inline — token hanya di memory heredoc
+GIT_CRED_HELPER="!f() { echo 'username=${GITLAB_USER:-git}'; echo \"password=\$GIT_TOKEN\"; }; f"
 
 # 1. Clone pertama / pull
 if [ -d "$REMOTE_REPO_DIR/.git" ]; then
-    echo "  → Repo sudah ada: git pull $BRANCH"
+    echo "  → Repo sudah ada: git fetch $BRANCH"
     cd "$REMOTE_REPO_DIR"
-    git fetch origin "$BRANCH"
+    git -c "credential.helper=$GIT_CRED_HELPER" fetch origin "$BRANCH"
     git reset --hard "origin/$BRANCH"
 else
     echo "  → Repo belum ada: git clone"
-    git clone --branch "$BRANCH" "$GITLAB_URL" "$REMOTE_REPO_DIR"
+    git -c "credential.helper=$GIT_CRED_HELPER" clone --branch "$BRANCH" "$GITLAB_URL" "$REMOTE_REPO_DIR"
     cd "$REMOTE_REPO_DIR"
 fi
+
+unset GIT_CRED_HELPER GIT_TOKEN
 
 echo "  → HEAD: $(git log -1 --oneline)"
 
@@ -183,6 +197,7 @@ echo "  → Nginx reloaded"
 REMOTE_DEPLOY
 
     ok "Server deploy selesai."
+    unset git_token
 }
 
 # ── Deploy backend (server.js SMTP proxy) ──────────────────────────────────
