@@ -149,6 +149,12 @@ server_deploy() {
     ssh "$SERVER" "GIT_TOKEN='$git_token' GITLAB_URL='https://${GITLAB_HOST:-gitlab.pcpexpress.com}/${GITLAB_PROJECT:-devops-team/mailcow-frontend}.git' GITLAB_USER='${GITLAB_USER:-git}' REMOTE_REPO_DIR='$REMOTE_REPO_DIR' REMOTE_WEB_DIR='$REMOTE_WEB_DIR' NGINX_DIR='$NGINX_DIR' NGINX_FILE='$NGINX_FILE' BRANCH='$BRANCH' bash -s" <<'REMOTE_DEPLOY'
 set -euo pipefail
 
+# Load nvm — server punya Node 22 via nvm tapi default system Node 18
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use 22 --silent 2>/dev/null || true
+echo "  → Node: $(node --version)"
+
 REMOTE_REPO_DIR="${REMOTE_REPO_DIR:-/home/anas.fikri/mailcow-frontend}"
 REMOTE_WEB_DIR="${REMOTE_WEB_DIR:-/data/docker-data/mailcow/data/web/webmail}"
 NGINX_DIR="${NGINX_DIR:-/data/docker-data/mailcow/data/conf/nginx}"
