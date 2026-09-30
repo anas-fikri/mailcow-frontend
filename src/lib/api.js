@@ -1569,22 +1569,24 @@ export async function fetchCalendarEventDetail(sogoToken, eventId, calendarId = 
 // ─── Preferences ──────────────────────────────────────────────────────────────
 
 /**
- * Change password via Mailcow SOGo.
- * SOGo change password endpoint: POST /Preferences/changePassword
- * (atau via Mailcow API jika SOGo tidak expose endpoint ini)
+ * Change password mailbox.
+ * Backend: POST /api/preferences (intent=password) di sogo-proxy — path sama dgn
+ * GET /api/preferences yang sudah di-proxy nginx (tanpa route nginx baru).
+ * Alur server: verifikasi password lama via SMTP auth, lalu UPDATE hash
+ * {BLF-CRYPT} di mailbox + refresh sesi SMTP + flush cache auth Dovecot.
  */
 export async function changePassword(sogoToken, oldPassword, newPassword) {
-  const formData = new URLSearchParams({ oldPassword, newPassword, newPasswordConfirmation: newPassword });
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Preferences/changePassword`, {
+  const res = await fetchWithTimeout('/api/preferences', {
     method: 'POST',
     credentials: 'include',
-    headers: sogoHeaders({ 'Content-Type': 'application/x-www-form-urlencoded' }),
-    body: formData.toString(),
-  });
-  // SOGo returns 200 text/plain (empty) on success
-  throwIfAuthError(res);
-  if (res.status === 404) throw new Error('Fitur ganti password tidak tersedia di server ini.');
-  if (!res.ok) throw new Error(`Gagal mengganti password (${res.status}).`);
+    headers: withApiKey({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ intent: 'password', oldPassword, newPassword }),
+  }, 20000);
+  if (res.status === 401) throwIfAuthError(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Gagal mengganti password (${res.status}).`);
+  }
   return true;
 }
 

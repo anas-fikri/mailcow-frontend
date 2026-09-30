@@ -1,33 +1,24 @@
-# Current Task
+# Active Task
 
-Status: DONE (2026-09-23)
-Task ID: 20260923-130000-deploy-sync
-Started At: 2026-09-23T13:00:00Z
-Updated At: 2026-09-23T14:30:00Z
-Project Root: /Users/anasfikri/Documents/Projects/pcpexpress/mailcow/sogo-frontend
+## Goal
+Fix `Cannot access 'q' before initialization` di production webmail.
 
-## Objective
-Perbandingan workspace vs repo vs production + amankan deploy flow.
+## Root Cause
+TDZ (Temporal Dead Zone): `flagColorOf`/`setFlagColorOf` helper menggunakan default parameter `folder = selectedFolder` SEBELUM `const [selectedFolder, setSelectedFolder] = useState('folderINBOX');` dideklarasikan. Vite/Rolldown me-minifikasi `selectedFolder` menjadi `q`, memicu `ReferenceError: Cannot access 'q' before initialization`.
 
-## Changes
-- **deploy.sh** dirombak: build di server langsung dari GitLab (bukan lokal).
-  `./deploy.sh` → SSH mailserver → git pull → npm ci → build → rsync → nginx reload.
-  Aman: GitLab = source of truth, workspace bebas WIP, hasil deploy konsisten.
-- Conflict resolved: keep tunnel fallback + runtime env config dari HEAD, tambah REMOTE_REPO_DIR.
-- Workspace → GitLab synchronized (e17d29b).
-- Production (1e9bb59) akan sync saat deploy.sh dijalankan.
+## Done
+- [x] Fix TDZ MailPage: move `selectedFolder` useState BEFORE `flagColorOf` + `setFlagColorOf`
+- [x] Fix deploy.sh: auto-detect `GITLAB_USER` dari Keychain (token terikat ke `anas.fikri@pcpexpress.com`)
+- [x] Fix deploy.sh: `npm ci` full (tanpa `--omit=dev`) + `PUPPETEER_SKIP_DOWNLOAD=true`
+- [x] Fix deploy.sh: `nvm use 22` di remote (Vite 6 / Rolldown require Node 22+)
+- [x] Build + push to GitLab (`0935c72`)
+- [x] Full deploy to production via `./deploy.sh`
+- [x] Validasi production: HTTP 200, build-version `1790213975424-65z19l`, `/api/health` 200, `/api/image-proxy` 403, error page GONE
+- [x] Validasi test suites: 10+ suite test unit/integration PASS
+- [x] Update AI docs (`knowledge.md`, `handoff.md`)
 
-## Temuan Penting
-- **10 commits baru** di GitLab dari production rebuild hari ini: pratinjau lampiran
-  (PDF/Word/Excel/PPT/ZIP/text), unduh per lampiran, cross-folder search.
-- Production di-rebuild 23 Sep 16:52 WIB (build-version 1790157122393-raf8yk).
-- Semua fitur sudah LIVE, belum pernah diverifikasi dari workspace.
-
-## Next Steps
-- Verifikasi live 10 fitur baru (pratinjau lampiran, cross-folder search).
-- Jalankan `./deploy.sh` sekali utk konfirmasi flow GitLab-based bekerja.
-
-## Validation
-- bash -n deploy.sh ✅
-- Git push ke origin/main ✅
-- Branch fast-forward dari origin/main ✅
+## Next
+- Fix minor inconsistency: `site.webmail.custom` nginx config (sed substitution vs cp)
+- Priority features selanjutnya dari user feedback
+Status: COMPLETED
+Updated At: 2026-09-24T01:49:22Z

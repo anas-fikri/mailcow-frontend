@@ -20,6 +20,7 @@ import mysql from 'mysql2/promise';
 import { execFileSync } from 'child_process';
 import { readFileSync } from 'fs';
 import crypto from 'crypto';
+import { execFile } from 'child_process';
 import { z } from 'zod';
 import { isSafeRecipient, recipientAddress, validateRecipientList, hasControlChars } from './src/lib/emailValidation.js';
 import { parseCookies, buildSmtpSessionCookie, clearSmtpSessionCookie, SMTP_SESSION_COOKIE } from './src/lib/smtpCookie.js';
@@ -403,11 +404,60 @@ async function queryPreferences(email) {
   return { defaults, settings };
 }
 
-// ── Register SMTP Session ──────────────────────────────────────────────────
+// ── Register SMTP Session ────────────────────────────────────────────────────
 const smtpSessionSchema = z.object({
   user: z.string().email('Format email tidak valid.').max(254),
   pass: z.string().min(1, 'Password wajib diisi.').max(1024),
 }).strict();
+
+// ── Ganti password mailbox ───────────────────────────────────────────────
+// Dipanggil dari halaman Preferences → ChangePasswordSection. Untuk menghindari
+// ekspansi attack surface, endpoint ini berbagi path dgn GET /api/preferences
+// (sudah di-proxy nginx ke sogo-proxy) dan dibedakan lewat body intent.
+const changePasswordSchema = z.object({
+  intent: z.literal('password'),
+  oldPassword: z.string().min(1, 'Password lama wajib diisi.').max(1024),
+  newPassword: z.string().min(12, 'Password baru minimal 12 karakter.').max(1024),
+}).strict();
+
+// Verifikasi kredensial via SMTP auth (sumber kebenaran = Dovecot, bukan cache).
+// SMTP_SECURE/SMTP_HOST/SMTP_PORT sudah divalidasi saat startup (dipakai /api/send).
+async function verifyMailCredentials(user, pass) {
+  const transporter = createSmtpTransporter(user, pass);
+  try {
+    await transporter.verify();
+  } finally {
+    transporter.close();
+  }
+}
+
+// Hash password baru dgn format mailcow ({BLF-CRYPT} = bcrypt) via doveadm di
+// container Dovecot — tidak ada dependency bcrypt baru & format selalu konsisten
+// dgn yang ditulis mailcow UI. Timeout 10 dtk; kegagalan docker = 500.
+function hashMailcowPassword(plain) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'docker',
+      ['exec', MYSQL_CONTAINER.replace(/-mysql-.*/i, '-dovecot-mailcow-1'), 'doveadm', 'pw', '-s', 'BLF-CRYPT', '-p', plain],
+      { timeout: 10000, encoding: 'utf8' },
+      (err, stdout) => {
+        if (err) return reject(err);
+        const hash = String(stdout || '').trim();
+        if (!hash.startsWith('{')) return reject(new Error('doveadm pw menghasilkan format tak terduga'));
+        resolve(hash);
+      }
+    );
+  });
+}
+
+// Flush cache auth Dovecot agar password baru langsung dipakai untuk IMAP/SMTP.
+async function flushDovecotAuthCache() {
+  const dovecotContainer = MYSQL_CONTAINER.replace(/-mysql-.*/i, '-dovecot-mailcow-1');
+  await new Promise((resolve) => {
+    execFile('docker', ['exec', dovecotContainer, 'doveadm', 'auth', 'cache', 'flush'],
+      { timeout: 10000 }, () => resolve()); // best-effort — gagal flush tidak membatalkan perubahan
+  });
+}
 
 app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: clientIp }), (req, res) => {
   const parsed = smtpSessionSchema.safeParse(req.body);
@@ -475,6 +525,59 @@ app.get('/api/auth/smtp/status', rateLimit({ max: 30, windowMs: 60000, keyFn: cl
     // Sesi berakhir bilamana salah satu habis — minimum yg berlaku.
     remainingMs: Math.min(remainingAbs, remainingIdle),
   });
+});
+
+// ── Ganti password mailbox (POST /api/preferences, intent=password) ─────────────
+// Berbagi path dgn GET /api/preferences — location nginx `= /api/preferences`
+// me-proxy semua method ke sogo-proxy, jadi tidak perlu ubah nginx.
+// Alur: sesi valid → verifikasi password lama via SMTP auth → hash baru via
+// doveadm ({BLF-CRYPT}) → UPDATE mailbox → refresh sesi → flush cache Dovecot.
+app.post('/api/preferences', rateLimit({ max: 5, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) }), requireSmtpSession, async (req, res) => {
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Data tidak valid.' });
+  }
+  const { oldPassword, newPassword } = parsed.data;
+  const session = req.smtpSession;
+
+  if (newPassword === oldPassword) {
+    return res.status(400).json({ message: 'Password baru harus berbeda dari password lama.' });
+  }
+
+  try {
+    // 1) Verifikasi password lama — kegagalan auth SMTP = password salah.
+    try {
+      await verifyMailCredentials(session.user, oldPassword);
+    } catch (err) {
+      console.log(`[change-password] old password salah utk ${session.user}`);
+      return res.status(400).json({ message: 'Password lama tidak cocok.' });
+    }
+
+    // 2) Hash password baru ({BLF-CRYPT} = bcrypt, format hash mailcow).
+    const newHash = await hashMailcowPassword(newPassword);
+
+    // 3) Update mailbox + periksa baris terpengaruh.
+    const [result] = await pool.query(
+      'UPDATE mailbox SET password = ?, modified = NOW() WHERE username = ? AND active = 1',
+      [newHash, session.user]
+    );
+    if (!result || result.affectedRows === 0) {
+      console.error(`[change-password] mailbox tidak ditemukan/tidak aktif: ${session.user}`);
+      return res.status(500).json({ message: 'Akun tidak ditemukan atau tidak aktif.' });
+    }
+
+    // 4) Refresh sesi SMTP in-memory dgn kredensial baru (user tetap login).
+    session.pass = newPassword;
+
+    // 5) Flush cache auth Dovecot (best-effort) agar password baru langsung efektif.
+    await flushDovecotAuthCache();
+
+    console.log(`[change-password] OK ${session.user}`);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[change-password] ERROR:', err.message);
+    return res.status(500).json({ message: 'Gagal mengganti password. Coba lagi.' });
+  }
 });
 
 // ── GET Preferences ────────────────────────────────────────────────────────────

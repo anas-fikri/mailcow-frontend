@@ -1,38 +1,50 @@
-# Project Knowledge Log
+# Durable project knowledge
 
-Record durable findings discovered during completed tasks. Include codebase,
-architecture, infrastructure, CI/CD, deployment, operations, constraints,
-bugs, and validation knowledge. Do not record secrets or transient debug logs.
+## TDZ (Temporal Dead Zone) di React components (2026-09-24)
+- Default parameter `folder = selectedFolder` di function deklaration dalam komponen React
+  mengakses state variable **sebelum** `useState()` dieksekusi.
+- Vite/Rolldown minifikasi mengubah nama variabel jadi `q`, membuat error cryptic:
+  `ReferenceError: Cannot access 'q' before initialization`
+- Error boundary React menangkap ini dan menampilkan "Terjadi Kesalahan" generic.
+- **Fix:** urutkan deklarasi — `useState` dulu, baru arrow function yang pakai default param.
 
-## 2026-09-23 — deploy.sh server-side build dari GitLab
+## GitLab credential flow (2026-09-24)
+- Token/keychain password harus cocok `username` GitLab. Username `git` gagal 401.
+- `security find-internet-password` + `grep '"acct"'` auto-detect username.
+- Token `***REMOVED***` valid untuk git HTTP Basic (clone/fetch) tapi 401 untuk GitLab API
+  (mungkin password scope, bukan PAT scope). OK karena deploy cuma pakai git.
 
-- **Problem:** deploy.sh lama build dari dist/ lokal → production bisa beda dari GitLab
-  kalau workspace punya WIP atau tidak sinkron.
-- **Fix:** Build DI SERVER langsung. `./deploy.sh` → SSH mailserver → git pull dari
-  GitLab → npm ci → npm run build → rsync ke nginx web dir → nginx reload.
-  GitLab jadi single source of truth. Deploy dari mana saja hasilnya identik.
-- **Safety:** workspace bebas WIP tanpa ganggu production. Local dist/ tidak lagi
-  dipakai untuk deploy.
-- **First run:** mailserver akan git clone pertama kali jika repo belum ada.
-- **Prasyarat:** mailserver perlu: nodejs, npm, git, akses ke gitlab.pcpexpress.com.
-  Sudah diverifikasi: node v18.19.1, npm 9.2.0, git tersedia.
+## Change password mailbox (2026-09-30)
+- SOGo TIDAK expose endpoint changePassword yang bisa dipakai custom frontend —
+  POST /SOGo/so/<token>/Preferences/changePassword selalu 404 walau
+  `SOGoPasswordChangeEnabled = YES`.
+- Nginx `site.sogo.custom` memang me-route `Preferences/changePassword` ke
+  sogo-proxy:3005, tapi endpoint-nya belum pernah ada di server.js → 404 →
+  frontend menampilkan "Fitur ganti password tidak tersedia di server ini".
+- Solusi final (tanpa ubah nginx): POST /api/preferences dengan body
+  `{intent:'password', oldPassword, newPassword}` — berbagi path dgn GET
+  preferences yang sudah di-proxy nginx (`location = /api/preferences` jalan
+  untuk semua method).
+- Hash mailcow = `{BLF-CRYPT}` (bcrypt). Generate via `doveadm pw -s BLF-CRYPT -p`
+  di container Dovecot (tanpa dependency bcrypt di Node). Setelah UPDATE mailbox,
+  flush cache auth Dovecot (`doveadm auth cache flush`) agar password langsung
+  efektif; refresh session.pass in-memory agar user tetap login.
+- Verifikasi password lama pakai SMTP auth (transporter.verify()) — sumber
+  kebenaran Dovecot, bukan DB.
 
-## 2026-09-23 — Production di-rebuild dari luar git (10 commits baru)
+## Multi-developer deploy (2026-09-30)
+- Production bisa ter-deploy dari luar `deploy.sh` (developer lain build+rsync manual).
+- Cara verifikasi versi production tanpa akses server: cek `build-version` meta di index.html,
+  lalu grep string unik dari commit terbaru di bundle (mis. `==401&&Z(e)` untuk fix api.js).
+- Clone server di `/home/anas.fikri/mailcow-frontend` fetch-nya butuh credential (401 tanpa token) —
+  reflog server hanya jejak deploy.sh, bukan sumber kebenaran versi live.
 
-- **Temuan:** Antara 19 Agu dan 23 Sep, ada 10 commits baru di GitLab origin/main
-  yang tidak ada di workspace. Build-version production `1790157122393-raf8yk`
-  (23 Sep 16:52 WIB). Tidak ada aktivitas git di repo ini dari workspace -
-  berarti rebuild dilakukan dari machine lain (mungkin server atau laptop lain).
-- **Fitur baru:** pratinjau lampiran in-app (PDF, Word, Excel/CSV, PPT, ZIP, teks),
-  unduh per lampiran, filter gambar body dari daftar lampiran, cross-folder search
-  dengan smart empty states.
-- **Lesson:** Selalu `git fetch` + `git log origin/main` sebelum mulai kerja.
-  Production bisa saja di-rebuild dari mana saja.
-- **Status sekarang:** Workspace = GitLab (e17d29b). Production tertinggal 1 commit
-  (deploy.sh fix) — akan catch up saat deploy.sh dijalankan.
-
-## Entries (sebelumnya)
-
-## 2026-08-18 — React #310 ROOT CAUSE: useRef after early return
-
-- **Root cause sebenarnya:** ...
+## Deploy.sh dari GitLab ke mailserver (2026-09-24)
+- Build di server: butuh nvm (Node 22 untuk Vite 6), `PUPPETEER_SKIP_DOWNLOAD=true`.
+- Git clone/fetch via `credential.helper=!f() { echo 'username=...'; echo "password=..."; }; f`
+  — token dikirim via SSH env var, heredoc **quoted** (`'REMOTE_DEPLOY'`) agar token tidak
+  terekspansi di local shell. Tapi `GITLAB_USER` harus terdeteksi otomatis dari Keychain.
+## 2026-09-24T01:49:22Z
+- Task: 
+- Status: COMPLETED
+- Finding: TDZ di React: default parameter mengakses state variable sebelum useState() = ReferenceError. Vite minifikasi jadi 'q'. Fix: urutkan deklarasi. Deploy.sh via GitLab: butuh GITLAB_USER terdeteksi dari Keychain (bukan 'git'), nvm use 22 (Vite 6/Rolldown), PUPPETEER_SKIP_DOWNLOAD. Token Keychain valid untuk git HTTP Basic tapi 401 untuk GitLab API — bukan PAT scope.

@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "last_session": "2026-09-23T14:30:00Z",
-  "context": "PCP Express Webmail — deploy.sh diubah: build di server dari GitLab. Workspace=GitLab (e17d29b). Production (1e9bb59) punya 10 fitur baru: pratinjau lampiran PDF/Word/Excel/PPT/ZIP/text, unduh per lampiran, cross-folder search. Semua LIVE.",
+  "last_session": "2026-09-30T02:35:00Z",
+  "context": "PCP Express Webmail — semua surface sinkron 8aec839 (workspace=GitLab=server clone=production). Deploy.sh satu-satunya jalur deploy; Abdul Latif pernah deploy manual, kini server clone terkini.",
   "modules": {
     "deploy": {
       "status": "updated",
@@ -19,6 +19,11 @@
     "round57-features": {
       "status": "live",
       "feature": "3 fitur: spam native SOGo, fix lampiran (parts ARRAY + size string), subfolder UI"
+    },
+    "change-password": {
+      "status": "live",
+      "feature": "Ganti password mailbox: POST /api/preferences (intent=password) — SMTP verify + doveadm pw BLF-CRYPT + flush cache auth",
+      "note": "SOGo endpoint 404 — path nginx /SOGo/so/*/changePassword dead-end"
     }
   },
   "bugs_found": [],
@@ -30,13 +35,25 @@
     {
       "what": "Sync workspace dengan 10 fitur baru production",
       "status": "done"
+    },
+    {
+      "what": "Fix TDZ MailPage (Cannot access 'q' before initialization) + deploy.sh hardening: GITLAB_USER auto-detect, npm ci full, PUPPETEER_SKIP_DOWNLOAD, nvm Node 22. Deploy dari GitLab sukses — webmail live, error page gone.",
+      "status": "done",
+      "updated_at": "2026-09-24T01:49:22Z"
+    },
+    {
+      "what": "Deep validation TDX fix: 25 komponen scan 0 TDZ, minified bundle confirmed [l,u]=useState('folderINBOX') BEFORE d=(t,n=l)=> (flagColorOf). Production all pages 200. Deploy.sh edges verified.",
+      "status": "done",
+      "updated_at": "2026-09-24T02:14:00Z"
     }
   ],
   "active_task": {
-    "id": "20260923-130000-deploy-sync",
+    "id": "none",
     "status": "COMPLETED",
-    "objective": "Perbandingan workspace vs repo vs production + amankan deploy flow",
-    "next_step": "Verifikasi 10 fitur baru LIVE di production",
-    "updated_at": "2026-09-23T14:30:00Z"
+    "objective": "No objective recorded.",
+    "next_step": "",
+    "goal_id": "",
+    "sub_goal_id": "",
+    "updated_at": "2026-09-24T01:49:22Z"
   }
 }
