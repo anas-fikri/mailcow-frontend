@@ -6,6 +6,10 @@
   hash {BLF-CRYPT} via doveadm pw, UPDATE mailbox, refresh sesi, flush cache auth Dovecot.
   Frontend changePassword di api.js dialihkan ke endpoint ini. Tanpa ubah nginx.
 - Test: 77 + 21 + nginx-routes + send-auth-order PASS.
+- Commit `2f5fb59` pushed + deployed (frontend rsync + backend nohup deploy — tunnel MikroTik
+  flapping parah; trik: deploy backend via nohup di server agar tahan SSH putus).
+- Verifikasi: service sogo-smtp-proxy active; POST via nginx + API key → 401 sesi (route hidup,
+  guard chain OK); POST tanpa API key → 403. Fitur siap dipakai di production.
 
 # 2026-09-30 — Re-deploy via deploy.sh: semua surface sinkron
 - `./deploy.sh` sukses: server clone fetch 0935c72→8aec839, build Node v22.22.2, rsync, nginx reload.

@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "last_session": "2026-09-30T02:35:00Z",
-  "context": "PCP Express Webmail — semua surface sinkron 8aec839 (workspace=GitLab=server clone=production). Deploy.sh satu-satunya jalur deploy; Abdul Latif pernah deploy manual, kini server clone terkini.",
+  "last_session": "2026-09-30T04:20:00Z",
+  "context": "PCP Express Webmail — commit 2f5fb59 live: fitur ganti password mailbox (POST /api/preferences intent=password). Tunnel MikroTik flapping — deploy backend bisa via nohup di server.",
   "modules": {
     "deploy": {
       "status": "updated",
