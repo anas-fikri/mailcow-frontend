@@ -1,5 +1,17 @@
 # Durable project knowledge
 
+## Workspace = clone deploy deploy.sh; bisa tertinggal dari GitLab (2026-10-07)
+- `deploy.sh` REMOTE_REPO_DIR default = `/home/anas.fikri/mailcow-frontend` = workspace ini.
+  Deploy pull+build dari sini, lalu `git reset --hard origin/main` — workspace yang tertinggal
+  bikin penilaian "bug sudah/pernah di-fix" keliru. Selalu `git fetch` + cek `main..origin/main`
+  SEBELUM menganalisis kode.
+- Commit lokal yang belum di-push AKAN HILANG saat deploy berikutnya karena reset --hard.
+  Push ke GitLab segera setelah commit (jangan deferral berhari-hari).
+- Hash chunk dist (api-*, index-*, MailPage-*) TIDAK comparable antar-build:
+  VITE_API_KEY di-inject saat build (dari /home/anas.fikri/sogo-proxy/.env) + build-version =
+  timestamp. Verifikasi kesamaan source via marker string di bundle (mis. pesan error
+  fitur, `intent:``` `password` ``), bukan nama file chunk.
+
 ## TDZ (Temporal Dead Zone) di React components (2026-09-24)
 - Default parameter `folder = selectedFolder` di function deklaration dalam komponen React
   mengakses state variable **sebelum** `useState()` dieksekusi.
@@ -48,3 +60,8 @@
 - Task: 
 - Status: COMPLETED
 - Finding: TDZ di React: default parameter mengakses state variable sebelum useState() = ReferenceError. Vite minifikasi jadi 'q'. Fix: urutkan deklarasi. Deploy.sh via GitLab: butuh GITLAB_USER terdeteksi dari Keychain (bukan 'git'), nvm use 22 (Vite 6/Rolldown), PUPPETEER_SKIP_DOWNLOAD. Token Keychain valid untuk git HTTP Basic tapi 401 untuk GitLab API — bukan PAT scope.
+
+## 2026-10-07T06:35:52Z
+- Task: 
+- Status: COMPLETED
+- Finding: Workspace bisa tertinggal dari GitLab karena deploy.sh pull/build dari clone ini (REMOTE_REPO_DIR sama dgn PROJECT_ROOT) lalu git reset --hard origin/main — commit unpushed hilang saat deploy berikutnya; selalu fetch dulu sebelum analisis. Hash chunk dist tidak comparable antar-build (VITE_API_KEY di-inject + build-version timestamp); verifikasi source via marker string di bundle.

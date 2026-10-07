@@ -1,3 +1,17 @@
+# 2026-10-07 — Audit kesesuaian repo ↔ workspace ↔ production
+- Workspace kettinggalan 12 commit dari GitLab (`1e9bb59` → `faacbd6`, termasuk fitur ganti
+  password `2f5fb59` + 3 fix TDZ follow-up dari Abdul Latif) → di-pull (ff-only),
+  main = origin/main = `faacbd6`.
+- Verifikasi workspace: node_modules ↔ lockfile konsisten (package.json tak berubah di 12
+  commit), build vite PASS, **64/64 suite test:\* PASS**.
+- Production live build-version `1790766508154-7vr7i5` = deploy `2f5fb59` (2026-09-30):
+  marker fitur ganti password (`intent:` `` `password` `` + "Gagal mengganti password")
+  terverifikasi di bundle live `api-DMF6-v4b.js`; first-diff byte vs build lokal di 46.443 =
+  titik injeksi VITE_API_KEY. Bukan drift source code.
+- Fix doc: `.ai-toolkit/project.env` (komentar lama "source of truth tetap di Macbook" →
+  GitLab, sesuai alur deploy.sh yang pull/build dari GitLab).
+- Commit docs menunggu keputusan push (deploy.sh reset --hard = commit unpushed rawan hilang).
+
 # 2026-09-30 — Fitur ganti password mailbox LIVE
 - Keluhan: Preferences → Ganti Password → "Fitur ganti password tidak tersedia di server ini".
 - Root cause: nginx route `/SOGo/so/*/Preferences/changePassword` → sogo-proxy, tapi endpoint
@@ -55,6 +69,16 @@
 - Summary: Fix TDZ MailPage (Cannot access 'q' before initialization) + deploy.sh hardening: GITLAB_USER auto-detect, npm ci full, PUPPETEER_SKIP_DOWNLOAD, nvm Node 22. Deploy dari GitLab sukses — webmail live, error page gone.
 - Branch: main
 - Changed Files:
+-  M docs/ai/current-task.md
+-  M docs/ai/handoff.md
+-  M docs/ai/knowledge.md
+
+## 2026-10-07T06:35:52Z
+- Status: COMPLETED
+- Objective: No objective recorded.
+- Branch: main
+- Changed Files:
+-  M .ai-toolkit/project.env
 -  M docs/ai/current-task.md
 -  M docs/ai/handoff.md
 -  M docs/ai/knowledge.md
