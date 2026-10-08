@@ -13,6 +13,15 @@
  * - cancel() hanya bekerja untuk entry yang belum due (status pending).
  *
  * Modul PURE (file + crypto di-inject) agar bisa diuji tanpa server nyata.
+ *
+ * RIWAYAT BUG (round-59): versi lama membaca file ulang utk SETIAP operasi
+ * (load → mutasi → save). Dua operasi yang berjarak dekat saling menimpa
+ * (last-writer-wins) → entry antrean HILANG → email user tak pernah
+ * terkirim (kasus nyata: 8b4baf71). Race tmp+rename juga melempar ENOENT dan
+ * meracuni flush loop (retry atas email yang SUDAH terkirim = risiko ganda).
+ * Sekarang: MEMORI sumber kebenaran (proses tunggal), file hanya persistence;
+ * save terserialisasi via promise chain; kegagalan save TIDAK PERNAH dilempar
+ * ke pemanggil.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -56,8 +65,8 @@ export function decryptCredentials(secret, cred) {
   return JSON.parse(plain.toString('utf8'));
 }
 
-// ── Queue store (file-backed) ─────────────────────────────────────────────────
-export function createSendQueue({ filePath, readFile = null, writeFile = null }) {
+// ── Queue store (in-memory + file-backed) ─────────────────────────────────────
+export function createSendQueue({ filePath, readFile = null, writeFile = null, onSaveError = null }) {
   const readImpl = readFile || ((p) => {
     try { return fs.readFileSync(p, 'utf8'); } catch { return null; }
   });
@@ -68,8 +77,12 @@ export function createSendQueue({ filePath, readFile = null, writeFile = null })
     fs.writeFileSync(tmp, data, 'utf8');
     fs.renameSync(tmp, p);
   });
+  const warnSaveError = onSaveError || ((err) => {
+    try { console.error(`[sendQueue] persist gagal (antrean tetap jalan di memori): ${err?.message || err}`); } catch { /* noop */ }
+  });
 
-  function load() {
+  // Sumber kebenaran = memori. File dibaca SEKALI saat init (survive restart).
+  function loadFromDisk() {
     const raw = readImpl(filePath);
     if (!raw) return [];
     try {
@@ -78,42 +91,53 @@ export function createSendQueue({ filePath, readFile = null, writeFile = null })
     } catch { return []; }
   }
 
-  function save(entries) {
-    writeImpl(filePath, JSON.stringify(entries, null, 2));
+  let entries = loadFromDisk();
+  let saveChain = Promise.resolve();
+
+  function scheduleSave() {
+    // Snapshot di-serialize SEKARANG agar file selalu memuat state terbaru,
+    // sementara penulisan dijebol berurutan (tanpa race tmp/rename).
+    const snapshot = JSON.stringify(entries, null, 2);
+    saveChain = saveChain
+      .then(() => writeImpl(filePath, snapshot)) // promise async pun di tunggu
+      .catch((err) => warnSaveError(err));
+    return saveChain;
   }
 
   return {
-    list() { return load(); },
+    list() { return entries.map((e) => ({ ...e })); },
 
-    find(id) { return load().find((e) => e.id === id) || null; },
+    find(id) { return entries.find((e) => e.id === id) || null; },
 
     add(entry) {
-      const entries = load();
       entries.push(entry);
-      save(entries);
-      return entry;
+      return scheduleSave();
     },
 
     remove(id) {
-      save(load().filter((e) => e.id !== id));
+      entries = entries.filter((e) => e.id !== id);
+      return scheduleSave();
     },
 
     markFailed(id, error) {
-      save(load().map((e) => (e.id === id ? {
+      entries = entries.map((e) => (e.id === id ? {
         ...e,
         status: SEND_QUEUE_STATUS.FAILED,
         lastError: String(error).slice(0, 300),
-      } : e)));
+      } : e));
+      return scheduleSave();
     },
 
     touchAttempt(id, attempt) {
-      save(load().map((e) => (e.id === id ? { ...e, attempts: attempt } : e)));
+      entries = entries.map((e) => (e.id === id ? { ...e, attempts: attempt } : e));
+      return scheduleSave();
     },
 
     // Hapus entry failed yang sudah lama (>= staleMs) agar file tidak membengkak.
     pruneStale(staleMs) {
       const cutoff = Date.now() - staleMs;
-      save(load().filter((e) => !(e.status === SEND_QUEUE_STATUS.FAILED && e.createdAt < cutoff)));
+      entries = entries.filter((e) => !(e.status === SEND_QUEUE_STATUS.FAILED && e.createdAt < cutoff));
+      return scheduleSave();
     },
   };
 }

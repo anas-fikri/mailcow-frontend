@@ -18,7 +18,7 @@ import cors    from 'cors';
 import nodemailer from 'nodemailer';
 import mysql from 'mysql2/promise';
 import { execFileSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFileSync, mkdirSync } from 'fs';
 import crypto from 'crypto';
 import { execFile } from 'child_process';
 import { z } from 'zod';
@@ -30,6 +30,7 @@ import {
   createSendQueue, buildQueueEntry, dueEntries, pendingForUser, canCancel,
   encryptCredentials, decryptCredentials, maxScheduleMs, SEND_QUEUE_STATUS,
 } from './src/lib/sendQueue.js';
+import { buildSentRaw, appendSentCopy, makeMessageId } from './src/lib/sentCopy.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -108,6 +109,23 @@ const SEND_FLUSH_MS    = parseInt(process.env.SMTP_SEND_FLUSH_MS || '5000', 10) 
 const __dirname = new URL('.', import.meta.url).pathname;
 const sendQueue = createSendQueue({ filePath: SEND_QUEUE_FILE || `${__dirname}data/pending-sends.json` });
 
+// Pastikan direktori data queue selalu ada (mkdir -p) — persist antrean jangan
+// pernah gagal hanya karena folder hilang.
+try { mkdirSync(`${__dirname}data`, { recursive: true }); } catch { /* noop */ }
+
+// ── Sent copy (IMAP APPEND) ─────────────────────────────────────────────────
+// Salinan email terkirim ke folder Sent. Sebelumnya TIDAK ADA di jalur SMTP
+// proxy — akar keluhan "email terkirim masuk Trash, bukan Sent" (draft sisa
+// berakhir di Trash, Sent kosong). Config: IMAP_HOST/IMAP_PORT/IMAP_SECURE,
+// daftar kandidat folder via IMAP_SENT_MAILBOXES (koma), SENT_COPY_DISABLED
+// =true untuk mematikan (darurat). Kegagalan copy TIDAK menggagalkan kirim.
+const IMAP_HOST    = process.env.IMAP_HOST || SMTP_HOST || 'localhost';
+const IMAP_PORT    = parseInt(process.env.IMAP_PORT || '993', 10) || 993;
+const IMAP_SECURE  = process.env.IMAP_SECURE !== 'false';
+const IMAP_SENT_MAILBOXES = (process.env.IMAP_SENT_MAILBOXES || 'Sent,INBOX/Sent,Sent Messages')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+const SENT_COPY_DISABLED = process.env.SENT_COPY_DISABLED === 'true';
+
 // Bersihkan entry failed lama (>= 24 jam) sekali per jam agar file tidak membengkak.
 setInterval(() => sendQueue.pruneStale(24 * 60 * 60 * 1000), 60 * 60 * 1000);
 
@@ -144,6 +162,40 @@ function buildMailOptions(sessionUser, payload) {
   };
 }
 
+// ── Kirim + simpan salinan Sent ──────────────────────────────────────────────
+// Message-ID & Date dibuat eksplisit SEKALI di sini agar pesan yang sampai ke
+// penerima dan salinan di Sent IDENTIK (threading/reply tetap benar).
+// Sent-copy fire-and-forget: gagal TIDAK menggagalkan kirim (log saja).
+async function persistSentCopy(user, pass, mailOptions) {
+  try {
+    // buildSentRaw menyusun RFC822 identik dgn pesan terkirim + header Bcc
+    // utk salinan Sent (pesan terkirim sendiri bcc-nya hanya di envelope).
+    const raw = await buildSentRaw(mailOptions);
+    const res = await appendSentCopy({
+      user, pass, raw,
+      host: IMAP_HOST, port: IMAP_PORT, secure: IMAP_SECURE,
+      mailboxes: IMAP_SENT_MAILBOXES,
+    });
+    if (res.ok) console.log(`[sent-copy] OK ${user} → ${res.mailbox} (uid ${res.uid})`);
+    else console.error(`[sent-copy] GAGAL ${user}: ${res.error}`);
+  } catch (err) {
+    console.error(`[sent-copy] GAGAL ${user}: ${err?.message || err}`);
+  }
+}
+
+function sendWithSentCopy(transporter, user, pass, payload) {
+  const mailOptions = buildMailOptions(user, payload);
+  mailOptions.messageId = makeMessageId(user);
+  mailOptions.date = new Date();
+  const sendPromise = transporter.sendMail(mailOptions);
+  if (!SENT_COPY_DISABLED) {
+    void sendPromise
+      .then(() => persistSentCopy(user, pass, mailOptions))
+      .catch(() => { /* persistSentCopy sendiri tak melempar; guard ekstra */ });
+  }
+  return sendPromise;
+}
+
 // Flush queue: kirim entry yang sudah due. Retry maks 3x lalu tandai failed.
 async function flushDueSends() {
   const entries = dueEntries(sendQueue.list());
@@ -151,7 +203,7 @@ async function flushDueSends() {
     try {
       const cred = decryptCredentials(QUEUE_SECRET, entry.cred);
       const transporter = createSmtpTransporter(cred.user, cred.pass);
-      const info = await transporter.sendMail(buildMailOptions(cred.user, entry.payload));
+      const info = await sendWithSentCopy(transporter, cred.user, cred.pass, entry.payload);
       console.log(`[send] flushed ${entry.id}: ${info.messageId}`);
       sendQueue.remove(entry.id);
     } catch (err) {
@@ -720,12 +772,10 @@ app.post('/api/send', resolveSmtpSession, requireSmtpSession, rateLimit({ max: 1
 
   try {
     const transporter = createSmtpTransporter(session.user, session.pass);
-    const mailOptions = buildMailOptions(session.user, {
+    const info = await sendWithSentCopy(transporter, session.user, session.pass, {
       to, cc, bcc, subject, body, isHTML, from,
       attachments: att.sanitized,
     });
-
-    const info = await transporter.sendMail(mailOptions);
     console.log(`[send] OK: ${info.messageId}`);
     return res.json({ ok: true, messageId: info.messageId });
 
