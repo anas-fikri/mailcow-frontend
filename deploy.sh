@@ -29,7 +29,12 @@ if [ -z "$GITLAB_USER" ]; then
     GITLAB_USER="$(security find-internet-password -s "${GITLAB_HOST:-gitlab.pcpexpress.com}" 2>/dev/null | grep '"acct"' | sed 's/.*"acct"<blob>="\([^"]*\)".*/\1/')"
 fi
 if [ -z "$GITLAB_USER" ]; then
-    warn "GITLAB_USER tidak terdeteksi dari Keychain. Fallback ke 'git'."
+    # Fallback non-macOS: helper git lokal (credential store) memuat username
+    # yang cocok dengan token — token GitLab terikat ke user, bukan 'git'.
+    GITLAB_USER="$(printf 'protocol=https\nhost=%s\n' "${GITLAB_HOST:-gitlab.pcpexpress.com}" | git credential fill 2>/dev/null | awk -F= '/^username=/{print $2; exit}')"
+fi
+if [ -z "$GITLAB_USER" ]; then
+    echo "[WARN]  GITLAB_USER tidak terdeteksi dari Keychain. Fallback ke 'git'."
     GITLAB_USER="git"
 fi
 REMOTE_REPO_DIR="${REMOTE_REPO_DIR:-/home/anas.fikri/mailcow-frontend}"
@@ -87,7 +92,11 @@ ensure_ssh() {
 # ── Git credential dari Keychain (untuk commit/push lokal) ────────────────
 get_gitlab_token() {
     local gitlab_host="${GITLAB_HOST:-gitlab.pcpexpress.com}"
-    security find-internet-password -s "$gitlab_host" -w 2>/dev/null
+    # macOS Keychain dulu (workspace utama), lalu fallback helper git lokal
+    # (credential store / cache) agar deploy.sh juga jalan di workspace Linux.
+    security find-internet-password -s "$gitlab_host" -w 2>/dev/null && return
+    printf 'protocol=https\nhost=%s\n' "$gitlab_host" | git credential fill 2>/dev/null \
+        | awk -F= '/^password=/{print $2; exit}'
 }
 
 # ── Commit + push lokal (opsional) ─────────────────────────────────────────

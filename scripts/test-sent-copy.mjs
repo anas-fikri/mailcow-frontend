@@ -70,8 +70,9 @@ function fakeImap({ mailboxes = [], failConnect = false, failAppend = false } = 
     constructor(opts) { calls.ctor.push(opts); }
     async connect() { calls.connect++; if (failConnect) throw new Error('koneksi ditolak'); }
     async list() { calls.list++; return mailboxes; }
-    async append(mailbox, raw, opts) {
-      calls.append.push({ mailbox, bytes: raw.length, flags: opts?.flags });
+    async append(mailbox, raw, flags) {
+      // imapflow v2: append(path, content, flags, idate) — flags argumen ke-3.
+      calls.append.push({ mailbox, bytes: raw.length, flags });
       if (failAppend) throw new Error('APPEND gagal');
       return { uid: 42 };
     }

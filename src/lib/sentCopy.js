@@ -90,7 +90,10 @@ export async function appendSentCopy(opts, deps = {}) {
 
   let client = null;
   try {
-    const ImapFlow = deps.ImapFlow || (await import('imapflow')).default;
+    const mod = await import('imapflow');
+    // CJS interop: class ada di named export; .default hanya fallback bila
+    // versi masa depan mengekspor default class.
+    const ImapFlow = deps.ImapFlow || mod.ImapFlow || mod.default?.ImapFlow;
     client = new ImapFlow({
       host,
       port,
@@ -113,11 +116,18 @@ export async function appendSentCopy(opts, deps = {}) {
       return { ok: false, error: `Folder Sent tidak ditemukan (${candidates.join(', ')})` };
     }
 
-    const res = await client.append(target, raw, { flags: ['\\Seen'] });
+    // imapflow v2: append(path, content, flags, idate) — flags ARGUMEN KE-3
+    // (array string), BUKAN objek options. Objek di-serialize jadi token
+    // sampah → Dovecot BAD "Flags list contains non-atoms".
+    const res = await client.append(target, raw, ['\\Seen']);
     if (!res) return { ok: false, error: `APPEND ke ${target} tidak dikonfirmasi.` };
     return { ok: true, mailbox: target, uid: res.uid };
   } catch (err) {
-    return { ok: false, error: String(err?.message || err) };
+    // ImapFlow error membawa detail IMAP (responseStatus/responseText/code/source)
+    // — sertakan semua supaya kegagalan APPEND/LOGIN terdiagnosis dari log.
+    const detail = [err?.responseStatus, err?.responseText, err?.code, err?.source]
+      .filter(Boolean).join(' | ');
+    return { ok: false, error: detail || String(err?.message || err) };
   } finally {
     if (client) {
       try { await client.logout(); } catch { /* koneksi mungkin sudah mati */ }
