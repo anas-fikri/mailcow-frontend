@@ -1,5 +1,27 @@
 # Active Task
 
+## 2026-10-08 — Fix "email terkirim masuk Trash, Sent kosong" (round-59: sent-copy)
+
+Status: COMPLETED
+- **Akar masalah (kasus bayu.gunawan@pcpexpress.com):** tidak ada satu pun jalur kirim
+  webmail yang membuat salinan Sent (SMTP proxy tidak APPEND; fallback SOGo 501 juga
+  tidak), sisa draft (`\Draft`) yang di-move user ke Trash terbaca sbg "email terkirim",
+  plus 1 entry queue (`8b4baf71`) tidak pernah flush — persist melempar error (path
+  `${__dirname}data/` tanpa `/`) yang meracuni loop flush.
+- **Fix:** `src/lib/sentCopy.js` (buildSentRaw + appendSentCopy, DI penuh) di-wire ke
+  kedua jalur kirim di server.js (best-effort, tidak menggagalkan pengiriman);
+  sendQueue in-memory + save terserialisasi + persist tak melempar; dep `imapflow`.
+- **Perbaikan lanjutan hasil E2E live:** imapflow class = named export; `append(path,
+  content, flags, idate)` flags positional (bukan objek); deploy.sh kini jalan dari
+  workspace Linux (token fallback `git credential fill` + GITLAB_USER autodetect).
+- **Validasi:** suite 65/65 PASS, build OK, deploy sukses (health 200, image-proxy 403),
+  E2E `sentcopy` PASS end-to-end: login → /api/send terjadwal → flush → salinan
+  terverifikasi di folder Sent via doveadm.
+- Commits: `aa173f0` (fitur + fix queue), `86c1947` (fix imapflow/deploy) — keduanya
+  ter-push ke GitLab; production berjalan dgn sent-copy aktif.
+
+## Sesi sebelumnya
+
 ## 2026-10-07 — Audit kesesuaian repo ↔ workspace ↔ development (source terbaru)
 
 Status: COMPLETED
@@ -9,8 +31,6 @@ Status: COMPLETED
   terverifikasi di bundle live; beda hash chunk = injeksi VITE_API_KEY, bukan drift source.
 - Fix `.ai-toolkit/project.env`: source of truth kini GitLab (komentar lama "Macbook" usang).
 - Commit docs lokal menunggu keputusan push (deploy.sh `reset --hard` = unpushed rawan hilang).
-
-## Sesi sebelumnya
 
 ## Goal
 Fix `Cannot access 'q' before initialization` di production webmail.

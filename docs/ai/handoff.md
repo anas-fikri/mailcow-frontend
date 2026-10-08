@@ -1,3 +1,18 @@
+# 2026-10-08 — Sent-copy: email terkirim kini punya salinan di Sent (LIVE)
+- **Laporan user:** beberapa user (contoh bayu.gunawan@pcpexpress.com) melihat email
+  "terkirim" masuk Trash, Sent kosong. Diagnosa (doveadm/postfix/proxy log/DB SOGo):
+  isi Trash = draft `\Draft` hasil autosave yang di-move user; 1 dari 4 queue entry
+  tidak pernah flush (persist error meracuni loop); TIDAK ADA jalur kirim yang membuat
+  salinan Sent.
+- **Fix LIVE:** sent-copy server-side (`src/lib/sentCopy.js` + wiring server.js dua
+  jalur kirim), sendQueue in-memory + persist aman, dep `imapflow` (juga di-install di
+  `/home/anas.fikri/sogo-proxy` dgn PUPPETEER_SKIP_DOWNLOAD=true).
+- **Validasi:** suite 65/65 PASS, build OK, deploy sukses, E2E `sentcopy` PASS
+  (login → /api/send terjadwal → flush → salinan terverifikasi via doveadm).
+- **Commits:** `aa173f0`, `86c1947` — ter-push; production updated.
+- **Catatan deploy:** deploy.sh kini jalan dari workspace Linux ini (token fallback
+  `git credential fill`, GITLAB_USER autodetect, guard `warn`).
+
 # 2026-10-07 — Audit kesesuaian repo ↔ workspace ↔ production
 - Workspace kettinggalan 12 commit dari GitLab (`1e9bb59` → `faacbd6`, termasuk fitur ganti
   password `2f5fb59` + 3 fix TDZ follow-up dari Abdul Latif) → di-pull (ff-only),

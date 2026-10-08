@@ -1,5 +1,27 @@
 # Durable project knowledge
 
+## Sent-copy + imapflow + sendQueue (2026-10-08)
+- TIDAK ADA jalur kirim webmail yang otomatis membuat salinan Sent — jalur SMTP proxy
+  (/api/send) dan fallback SOGo 501 sama-sama tidak APPEND. Draft sisa (`\Draft`) yang
+  user move ke Trash inilah yang terbaca "email terkirim masuk Trash". Fix: server
+  APPEND salinan (Message-ID & Date identik dgn pesan terkirim) via `src/lib/sentCopy.js`.
+- imapflow v2.2.7: class di **named export** (`import { ImapFlow } from 'imapflow'`);
+  `.default` = objek modul → `ImapFlow is not a constructor` jika salah.
+- imapflow `append(path, content, flags, idate)` — flags argumen ke-3 (array string),
+  BUKAN objek `{ flags: [...] }`. Bentuk objek → Dovecot BAD "Flags list contains non-atoms".
+- MailComposer (nodemailer 9) SELALU strip header Bcc (`keepBcc` tidak diteruskan).
+  Salinan Sent yang memuat Bcc (standar Gmail/SOGo) butuh injeksi header manual.
+- sendQueue lama: read-modify-write per operasi (lost-update race) + persist error
+  (rename ENOENT dari path `${__dirname}data/`) melempar ke loop flush → entry diam.
+  Fix: state in-memory + save terserialisasi + persist tak pernah melempar.
+- deploy.sh kini jalan dari workspace Linux (tanpa macOS Keychain): token fallback via
+  `git credential fill`, GITLAB_USER autodetect dari credential store — token terikat
+  user, fallback 'git' → 401 "HTTP Basic: Access denied".
+- Backend sogo-proxy di server butuh `PUPPETEER_SKIP_DOWNLOAD=true` saat npm install
+  (postinstall puppeteer gagal tanpa Chrome cache lengkap).
+- Akun E2E diag2 di-enable via: mailbox.active=1 + reset hash BLF-CRYPT + row
+  `_sogo_static_view` + flush memcached — tanpa row static view, login 403 diam-diam.
+
 ## Workspace = clone deploy deploy.sh; bisa tertinggal dari GitLab (2026-10-07)
 - `deploy.sh` REMOTE_REPO_DIR default = `/home/anas.fikri/mailcow-frontend` = workspace ini.
   Deploy pull+build dari sini, lalu `git reset --hard origin/main` — workspace yang tertinggal
