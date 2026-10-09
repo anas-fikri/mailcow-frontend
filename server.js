@@ -256,6 +256,47 @@ setInterval(() => {
   }
 }, 60000);
 
+// ── Idempotency guard untuk mencegah kirim ganda (double-click/retry) ──────────
+// Cache berdasar hash payload per user dengan TTL singkat (2 detik).
+// Cegah kasus duplikasi yang bisa terjadi akibat klien kirim 2x cepat.
+const sendIdemCache = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of sendIdemCache) {
+    if (now - entry.ts > 2000) sendIdemCache.delete(key);
+  }
+}, 500);
+
+function sendIdemKey(user, payload, att) {
+  const h = crypto.createHash('sha256');
+  h.update(String(user || '').toLowerCase());
+  h.update('|');
+  h.update(String(payload.to || ''));
+  h.update('|');
+  h.update(String(payload.cc || ''));
+  h.update('|');
+  h.update(String(payload.bcc || ''));
+  h.update('|');
+  h.update(String(payload.subject || ''));
+  h.update('|');
+  h.update(String(payload.body || ''));
+  h.update('|');
+  h.update(String(payload.isHTML ? '1' : '0'));
+  h.update('|');
+  h.update(String(payload.from || ''));
+  if (att && att.sanitized && att.sanitized.length > 0) {
+    for (const a of att.sanitized) {
+      h.update('|');
+      h.update(String(a.filename || ''));
+      h.update('|');
+      h.update(String(a.contentType || ''));
+      h.update('|');
+      h.update(String(a.data?.length || 0));
+    }
+  }
+  return h.digest('hex');
+}
+
 function rateLimit({ max = 10, windowMs = 60000, keyFn }) {
   return (req, res, next) => {
     // Scope bucket per route, bukan hanya per IP. Tanpa ini semua endpoint
@@ -731,6 +772,17 @@ app.post('/api/send', resolveSmtpSession, requireSmtpSession, rateLimit({ max: 1
   if (from && recipientAddress(from) !== session.user.toLowerCase()) {
     return res.status(403).json({ message: 'Alamat pengirim harus sesuai dengan akun yang login.' });
   }
+
+  // Idempotency guard: cegah kirim ganda akibat double-click/retry
+  const idemKey = sendIdemKey(session.user, parsed.data, att);
+  if (sendIdemCache.has(idemKey)) {
+    const prev = sendIdemCache.get(idemKey);
+    if (Date.now() - prev.ts < 2000) {
+      console.log('[send] idem-guard: duplicate send blocked for', session.user);
+      return res.status(409).json({ message: 'Permintaan kirim sedang diproses atau duplikat. Tunggu sebentar.' });
+    }
+  }
+  sendIdemCache.set(idemKey, { ts: Date.now() });
 
   // ── Kirim Terjadwal / Undo Send: tahan di queue sampai due ────────────────
   // sendAt eksplisit (jadwal) ATAU window undo default (semua kirim ditahan
