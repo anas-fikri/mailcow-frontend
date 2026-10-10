@@ -6,7 +6,7 @@ import { useAuthStore } from './store/authStore'
 import { onSessionExpired, resetSessionExpiredFlag, revokeSmtpSession } from './lib/api'
 import { startDeployPolling } from './lib/deployCheck'
 import ToastContainer from './components/Toast'
-import { toast } from './lib/toast'
+import { toast, useToastStore } from './lib/toast'
 import ErrorBoundary from './components/ErrorBoundary'
 
 // ─── Code Splitting: lazy load pages ─────────────────────────────────────────
@@ -123,7 +123,31 @@ function DeployWatcher() {
     // fetchServerBuildVersion('') mem-fetch /index.html yang 404 → poller
     // no-op diam-diam (auto-reload-on-deploy tidak pernah jalan, kasus nyata
     // tab basi pasca-deploy 2026-09-05).
-    return startDeployPolling({ intervalMs: 60_000, baseUrl: '/webmail' });
+    //
+    // Versi baru TIDAK lagi me-reload paksa (dulu: tab reload saat user sedang
+    // membaca/menulis email). Sekarang: toast "versi baru" dengan tombol
+    // Muat ulang; reload otomatis hanya saat tab disembunyikan (user tidak
+    // sedang melihat) — pola Gmail/Outlook web.
+    let notified = false;
+    let reloadWhenHidden = null;
+    const onNewVersion = () => {
+      if (notified) return;
+      notified = true;
+      if (document.hidden) { window.location.reload(); return; }
+      const id = toast.info('Versi baru webmail tersedia.', 3_600_000);
+      try {
+        useToastStore.getState().updateToast(id, {
+          action: { label: 'Muat ulang', onClick: () => window.location.reload() },
+        });
+      } catch { /* tanpa action — toast info saja */ }
+      reloadWhenHidden = () => { if (document.hidden) window.location.reload(); };
+      document.addEventListener('visibilitychange', reloadWhenHidden);
+    };
+    const stop = startDeployPolling({ intervalMs: 60_000, baseUrl: '/webmail', onNewVersion });
+    return () => {
+      stop();
+      if (reloadWhenHidden) document.removeEventListener('visibilitychange', reloadWhenHidden);
+    };
   }, []);
   return null;
 }

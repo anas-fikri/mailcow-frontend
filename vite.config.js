@@ -30,16 +30,22 @@ const useSesShimPlugin = {
 // SPA lama di tab terbuka tidak tahu ada deploy baru (chunk lama tetap jalan
 // tanpa error). Meta build-version + poll ringan (deployCheck.js) membuat tab
 // reload sendiri sekali setelah deploy baru terdeteksi.
-const buildVersionPlugin = () => ({
-  name: 'build-version-stamp',
-  transformIndexHtml(html) {
-    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    return html.replace(
-      '<head>',
-      `<head>\n    <meta name="build-version" content="${stamp}" />`,
-    );
-  },
-})
+const buildVersionPlugin = () => {
+  // Stamp dihitung SEKALI per proses vite — bukan per request. Di dev,
+  // transformIndexHtml jalan setiap request; stamp per-request membuat
+  // deployCheck selalu melihat "versi beda" → tab reload tiap ~60 dtk dan
+  // email yang sedang dibaca hilang (bug ditemukan saat review 2026-10-11).
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    name: 'build-version-stamp',
+    transformIndexHtml(html) {
+      return html.replace(
+        '<head>',
+        `<head>\n    <meta name="build-version" content="${stamp}" />`,
+      );
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [

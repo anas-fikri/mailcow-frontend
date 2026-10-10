@@ -101,7 +101,7 @@ export async function checkAndReloadOnNewDeploy({ baseUrl = '', embedded, reload
  * @param {Window}   [opts.windowRef]  injeksi utk test (default window global)
  * @returns {() => void} fungsi cleanup (clearInterval + lepas listener).
  */
-export function startDeployPolling({ intervalMs = 60_000, baseUrl = '', documentRef = typeof document !== 'undefined' ? document : undefined, windowRef } = {}) {
+export function startDeployPolling({ intervalMs = 60_000, baseUrl = '', onNewVersion, documentRef = typeof document !== 'undefined' ? document : undefined, windowRef } = {}) {
   if (typeof window === 'undefined' || !documentRef) return () => {};
   const win = windowRef ?? window;
   const THROTTLE_MS = 30_000;
@@ -114,7 +114,10 @@ export function startDeployPolling({ intervalMs = 60_000, baseUrl = '', document
     const now = Date.now();
     if (now - lastCheckAt < THROTTLE_MS) return;
     lastCheckAt = now;
-    checkAndReloadOnNewDeploy({ baseUrl }).catch(() => {});
+    // onNewVersion (opsional): pengganti reload paksa — App menampilkan toast
+    // "versi baru" dan memutuskan kapan reload (jangan rampas email yang
+    // sedang dibaca user; pola Gmail/Outlook web).
+    checkAndReloadOnNewDeploy({ baseUrl, ...(onNewVersion ? { reload: onNewVersion } : {}) }).catch(() => {});
   };
   // visibilitychange: tab lama yang di-background sepanjang hari dicek SEGERA
   // saat user kembali — bukan menunggu tick interval berikutnya.
