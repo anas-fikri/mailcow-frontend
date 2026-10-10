@@ -16,7 +16,34 @@ export const DEFAULT_PREFS = {
   themeColor: 'blue',
   sortAsc: false,
   conversationView: false,
+  // ── Tata letak ala Outlook desktop ──
+  readingPane: 'right',        // 'right' | 'bottom' | 'off'
+  density: 'normal',           // 'normal' | 'compact'
+  markReadMode: 'instant',     // 'instant' | 'delay' | 'manual'
+  markReadDelaySec: 3,         // dipakai saat markReadMode === 'delay'
+  paneWidths: { folders: 220, list: 340, listHeight: 320 },
+  collapsedFolders: [],        // id folder yang di-collapse di pohon folder
+  favoriteFolders: [],         // id folder di seksi "Favorit"
 };
+
+const READING_PANE = ['right', 'bottom', 'off'];
+const DENSITY = ['normal', 'compact'];
+const MARK_READ = ['instant', 'delay', 'manual'];
+const oneOf = (list, v, dflt) => (list.includes(v) ? v : dflt);
+const strList = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x).slice(0, 500) : []);
+const clampInt = (v, min, max, dflt) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : dflt;
+};
+function normalizePaneWidths(v) {
+  const d = DEFAULT_PREFS.paneWidths;
+  const o = v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  return {
+    folders: clampInt(o.folders, 160, 320, d.folders),
+    list: clampInt(o.list, 240, 560, d.list),
+    listHeight: clampInt(o.listHeight, 160, 800, d.listHeight),
+  };
+}
 
 const normalizeEmail = (email) => typeof email === 'string' ? email.trim().toLowerCase() : '';
 const BASE_KEY = 'pcp_prefs';
@@ -34,6 +61,13 @@ export function loadPrefs(email) {
     themeColor: typeof parsed.themeColor === 'string' && parsed.themeColor ? parsed.themeColor : DEFAULT_PREFS.themeColor,
     sortAsc: !!parsed.sortAsc,
     conversationView: !!parsed.conversationView,
+    readingPane: oneOf(READING_PANE, parsed.readingPane, DEFAULT_PREFS.readingPane),
+    density: oneOf(DENSITY, parsed.density, DEFAULT_PREFS.density),
+    markReadMode: oneOf(MARK_READ, parsed.markReadMode, DEFAULT_PREFS.markReadMode),
+    markReadDelaySec: clampInt(parsed.markReadDelaySec, 0, 60, DEFAULT_PREFS.markReadDelaySec),
+    paneWidths: normalizePaneWidths(parsed.paneWidths),
+    collapsedFolders: strList(parsed.collapsedFolders),
+    favoriteFolders: strList(parsed.favoriteFolders),
   };
   // Migrasi SEKALI-JALAN: bila bentuk tersimpan beda dari bentuk
   // ternormalisasi (field hilang / key ekstra / nilai tidak valid),

@@ -9,8 +9,11 @@ export const useAuthStore = create(
       // Dengan ini tema/warna/urutan sortir/tampilan percakapan tersimpan
       // bersama profil akun dan tidak hilang saat logout atau ganti akun.
       const persistPrefs = () => {
-        const { user, theme, themeColor, sortAsc, conversationView } = get();
-        if (user?.email) savePrefs(user.email, { theme, themeColor, sortAsc, conversationView });
+        const st = get();
+        if (!st.user?.email) return;
+        const prefs = {};
+        for (const k of Object.keys(DEFAULT_PREFS)) prefs[k] = st[k];
+        savePrefs(st.user.email, prefs);
       };
 
       return {
@@ -20,6 +23,14 @@ export const useAuthStore = create(
         themeColor: 'blue', // preferensi per-akun — primary accent hue
         sortAsc: false,    // preferensi per-akun — urutan sortir kotak masuk
         conversationView: false, // preferensi per-akun — tampilan percakapan
+        // Tata letak ala Outlook (lihat DEFAULT_PREFS di userPrefs.js)
+        readingPane: DEFAULT_PREFS.readingPane,
+        density: DEFAULT_PREFS.density,
+        markReadMode: DEFAULT_PREFS.markReadMode,
+        markReadDelaySec: DEFAULT_PREFS.markReadDelaySec,
+        paneWidths: DEFAULT_PREFS.paneWidths,
+        collapsedFolders: DEFAULT_PREFS.collapsedFolders,
+        favoriteFolders: DEFAULT_PREFS.favoriteFolders,
 
         // Sesi SMTP (UUID dari /api/auth/smtp) kini disimpan sebagai cookie
         // httpOnly oleh server — BUKAN di state JS / localStorage. XSS tidak
@@ -47,6 +58,14 @@ export const useAuthStore = create(
         setThemeColor: (themeColor) => { set({ themeColor }); persistPrefs(); },
         setSortAsc: (sortAsc) => { set({ sortAsc }); persistPrefs(); },
         setConversationView: (conversationView) => { set({ conversationView }); persistPrefs(); },
+        // Setter generik utk preferensi tata letak: setPref('readingPane','bottom'),
+        // setPref('paneWidths', { ...get().paneWidths, list: 400 }), dst.
+        // Hanya key yang ada di DEFAULT_PREFS yang diterima.
+        setPref: (key, value) => {
+          if (!(key in DEFAULT_PREFS)) return;
+          set({ [key]: value });
+          persistPrefs();
+        },
       };
     },
     {
@@ -60,6 +79,13 @@ export const useAuthStore = create(
         themeColor: state.themeColor,
         sortAsc: state.sortAsc,
         conversationView: state.conversationView,
+        readingPane: state.readingPane,
+        density: state.density,
+        markReadMode: state.markReadMode,
+        markReadDelaySec: state.markReadDelaySec,
+        paneWidths: state.paneWidths,
+        collapsedFolders: state.collapsedFolders,
+        favoriteFolders: state.favoriteFolders,
       }),
     }
   )
