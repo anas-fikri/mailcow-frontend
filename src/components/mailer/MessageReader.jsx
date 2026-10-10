@@ -1,12 +1,12 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Loader2, Trash2, Mail, ArrowLeft, Reply, Forward, FileText, Download, FileDown, Paperclip,
-  Flag, Printer, FolderOpen, Star, AlertTriangle, UserPlus, ExternalLink, Eye, X, ShieldCheck,
-  Table2, ChevronLeft, ChevronRight, TriangleAlert, Folder,
+  Loader2, Trash2, Mail, MailOpen, ArrowLeft, Reply, ReplyAll, Forward, FileText, Download, FileDown, Paperclip,
+  Printer, FolderOpen, Star, AlertTriangle, UserPlus, ExternalLink, Eye, X, ShieldCheck,
+  Table2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, TriangleAlert, Folder, Code2, ZoomIn, ZoomOut, Copy,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
-import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, markMessagesAsNotJunk, createContact, fetchAttachmentData } from '../../lib/api';
+import { fetchMessage, markRead, markFlagged, deleteMessages, moveMessages, markMessagesAsJunk, markMessagesAsNotJunk, createContact, fetchAttachmentData, fetchMessageHeadersRaw } from '../../lib/api';
 import { unsnoozeMessages } from '../../lib/snooze';
 import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
@@ -22,6 +22,9 @@ import { convertDocxToHtml } from '../../lib/docPreview';
 import { parsePptx, listZip } from '../../lib/packPreview';
 import { buildEml, htmlToText, collectInlineCids } from '../../lib/emlUtils';
 import { analyzePhishing, RISK_LEVELS } from '../../lib/phishingDetection';
+import { buildReplyDataAsync, escapeHtml, formatLongDateId, normalizeAddressList } from '../../lib/replyBuilder';
+import { splitQuotedHtml } from '../../lib/quoteCollapse';
+import { getInitials } from '../../lib/initials';
 
 const SOGO_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_SOGO_BASE_URL || '');
 
@@ -123,12 +126,69 @@ async function downloadFileBlob(url, filename) {
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
+// ─── Zoom body (Ctrl/Cmd + / − / 0, tombol A−/A+) ────────────────────────────
+// Skala disimpan di localStorage (bukan per-akun: ini preferensi perangkat/
+// layar, bukan preferensi akun) dan diterapkan via CSS `zoom` supaya email
+// dengan font-size px eksplisit ikut membesar (persentase font-size tidak).
+const ZOOM_KEY = 'pcp_reader_zoom';
+const ZOOM_MIN = 0.7;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 0.1;
+function clampZoom(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 1;
+  return Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, n)) * 10) / 10;
+}
+function readZoom() {
+  try { return clampZoom(localStorage.getItem(ZOOM_KEY) ?? 1); } catch { return 1; }
+}
+function writeZoom(v) {
+  try { localStorage.setItem(ZOOM_KEY, String(v)); } catch { /* quota/privasi — abaikan */ }
+}
+
+// Tombol ikon toolbar: 44px target sentuh di layar kecil, 36px kompak di desktop.
+const TB_BTN = 'min-w-11 min-h-11 md:min-w-9 md:min-h-9 flex items-center justify-center rounded-lg';
+
+// Warna avatar pengirim deterministik dari alamat (pola Outlook/Gmail).
+const AVATAR_COLORS = [
+  'bg-sky-600', 'bg-emerald-600', 'bg-violet-600', 'bg-rose-600',
+  'bg-amber-600', 'bg-teal-600', 'bg-indigo-600', 'bg-fuchsia-600',
+];
+function avatarColor(seed) {
+  const s = String(seed || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, onSnoozeCleared, shortcutsEnabled = true, siblingUids = [], onNavigateTo }) {
-  const { user } = useAuthStore();
+/**
+ * Props:
+ * - onMoveComplete({ next }) — dipanggil setelah pindah/spam/bukan-spam; `next`
+ *   = uid yang di-auto-advance (hasil navigateAfter) atau null bila reader
+ *   ditutup.
+ * - onReadStateChange(uid, isRead) — dipanggil setiap reader mengubah status
+ *   dibaca (auto-mark / toggle manual) agar daftar bisa update cache-nya
+ *   secara optimistis tanpa refetch seluruh daftar.
+ */
+export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, onSnoozeCleared, onReadStateChange, shortcutsEnabled = true, siblingUids = [], onNavigateTo }) {
+  const { user, markReadMode, markReadDelaySec } = useAuthStore();
   const queryClient = useQueryClient();
+  const token = user?.sogoToken;
   const [moveOpen, setMoveOpen] = React.useState(false);
+  // Header: detail penerima lengkap (Kepada/Cc/Balas ke) & modal header mentah.
+  const [showDetails, setShowDetails] = React.useState(false);
+  const [headersModal, setHeadersModal] = React.useState(null); // { loading, raw?, error? } | null
+  // Konfirmasi hapus permanen (folder Sampah).
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  // Kutipan balasan terlipat ("Tampilkan kutipan").
+  const [quoteOpen, setQuoteOpen] = React.useState(false);
+  // Zoom body.
+  const [zoom, setZoomState] = React.useState(readZoom);
+  // Balas/Teruskan sedang disiapkan (forward mengunduh lampiran asli).
+  const [composeBusy, setComposeBusy] = React.useState(null); // 'reply'|'replyAll'|'forward'|null
+  const [composeProgress, setComposeProgress] = React.useState('');
   // Preview lampiran (gambar/PDF) — lightbox full-screen.
   const [lightbox, setLightbox] = React.useState(null); // { name, url, kind } | null
   // Pratinjau dokumen Word (.docx) in-app: { name, url, loading, html?, error? }.
@@ -151,32 +211,112 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const [downloadingIdx, setDownloadingIdx] = React.useState(null);
   const [downloadProgress, setDownloadProgress] = React.useState('');
 
-  const { data: msg, isLoading } = useQuery({
-    queryKey: ['message', user?.sogoToken, folder, msgId],
-    queryFn: async () => {
-      const data = await fetchMessage(user?.sogoToken, folder, msgId);
-      markRead(user?.sogoToken, folder, msgId, true).then(() => {
-        queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, folder] });
-        queryClient.invalidateQueries({ queryKey: ['unseen', user?.sogoToken] });
-      }).catch(() => {});
-      return data;
+  const messageKey = ['message', token, folder, msgId];
+  const { data: msg, isLoading, error: loadError, refetch } = useQuery({
+    queryKey: messageKey,
+    // Tandai-dibaca TIDAK di sini: queryFn jalan di setiap refetch (fokus
+    // window, invalidasi) → markRead berulang + refetch seluruh daftar.
+    // Perilaku ala Outlook (instant/delay/manual) ada di effect di bawah.
+    queryFn: () => fetchMessage(token, folder, msgId),
+    enabled: !!msgId && !!token,
+  });
+
+  // Reset state per-pesan saat berpindah pesan.
+  React.useEffect(() => {
+    setQuoteOpen(false);
+    setShowDetails(false);
+    setHeadersModal(null);
+    setConfirmDelete(false);
+    setMoveOpen(false);
+  }, [msgId, folder]);
+
+  // ── Patch cache secara optimistis (tanpa refetch daftar) ───────────────────
+  // Daftar pesan: ['messages', token, folder, …] → { messages:[{uid,isRead,isFlagged}] }
+  function patchListCache(patch) {
+    queryClient.setQueriesData({ queryKey: ['messages', token, folder] }, (old) => {
+      if (!old || !Array.isArray(old.messages)) return old;
+      let touched = false;
+      const messages = old.messages.map((m) => {
+        if (m?.uid !== msgId) return m;
+        touched = true;
+        return { ...m, ...patch };
+      });
+      return touched ? { ...old, messages } : old;
+    });
+  }
+  function patchMessageCache(patch) {
+    queryClient.setQueryData(messageKey, (old) => (old ? { ...old, ...patch } : old));
+  }
+
+  // ── Tandai dibaca ala Outlook ──────────────────────────────────────────────
+  // instant → saat pesan terbuka; delay → setelah markReadDelaySec detik pesan
+  // terbuka (batal bila user pindah lebih dulu); manual → tidak pernah otomatis.
+  // uid yang ditandai "belum dibaca" manual tidak boleh langsung ditandai
+  // dibaca lagi oleh effect ini (ref, bukan state: tidak perlu render ulang).
+  const manualUnreadRef = React.useRef(null);
+  React.useEffect(() => {
+    if (manualUnreadRef.current !== null && manualUnreadRef.current !== msgId) manualUnreadRef.current = null;
+  }, [msgId]);
+  const isRead = !!(msg && (msg.isRead === 1 || msg.isRead === true));
+  React.useEffect(() => {
+    if (!msg || !msgId || !token || isRead) return;
+    if (markReadMode === 'manual') return;
+    if (manualUnreadRef.current === msgId) return;
+    const delayMs = markReadMode === 'delay' ? Math.max(0, Number(markReadDelaySec) || 0) * 1000 : 0;
+    const targetKey = messageKey;
+    const targetUid = msgId;
+    const targetFolder = folder;
+    const timer = setTimeout(() => {
+      markRead(token, targetFolder, targetUid, true).then(() => {
+        queryClient.setQueryData(targetKey, (old) => (old ? { ...old, isRead: 1 } : old));
+        queryClient.setQueriesData({ queryKey: ['messages', token, targetFolder] }, (old) => {
+          if (!old || !Array.isArray(old.messages)) return old;
+          return { ...old, messages: old.messages.map((m) => (m?.uid === targetUid ? { ...m, isRead: true } : m)) };
+        });
+        queryClient.invalidateQueries({ queryKey: ['unseen', token] });
+        onReadStateChange?.(targetUid, true);
+      }).catch(() => { /* gagal tandai dibaca: tidak kritis, pesan tetap tampil */ });
+    }, delayMs);
+    return () => clearTimeout(timer);
+  }, [msg, isRead, msgId, folder, token, markReadMode, markReadDelaySec]);
+
+  // Toggle dibaca/belum dibaca manual (tombol & tombol 'u') — optimistis.
+  const readMutation = useMutation({
+    mutationFn: (nextRead) => markRead(token, folder, msgId, nextRead),
+    onMutate: (nextRead) => {
+      manualUnreadRef.current = nextRead ? null : msgId;
+      patchMessageCache({ isRead: nextRead ? 1 : 0 });
+      patchListCache({ isRead: nextRead });
+      onReadStateChange?.(msgId, nextRead);
+      return { prevRead: isRead };
     },
-    enabled: !!msgId && !!user?.sogoToken,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unseen', token] });
+    },
+    onError: (err, nextRead, ctx) => {
+      manualUnreadRef.current = null;
+      patchMessageCache({ isRead: ctx?.prevRead ? 1 : 0 });
+      patchListCache({ isRead: !!ctx?.prevRead });
+      onReadStateChange?.(msgId, !!ctx?.prevRead);
+      toast.error(err?.message || 'Gagal mengubah status dibaca.');
+    },
   });
 
   // Auto-advance (pola Gmail/Outlook): setelah hapus/pindah/spam, buka pesan
   // berikutnya di daftar (siblingUids = urutan tampil, flat atau conversation).
   // Fallback ke pesan sebelumnya bila di ujung, baru tutup reader.
+  // @returns uid yang dibuka berikutnya, atau null bila reader ditutup.
   function navigateAfter() {
     const idx = siblingUids.indexOf(msgId);
     if (idx >= 0) {
       const next = siblingUids[idx + 1] ?? siblingUids[idx - 1];
       if (next) {
         onNavigateTo?.(next);
-        return;
+        return next;
       }
     }
     onClose();
+    return null;
   }
 
   const deleteMutation = useMutation({
@@ -195,18 +335,28 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       if (user?.email && unsnoozeMessages(user.email, folder, [msgId]) > 0) {
         onSnoozeCleared?.();
       }
+      // Pesan keluar dari folder → daftar WAJIB refetch (tidak terhindarkan).
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
       navigateAfter();
       toast.success(folder === 'folderTrash' ? 'Pesan dihapus permanen' : 'Pesan dipindah ke Sampah');
     },
+    onError: (err) => toast.error(err?.message || 'Gagal menghapus pesan.'),
   });
 
+  // Bintang — optimistis (ikon langsung berubah), rollback + toast bila gagal.
   const flagMutation = useMutation({
     mutationFn: (flagged) => markFlagged(user.sogoToken, folder, msgId, flagged),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['message', user.sogoToken, folder, msgId] });
-      queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, folder] });
+    onMutate: (flagged) => {
+      const prev = !!msg?.isFlagged;
+      patchMessageCache({ isFlagged: flagged });
+      patchListCache({ isFlagged: flagged });
+      return { prev };
+    },
+    onError: (err, _flagged, ctx) => {
+      patchMessageCache({ isFlagged: !!ctx?.prev });
+      patchListCache({ isFlagged: !!ctx?.prev });
+      toast.error(err?.message || 'Gagal mengubah tanda bintang.');
     },
   });
 
@@ -218,10 +368,11 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       }
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      navigateAfter();
-      onMoveComplete?.();
+      const next = navigateAfter();
+      onMoveComplete?.({ next });
       toast.success('Pesan dipindahkan');
     },
+    onError: (err) => toast.error(err?.message || 'Gagal memindahkan pesan.'),
   });
 
   // Laporkan Spam — endpoint native SOGo markMessagesAsJunk (set flag Junk +
@@ -234,8 +385,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       }
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      navigateAfter();
-      onMoveComplete?.();
+      const next = navigateAfter();
+      onMoveComplete?.({ next });
       toast.success('Pesan dilaporkan sebagai spam');
     },
     onError: (err) => toast.error(err?.message || 'Gagal melaporkan spam.'),
@@ -251,12 +402,26 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       }
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken] });
       queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-      navigateAfter();
-      onMoveComplete?.();
+      const next = navigateAfter();
+      onMoveComplete?.({ next });
       toast.success('Pesan dikembalikan ke Kotak Masuk');
     },
     onError: (err) => toast.error(err?.message || 'Gagal membatalkan spam.'),
   });
+
+  // Hapus: di folder Sampah = permanen → minta konfirmasi dulu.
+  function requestDelete() {
+    if (deleteMutation.isPending) return;
+    if (folder === 'folderTrash') setConfirmDelete(true);
+    else deleteMutation.mutate();
+  }
+
+  // Zoom body: simpan ke localStorage + state.
+  function setZoom(next) {
+    const v = clampZoom(next);
+    setZoomState(v);
+    writeZoom(v);
+  }
 
   // Hook ini WAJIB dideklarasikan sebelum early return apa pun di bawah.
   // Query berpindah dari loading → loaded menyebabkan render ulang; jika hook
@@ -275,35 +440,19 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   }, [msg]);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+  // Handler nyata disusun di bawah (setelah guard, karena butuh handleReply/
+  // cleanHtml) dan disimpan di ref SETIAP render → listener global selalu
+  // memanggil closure terbaru. Tanpa pola ini dependency array mudah basi
+  // (bug lama: Esc tidak menutup pratinjau spreadsheet karena sheetPreview
+  // tidak ada di deps). Saat pesan belum termuat ref di-null-kan.
+  const keyHandlerRef = React.useRef(null);
+  keyHandlerRef.current = null;
   React.useEffect(() => {
     if (!msg) return;
-    const handler = (e) => {
-      // Mati saat modal lain terbuka di atas reader (mis. ComposeModal reply
-      // yang menimpa reader). Tanpa ini 'r' membuka ulang compose / 'Delete'
-      // menghapus pesan yang sedang dibalas / Escape menutup reader di balik
-      // modal — konflik state antar UI.
-      if (!shortcutsEnabled) return;
-      // Skip saat user mengetik di input/textarea ATAU contentEditable
-      // (RichEditor compose — tagName DIV tidak tertangkap guard INPUT/TEXTAREA).
-      // Tanpa ini, menekan 'r'/'f'/'s'/Delete saat mengetik di editor compose
-      // akan membuka ulang compose / menghapus pesan yang sedang dibaca.
-      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName) || e.target.contentEditable === 'true') return;
-      if (e.key.toLowerCase() === 'r') { e.preventDefault(); handleReply(); }
-      else if (e.key.toLowerCase() === 'f') { e.preventDefault(); handleForward(); }
-      else if (e.key === 'Delete') { e.preventDefault(); if (!deleteMutation.isPending) deleteMutation.mutate(); }
-      else if (e.key.toLowerCase() === 's') { e.preventDefault(); flagMutation.mutate(!(msg.isFlagged)); }
-      else if (e.key === 'Escape') { e.preventDefault(); if (lightbox) setLightbox(null); else if (docPreview) setDocPreview(null); else if (packPreview) setPackPreview(null); else onClose(); }
-    };
+    const handler = (e) => keyHandlerRef.current?.(e);
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [msg, deleteMutation.isPending, shortcutsEnabled, lightbox]);
-
-  function escapeHtml(str) {
-    return String(str).replace(/[<>&"']/g, c => {
-      const m = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' };
-      return m[c];
-    });
-  }
 
   // Unduh pesan sebagai file .eml (rekonstruksi dari data yang sudah dimuat:
   // header + body + lampiran base64). Valid utk dibuka Outlook/Thunderbird.
@@ -359,9 +508,14 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
 
   if (!msg) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 px-6 text-center">
+        <TriangleAlert size={22} className="text-amber-500" />
         <p className="text-sm">Gagal memuat pesan.</p>
-        <button onClick={onClose} className="text-xs text-primary hover:underline">Kembali</button>
+        {loadError?.message && <p className="text-xs text-muted-foreground/80 max-w-sm">{loadError.message}</p>}
+        <div className="flex items-center gap-3">
+          <button onClick={() => refetch()} className="text-xs text-primary hover:underline">Coba lagi</button>
+          <button onClick={onClose} className="text-xs text-muted-foreground hover:underline">Kembali</button>
+        </div>
       </div>
     );
   }
@@ -373,6 +527,19 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const replyTo = formatAddresses(msg['reply-to']);
   const subject = msg.subject || '(Tanpa Subjek)';
   const date = msg.date || '';
+  const fromList = normalizeAddressList(msg.from);
+  const toList = normalizeAddressList(msg.to);
+  const ccList = normalizeAddressList(msg.cc);
+  const replyToList = normalizeAddressList(msg['reply-to']);
+  const sender = fromList[0] || { name: '', email: '' };
+  const longDate = formatLongDateId(date);
+  // Heuristik Outlook: >1 penerima (To+Cc) → "Balas Semua" lebih mungkin.
+  const replyAllLikely = (toList.length + ccList.length) > 1;
+  // Posisi di daftar (prev/next + "x dari N").
+  const navIdx = siblingUids.indexOf(msgId);
+  const navTotal = siblingUids.length;
+  const prevUid = navIdx > 0 ? siblingUids[navIdx - 1] : null;
+  const nextUid = navIdx >= 0 && navIdx < navTotal - 1 ? siblingUids[navIdx + 1] : null;
 
   const rawHtml = extractHtml(msg.parts);
   // Gambar yang ke-refer di body (footer/banner/signature — CID atau URL hasil
@@ -388,10 +555,17 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // asli — konten itu dikirim sebagai email dan harus punya URL valid utk
   // penerima (lihat catatan di src/lib/imageProxy.js).
   const renderHtml = rawHtml ? proxyExternalImages(cleanHtml) : cleanHtml;
+  // Lipat kutipan balasan (pola Gmail/Outlook "…"). Pemisahan dilakukan pada
+  // HTML yang SUDAH disanitasi; kedua potongan dirender lewat jalur yang sama.
+  const quoted = rawHtml ? splitQuotedHtml(renderHtml) : { main: renderHtml, quote: '' };
+  const hasQuote = !!quoted.quote;
 
   function handlePrint() {
     const win = window.open('', '_blank');
-    if (!win) return;
+    if (!win) {
+      toast.error('Jendela cetak diblokir browser. Izinkan pop-up untuk situs ini lalu coba lagi.');
+      return;
+    }
     // Semua nilai yang diinterpolasi ke document.write harus di-escape:
     // jendela print (about:blank) berbagi origin dengan opener, jadi HTML
     // berbahaya di sini bisa mengakses halaman induk (cookie/opener).
@@ -399,7 +573,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     const safeFrom    = escapeHtml(formatAddresses(msg.from));
     const safeTo      = escapeHtml(formatAddresses(msg.to));
     const safeCc      = escapeHtml(formatAddresses(msg.cc));
-    const safeDate    = escapeHtml(msg.date || '');
+    const safeDate    = escapeHtml(longDate || msg.date || '');
     win.document.write(`
       <html><head><title>${safeSubject || 'Email'}</title>
       <style>body{font-family:sans-serif;padding:40px;max-width:800px;margin:auto;line-height:1.6}
@@ -417,47 +591,97 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       ${renderHtml}
     </body></html>`);
     win.document.close();
-    win.print();
-  }
-
-  function handleReply() {
-    // Semua header email (from/to/date/subject) adalah input dari pengirim dan
-    // harus di-escape — body ini di-hydrate ke contentEditable editor via innerHTML.
-    const safeFrom    = escapeHtml(from);
-    const safeTo      = escapeHtml(to);
-    const safeDate    = escapeHtml(date);
-    const safeSubject = escapeHtml(subject);
-    onReply?.({
-      // composeMode 'reply' penting: ComposeModal memilih signature reply
-      // (getSignatureFor(email, 'reply')) — tanpa ini balasan memakai
-      // signature mode 'new'.
-      composeMode: 'reply',
-      to: replyTo || from,
-      subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
-      body: `<br><br><blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:0;color:#666">
-        <b>Dari:</b> ${safeFrom}<br>
-        <b>Tanggal:</b> ${safeDate}<br>
-        <b>Kepada:</b> ${safeTo}<br>
-        <b>Subjek:</b> ${safeSubject}<br><br>${cleanHtml}</blockquote>`,
+    // Tunggu gambar termuat (maks 4 dtk) — tanpa ini cetak jalan saat gambar
+    // masih kosong (bug "gambar hilang di hasil cetak").
+    const imgs = Array.from(win.document.images || []);
+    const waits = imgs.map((img) => (img.complete ? Promise.resolve() : new Promise((r) => { img.onload = r; img.onerror = r; })));
+    const timeout = new Promise((r) => setTimeout(r, 4000));
+    Promise.race([Promise.all(waits), timeout]).then(() => {
+      try { win.focus(); win.print(); } catch { /* jendela sudah ditutup user */ }
     });
   }
 
-  function handleForward() {
-    const safeFrom    = escapeHtml(from);
-    const safeTo      = escapeHtml(to);
-    const safeDate    = escapeHtml(date);
-    const safeSubject = escapeHtml(subject);
-    onReply?.({
-      composeMode: 'reply', // sama seperti reply — signature reply dipakai
-      subject: subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`,
-      body: `<br><br><blockquote style="border-left:3px solid #ccc;padding-left:12px;margin:0;color:#666">
-        <b>---------- Pesan Diteruskan ----------</b><br>
-        <b>Dari:</b> ${safeFrom}<br>
-        <b>Tanggal:</b> ${safeDate}<br>
-        <b>Kepada:</b> ${safeTo}<br>
-        <b>Subjek:</b> ${safeSubject}<br><br>${cleanHtml}</blockquote>`,
-    });
+  // Balas / Balas Semua / Teruskan — semua lewat replyBuilder (To/Cc tanpa
+  // diri sendiri, prefix subjek case-insensitive, header kutipan ala Outlook,
+  // In-Reply-To/References dari viewsource bila /view tidak membawanya).
+  // Teruskan mengunduh lampiran asli dulu (spinner + progres; gagal → toast).
+  async function openCompose(mode) {
+    if (composeBusy) return;
+    setComposeBusy(mode);
+    setComposeProgress('');
+    try {
+      const data = await buildReplyDataAsync(token, folder, msgId, {
+        mode,
+        message: msg,
+        userEmail: [user?.email, user?.sogoToken].filter(Boolean),
+        folderId: folder,
+        uid: msgId,
+        // cleanHtml (sudah disanitasi + CID ter-resolve), BUKAN renderHtml:
+        // URL proxy gambar tidak valid utk penerima.
+        bodyHtml: cleanHtml,
+        onProgress: (done, total) => setComposeProgress(`${done}/${total}`),
+      });
+      onReply?.(data);
+    } catch (err) {
+      toast.error(err?.message || (mode === 'forward' ? 'Gagal mengunduh lampiran untuk diteruskan.' : 'Gagal menyiapkan balasan.'));
+    } finally {
+      setComposeBusy(null);
+      setComposeProgress('');
+    }
   }
+  const handleReply = () => openCompose('reply');
+  const handleReplyAll = () => openCompose('replyAll');
+  const handleForward = () => openCompose('forward');
+
+  // Header mentah (viewsource) — lazy, hanya saat diminta.
+  function openHeaders() {
+    setHeadersModal({ loading: true });
+    fetchMessageHeadersRaw(token, folder, msgId)
+      .then((h) => setHeadersModal({ raw: h.raw, list: h.list }))
+      .catch((err) => setHeadersModal({ error: err?.message || 'Gagal memuat header pesan.' }));
+  }
+
+  // Handler keyboard terbaru (lihat keyHandlerRef di atas).
+  keyHandlerRef.current = (e) => {
+    // Mati saat modal lain terbuka di atas reader (mis. ComposeModal reply
+    // yang menimpa reader). Tanpa ini 'r' membuka ulang compose / 'Delete'
+    // menghapus pesan yang sedang dibalas / Escape menutup reader di balik
+    // modal — konflik state antar UI.
+    if (!shortcutsEnabled) return;
+    // Skip saat user mengetik di input/textarea/select ATAU contentEditable
+    // (RichEditor compose — tagName DIV tidak tertangkap guard INPUT/TEXTAREA).
+    const t = e.target;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(t?.tagName) || t?.isContentEditable || t?.contentEditable === 'true') return;
+    if (e.altKey) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod) {
+      // Hanya kombinasi milik reader; Ctrl/Cmd+R/F/S/P dll. tetap ke browser
+      // (bug lama: reload/find/save ter-intercept jadi balas/teruskan/bintang).
+      if (e.key === ',') { e.preventDefault(); if (prevUid) onNavigateTo?.(prevUid); }
+      else if (e.key === '.') { e.preventDefault(); if (nextUid) onNavigateTo?.(nextUid); }
+      else if (e.key === '=' || e.key === '+') { e.preventDefault(); setZoom(zoom + ZOOM_STEP); }
+      else if (e.key === '-') { e.preventDefault(); setZoom(zoom - ZOOM_STEP); }
+      else if (e.key === '0') { e.preventDefault(); setZoom(1); }
+      return;
+    }
+    const key = e.key;
+    if (key === 'r' || key === 'R') { e.preventDefault(); if (e.shiftKey) handleReplyAll(); else handleReply(); }
+    else if (key === 'f') { e.preventDefault(); handleForward(); }
+    else if (key === 'Delete') { e.preventDefault(); requestDelete(); }
+    else if (key === 's') { e.preventDefault(); flagMutation.mutate(!(msg.isFlagged)); }
+    else if (key === 'u') { e.preventDefault(); if (!readMutation.isPending) readMutation.mutate(false); }
+    else if (key === 'Escape' && (sheetPreview || headersModal || confirmDelete || contactOpen || moveOpen)) {
+      // Lapisan di atas reader ditutup dulu (pratinjau spreadsheet dulu tidak
+      // ikut dicek → Esc menutup reader di balik pratinjau).
+      e.preventDefault();
+      if (sheetPreview) setSheetPreview(null);
+      else if (headersModal) setHeadersModal(null);
+      else if (confirmDelete) setConfirmDelete(false);
+      else if (contactOpen) setContactOpen(false);
+      else setMoveOpen(false);
+    }
+    else if (e.key === 'Escape') { e.preventDefault(); if (lightbox) setLightbox(null); else if (docPreview) setDocPreview(null); else if (packPreview) setPackPreview(null); else onClose(); }
+  };
 
   // Orang yang relevan utk "Tambah ke Kontak" — pengirim (kotak masuk) atau
   // penerima pertama (Terkirim/Draf).
@@ -613,39 +837,65 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-background w-full">
-      {/* Toolbar */}
-      <div className="p-3 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10 flex-wrap gap-2">
-        <div className="flex items-center gap-1">
-          <button onClick={onClose} className="md:hidden min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted" title="Kembali" aria-label="Kembali">
+      {/* Toolbar — kompak utk panel baca (ikon 44px di sentuh, 36px di desktop);
+          tooltip memuat shortcut. */}
+      <div className="px-2 py-1.5 sm:px-3 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10 flex-wrap gap-2">
+        <div className="flex items-center gap-0.5 min-w-0">
+          <button onClick={onClose} className={`${TB_BTN} md:hidden text-muted-foreground hover:text-foreground hover:bg-muted`} title="Kembali (Esc)" aria-label="Kembali">
             <ArrowLeft size={18} />
           </button>
+          {/* Navigasi pesan sebelumnya/berikutnya + posisi */}
+          {navTotal > 0 && navIdx >= 0 && (
+            <div className="flex items-center gap-0.5 mr-1 pr-1 border-r border-border">
+              <button
+                onClick={() => prevUid && onNavigateTo?.(prevUid)}
+                disabled={!prevUid}
+                className={`${TB_BTN} text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent`}
+                title="Pesan sebelumnya (Ctrl+,)"
+                aria-label="Pesan sebelumnya"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <span className="text-[11px] tabular-nums text-muted-foreground whitespace-nowrap px-0.5" aria-live="polite">
+                {navIdx + 1} dari {navTotal}
+              </span>
+              <button
+                onClick={() => nextUid && onNavigateTo?.(nextUid)}
+                disabled={!nextUid}
+                className={`${TB_BTN} text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent`}
+                title="Pesan berikutnya (Ctrl+.)"
+                aria-label="Pesan berikutnya"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          )}
           <button
-            onClick={() => markRead(user.sogoToken, folder, msgId, false).then(() => {
-              queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, folder] });
-              queryClient.invalidateQueries({ queryKey: ['unseen', user.sogoToken] });
-            }).catch(() => {})}
-            className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
-            title="Tandai belum dibaca (U)"
+            onClick={() => { if (!readMutation.isPending) readMutation.mutate(!isRead); }}
+            disabled={readMutation.isPending}
+            className={`${TB_BTN} ${isRead ? 'text-muted-foreground hover:text-foreground hover:bg-muted' : 'text-primary bg-primary/10 hover:bg-primary/15'}`}
+            title={isRead ? 'Tandai belum dibaca (U)' : 'Tandai sudah dibaca'}
             aria-label="Tandai belum dibaca"
+            aria-pressed={!isRead}
           >
-            <Mail size={18} />
+            {isRead ? <Mail size={18} /> : <MailOpen size={18} />}
           </button>
           <button
             onClick={() => flagMutation.mutate(!(msg.isFlagged))}
-            className={`min-w-11 min-h-11 flex items-center justify-center rounded-xl transition-colors ${
+            className={`${TB_BTN} transition-colors ${
               msg.isFlagged ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
-            title="Beri/Tandai bintang (S)"
+            title={msg.isFlagged ? 'Hapus bintang (S)' : 'Beri bintang (S)'}
             aria-label="Tandai berbintang"
             aria-pressed={!!msg.isFlagged}
           >
             <Star size={18} className={msg.isFlagged ? 'fill-amber-600 dark:fill-amber-400' : ''} />
           </button>
           <button
-            onClick={() => deleteMutation.mutate()}
+            onClick={requestDelete}
             disabled={deleteMutation.isPending}
-            className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-            title="Hapus (Del)"
+            className={`${TB_BTN} text-muted-foreground hover:text-destructive hover:bg-destructive/10`}
+            title={folder === 'folderTrash' ? 'Hapus permanen (Del)' : 'Hapus (Del)'}
             aria-label="Hapus pesan"
           >
             {deleteMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
@@ -654,7 +904,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             <button
               onClick={() => spamMutation.mutate()}
               disabled={spamMutation.isPending}
-              className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/10"
+              className={`${TB_BTN} text-muted-foreground hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/10`}
               title="Laporkan Spam"
               aria-label="Laporkan spam"
             >
@@ -665,7 +915,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             <button
               onClick={() => notSpamMutation.mutate()}
               disabled={notSpamMutation.isPending}
-              className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10"
+              className={`${TB_BTN} text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10`}
               title="Bukan Spam"
               aria-label="Laporkan bukan spam dan kembalikan ke Kotak Masuk"
             >
@@ -676,8 +926,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           <div className="relative">
             <button
               onClick={() => setMoveOpen(!moveOpen)}
-              className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
-              title="Pindahkan"
+              className={`${TB_BTN} text-muted-foreground hover:text-foreground hover:bg-muted`}
+              title="Pindahkan ke folder"
               aria-label="Pindahkan ke folder lain"
               aria-expanded={moveOpen}
             >
@@ -686,7 +936,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             {moveOpen && (
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setMoveOpen(false)} />
-                <div className="absolute top-full left-0 mt-1 bg-card border border-border shadow-xl rounded-lg z-40 min-w-[160px]">
+                <div className="absolute top-full left-0 mt-1 bg-card border border-border shadow-xl rounded-lg z-40 min-w-[160px] max-h-72 overflow-y-auto">
                   <div className="p-1.5 space-y-0.5">
                     <div className="px-3 py-1.5 text-xs text-muted-foreground font-medium">Pindahkan ke...</div>
                     {folders.filter((f) => f.id !== folder).map((f) => (
@@ -706,19 +956,19 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           </div>
           <button
             onClick={handleDownloadEml}
-            className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
+            className={`${TB_BTN} text-muted-foreground hover:text-foreground hover:bg-muted hidden sm:flex`}
             title="Unduh sebagai file .eml"
             aria-label="Unduh sebagai file .eml"
           >
             <FileDown size={18} />
           </button>
-          <button onClick={handlePrint} className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted" title="Cetak" aria-label="Cetak">
+          <button onClick={handlePrint} className={`${TB_BTN} text-muted-foreground hover:text-foreground hover:bg-muted`} title="Cetak" aria-label="Cetak">
             <Printer size={18} />
           </button>
           {(contactPerson?.email || contactPerson?.name) && (
             <button
               onClick={() => { setContactError(''); setContactOpen(true); }}
-              className="min-w-11 min-h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:text-primary hover:bg-muted"
+              className={`${TB_BTN} text-muted-foreground hover:text-primary hover:bg-muted hidden sm:flex`}
               title="Tambah ke kontak"
               aria-label="Tambah pengirim ke kontak"
             >
@@ -727,12 +977,44 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           )}
         </div>
 
-        <div className="flex items-center gap-1">
-          <button data-shortcut="reply" onClick={handleReply} className="flex items-center gap-2 px-3 min-h-11 rounded-xl text-muted-foreground hover:bg-muted text-sm font-medium" title="Balas (R)">
-            <Reply size={16} /> Balas
+        {/* Balas / Balas Semua / Teruskan — yang lebih mungkin disorot
+            (heuristik Outlook: >1 penerima → Balas Semua). */}
+        <div className="flex items-center gap-0.5">
+          <button
+            data-shortcut="reply"
+            onClick={handleReply}
+            disabled={!!composeBusy}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 min-h-11 md:min-h-9 rounded-xl text-sm font-medium disabled:opacity-60 ${!replyAllLikely ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'text-muted-foreground hover:bg-muted'}`}
+            title="Balas (R)"
+            aria-label="Balas"
+          >
+            {composeBusy === 'reply' ? <Loader2 size={16} className="animate-spin" /> : <Reply size={16} />}
+            <span className="hidden lg:inline">Balas</span>
           </button>
-          <button data-shortcut="forward" onClick={handleForward} className="flex items-center gap-2 px-3 min-h-11 rounded-xl text-muted-foreground hover:bg-muted text-sm font-medium" title="Teruskan (F)">
-            <Forward size={16} /> Teruskan
+          <button
+            data-shortcut="reply-all"
+            onClick={handleReplyAll}
+            disabled={!!composeBusy}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 min-h-11 md:min-h-9 rounded-xl text-sm font-medium disabled:opacity-60 ${replyAllLikely ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'text-muted-foreground hover:bg-muted'}`}
+            title="Balas Semua (Shift+R)"
+            aria-label="Balas semua"
+          >
+            {composeBusy === 'replyAll' ? <Loader2 size={16} className="animate-spin" /> : <ReplyAll size={16} />}
+            <span className="hidden lg:inline">Balas Semua</span>
+          </button>
+          <button
+            data-shortcut="forward"
+            onClick={handleForward}
+            disabled={!!composeBusy}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 min-h-11 md:min-h-9 rounded-xl text-muted-foreground hover:bg-muted text-sm font-medium disabled:opacity-60"
+            title={attachments.length > 0 ? 'Teruskan dengan lampiran (F)' : 'Teruskan (F)'}
+            aria-label="Teruskan"
+          >
+            {composeBusy === 'forward' ? <Loader2 size={16} className="animate-spin" /> : <Forward size={16} />}
+            <span className="hidden lg:inline">Teruskan</span>
+            {composeBusy === 'forward' && composeProgress && (
+              <span className="text-[11px] tabular-nums">{composeProgress}</span>
+            )}
           </button>
         </div>
       </div>
@@ -765,35 +1047,123 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         );
       })()}
 
-      {/* Message header */}
-      <div className="px-6 py-5 border-b border-border">
-        <h1 className="text-xl font-semibold text-foreground mb-4 leading-tight">{subject}</h1>
-        <div className="space-y-1.5 text-sm">
-          <div className="flex justify-between items-start gap-4">
-            <div className="space-y-1 flex-1 min-w-0">
-              <div className="flex gap-2">
-                <span className="text-muted-foreground shrink-0 w-16 text-right">Dari:</span>
-                <span className="font-medium text-foreground truncate">{from}</span>
+      {/* Message header — avatar pengirim, tanggal manusiawi, ringkasan
+          penerima + "Tampilkan detail" (daftar To/Cc/Balas-ke lengkap). */}
+      <div className="px-4 sm:px-6 py-4 border-b border-border">
+        <h1 className="text-lg sm:text-xl font-semibold text-foreground mb-3 leading-tight break-words">{subject}</h1>
+        <div className="flex items-start gap-3">
+          <div
+            className={`w-10 h-10 rounded-full ${avatarColor(sender.email || sender.name)} text-white flex items-center justify-center text-sm font-semibold shrink-0 select-none`}
+            aria-hidden="true"
+          >
+            {getInitials(sender.name ? `${sender.name} <${sender.email}>` : sender.email)}
+          </div>
+          <div className="flex-1 min-w-0 text-sm">
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="min-w-0">
+                <span className="font-medium text-foreground truncate block" title={from}>{sender.name || sender.email || '(tanpa pengirim)'}</span>
+                {sender.name && sender.email && (
+                  <span className="text-xs text-muted-foreground truncate block">{sender.email}</span>
+                )}
               </div>
-              <div className="flex gap-2">
-                <span className="text-muted-foreground shrink-0 w-16 text-right">Kepada:</span>
-                <span className="text-foreground truncate">{to}</span>
-              </div>
-              {cc && (
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground shrink-0 w-16 text-right">Cc:</span>
-                  <span className="text-foreground truncate">{cc}</span>
-                </div>
-              )}
+              <time className="text-muted-foreground text-xs shrink-0 text-right whitespace-nowrap" title={date}>{longDate}</time>
             </div>
-            <div className="text-muted-foreground text-xs shrink-0 text-right">{date}</div>
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+              <span className="truncate min-w-0">
+                Kepada: {toList.length ? toList.map((a) => a.name || a.email).join(', ') : '—'}
+                {ccList.length > 0 && <> · Cc: {ccList.map((a) => a.name || a.email).join(', ')}</>}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowDetails((v) => !v)}
+                className="shrink-0 inline-flex items-center gap-0.5 text-primary hover:underline"
+                aria-expanded={showDetails}
+              >
+                {showDetails ? 'Sembunyikan detail' : 'Tampilkan detail'}
+                {showDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+            </div>
+            {showDetails && (
+              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
+                <dt className="text-muted-foreground text-right">Dari</dt>
+                <dd className="text-foreground break-all">{from || '—'}</dd>
+                <dt className="text-muted-foreground text-right">Kepada</dt>
+                <dd className="text-foreground">
+                  {toList.length ? (
+                    <ul className="flex flex-wrap gap-1">
+                      {toList.map((a, i) => (
+                        <li key={i} className="px-2 py-0.5 rounded-md bg-muted break-all" title={a.email}>{a.name ? `${a.name} <${a.email}>` : a.email}</li>
+                      ))}
+                    </ul>
+                  ) : '—'}
+                </dd>
+                {ccList.length > 0 && (
+                  <>
+                    <dt className="text-muted-foreground text-right">Cc</dt>
+                    <dd className="text-foreground">
+                      <ul className="flex flex-wrap gap-1">
+                        {ccList.map((a, i) => (
+                          <li key={i} className="px-2 py-0.5 rounded-md bg-muted break-all" title={a.email}>{a.name ? `${a.name} <${a.email}>` : a.email}</li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </>
+                )}
+                {replyToList.length > 0 && (
+                  <>
+                    <dt className="text-muted-foreground text-right">Balas ke</dt>
+                    <dd className="text-foreground break-all">{replyTo}</dd>
+                  </>
+                )}
+                <dt className="text-muted-foreground text-right">Tanggal</dt>
+                <dd className="text-foreground">{longDate}{date && longDate !== date ? <span className="text-muted-foreground"> · {date}</span> : null}</dd>
+                <dt className="text-muted-foreground text-right">Sumber</dt>
+                <dd>
+                  <button type="button" onClick={openHeaders} className="inline-flex items-center gap-1 text-primary hover:underline">
+                    <Code2 size={12} /> Tampilkan header
+                  </button>
+                </dd>
+              </dl>
+            )}
           </div>
         </div>
       </div>
 
       {/* Message body */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="email-body" dangerouslySetInnerHTML={{ __html: renderHtml }} />
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 min-h-0">
+        {/* Kontrol zoom body (Ctrl/Cmd + / − / 0) */}
+        <div className="flex items-center justify-end gap-0.5 -mt-2 mb-2 text-muted-foreground">
+          <button type="button" onClick={() => setZoom(zoom - ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} className="min-w-8 min-h-8 flex items-center justify-center rounded-md hover:bg-muted hover:text-foreground disabled:opacity-30" title="Perkecil teks (Ctrl+−)" aria-label="Perkecil teks">
+            <ZoomOut size={14} />
+          </button>
+          <button type="button" onClick={() => setZoom(1)} className="text-[11px] tabular-nums px-1 min-h-8 rounded-md hover:bg-muted hover:text-foreground" title="Ukuran normal (Ctrl+0)" aria-label="Ukuran teks normal">
+            {Math.round(zoom * 100)}%
+          </button>
+          <button type="button" onClick={() => setZoom(zoom + ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} className="min-w-8 min-h-8 flex items-center justify-center rounded-md hover:bg-muted hover:text-foreground disabled:opacity-30" title="Perbesar teks (Ctrl++)" aria-label="Perbesar teks">
+            <ZoomIn size={14} />
+          </button>
+        </div>
+        <div className="email-body" style={zoom !== 1 ? { zoom } : undefined}>
+          {!hasQuote && <div dangerouslySetInnerHTML={{ __html: renderHtml }} />}
+          {hasQuote && (
+            <>
+              <div dangerouslySetInnerHTML={{ __html: quoted.main }} />
+              <button
+                type="button"
+                onClick={() => setQuoteOpen((v) => !v)}
+                className="my-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground hover:text-foreground text-xs font-medium"
+                aria-expanded={quoteOpen}
+                title={quoteOpen ? 'Sembunyikan kutipan' : 'Tampilkan kutipan'}
+              >
+                <span className="tracking-widest leading-none">…</span>
+                {quoteOpen ? 'Sembunyikan kutipan' : 'Tampilkan kutipan'}
+              </button>
+              {/* Kutipan: HTML sudah lewat DOMPurify (prepareHtmlContent) —
+                  hanya disembunyikan via atribut hidden, bukan dirender ulang. */}
+              <div data-quote hidden={!quoteOpen} dangerouslySetInnerHTML={{ __html: quoted.quote }} />
+            </>
+          )}
+        </div>
 
         {/* Inline images (CID) TIDAK dirender di sini: sudah tampil di body
             via resolver cid: (prepareHtmlContent) dan flag
@@ -1187,6 +1557,79 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 <div className="px-4 py-2 text-xs text-muted-foreground border-t border-border">
                   Menampilkan 500 entri pertama dari {packPreview.totalCount}.
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Konfirmasi hapus permanen (folder Sampah) ─────────────────────── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDelete(false)} role="dialog" aria-modal="true" aria-label="Konfirmasi hapus permanen">
+          <div className="bg-card w-full max-w-sm rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-destructive/10 text-destructive flex items-center justify-center shrink-0">
+                <Trash2 size={18} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-foreground">Hapus permanen?</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Pesan ini akan dihapus dari Sampah dan tidak bisa dikembalikan.</p>
+                <p className="mt-2 text-xs text-foreground/80 truncate" title={subject}>{subject}</p>
+              </div>
+            </div>
+            <div className="px-5 pb-4 flex gap-3">
+              <button type="button" onClick={() => setConfirmDelete(false)} className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-medium" autoFocus>
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => { setConfirmDelete(false); deleteMutation.mutate(); }}
+                disabled={deleteMutation.isPending}
+                className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+              >
+                {deleteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Hapus permanen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Header mentah (viewsource) ─────────────────────────────────────── */}
+      {headersModal && (
+        <div className="fixed inset-0 z-[60] bg-black/85 flex flex-col items-center justify-center p-4" onClick={() => setHeadersModal(null)} role="dialog" aria-modal="true" aria-label="Header pesan">
+          <div className="flex flex-col w-full max-w-3xl max-h-[85vh] bg-card rounded-2xl overflow-hidden border border-border shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+              <Code2 size={16} className="text-primary shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-foreground truncate">Header pesan</div>
+                <div className="text-xs text-muted-foreground">Sumber mentah RFC 5322 — Message-ID, jalur Received, autentikasi (SPF/DKIM)</div>
+              </div>
+              {headersModal.raw && (
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard?.writeText(headersModal.raw).then(() => toast.success('Header disalin')).catch(() => toast.error('Gagal menyalin header.'))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+                >
+                  <Copy size={14} /> Salin
+                </button>
+              )}
+              <button onClick={() => setHeadersModal(null)} className="p-2 rounded-lg hover:bg-muted text-muted-foreground" aria-label="Tutup header">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              {headersModal.loading && (
+                <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
+                  <Loader2 size={18} className="animate-spin" /> Memuat header…
+                </div>
+              )}
+              {headersModal.error && (
+                <div className="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground">
+                  <TriangleAlert size={22} className="text-amber-500" /> {headersModal.error}
+                </div>
+              )}
+              {headersModal.raw !== undefined && !headersModal.loading && (
+                <pre className="p-4 text-xs whitespace-pre-wrap break-words font-mono text-foreground">{headersModal.raw || '(header kosong)'}</pre>
               )}
             </div>
           </div>

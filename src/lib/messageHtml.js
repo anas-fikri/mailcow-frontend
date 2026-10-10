@@ -82,6 +82,47 @@ export function extractHtml(parts) {
 }
 
 /**
+ * Parse blok header RFC 5322 dari sumber mentah pesan (…/{uid}/viewsource).
+ * Hanya blok header (sampai baris kosong pertama) yang dibaca; baris lanjutan
+ * (folded, diawali spasi/tab) digabung ke header sebelumnya. JSON /view SOGo
+ * TIDAK membawa Message-ID/In-Reply-To/References (lihat fixture
+ * mail-golden-detail.json) → ini satu-satunya sumber utk threading balasan.
+ *
+ * @param {string} rawSource teks mentah (header saja atau seluruh pesan)
+ * @returns {{ raw:string, list:Array<{name:string,value:string}>, messageId:string, inReplyTo:string, references:string, get(name:string):string }}
+ */
+export function parseRawHeaders(rawSource) {
+  const text = String(rawSource ?? '').replace(/\r\n?/g, '\n');
+  const endIdx = text.search(/\n\n/);
+  const block = (endIdx >= 0 ? text.slice(0, endIdx) : text).trim();
+  const list = [];
+  for (const line of block.split('\n')) {
+    if (/^[ \t]/.test(line) && list.length) {
+      list[list.length - 1].value += ' ' + line.trim();
+      continue;
+    }
+    const m = line.match(/^([!-9;-~]+):\s*(.*)$/);
+    if (m) list.push({ name: m[1], value: m[2].trim() });
+  }
+  // Nilai yang seluruhnya di baris lanjutan ("Message-ID:\n <id>") punya
+  // spasi depan sisa penggabungan — rapikan.
+  for (const h of list) h.value = h.value.trim();
+  const get = (name) => {
+    const n = String(name).toLowerCase();
+    const hit = list.find((h) => h.name.toLowerCase() === n);
+    return hit ? hit.value : '';
+  };
+  return {
+    raw: block,
+    list,
+    messageId: get('message-id'),
+    inReplyTo: get('in-reply-to'),
+    references: get('references'),
+    get,
+  };
+}
+
+/**
  * Fallback metadata lampiran utk bug serializer JSON SOGo 5.12.9: part
  * non-text/image (xlsx, pdf, dll) TIDAK mendapat viewURL/downloadURL/size
  * ("found no viewer" → metadata kosong), padahal SOGo meng-embed card Angular

@@ -11,6 +11,7 @@ import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFor
 import { flattenMailboxes } from './mailboxTree.js';
 import { bumpDomainVersion } from './crossTab.js';
 import { pickExternalContacts, filterKnownContacts } from './contactCapture.js';
+import { parseRawHeaders } from './messageHtml.js';
 
 const SOGO_ENV = import.meta.env || {};
 // Same-origin secara default (relatif) — SPA & SOGo dilayani nginx yang sama
@@ -45,6 +46,23 @@ export function markLoginGrace(ms = 8000) { _loginGraceUntil = Date.now() + ms; 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// Nilai header threading (In-Reply-To/References): hanya token "<id@host>"
+// dipisah spasi yang diteruskan — mencegah header injection lewat payload
+// compose (server.js juga memvalidasi ulang; ini lapisan pertama).
+function threadingHeader(value) {
+  if (!value) return '';
+  const raw = Array.isArray(value) ? value.join(' ') : String(value);
+  const out = [];
+  for (const tok of raw.trim().split(/\s+/)) {
+    if (/^<[^<>\s\x00-\x1f\x7f]{1,200}@[^<>\s\x00-\x1f\x7f]{1,200}>$/.test(tok) && !out.includes(tok)) out.push(tok);
+  }
+  return out.join(' ');
+}
+
+// Deadline keras utk operasi per-pesan (buka/tandai/cari/header). Tanpa ini
+// SOGo yang menggantung membuat reader "Memuat…" selamanya tanpa pesan error.
+const MESSAGE_TIMEOUT_MS = 15000;
 
 // fetch dengan deadline keras. Tanpa ini, backend lambat/down membuat fetch
 // menggantung tanpa batas — login nampak "Memproses..." selamanya dan user
@@ -497,12 +515,12 @@ export async function fetchMessages(sogoToken, folder = 'folderINBOX', params = 
  */
 export async function fetchMessageHeaders(sogoToken, folder, uids) {
   if (!Array.isArray(uids) || uids.length === 0) return [];
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/headers`, {
+  const res = await fetchWithTimeout(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/headers`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ uids }),
-  });
+  }, MESSAGE_TIMEOUT_MS);
   if (res.status === 204) return [];
   throwIfAuthError(res);
   if (!res.ok) throwApiError(`Gagal memuat header pesan (${res.status}).`, res.status);
@@ -536,10 +554,10 @@ export async function fetchMessage(sogoToken, folder, uid) {
   const MAX_RETRIES = 2;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/view`, {
+      const res = await fetchWithTimeout(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/view`, {
         credentials: 'include',
         headers: sogoHeaders(),
-      });
+      }, MESSAGE_TIMEOUT_MS);
       if (res.status === 500 && attempt < MAX_RETRIES) {
         debugWarn('[API] fetchMessage 500 — retry', attempt);
         await sleep(300 * attempt);
@@ -559,28 +577,110 @@ export async function fetchMessage(sogoToken, folder, uid) {
   throwApiError('Gagal memuat isi pesan setelah beberapa percobaan.', 500);
 }
 
-export async function markRead(sogoToken, folder, uid, read = true) {
-  const endpoint = read ? 'markMessageRead' : 'markMessageUnread';
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/${endpoint}`, {
+/** POST {uid}/{endpoint} tanpa bump versi crossTab — dipakai per-uid & bulk. */
+async function postMessageFlag(sogoToken, folder, uid, endpoint, errLabel) {
+  const res = await fetchWithTimeout(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/${endpoint}`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: '{}',
-  });
-  if (!res.ok) throwApiError(`Gagal menandai pesan (${res.status}).`, res.status);
+  }, MESSAGE_TIMEOUT_MS);
+  if (!res.ok) throwApiError(`${errLabel} (${res.status}).`, res.status);
+}
+
+export async function markRead(sogoToken, folder, uid, read = true) {
+  await postMessageFlag(sogoToken, folder, uid, read ? 'markMessageRead' : 'markMessageUnread', 'Gagal menandai pesan');
   bumpMailVersion(sogoToken);
 }
 
 export async function markFlagged(sogoToken, folder, uid, flagged = true) {
-  const endpoint = flagged ? 'markFlagged' : 'markUnflagged';
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/${endpoint}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: '{}',
-  });
-  if (!res.ok) throwApiError(`Gagal mengubah tanda bintang (${res.status}).`, res.status);
+  await postMessageFlag(sogoToken, folder, uid, flagged ? 'markFlagged' : 'markUnflagged', 'Gagal mengubah tanda bintang');
   bumpMailVersion(sogoToken);
+}
+
+/**
+ * Jalankan `fn(item)` utk tiap item dengan paralelisme terbatas.
+ * @returns {{ ok: Array, failed: Array<{uid, error}> }}
+ */
+async function runPool(items, concurrency, fn) {
+  const ok = [];
+  const failed = [];
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < items.length) {
+      const item = items[cursor++];
+      try {
+        await fn(item);
+        ok.push(item);
+      } catch (error) {
+        failed.push({ uid: item, error });
+      }
+    }
+  };
+  const n = Math.max(1, Math.min(Number(concurrency) || 1, items.length || 1));
+  await Promise.all(Array.from({ length: n }, worker));
+  return { ok, failed };
+}
+
+/**
+ * Tandai banyak pesan dibaca/belum dibaca — endpoint per-uid SOGo dipanggil
+ * dengan paralelisme terbatas (default 5), versi crossTab di-bump SEKALI di
+ * akhir (bukan N kali). Tidak throw per item: lihat `failed`.
+ * @returns {Promise<{ ok: Array, failed: Array<{uid, error}> }>}
+ */
+export async function markReadBulk(sogoToken, folder, uids, read = true, { concurrency = 5 } = {}) {
+  const list = normalizeUids(uids);
+  if (list.length === 0) return { ok: [], failed: [] };
+  const endpoint = read ? 'markMessageRead' : 'markMessageUnread';
+  const result = await runPool(list, concurrency, (uid) => postMessageFlag(sogoToken, folder, uid, endpoint, 'Gagal menandai pesan'));
+  if (result.ok.length > 0) bumpMailVersion(sogoToken);
+  return result;
+}
+
+/** Varian bulk utk bintang — lihat markReadBulk. */
+export async function markFlaggedBulk(sogoToken, folder, uids, flagged = true, { concurrency = 5 } = {}) {
+  const list = normalizeUids(uids);
+  if (list.length === 0) return { ok: [], failed: [] };
+  const endpoint = flagged ? 'markFlagged' : 'markUnflagged';
+  const result = await runPool(list, concurrency, (uid) => postMessageFlag(sogoToken, folder, uid, endpoint, 'Gagal mengubah tanda bintang'));
+  if (result.ok.length > 0) bumpMailVersion(sogoToken);
+  return result;
+}
+
+/**
+ * Header mentah satu pesan via …/{uid}/viewsource (sumber RFC822 lengkap).
+ * JSON /view SOGo TIDAK membawa Message-ID / In-Reply-To / References
+ * (diverifikasi dari fixture mail-golden-detail.json) → ini sumber satu-satunya
+ * utk threading balasan. Body dibaca STREAMING dan dihentikan di baris kosong
+ * pertama supaya pesan berlampiran besar tidak diunduh penuh.
+ *
+ * @returns {Promise<{ raw:string, list:Array<{name,value}>, messageId:string, inReplyTo:string, references:string }>}
+ */
+export async function fetchMessageHeadersRaw(sogoToken, folder, uid) {
+  const res = await fetchWithTimeout(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/${pathSegment(uid, 'uid')}/viewsource`, {
+    credentials: 'include',
+    headers: sogoHeaders({ Accept: 'text/plain, */*' }),
+  }, MESSAGE_TIMEOUT_MS);
+  throwIfAuthError(res);
+  if (!res.ok) throwApiError(`Gagal memuat header pesan (${res.status}).`, res.status);
+  let text = '';
+  if (res.body && typeof res.body.getReader === 'function') {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    const LIMIT = 256 * 1024; // blok header > 256 KB tidak wajar — hentikan
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (value) text += decoder.decode(value, { stream: true });
+        if (done || /\r?\n\r?\n/.test(text) || text.length > LIMIT) break;
+      }
+    } finally {
+      reader.cancel().catch(() => {});
+    }
+  } else {
+    text = await res.text();
+  }
+  return parseRawHeaders(text);
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -591,12 +691,12 @@ export async function markFlagged(sogoToken, folder, uid, flagged = true) {
  * criteria: "all", "from", "to", "subject", "body"
  */
 export async function searchMessages(sogoToken, folder, query, criteria = 'all') {
-  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/view`, {
+  const res = await fetchWithTimeout(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folder, 'folder', { allowEncodedSlash: true })}/view`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(buildMessageSearchBody(query, criteria)),
-  });
+  }, MESSAGE_TIMEOUT_MS);
   if (res.status === 204) return { messages: [], total: 0 };
   if (!res.ok) throwApiError('Gagal mencari pesan.', res.status);
   const data = await safeJson(res);
@@ -938,15 +1038,16 @@ export async function createDraft(sogoToken) {
  * @returns {string|null} uid draft di folder Draf (bila SOGo kembalikan)
  */
 export async function saveDraft(sogoToken, draftId, payload) {
-  const { to = '', cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '', attachments = [] } = payload;
+  const { to = '', cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '', attachments = [], inReplyTo = '', references = '' } = payload;
   const data = {
     subject,
     to: to ? to.split(',').map(s => s.trim()) : [],
     cc: cc ? cc.split(',').map(s => s.trim()) : [],
     bcc: bcc ? bcc.split(',').map(s => s.trim()) : [],
     replyTo: '',
-    inReplyTo: '',
-    references: '',
+    // Threading balasan (RFC 5322) — diisi replyBuilder saat Balas/Teruskan.
+    inReplyTo: threadingHeader(inReplyTo),
+    references: threadingHeader(references),
     text: body,
     isHTML,
     from,
@@ -1072,6 +1173,11 @@ function captureExternalContacts(sogoToken, from, recipients) {
 
 export async function sendMessage(sogoToken, payload) {
   const { to, cc = '', bcc = '', subject = '', body = '', isHTML = true, from = '', attachments = [], sendAt } = payload;
+  // Threading balasan: In-Reply-To = Message-ID asal, References = rantai asal
+  // + Message-ID asal. Dikirim ke SOGo (/send) maupun proxy SMTP (/api/send →
+  // server.js menyetel header setelah sanitasi token).
+  const inReplyTo = threadingHeader(payload.inReplyTo);
+  const references = threadingHeader(payload.references);
 
   // Defense-in-depth sanitasi: body HTML SELALU melewati DOMPurify sebelum
   // dikirim — terlepas dari apa pun yang dipanggil (ComposeModal memang sudah
@@ -1095,6 +1201,7 @@ export async function sendMessage(sogoToken, payload) {
       headers: withApiKey({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         to, cc, bcc, subject, body: safeBody, isHTML, from,
+        inReplyTo, references,
         ...(sendAt ? { sendAt: new Date(sendAt).toISOString() } : {}),
         attachments: attachments.map(a => ({
           filename: a.filename || a.name || 'attachment',
@@ -1134,8 +1241,8 @@ export async function sendMessage(sogoToken, payload) {
     cc: cc ? cc.split(',').map(s => s.trim()) : [],
     bcc: bcc ? bcc.split(',').map(s => s.trim()) : [],
     replyTo: '',
-    inReplyTo: '',
-    references: '',
+    inReplyTo,
+    references,
     text: safeBody,
     isHTML,
     from
@@ -1168,7 +1275,7 @@ export async function sendMessage(sogoToken, payload) {
     method: 'POST',
     credentials: 'include',
     headers: withApiKey({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ to, cc, bcc, subject, body: safeBody, isHTML, from, attachments }),
+    body: JSON.stringify({ to, cc, bcc, subject, body: safeBody, isHTML, from, attachments, inReplyTo, references }),
   });
   if (smtpRes.status === 401) throwIfAuthError(smtpRes);
   if (!smtpRes.ok) {
