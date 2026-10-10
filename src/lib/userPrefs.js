@@ -21,7 +21,9 @@ export const DEFAULT_PREFS = {
   density: 'normal',           // 'normal' | 'compact'
   markReadMode: 'instant',     // 'instant' | 'delay' | 'manual'
   markReadDelaySec: 3,         // dipakai saat markReadMode === 'delay'
-  paneWidths: { folders: 220, list: 340, listHeight: 320 },
+  // listHeight = tinggi SELURUH panel daftar (termasuk header ±330px) pada mode
+  // panel baca "bawah" — min 280 agar baris pesan tetap terlihat.
+  paneWidths: { folders: 220, list: 340, listHeight: 460 },
   collapsedFolders: [],        // id folder yang di-collapse di pohon folder
   favoriteFolders: [],         // id folder di seksi "Favorit"
 };
@@ -41,7 +43,7 @@ function normalizePaneWidths(v) {
   return {
     folders: clampInt(o.folders, 160, 320, d.folders),
     list: clampInt(o.list, 240, 560, d.list),
-    listHeight: clampInt(o.listHeight, 160, 800, d.listHeight),
+    listHeight: clampInt(o.listHeight, 280, 800, d.listHeight),
   };
 }
 

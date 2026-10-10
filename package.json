@@ -74,7 +74,19 @@
     "test:draft-compose": "node scripts/test-draft-compose.mjs",
     "test:search-flow": "node scripts/test-search-flow.mjs",
     "test:cross-tab": "node scripts/test-cross-tab.mjs",
-    "bench:flag-cache": "node scripts/benchmark-flag-cache.mjs"
+    "bench:flag-cache": "node scripts/benchmark-flag-cache.mjs",
+    "test:threading-headers": "node scripts/test-threading-headers.mjs",
+    "test:outlook-shell": "node scripts/test-outlook-shell.mjs",
+    "test:compose-utils": "node scripts/test-compose-utils.mjs",
+    "test:compose-outlook": "node scripts/test-compose-outlook.mjs",
+    "test:reply-builder": "node scripts/test-reply-builder.mjs",
+    "test:quote-collapse": "node scripts/test-quote-collapse.mjs",
+    "test:reader-api": "node scripts/test-reader-api.mjs",
+    "test:mail-selection": "node scripts/test-mail-selection.mjs",
+    "test:keymap": "node scripts/test-keymap.mjs",
+    "test:context-menu-position": "node scripts/test-context-menu-position.mjs",
+    "test:move-picker": "node scripts/test-move-picker.mjs",
+    "test:outlook-ux": "node scripts/test-outlook-ux.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

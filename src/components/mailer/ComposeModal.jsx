@@ -797,6 +797,37 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
 
   // ── Keyboard jendela compose ────────────────────────────────────────────────
   // Esc → tutup (konfirmasi bila ada perubahan); Ctrl/Cmd+Enter → kirim.
+  // Fokus awal ala Outlook: pesan baru / teruskan → kursor langsung di "Kepada"
+  // (balasan sudah memfokuskan editor lewat initialCaret). Tanpa ini, compose
+  // yang dibuka via shortcut `c` meninggalkan fokus di baris daftar sehingga
+  // Esc/Ctrl+Enter tidak sampai ke dialog.
+  useEffect(() => {
+    if (!isOpen || isMinimized || isReplyLike) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById('compose-to');
+      if (el && !to) el.focus({ preventScroll: true });
+    }, 80);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isMinimized]);
+
+  // Esc harus SELALU dimiliki compose selama terbuka (tidak diciutkan), walau
+  // fokus berada di luar dialog — ditangkap di fase capture agar handler global
+  // MailPage tidak menutup reader / mem-blur input sebagai gantinya.
+  const dialogRef = useRef(null);
+  const dialogKeyRef = useRef(null);
+  dialogKeyRef.current = handleDialogKeyDown;
+  useEffect(() => {
+    if (!isOpen || isMinimized) return;
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      if (dialogRef.current && dialogRef.current.contains(e.target)) return; // ditangani onKeyDown dialog
+      dialogKeyRef.current?.(e);
+    };
+    document.addEventListener('keydown', onEsc, true);
+    return () => document.removeEventListener('keydown', onEsc, true);
+  }, [isOpen, isMinimized]);
+
   // stopPropagation: shortcut global MailPage (window keydown) tidak ikut
   // bereaksi (mis. blur input) — jendela compose memiliki Esc sepenuhnya.
   function handleDialogKeyDown(e) {
@@ -833,6 +864,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
             // compose tetap hidup (state + autosave jalan terus).
             ? 'fixed bottom-0 right-0 sm:right-6 z-50 pointer-events-none'
             : 'fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4'}
+          ref={dialogRef}
           role="dialog"
           aria-modal={!isMinimized}
           aria-label={ariaLabel}

@@ -413,7 +413,7 @@ export default function MailPage() {
   // store saat menyimpan agar tidak menimpa field lain dgn snapshot basi.
   const [folderW, folderHandle] = useResizable(paneWidths?.folders ?? 220, 160, 320, 'x');
   const [listW, listHandle] = useResizable(paneWidths?.list ?? 340, 240, 560, 'x');
-  const [listH, listHeightHandle] = useResizable(paneWidths?.listHeight ?? 320, 160, 800, 'y');
+  const [listH, listHeightHandle] = useResizable(paneWidths?.listHeight ?? 460, 280, 800, 'y');
   useEffect(() => {
     const t = setTimeout(() => {
       const cur = useAuthStore.getState().paneWidths || {};

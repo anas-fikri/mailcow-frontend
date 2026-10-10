@@ -43,7 +43,9 @@ export default function MoveToPicker({ folders = [], excludeId = null, count = 1
     setPos({ left: p.left, top: p.top, ready: true });
   }, [x, y]);
 
-  useEffect(() => { inputRef.current?.focus({ preventScroll: true }); }, []);
+  // Fokus input SETELAH posisi siap (elemen masih visibility:hidden sebelum itu,
+  // dan focus() pada elemen hidden diabaikan browser).
+  useEffect(() => { if (pos.ready) inputRef.current?.focus({ preventScroll: true }); }, [pos.ready]);
   useEffect(() => { setActiveIdx(0); }, [query]);
   useEffect(() => {
     const el = listRef.current?.querySelector(`[data-idx="${activeIdx}"]`);
@@ -60,8 +62,21 @@ export default function MoveToPicker({ folders = [], excludeId = null, count = 1
 
   useEffect(() => {
     const onDown = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) close(); };
+    // Esc harus SELALU menutup picker walau fokus tidak berada di dalamnya
+    // (mis. dibuka via Ctrl+Shift+V saat fokus masih di baris pesan). Ditangkap
+    // di fase capture agar handler global MailPage tidak ikut menutup reader.
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      if (boxRef.current && boxRef.current.contains(e.target)) return; // ditangani onKeyDown picker
+      e.preventDefault(); e.stopPropagation();
+      close();
+    };
     document.addEventListener('mousedown', onDown, true);
-    return () => document.removeEventListener('mousedown', onDown, true);
+    document.addEventListener('keydown', onEsc, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown, true);
+      document.removeEventListener('keydown', onEsc, true);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -62,10 +62,25 @@ export default function ContextMenu({ x = 0, y = 0, items = [], onClose, ariaLab
     };
   }, [close]);
 
-  // Fokus ke menu saat terbuka supaya keyboard langsung bekerja.
+  // Fokus ke menu SETELAH posisi siap (elemen masih tersembunyi sebelum itu,
+  // dan focus() pada elemen hidden diabaikan browser) supaya keyboard langsung bekerja.
   useEffect(() => {
-    menuRef.current?.focus({ preventScroll: true });
-  }, []);
+    if (pos.ready) menuRef.current?.focus({ preventScroll: true });
+  }, [pos.ready]);
+
+  // Esc harus SELALU menutup menu walau fokus tidak berada di dalamnya
+  // (mis. fokus masih di baris pesan setelah klik-kanan). Ditangkap di fase
+  // capture agar handler global MailPage tidak ikut bereaksi.
+  useEffect(() => {
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      if (menuRef.current && menuRef.current.contains(e.target)) return; // ditangani onKeyDown menu
+      e.preventDefault(); e.stopPropagation();
+      close();
+    };
+    document.addEventListener('keydown', onEsc, true);
+    return () => document.removeEventListener('keydown', onEsc, true);
+  }, [close]);
 
   // Fokus item aktif (roving).
   useEffect(() => {
