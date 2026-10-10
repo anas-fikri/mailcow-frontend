@@ -49,7 +49,7 @@ function Switch({ checked, onChange, label, description, disabled = false, id, c
           aria-hidden="true"
           className={`relative block w-11 h-6 rounded-full transition-colors ${checked ? 'bg-primary' : 'bg-muted-foreground/30'}`}
         >
-          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : ''}`} />
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out ${checked ? 'translate-x-5' : ''}`} />
         </span>
       </button>
     </div>
@@ -83,8 +83,8 @@ function ChoiceGroup({ label, value, options, onChange, columns = 3 }) {
               tabIndex={selected ? 0 : -1}
               data-id={o.id}
               onClick={() => onChange(o.id)}
-              className={`flex flex-col items-center gap-1.5 px-2 py-2.5 min-h-11 rounded-xl border text-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                selected ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted text-foreground'
+              className={`flex flex-col items-center gap-1.5 px-2 py-2.5 min-h-11 rounded-lg border text-center transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                selected ? 'border-primary text-primary' : 'border-border hover:bg-muted text-foreground'
               }`}
             >
               {o.picto}
@@ -183,7 +183,7 @@ function LayoutSection() {
           <span
             role="status"
             aria-live="polite"
-            className={`shrink-0 inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 transition-opacity ${
+            className={`shrink-0 inline-flex items-center gap-1 text-[11px] rounded-full px-2 py-0.5 transition-opacity ${
               showSaved ? 'opacity-100 bg-green-500/10 text-green-700 dark:text-green-400' : 'opacity-70 text-muted-foreground'
             }`}
           >
@@ -217,7 +217,7 @@ function LayoutSection() {
         {/* Tandai dibaca */}
         <fieldset className="space-y-2">
           <legend className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <MailOpen size={15} className="text-primary" />
+            <MailOpen size={15} className="text-muted-foreground" />
             Tandai dibaca
           </legend>
           {[
@@ -254,7 +254,7 @@ function LayoutSection() {
                         const n = Math.min(60, Math.max(1, parseInt(e.target.value, 10) || 1));
                         set('markReadDelaySec', n);
                       }}
-                      className="w-16 bg-muted border-none rounded-lg px-2 py-1 text-sm text-foreground text-center focus:ring-2 focus:ring-primary focus:outline-none disabled:opacity-50 tabular-nums"
+                      className="w-16 h-8 bg-background border border-border rounded-md px-2 text-sm text-foreground text-center focus:ring-2 focus:ring-primary focus:outline-none disabled:opacity-50 tabular-nums"
                     />
                     dtk
                   </span>
@@ -269,12 +269,12 @@ function LayoutSection() {
         <Switch
           checked={!!conversationView}
           onChange={(v) => { setConversationView(v); flash(); }}
-          label={<span className="inline-flex items-center gap-2"><MessagesSquare size={15} className="text-primary" />Tampilan percakapan</span>}
+          label={<span className="inline-flex items-center gap-2"><MessagesSquare size={15} className="text-muted-foreground" />Tampilan percakapan</span>}
           description="Kelompokkan balasan dengan subjek sama menjadi satu utas."
         />
 
         <ChoiceGroup
-          label={<span className="inline-flex items-center gap-2"><ArrowUpDown size={15} className="text-primary" />Urutan</span>}
+          label={<span className="inline-flex items-center gap-2"><ArrowUpDown size={15} className="text-muted-foreground" />Urutan</span>}
           columns={2}
           value={sortAsc ? 'asc' : 'desc'}
           onChange={(v) => { setSortAsc(v === 'asc'); flash(); }}
@@ -290,10 +290,10 @@ function LayoutSection() {
 function Section({ icon: Icon, title, children, loading }) {
   if (loading) {
     return (
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center gap-3">
-          <Skeleton className="w-8 h-8 rounded-lg" />
-          <Skeleton className="h-5 w-32" />
+      <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
+        <div className="pane-header h-12 px-4 border-b border-border flex items-center gap-2.5">
+          <Skeleton className="w-4 h-4 rounded" />
+          <Skeleton className="h-4 w-32" />
         </div>
         <div className="p-5 space-y-4">
           <Skeleton className="h-10 w-full" />
@@ -304,12 +304,10 @@ function Section({ icon: Icon, title, children, loading }) {
     );
   }
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <div className="px-5 py-4 border-b border-border flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-          <Icon size={16} className="text-primary" />
-        </div>
-        <h2 className="font-semibold text-foreground">{title}</h2>
+    <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
+      <div className="pane-header h-12 px-4 border-b border-border flex items-center gap-2.5">
+        <Icon size={16} className="text-muted-foreground shrink-0" />
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
     </div>
@@ -449,7 +447,7 @@ function ChangePasswordSection() {
                 required
                 value={form[f.key]}
                 onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                className="w-full bg-muted border-none rounded-lg px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                className="w-full h-9 bg-background border border-border rounded-md px-3 pr-10 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
               />
               <button type="button" onClick={() => setShowPw(p => ({ ...p, [f.showKey]: !p[f.showKey] }))}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -468,7 +466,7 @@ function ChangePasswordSection() {
               minLength={MIN_LABEL}
               value={form.new}
               onChange={e => setForm(p => ({ ...p, new: e.target.value, confirm: '' }))}
-              className="w-full bg-muted border-none rounded-lg px-3 py-2 pr-20 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+              className="w-full h-9 bg-background border border-border rounded-md px-3 pr-20 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
               placeholder={form.new ? '' : `Min ${MIN_LABEL} karakter, huruf + angka + simbol`}
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -501,7 +499,7 @@ function ChangePasswordSection() {
               required
               value={form.confirm}
               onChange={e => setForm(p => ({ ...p, confirm: e.target.value }))}
-              className={`w-full bg-muted border-none rounded-lg px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-primary focus:outline-none ${
+              className={`w-full h-9 bg-background border border-border rounded-md px-3 pr-10 text-sm focus:ring-2 focus:ring-primary focus:outline-none ${
                 form.confirm && form.new !== form.confirm ? 'ring-2 ring-destructive/50' : ''
               }`}
             />
@@ -518,7 +516,7 @@ function ChangePasswordSection() {
         <button
           type="submit"
           disabled={mutation.isPending || (form.confirm && form.new !== form.confirm)}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
+          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground h-9 px-4 rounded-md text-sm font-medium disabled:opacity-60"
         >
           {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
           Ubah Password
@@ -669,7 +667,7 @@ function SignatureSection() {
 
         {/* Daftar signature */}
         {sigList.length === 0 ? (
-          <div className="text-sm text-muted-foreground bg-muted/50 rounded-xl p-6 text-center">
+          <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-6 text-center">
             Belum ada signature. Klik "Tambah Signature" untuk membuat.
           </div>
         ) : (
@@ -678,7 +676,7 @@ function SignatureSection() {
               const isDefaultNew = defaults.new === sig.id;
               const isDefaultReply = defaults.reply === sig.id;
               return (
-                <div key={sig.id} className="border border-border rounded-xl p-3 flex items-center justify-between gap-3">
+                <div key={sig.id} className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
                   <button
                     type="button"
                     onClick={() => startEdit(sig)}
@@ -686,8 +684,8 @@ function SignatureSection() {
                   >
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium text-foreground">{sig.name}</span>
-                      {isDefaultNew && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Utk pesan baru</span>}
-                      {isDefaultReply && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Utk balasan</span>}
+                      {isDefaultNew && <span className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Utk pesan baru</span>}
+                      {isDefaultReply && <span className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">Utk balasan</span>}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 line-clamp-1">
                       {/* Entri legacy ber-placeholder (migrasi sekali-jalan di
@@ -706,7 +704,7 @@ function SignatureSection() {
                         setDefaultSignature(email, e.target.value, sig.id);
                         refresh();
                       }}
-                      className="bg-muted border-none rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none"
+                      className="h-8 bg-background border border-border rounded-md px-2 text-xs text-foreground focus:outline-none"
                       title="Jadikan signature default"
                     >
                       <option value="">—</option>
@@ -730,7 +728,7 @@ function SignatureSection() {
 
         {/* Editor signature aktif */}
         {(editingId || !sigList.length) && (
-          <div className="border border-border rounded-xl p-4 space-y-3">
+          <div className="border border-border rounded-lg p-4 space-y-3">
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Nama Signature</label>
               <input
@@ -738,7 +736,7 @@ function SignatureSection() {
                 value={sigName}
                 onChange={(e) => setSigName(e.target.value)}
                 placeholder="mis. Signature Kantor"
-                className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
               />
             </div>
             <div className="space-y-1.5">
@@ -754,7 +752,7 @@ function SignatureSection() {
               <button
                 type="button"
                 onClick={handleSave}
-                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-lg text-sm font-medium"
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground h-9 px-4 rounded-md text-sm font-medium"
               >
                 <FileSignature size={14} />
                 {editingId ? 'Simpan Perubahan' : 'Tambah Signature'}
@@ -777,7 +775,7 @@ function SignatureSection() {
             <button
               type="button"
               onClick={() => startEdit(null)}
-              className="flex items-center gap-2 border border-border hover:bg-muted text-foreground px-4 py-2 rounded-lg text-sm font-medium"
+              className="flex items-center gap-2 h-9 border border-border hover:bg-muted text-foreground px-4 rounded-md text-sm font-medium"
             >
               <Plus size={15} />
               Tambah Signature
@@ -787,7 +785,7 @@ function SignatureSection() {
             type="button"
             onClick={syncToSogo}
             disabled={savingSogo || !sigList.length}
-            className="flex items-center gap-2 border border-border hover:bg-muted text-foreground px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+            className="flex items-center gap-2 h-9 border border-border hover:bg-muted text-foreground px-4 rounded-md text-sm font-medium disabled:opacity-50"
             title="Simpan signature utama ke preferensi SOGo agar dipakai klien SOGo lain (native/mobile)"
           >
             {savingSogo ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
@@ -914,12 +912,12 @@ function VacationSection() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">Mulai</label>
                 <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                  className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                  className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">Selesai</label>
                 <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                  className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                  className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
               </div>
             </div>
 
@@ -927,14 +925,14 @@ function VacationSection() {
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Subjek</label>
               <input type="text" value={subject} onChange={e => setSubject(e.target.value)}
-                className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
+                className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
             </div>
 
             {/* Message */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">Pesan</label>
               <textarea rows={5} value={message} onChange={e => setMessage(e.target.value)}
-                className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none resize-y" />
+                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none resize-y" />
             </div>
           </div>
         )}
@@ -942,7 +940,7 @@ function VacationSection() {
         <button
           onClick={() => { setStatus(null); mutation.mutate(); }}
           disabled={mutation.isPending}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
+          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground h-9 px-4 rounded-md text-sm font-medium disabled:opacity-60"
         >
           {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plane size={14} />}
           Simpan Pengaturan
@@ -1008,7 +1006,7 @@ function NotifySection() {
           <button
             type="button"
             onClick={requestPermission}
-            className="mt-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+            className="mt-2 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
           >
             Minta izin notifikasi
           </button>
@@ -1025,7 +1023,7 @@ function NotifySection() {
       <Switch
         checked={sound}
         onChange={(v) => { setSound(v); persist({ sound: v }); }}
-        label={<span className="inline-flex items-center gap-2"><Volume2 size={15} className="text-primary" />Suara notifikasi</span>}
+        label={<span className="inline-flex items-center gap-2"><Volume2 size={15} className="text-muted-foreground" />Suara notifikasi</span>}
         description="Mainkan bunyi singkat saat email baru masuk. Mengikuti volume perangkat."
       />
 
@@ -1120,7 +1118,7 @@ function DisplaySection() {
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">Bahasa</label>
           <select value={language} onChange={e => setLanguage(e.target.value)}
-            className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+            className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
             <option value="Indonesian">Indonesia</option>
             <option value="English">English</option>
           </select>
@@ -1129,7 +1127,7 @@ function DisplaySection() {
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">Zona Waktu</label>
           <select value={timezone} onChange={e => setTimezone(e.target.value)}
-            className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+            className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
             <option value="Asia/Jakarta">Asia/Jakarta (WIB, UTC+7)</option>
             <option value="Asia/Makassar">Asia/Makassar (WITA, UTC+8)</option>
             <option value="Asia/Jayapura">Asia/Jayapura (WIT, UTC+9)</option>
@@ -1140,7 +1138,7 @@ function DisplaySection() {
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">Format Tanggal</label>
           <select value={dateFormat} onChange={e => setDateFormat(e.target.value)}
-            className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+            className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
             <option value="%d/%m/%Y">31/12/2026</option>
             <option value="%m/%d/%Y">12/31/2026</option>
             <option value="%Y-%m-%d">2026-12-31</option>
@@ -1151,7 +1149,7 @@ function DisplaySection() {
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-foreground">Awal Minggu</label>
           <select value={weekStart} onChange={e => setWeekStart(e.target.value)}
-            className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+            className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
             <option value="0">Minggu</option>
             <option value="1">Senin</option>
           </select>
@@ -1161,7 +1159,7 @@ function DisplaySection() {
         <hr className="border-border my-2" />
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <Palette size={15} className="text-primary" />
+            <Palette size={15} className="text-muted-foreground" />
             Mode Tampilan
           </div>
           <div className="flex gap-2">
@@ -1174,9 +1172,9 @@ function DisplaySection() {
                 key={m.id}
                 type="button"
                 onClick={() => setTheme(m.id)}
-                className={`flex-1 flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                className={`flex-1 flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-lg border text-left transition-colors duration-150 ${
                   theme === m.id
-                    ? 'border-primary bg-primary/10 text-primary'
+                    ? 'border-primary text-primary'
                     : 'border-border hover:bg-muted'
                 }`}
               >
@@ -1191,7 +1189,7 @@ function DisplaySection() {
         <hr className="border-border my-2" />
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <Palette size={15} className="text-primary" />
+            <Palette size={15} className="text-muted-foreground" />
             Warna Tema
           </div>
           <div className="flex flex-wrap gap-3">
@@ -1213,7 +1211,7 @@ function DisplaySection() {
                     }`}
                     style={{ backgroundColor: c.swatch }}
                   />
-                  <span className={`text-[10px] ${selected ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                  <span className={`text-[11px] ${selected ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
                     {c.label}
                   </span>
                 </button>
@@ -1226,14 +1224,14 @@ function DisplaySection() {
         <hr className="border-border my-2" />
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <MessageSquare size={15} className="text-primary" />
+            <MessageSquare size={15} className="text-muted-foreground" />
             Preferensi Email
           </div>
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">Mode Tulis Email</label>
             <select value={composeMode} onChange={e => setComposeMode(e.target.value)}
-              className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+              className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
               <option value="html">Rich Text (HTML)</option>
               <option value="text">Plain Text</option>
             </select>
@@ -1242,7 +1240,7 @@ function DisplaySection() {
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">Posisi Balasan</label>
             <select value={replyPlacement} onChange={e => setReplyPlacement(e.target.value)}
-              className="w-full bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
+              className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none">
               <option value="above">Di atas teks yang dikutip</option>
               <option value="below">Di bawah teks yang dikutip</option>
             </select>
@@ -1261,7 +1259,7 @@ function DisplaySection() {
 
         <button onClick={() => { setStatus(null); mutation.mutate(); }}
           disabled={mutation.isPending}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-60">
+          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground h-9 px-4 rounded-md text-sm font-medium disabled:opacity-60">
           {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
           Simpan Pengaturan
         </button>
@@ -1333,10 +1331,10 @@ export default function PreferencesPage() {
                 tabIndex={active ? 0 : -1}
                 data-tab={t.id}
                 onClick={() => setActiveTab(t.id)}
-                className={`w-full flex items-center justify-between px-3 min-h-11 rounded-xl text-sm transition-all ${
+                className={`w-full flex items-center justify-between px-3 min-h-11 rounded-md text-[13px] transition-colors duration-150 ${
                   active
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    ? 'bg-muted text-primary font-medium'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -1371,7 +1369,7 @@ export default function PreferencesPage() {
               data-tab={t.id}
               ref={(el) => { mobileTabRefs.current[t.id] = el; }}
               onClick={() => setActiveTab(t.id)}
-              className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 min-h-11 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 min-h-11 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors duration-150 ${
                 active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -1427,7 +1425,7 @@ class SectionErrorBoundary extends React.Component {
       // pemilik akun tanpa devtools; detail juga tercatat di console dgn
       // prefix section.
       return (
-        <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 text-sm text-destructive space-y-2">
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-sm text-destructive space-y-2">
           <div className="font-semibold">Bagian "{this.props.section}" tidak dapat ditampilkan.</div>
           <div className="text-xs text-muted-foreground">
             Terjadi kesalahan saat memuat bagian ini. Detail bisa dibuka lewat tombol di bawah.

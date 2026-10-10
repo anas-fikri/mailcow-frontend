@@ -304,22 +304,22 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="w-full sm:max-w-lg bg-background flex flex-col rounded-t-2xl sm:rounded-xl shadow-2xl overflow-hidden"
+            className="w-full sm:max-w-lg bg-background flex flex-col max-h-[90vh] rounded-t-xl sm:rounded-xl shadow-lg overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-card">
-              <h2 className="text-base font-semibold">
+            <div className="pane-header h-12 px-4 border-b border-border bg-card flex items-center justify-between shrink-0">
+              <h2 className="text-sm font-semibold">
                 {isView ? 'Detail Event' : isEdit ? 'Edit Event' : 'Event Baru'}
               </h2>
-              <button onClick={onClose} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors">
-                <X size={18} />
+              <button onClick={onClose} className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150">
+                <X size={16} />
               </button>
             </div>
 
             {isView ? (
               /* ── View Mode ── */
-              <div className="px-5 py-4 space-y-4">
+              <div className="px-5 py-4 space-y-4 overflow-y-auto">
                 <h3 className="text-lg font-semibold">{event?.title}</h3>
 
                 <div className="flex items-start gap-3 text-sm">
@@ -363,14 +363,14 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                   <button
                     onClick={handleDelete}
                     disabled={saving}
-                    className="px-4 py-2 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-lg text-sm font-medium transition-colors"
+                    className="h-9 px-4 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-md text-sm font-medium transition-colors duration-150"
                   >
                     Hapus
                   </button>
                   <div className="flex-1" />
                   <button
                     onClick={onClose}
-                    className="px-4 py-2 bg-muted text-foreground rounded-lg text-sm font-medium transition-colors hover:bg-muted/80"
+                    className="h-9 px-4 bg-muted text-foreground rounded-md text-sm font-medium transition-colors duration-150 hover:bg-muted/80"
                   >
                     Tutup
                   </button>
@@ -378,7 +378,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
               </div>
             ) : (
               /* ── Create / Edit Form ── */
-              <form onSubmit={handleSave} className="px-5 py-4 space-y-4">
+              <form onSubmit={handleSave} className="px-5 py-4 space-y-4 overflow-y-auto">
                 {error && (
                   <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg">{error}</div>
                 )}
@@ -390,7 +390,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                     type="text"
                     value={title}
                     onChange={e => setTitle(e.target.value)}
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     placeholder="Nama event"
                     autoFocus
                   />
@@ -412,7 +412,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                   <div className="space-y-2 border-t border-border pt-3">
                     <label className="text-sm font-medium text-foreground block">Edit event berulang</label>
                     <div className="flex flex-col gap-1.5">
-                      <label className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer transition-colors ${editScope === 'single' ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted'}`}>
+                      <label className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md border cursor-pointer transition-colors duration-150 ${editScope === 'single' ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted'}`}>
                         <input
                           type="radio"
                           name="editScope"
@@ -425,7 +425,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                           <span className="block text-xs text-muted-foreground">Perubahan hanya untuk tanggal {toLocalDateStr(new Date(Number(event?.start) * 1000))}</span>
                         </span>
                       </label>
-                      <label className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer transition-colors ${editScope === 'all' ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted'}`}>
+                      <label className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md border cursor-pointer transition-colors duration-150 ${editScope === 'all' ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted'}`}>
                         <input
                           type="radio"
                           name="editScope"
@@ -455,7 +455,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                       <select
                         value={freq}
                         onChange={(e) => { setFreq(e.target.value); repeatTouchedRef.current = true; }}
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                       >
                         <option value="never">Tidak berulang</option>
                         <option value="daily">Harian</option>
@@ -472,7 +472,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                           min="1"
                           value={repeatInterval}
                           onChange={(e) => { setRepeatInterval(e.target.value); repeatTouchedRef.current = true; }}
-                          className="w-16 bg-background border border-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                          className="w-16 h-9 bg-background border border-border rounded-md px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                         />
                         <span className="text-xs text-muted-foreground">{FREQ_UNITS[freq] || ''}</span>
                       </div>
@@ -532,7 +532,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                       <select
                         value={repeatEnd}
                         onChange={(e) => { setRepeatEnd(e.target.value); repeatTouchedRef.current = true; }}
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                       >
                         <option value="never">Tanpa akhir</option>
                         <option value="count">Setelah beberapa kali</option>
@@ -545,7 +545,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                             min="1"
                             value={repeatCount}
                             onChange={(e) => { setRepeatCount(e.target.value); repeatTouchedRef.current = true; }}
-                            className="w-20 bg-background border border-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                            className="w-20 h-9 bg-background border border-border rounded-md px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                           />
                           <span className="text-xs text-muted-foreground">kali</span>
                         </div>
@@ -555,7 +555,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                           type="date"
                           value={repeatUntil}
                           onChange={(e) => { setRepeatUntil(e.target.value); repeatTouchedRef.current = true; }}
-                          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                          className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                         />
                       )}
                     </div>
@@ -576,7 +576,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                       type="date"
                       value={startDate}
                       onChange={e => setStartDate(e.target.value)}
-                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     />
                   </div>
                   {!isAllDay && (
@@ -586,7 +586,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                         type="time"
                         value={startTime}
                         onChange={e => setStartTime(e.target.value)}
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                       />
                     </div>
                   )}
@@ -600,7 +600,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                       type="date"
                       value={endDate}
                       onChange={e => setEndDate(e.target.value)}
-                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     />
                   </div>
                   {!isAllDay && (
@@ -610,7 +610,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                         type="time"
                         value={endTime}
                         onChange={e => setEndTime(e.target.value)}
-                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                       />
                     </div>
                   )}
@@ -623,7 +623,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                     type="text"
                     value={location}
                     onChange={e => setLocation(e.target.value)}
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     placeholder="Ruang meeting, URL, dll"
                   />
                 </div>
@@ -635,7 +635,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                     type="text"
                     value={attendees}
                     onChange={e => setAttendees(e.target.value)}
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     placeholder="email@domain.com, email2@domain.com"
                   />
                   <p className="text-[11px] text-muted-foreground mt-1">Pisahkan dengan koma untuk banyak peserta</p>
@@ -648,7 +648,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                     value={description}
                     onChange={e => setDescription(e.target.value)}
                     rows={3}
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+                    className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
                     placeholder="Deskripsi event..."
                   />
                 </div>
@@ -660,7 +660,7 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                       type="button"
                       onClick={handleDelete}
                       disabled={saving}
-                      className="px-4 py-2 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-lg text-sm font-medium transition-colors"
+                      className="h-9 px-4 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-md text-sm font-medium transition-colors duration-150"
                     >
                       Hapus
                     </button>
@@ -669,14 +669,14 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-4 py-2 bg-muted text-foreground rounded-lg text-sm font-medium transition-colors hover:bg-muted/80"
+                    className="h-9 px-4 bg-muted text-foreground rounded-md text-sm font-medium transition-colors duration-150 hover:bg-muted/80"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium transition-colors hover:bg-primary/90 disabled:opacity-60 flex items-center gap-2"
+                    className="h-9 px-5 bg-primary text-primary-foreground rounded-md text-sm font-medium transition-colors duration-150 hover:bg-primary/90 disabled:opacity-60 flex items-center gap-2"
                   >
                     {saving ? <><Loader2 size={14} className="animate-spin" /> Menyimpan...</> : (isEdit ? 'Simpan' : 'Buat Event')}
                   </button>

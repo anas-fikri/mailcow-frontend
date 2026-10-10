@@ -13,7 +13,7 @@ export function StatCard({ icon: Icon, label, value, sub, trend, color = 'primar
 
   if (loading) {
     return (
-      <div className="bg-card border border-border rounded-xl p-5 space-y-3 animate-pulse">
+      <div className="bg-card border border-border rounded-lg shadow-sm p-5 space-y-3 animate-pulse">
         <div className="flex items-center justify-between">
           <div className="h-4 w-24 bg-muted rounded" />
           <div className="w-8 h-8 bg-muted rounded-lg" />
@@ -25,16 +25,16 @@ export function StatCard({ icon: Icon, label, value, sub, trend, color = 'primar
   }
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 transition-all hover:shadow-md hover:border-primary/20">
+    <div className="bg-card border border-border rounded-lg shadow-sm p-5">
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-medium text-muted-foreground">{label}</span>
         {Icon && (
-          <div className={`w-9 h-9 rounded-xl ${colorMap[color] || colorMap.primary} flex items-center justify-center`}>
-            <Icon size={18} />
+          <div className={`w-8 h-8 rounded-md ${colorMap[color] || colorMap.primary} flex items-center justify-center`}>
+            <Icon size={16} />
           </div>
         )}
       </div>
-      <div className="text-2xl font-bold text-foreground">{value}</div>
+      <div className="text-2xl font-semibold text-foreground tabular-nums">{value}</div>
       {sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}
       {trend && (
         <div className={`text-xs mt-1.5 font-medium ${trend.startsWith('+') ? 'text-green-500' : trend.startsWith('-') ? 'text-red-500' : 'text-muted-foreground'}`}>
@@ -48,7 +48,7 @@ export function StatCard({ icon: Icon, label, value, sub, trend, color = 'primar
 // ─── Bar Chart ────────────────────────────────────────────────────────────────
 export function BarChart({ data, bars, height = 200, colors, loading }) {
   if (loading) {
-    return <div className="h-[200px] bg-muted/30 rounded-xl animate-pulse" />;
+    return <div className="h-[200px] bg-muted/30 rounded-lg animate-pulse" />;
   }
 
   if (!data || data.length === 0) {
@@ -79,7 +79,7 @@ export function BarChart({ data, bars, height = 200, colors, loading }) {
           return (
             <g key={ratio}>
               <line x1="0" y1={y} x2={data.length * 60} y2={y} stroke="currentColor" className="text-border/50" strokeWidth="1" />
-              <text x="2" y={y - 4} className="fill-muted-foreground" fontSize="10">
+              <text x="2" y={y - 4} className="fill-muted-foreground" fontSize="11">
                 {Math.round(scaleMax * ratio)}
               </text>
             </g>
@@ -117,7 +117,7 @@ export function BarChart({ data, bars, height = 200, colors, loading }) {
                 y={height - 2}
                 textAnchor="middle"
                 className="fill-muted-foreground"
-                fontSize="10"
+                fontSize="11"
               >
                 {d.date}
               </text>
@@ -205,7 +205,7 @@ export function DonutChart({ data, size = 140, loading }) {
         <text x={cx} y={cy - 4} textAnchor="middle" className="fill-foreground" fontSize="16" fontWeight="bold">
           {total}
         </text>
-        <text x={cx} y={cy + 12} textAnchor="middle" className="fill-muted-foreground" fontSize="10">
+        <text x={cx} y={cy + 12} textAnchor="middle" className="fill-muted-foreground" fontSize="11">
           Total
         </text>
       </svg>

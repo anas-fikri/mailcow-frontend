@@ -41,16 +41,16 @@ export default function StatsPage() {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-border bg-card flex items-center justify-between sticky top-0 z-10 flex-wrap gap-2">
+      <div className="min-h-12 px-4 py-2 border-b border-border bg-card flex items-center justify-between sticky top-0 z-10 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <BarChart3 size={20} className="text-primary" />
-          <h1 className="text-lg font-semibold">Statistik Email</h1>
+          <h1 className="text-base font-semibold">Statistik Email</h1>
         </div>
         <div className="flex items-center gap-2">
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="bg-muted border-none rounded-lg px-3 py-1.5 text-xs font-medium text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+            className="h-8 bg-background border border-border rounded-md px-2.5 text-xs font-medium text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
           >
             <option value="7d">7 Hari</option>
             <option value="30d">30 Hari</option>
@@ -67,7 +67,7 @@ export default function StatsPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {/* User info badge */}
           {summary?._user && (
-            <div className="col-span-full flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-xl text-xs text-muted-foreground min-w-0">
+            <div className="col-span-full flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg text-xs text-muted-foreground min-w-0">
               <User size={14} className="shrink-0" />
               <span className="truncate min-w-0">Statistik untuk: <strong className="text-foreground">{summary._user}</strong></span>
               {summary._error && (
@@ -113,7 +113,7 @@ export default function StatsPage() {
         </div>
 
         {/* ── Daily Trend Bar Chart ─────────────────────────────────────── */}
-        <div className="bg-card border border-border rounded-xl p-5">
+        <div className="bg-card border border-border rounded-lg shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Ringkasan Folder</h2>
@@ -123,16 +123,16 @@ export default function StatsPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             {[
-              { label: 'Kotak Masuk', value: summary?.received || 0, color: '#3b82f6', icon: Inbox },
-              { label: 'Terkirim', value: summary?.sent || 0, color: '#22c55e', icon: Send },
-              { label: 'Gagal', value: summary?.bounced || 0, color: '#ef4444', icon: AlertTriangle },
-              { label: 'Spam', value: summary?.spamCaught || 0, color: '#f59e0b', icon: ShieldBan },
+              { label: 'Kotak Masuk', value: summary?.received || 0, cls: 'text-primary', icon: Inbox },
+              { label: 'Terkirim', value: summary?.sent || 0, cls: 'text-green-600 dark:text-green-400', icon: Send },
+              { label: 'Gagal', value: summary?.bounced || 0, cls: 'text-destructive', icon: AlertTriangle },
+              { label: 'Spam', value: summary?.spamCaught || 0, cls: 'text-amber-600 dark:text-amber-400', icon: ShieldBan },
             ].map((item) => {
               const Icon = item.icon;
               return (
-                <div key={item.label} className="bg-muted/30 rounded-xl p-4 text-center hover:bg-muted/50 transition-colors">
-                  <Icon size={20} className="mx-auto mb-1.5" style={{ color: item.color }} />
-                  <div className="text-2xl font-bold" style={{ color: item.color }}>
+                <div key={item.label} className="bg-muted/30 border border-border/60 rounded-lg p-4 text-center">
+                  <Icon size={18} className={`mx-auto mb-1.5 ${item.cls}`} />
+                  <div className="text-2xl font-semibold text-foreground tabular-nums">
                     {isLoading ? '—' : formatNumber(item.value)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">{item.label}</div>
@@ -145,7 +145,7 @@ export default function StatsPage() {
         {/* ── Bottom Row ────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Donut Chart: Spam/Virus Distribution */}
-          <div className="bg-card border border-border rounded-xl p-5">
+          <div className="bg-card border border-border rounded-lg shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">Filter Keamanan</h2>
@@ -166,7 +166,7 @@ export default function StatsPage() {
           </div>
 
           {/* Storage & System Info */}
-          <div className="bg-card border border-border rounded-xl p-5">
+          <div className="bg-card border border-border rounded-lg shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">Penyimpanan</h2>
@@ -182,12 +182,12 @@ export default function StatsPage() {
                 color={storage?.used && storage?.total && storage.used / storage.total > 0.8 ? 'warning' : 'primary'}
               />
               <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="bg-muted/30 rounded-xl p-3 text-center">
-                  <div className="text-lg font-bold text-foreground">{storage?.mailboxes || 0}</div>
+                <div className="bg-muted/30 rounded-lg p-3 text-center">
+                  <div className="text-lg font-semibold text-foreground tabular-nums">{storage?.mailboxes || 0}</div>
                   <div className="text-xs text-muted-foreground">Mailboxes</div>
                 </div>
-                <div className="bg-muted/30 rounded-xl p-3 text-center">
-                  <div className="text-lg font-bold text-foreground">{storage?.domains || 0}</div>
+                <div className="bg-muted/30 rounded-lg p-3 text-center">
+                  <div className="text-lg font-semibold text-foreground tabular-nums">{storage?.domains || 0}</div>
                   <div className="text-xs text-muted-foreground">Domain</div>
                 </div>
               </div>
@@ -196,7 +196,7 @@ export default function StatsPage() {
         </div>
 
         {/* ── Quick Stats Row ───────────────────────────────────────────── */}
-        <div className="bg-card border border-border rounded-xl p-5">
+        <div className="bg-card border border-border rounded-lg shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Ringkasan Cepat</h2>
@@ -205,7 +205,7 @@ export default function StatsPage() {
             <FileText size={18} className="text-muted-foreground" />
           </div>
           {isLoading ? (
-            <div className="h-20 bg-muted/30 rounded-xl animate-pulse" />
+            <div className="h-20 bg-muted/30 rounded-lg animate-pulse" />
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[
@@ -216,10 +216,10 @@ export default function StatsPage() {
               ].map((item) => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.label} className="bg-muted/30 rounded-xl p-3 text-center hover:bg-muted/50 transition-colors">
+                  <div key={item.label} className="bg-muted/30 rounded-lg p-3 text-center">
                     <Icon size={16} className="mx-auto mb-1 text-muted-foreground" />
-                    <div className="text-sm font-bold text-foreground">{item.value}</div>
-                    <div className="text-[10px] text-muted-foreground">{item.label}</div>
+                    <div className="text-sm font-semibold text-foreground tabular-nums">{item.value}</div>
+                    <div className="text-[11px] text-muted-foreground">{item.label}</div>
                   </div>
                 );
               })}

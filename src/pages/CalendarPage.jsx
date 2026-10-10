@@ -379,7 +379,7 @@ export default function CalendarPage() {
       {/* ── Main Area ──────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto">
         {/* Header */}
-        <div className="px-5 py-3 border-b border-border bg-card flex items-center justify-between sticky top-0 z-10 flex-wrap gap-2">
+        <div className="min-h-12 px-4 py-2 border-b border-border bg-card flex items-center justify-between sticky top-0 z-10 flex-wrap gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <CalIcon size={20} className="text-primary shrink-0" />
             <h1 className="text-base font-semibold truncate">Kalender</h1>
@@ -388,16 +388,16 @@ export default function CalendarPage() {
             <ViewSwitcher view={view} onChange={setView} />
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={goBack} className="p-2 rounded-full hover:bg-muted text-muted-foreground" aria-label="Bulan sebelumnya">
+            <button onClick={goBack} className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150" aria-label="Bulan sebelumnya">
               <ChevronLeft size={18} />
             </button>
             <button
               onClick={goToday}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-muted hover:bg-muted/80 text-foreground transition-colors"
+              className="h-8 px-3 rounded-md text-xs font-medium border border-border hover:bg-muted text-foreground transition-colors duration-150"
             >
               Hari Ini
             </button>
-            <button onClick={goForward} className="p-2 rounded-full hover:bg-muted text-muted-foreground" aria-label="Bulan berikutnya">
+            <button onClick={goForward} className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150" aria-label="Bulan berikutnya">
               <ChevronRight size={18} />
             </button>
             <span className="text-sm font-semibold text-foreground min-w-[120px] text-center hidden sm:block shrink-0 whitespace-nowrap">
@@ -405,7 +405,7 @@ export default function CalendarPage() {
             </span>
             <button
               onClick={() => openCreateModal(selected)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+              className="flex items-center gap-1.5 h-8 px-3 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors duration-150"
             >
               <Plus size={16} />
               <span className="hidden sm:inline">Event</span>
@@ -505,7 +505,7 @@ export default function CalendarPage() {
               <button
                 key={ev.id || i}
                 onClick={() => setDetailEv(ev)}
-                className={`w-full text-left p-3 rounded-xl border ${
+                className={`w-full text-left p-3 rounded-lg border ${
                   detailEv === ev ? 'border-primary/40 bg-primary/5' : 'border-border bg-background hover:bg-muted'
                 } transition-colors`}
               >
@@ -537,7 +537,7 @@ export default function CalendarPage() {
       {/* ── Event detail popup ─────────────────────────────────────────────── */}
       {detailEv && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setDetailEv(null)}>
-          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-xl shadow-lg w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${calColor(detailEv.calendar)}`}>
                 {detailEv.calendar || 'Kalender'}
@@ -546,7 +546,7 @@ export default function CalendarPage() {
                 <button
                   onClick={() => openEditModal(detailEv)}
                   disabled={editingId === detailEv.id}
-                  className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                   title="Edit"
                 >
                   {editingId === detailEv.id ? <Loader2 size={14} className="animate-spin" /> : <Pencil size={14} />}
@@ -560,12 +560,12 @@ export default function CalendarPage() {
                     setDeleteTarget(detailEv);
                   }}
                   disabled={deletingEv}
-                  className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                  className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
                   title="Hapus"
                 >
                   <Trash2 size={14} />
                 </button>
-                <button onClick={() => setDetailEv(null)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors">
+                <button onClick={() => setDetailEv(null)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
                   <ChevronRight size={16} />
                 </button>
               </div>
@@ -604,7 +604,7 @@ export default function CalendarPage() {
       {/* ── Scope chooser hapus (event berulang) ──────────────────────────── */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={() => setDeleteTarget(null)}>
-          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-xl shadow-lg w-full max-w-xs p-5" onClick={(e) => e.stopPropagation()}>
             <h4 className="text-sm font-semibold text-foreground mb-1">Hapus event?</h4>
             <p className="text-xs text-muted-foreground mb-4 truncate">{deleteTarget.title}</p>
             {deleteTarget.isRecurring && deleteTarget.occurrenceId ? (
@@ -623,7 +623,7 @@ export default function CalendarPage() {
                     }
                   }}
                   disabled={deletingEv}
-                  className="px-4 py-2.5 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-lg text-sm font-medium transition-colors text-left"
+                  className="px-4 py-2.5 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-md text-sm font-medium transition-colors duration-150 text-left"
                 >
                   Hapus kejadian ini saja
                   <span className="block text-[11px] font-normal opacity-80">Kejadian lain tetap ada</span>
@@ -642,7 +642,7 @@ export default function CalendarPage() {
                     }
                   }}
                   disabled={deletingEv}
-                  className="px-4 py-2.5 bg-destructive text-white hover:bg-destructive/90 rounded-lg text-sm font-medium transition-colors text-left"
+                  className="px-4 py-2.5 bg-destructive text-white hover:bg-destructive/90 rounded-md text-sm font-medium transition-colors duration-150 text-left"
                 >
                   Hapus semua kejadian
                   <span className="block text-[11px] font-normal opacity-80">Seluruh rangkaian pengulangan dihapus</span>
@@ -663,13 +663,13 @@ export default function CalendarPage() {
                     }
                   }}
                   disabled={deletingEv}
-                  className="flex-1 px-4 py-2.5 bg-destructive text-white hover:bg-destructive/90 rounded-lg text-sm font-medium transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-destructive text-white hover:bg-destructive/90 rounded-md text-sm font-medium transition-colors duration-150"
                 >
                   {deletingEv ? 'Menghapus...' : 'Hapus'}
                 </button>
                 <button
                   onClick={() => setDeleteTarget(null)}
-                  className="flex-1 px-4 py-2.5 bg-muted text-foreground rounded-lg text-sm font-medium hover:bg-muted/80 transition-colors"
+                  className="flex-1 px-4 py-2.5 bg-muted text-foreground rounded-md text-sm font-medium hover:bg-muted/80 transition-colors duration-150"
                 >
                   Batal
                 </button>
@@ -715,7 +715,7 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
       {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-border bg-muted/30">
         {dayLabels.map((d) => (
-          <div key={d} className="py-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <div key={d} className="py-2 text-center text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
             {d}
           </div>
         ))}
@@ -724,7 +724,7 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
       {/* Grid */}
       <div className="grid grid-cols-7 flex-1">
         {gridDays.map((date, i) => {
-          if (!date) return <div key={`pad-${i}`} className="min-h-[80px] border-b border-r border-border/40 bg-muted/10" />;
+          if (!date) return <div key={`pad-${i}`} className="min-h-[80px] border-b border-r border-border/60 bg-muted/10" />;
 
           const today = isToday(date);
           const sel = isSameDay(date, selected);
@@ -734,7 +734,7 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
             <div
               key={date.getTime()}
               onClick={() => onSelectDate(date)}
-              className={`group relative min-h-[80px] border-b border-r border-border/40 p-1.5 flex flex-col text-left hover:bg-muted/50 transition-colors cursor-pointer ${
+              className={`group relative min-h-[80px] border-b border-r border-border/60 p-1.5 flex flex-col text-left hover:bg-muted/50 transition-colors cursor-pointer ${
                 sel ? 'bg-primary/5 ring-1 ring-inset ring-primary/30' : ''
               }`}
               onDragOver={(e) => e.preventDefault()}
@@ -742,7 +742,7 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
             >
               <div className="flex items-center justify-between">
                 <span className={`w-7 h-7 text-sm flex items-center justify-center rounded-full font-medium shrink-0 ${
-                  today ? 'bg-primary text-primary-foreground font-bold' : 'text-foreground'
+                  today ? 'bg-primary text-primary-foreground font-semibold' : 'text-foreground'
                 }`}>
                   {date.getDate()}
                 </span>
@@ -765,7 +765,7 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
                     key={ev.id || idx}
                     draggable
                     onDragStart={(e) => onDragStart(ev, e)}
-                    className={`text-[10px] px-1.5 py-0.5 rounded truncate w-full cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
+                    className={`text-[11px] px-1.5 py-0.5 rounded-md truncate w-full cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
                     onClick={(e) => { e.stopPropagation(); onEventClick(ev); }}
                   >
                     {ev.isRecurring && <Repeat size={9} className="inline-block shrink-0 align-[-1px] mr-0.5" aria-label="Berulang" />}
@@ -773,7 +773,7 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
                   </div>
                 ))}
                 {dayEvs.length > 3 && (
-                  <div className="text-[10px] text-muted-foreground px-1">+{dayEvs.length - 3} lagi</div>
+                  <div className="text-[11px] text-muted-foreground px-1">+{dayEvs.length - 3} lagi</div>
                 )}
               </div>
             </div>
@@ -825,8 +825,8 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
               isSameDay(d, selected) ? 'bg-primary/10' : ''
             }`}
           >
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase">{dayLabels[i]}</div>
-            <div className={`text-sm font-bold mt-0.5 w-7 h-7 mx-auto flex items-center justify-center rounded-full ${
+            <div className="text-[11px] font-medium text-muted-foreground uppercase">{dayLabels[i]}</div>
+            <div className={`text-sm font-semibold mt-0.5 w-7 h-7 mx-auto flex items-center justify-center rounded-full ${
               isToday(d) ? 'bg-primary text-primary-foreground' : 'text-foreground'
             }`}>
               {d.getDate()}
@@ -841,7 +841,7 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
           {HOURS.map((hour) => (
             <React.Fragment key={hour}>
               {/* Time label */}
-              <div className="border-b border-border/40 text-[10px] text-muted-foreground text-right pr-2 py-3 relative -top-3 h-12">
+              <div className="border-b border-border/60 text-[11px] text-muted-foreground text-right pr-2 py-3 relative -top-3 h-12">
                 {hour === 0 ? '' : `${hour.toString().padStart(2, '0')}:00`}
               </div>
               {/* 7 day cells for this hour */}
@@ -859,7 +859,7 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
                 return (
                   <div
                     key={di}
-                    className="border-b border-r border-border/40 h-12 relative hover:bg-muted/20 transition-colors cursor-pointer"
+                    className="border-b border-r border-border/60 h-12 relative hover:bg-muted/20 transition-colors cursor-pointer"
                     onClick={() => onCellClick(d, hour)}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => {
@@ -875,7 +875,7 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
                           key={ev.id}
                           draggable
                           onDragStart={(e) => onDragStart(ev, e)}
-                          className={`absolute top-0.5 rounded px-1 py-0.5 text-[10px] font-medium truncate cursor-grab active:cursor-grabbing z-10 shadow-sm ${calColor(ev.calendar)}`}
+                          className={`absolute top-0.5 rounded-md px-1 py-0.5 text-[11px] font-medium truncate cursor-grab active:cursor-grabbing z-10 shadow-sm ${calColor(ev.calendar)}`}
                           style={{
                             left: `calc(${layout.leftPct}% + 2px)`,
                             width: `calc(${layout.widthPct}% - 4px)`,
@@ -909,7 +909,7 @@ function WeekView({ current, selected, events, isLoading, onSelectDate, onEventC
                         key={ev.id}
                         draggable
                         onDragStart={(e) => onDragStart(ev, e)}
-                        className={`text-[9px] px-1 py-0.5 rounded truncate cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
+                        className={`text-[11px] px-1 py-0.5 rounded-md truncate cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
                         onClick={() => onEventClick(ev)}
                       >
                         {ev.isRecurring && <Repeat size={9} className="inline-block shrink-0 align-[-1px] mr-0.5" aria-label="Berulang" />}● {ev.title}
@@ -949,13 +949,13 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
       {/* All-day events bar */}
       {allDayEvents.length > 0 && (
         <div className="border-b border-border/60 bg-muted/10 px-4 py-2 space-y-1">
-          <div className="text-[10px] font-medium text-muted-foreground uppercase">Sepanjang Hari</div>
+          <div className="text-[11px] font-medium text-muted-foreground uppercase">Sepanjang Hari</div>
           {allDayEvents.map((ev) => (
             <div
               key={ev.id}
               draggable
               onDragStart={(e) => onDragStart(ev, e)}
-              className={`text-xs px-2 py-1 rounded-lg cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
+              className={`text-xs px-2 py-1 rounded-md cursor-grab active:cursor-grabbing ${calColor(ev.calendar)}`}
               onClick={() => onEventClick(ev)}
             >
               {ev.isRecurring && <Repeat size={11} className="inline-block shrink-0 align-[-1px] mr-1" aria-label="Berulang" />}{ev.title}
@@ -985,7 +985,7 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
             return (
               <div
                 key={hour}
-                className="flex min-h-[60px] border-b border-border/40 hover:bg-muted/10 transition-colors cursor-pointer"
+                className="flex min-h-[60px] border-b border-border/60 hover:bg-muted/10 transition-colors cursor-pointer"
                 onClick={() => onCellClick(hour)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => {
@@ -995,7 +995,7 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
                 }}
               >
                 {/* Time label */}
-                <div className="w-16 shrink-0 text-[10px] text-muted-foreground text-right pr-3 pt-1">
+                <div className="w-16 shrink-0 text-[11px] text-muted-foreground text-right pr-3 pt-1">
                   {hour === 0 ? '' : `${hour.toString().padStart(2, '0')}:00`}
                 </div>
                 {/* Content area */}
@@ -1008,7 +1008,7 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
                         key={ev.id}
                         draggable
                         onDragStart={(e) => onDragStart(ev, e)}
-                        className={`absolute rounded-lg px-2 py-1 text-xs font-medium truncate cursor-grab active:cursor-grabbing shadow-sm z-10 ${calColor(ev.calendar)}`}
+                        className={`absolute rounded-md px-2 py-1 text-xs font-medium truncate cursor-grab active:cursor-grabbing shadow-sm z-10 ${calColor(ev.calendar)}`}
                         style={{
                           top: pos.top,
                           height: pos.height,
@@ -1022,7 +1022,7 @@ function DayView({ current, events, isLoading, onEventClick, onCellClick, onDrag
                           {ev.isRecurring && <Repeat size={11} className="shrink-0" aria-label="Berulang" />}
                           <span className="truncate">{ev.title}</span>
                         </div>
-                        <div className="opacity-70 text-[10px]">
+                        <div className="opacity-70 text-[11px]">
                           {fmtTime(ev.start)} – {fmtTime(ev.end)}
                         </div>
                       </div>

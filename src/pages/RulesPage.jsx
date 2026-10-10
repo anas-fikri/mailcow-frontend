@@ -21,7 +21,7 @@ import { DEFAULT_FOLDERS, STALE_TIMES } from '../lib/constants';
 function EmptyState({ onAdd }) {
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-muted-foreground gap-4 px-6">
-      <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+      <div className="w-14 h-14 rounded-lg border border-border bg-muted flex items-center justify-center">
         <Filter size={24} className="opacity-40" />
       </div>
       <div className="text-center">
@@ -33,7 +33,7 @@ function EmptyState({ onAdd }) {
       </div>
       <button
         onClick={onAdd}
-        className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-medium transition-colors"
+        className="flex items-center gap-2 h-9 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors duration-150"
       >
         <Plus size={16} />
         Buat Aturan
@@ -49,7 +49,7 @@ function ConditionRow({ condition, fields, ops, onChange, onRemove, canRemove })
       <select
         value={condition.field}
         onChange={(e) => onChange({ ...condition, field: e.target.value })}
-        className="bg-muted border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        className="h-9 bg-background border border-border rounded-md px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
       >
         {fields.map((f) => (
           <option key={f.id} value={f.id}>{f.label}</option>
@@ -59,7 +59,7 @@ function ConditionRow({ condition, fields, ops, onChange, onRemove, canRemove })
       <select
         value={condition.operator}
         onChange={(e) => onChange({ ...condition, operator: e.target.value })}
-        className="bg-muted border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        className="h-9 bg-background border border-border rounded-md px-2.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
       >
         {ops.map((o) => (
           <option key={o.id} value={o.id}>{o.label}</option>
@@ -71,13 +71,13 @@ function ConditionRow({ condition, fields, ops, onChange, onRemove, canRemove })
         value={condition.value}
         onChange={(e) => onChange({ ...condition, value: e.target.value })}
         placeholder="Nilai..."
-        className="flex-1 min-w-[120px] bg-muted border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+        className="flex-1 min-w-[120px] h-9 bg-background border border-border rounded-md px-2.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
       />
 
       {canRemove && (
         <button
           onClick={onRemove}
-          className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
+          className="p-1.5 text-muted-foreground hover:text-destructive rounded-md hover:bg-destructive/10 transition-colors duration-150"
           title="Hapus kondisi"
         >
           <Trash2 size={14} />
@@ -107,7 +107,7 @@ function RuleCard({ rule, allFolders, onToggle, onEdit, onDelete, onTest, onRun,
     allFolders.find((f) => f.id === rule.actionFolder)?.label || rule.actionFolder;
 
   return (
-    <div className={`bg-card border ${rule.enabled ? 'border-border' : 'border-dashed border-muted'} rounded-xl overflow-hidden transition-all`}>
+    <div className={`bg-card border ${rule.enabled ? 'border-border' : 'border-dashed border-muted'} rounded-lg shadow-sm overflow-hidden transition-colors duration-150`}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -125,7 +125,7 @@ function RuleCard({ rule, allFolders, onToggle, onEdit, onDelete, onTest, onRun,
                 {rule.name}
               </span>
               {rule.runCount > 0 && (
-                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
+                <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
                   {rule.runCount}x
                 </span>
               )}
@@ -140,7 +140,7 @@ function RuleCard({ rule, allFolders, onToggle, onEdit, onDelete, onTest, onRun,
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => setExpanded(!expanded)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             title="Detail"
           >
             {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -148,28 +148,28 @@ function RuleCard({ rule, allFolders, onToggle, onEdit, onDelete, onTest, onRun,
           <button
             onClick={() => onRun(rule)}
             disabled={isRunning}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors disabled:opacity-50"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors disabled:opacity-50"
             title="Jalankan sekarang — terapkan ke email yang sudah ada di Inbox"
           >
             {isRunning ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />}
           </button>
           <button
             onClick={() => onTest(rule)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-green-500 hover:bg-green-500/10 transition-colors"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-green-500 hover:bg-green-500/10 transition-colors"
             title="Test Aturan (simulasi)"
           >
             <Play size={15} />
           </button>
           <button
             onClick={() => onEdit(rule)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             title="Edit"
           >
             <Filter size={15} />
           </button>
           <button
             onClick={() => onDelete(rule.id)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
             title="Hapus"
           >
             <Trash2 size={15} />
@@ -193,7 +193,7 @@ function RuleCard({ rule, allFolders, onToggle, onEdit, onDelete, onTest, onRun,
                     <span className="font-medium text-foreground/70">{opLabel}</span>
                     <span className="text-foreground">"{c.value}"</span>
                     {i < rule.conditions.length - 1 && (
-                      <span className="text-[10px] uppercase font-bold text-primary/60 ml-auto">
+                      <span className="text-[11px] uppercase font-semibold text-primary/60 ml-auto">
                         {rule.matchType === 'all' ? 'DAN' : 'ATAU'}
                       </span>
                     )}
@@ -201,7 +201,7 @@ function RuleCard({ rule, allFolders, onToggle, onEdit, onDelete, onTest, onRun,
                 );
               })}
           </div>
-          <div className="mt-2 text-[10px] text-muted-foreground">
+          <div className="mt-2 text-[11px] text-muted-foreground">
             Terakhir dijalankan: {rule.lastRunAt ? new Date(rule.lastRunAt).toLocaleString('id-ID') : 'Belum pernah'}
           </div>
         </div>
@@ -274,10 +274,10 @@ function RuleFormModal({ isOpen, onClose, onSave, allFolders, editRule }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto z-10">
+      <div className="relative bg-card border border-border rounded-xl shadow-lg w-full max-w-lg max-h-[80vh] overflow-y-auto z-10">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-border">
-          <h3 className="text-base font-semibold text-foreground">
+        <div className="pane-header h-12 px-4 border-b border-border flex items-center">
+          <h3 className="text-sm font-semibold text-foreground">
             {editRule ? 'Edit Aturan' : 'Buat Aturan Baru'}
           </h3>
         </div>
@@ -291,7 +291,7 @@ function RuleFormModal({ isOpen, onClose, onSave, allFolders, editRule }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Misal: Arsip dari Bank"
-              className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
               autoFocus
             />
           </div>
@@ -333,7 +333,7 @@ function RuleFormModal({ isOpen, onClose, onSave, allFolders, editRule }) {
                   key={mt.id}
                   type="button"
                   onClick={() => setMatchType(mt.id)}
-                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  className={`flex-1 h-9 px-3 rounded-md text-xs font-medium transition-colors duration-150 ${
                     matchType === mt.id
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -351,7 +351,7 @@ function RuleFormModal({ isOpen, onClose, onSave, allFolders, editRule }) {
             <select
               value={actionFolder}
               onChange={(e) => setActionFolder(e.target.value)}
-              className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {allFolders.map((f) => (
                 <option key={f.id} value={f.id}>{'\u00A0'.repeat((f.depth || 0) * 2)}{f.label}</option>
@@ -372,13 +372,13 @@ function RuleFormModal({ isOpen, onClose, onSave, allFolders, editRule }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+              className="h-9 px-4 text-sm text-muted-foreground hover:text-foreground rounded-md transition-colors duration-150"
             >
               Batal
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium transition-colors"
+              className="h-9 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors duration-150"
             >
               {editRule ? 'Simpan' : 'Buat Aturan'}
             </button>
@@ -413,10 +413,10 @@ function TestRuleModal({ isOpen, onClose, rule }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[8vh] px-4">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto z-10">
+      <div className="relative bg-card border border-border rounded-xl shadow-lg w-full max-w-lg max-h-[85vh] overflow-y-auto z-10">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-border">
-          <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+        <div className="pane-header h-12 px-4 border-b border-border flex items-center">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <HelpCircle size={18} className="text-primary" />
             Test Aturan: {rule.name}
           </h3>
@@ -424,7 +424,7 @@ function TestRuleModal({ isOpen, onClose, rule }) {
 
         <div className="p-5 space-y-4">
           {/* Conditions summary */}
-          <div className="bg-muted rounded-xl p-3 text-xs space-y-1.5">
+          <div className="bg-muted rounded-lg p-3 text-xs space-y-1.5">
             <div className="font-medium text-muted-foreground mb-1">Kondisi ({rule.matchType === 'all' ? 'AND' : 'OR'}):</div>
             {rule.conditions.filter((c) => c.value).map((c, i) => (
               <div key={i} className="flex items-center gap-1.5 text-muted-foreground">
@@ -445,7 +445,7 @@ function TestRuleModal({ isOpen, onClose, rule }) {
                 value={sample.from}
                 onChange={handleChange('from')}
                 placeholder="misal: bank@gmail.com"
-                className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div>
@@ -455,7 +455,7 @@ function TestRuleModal({ isOpen, onClose, rule }) {
                 value={sample.to}
                 onChange={handleChange('to')}
                 placeholder="misal: saya@company.com"
-                className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div>
@@ -465,7 +465,7 @@ function TestRuleModal({ isOpen, onClose, rule }) {
                 value={sample.subject}
                 onChange={handleChange('subject')}
                 placeholder="misal: Invoice Bulanan"
-                className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div>
@@ -475,13 +475,13 @@ function TestRuleModal({ isOpen, onClose, rule }) {
                 onChange={handleChange('body')}
                 placeholder="misal: Lampiran tagihan bulan ini..."
                 rows={3}
-                className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-medium transition-colors"
+              className="w-full h-10 flex items-center justify-center gap-2 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors duration-150"
             >
               <Play size={16} />
               Uji Aturan
@@ -490,7 +490,7 @@ function TestRuleModal({ isOpen, onClose, rule }) {
 
           {/* Result */}
           {result && (
-            <div className={`rounded-xl p-4 space-y-3 ${result.match ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
+            <div className={`rounded-lg p-4 space-y-3 ${result.match ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
               {/* Overall */}
               <div className="flex items-center gap-2">
                 {result.match ? (
@@ -542,7 +542,7 @@ function TestRuleModal({ isOpen, onClose, rule }) {
             <button
               type="button"
               onClick={() => { onClose(); setResult(null); setSample({ from: '', to: '', subject: '', body: '' }); }}
-              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+              className="h-9 px-4 text-sm text-muted-foreground hover:text-foreground rounded-md transition-colors duration-150"
             >
               Tutup
             </button>
@@ -579,7 +579,7 @@ function DeleteConfirmModal({ isOpen, onClose, onConfirm, ruleName }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm z-10 p-6 text-center">
+      <div className="relative bg-card border border-border rounded-xl shadow-lg w-full max-w-sm z-10 p-6 text-center">
         <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
           <AlertTriangle size={24} className="text-destructive" />
         </div>
@@ -591,13 +591,13 @@ function DeleteConfirmModal({ isOpen, onClose, onConfirm, ruleName }) {
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-colors"
+            className="flex-1 h-10 px-4 text-sm font-medium text-foreground bg-muted hover:bg-muted/80 rounded-md transition-colors duration-150"
           >
             Batal
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 rounded-xl transition-colors flex items-center justify-center gap-2"
+            className="flex-1 h-10 px-4 text-sm font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 rounded-md transition-colors duration-150 flex items-center justify-center gap-2"
           >
             <Trash2 size={16} />
             Hapus
@@ -739,16 +739,16 @@ export default function RulesPage() {
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-card border-b border-border">
-        <div className="px-4 py-3 flex items-center justify-between">
+        <div className="min-h-12 px-4 py-2 flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-lg font-semibold text-foreground">Aturan Archive</h1>
+            <h1 className="text-base font-semibold text-foreground">Aturan Archive</h1>
             <StatsBar rules={rules} />
           </div>
           <div className="flex items-center gap-2">
             {rules.length > 0 && (
               <button
                 onClick={handleRefresh}
-                className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-150"
                 title="Refresh"
               >
                 <RefreshCw size={16} />
@@ -756,7 +756,7 @@ export default function RulesPage() {
             )}
             <button
               onClick={() => { setEditingRule(null); setShowForm(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-medium transition-colors"
+              className="flex items-center gap-2 h-9 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors duration-150"
             >
               <Plus size={16} />
               Aturan Baru
