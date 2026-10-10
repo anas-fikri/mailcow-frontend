@@ -16,14 +16,17 @@ assert.equal(isReaderOwnedShortcut(null, 's'), false, 'tanpa reader + s → Mail
 assert.equal(isReaderOwnedShortcut(undefined, 'r'), false, 'tanpa reader + r → MailPage handle'); 
 assert.equal(isReaderOwnedShortcut(0, 's'), false, 'reader id 0 dianggap tertutup'); 
 
-// Key lain tidak terpengaruh saat reader terbuka
-assert.equal(isReaderOwnedShortcut(123, 'j'), false, 'j tetap MailPage (navigasi)'); 
-assert.equal(isReaderOwnedShortcut(123, 'k'), false, 'k tetap MailPage'); 
-assert.equal(isReaderOwnedShortcut(123, 'x'), false, 'x tetap MailPage (tandai baca)'); 
-assert.equal(isReaderOwnedShortcut(123, ''), false, 'key kosong → false'); 
-assert.equal(isReaderOwnedShortcut(123, null), false, 'key null → false'); 
+// 'u' (tandai belum dibaca pesan terbuka) juga milik reader sejak Outlook-UX
+assert.equal(isReaderOwnedShortcut(123, 'u'), true, 'reader terbuka + u → skip MailPage');
 
-// Kontrak: konstanta berisi tepat s/r/f
-assert.deepEqual([...READER_OWNED_KEYS].sort(), ['f', 'r', 's'], 'READER_OWNED_KEYS = [s,r,f]'); 
+// Key lain tidak terpengaruh saat reader terbuka
+assert.equal(isReaderOwnedShortcut(123, 'j'), false, 'j tetap MailPage (navigasi)');
+assert.equal(isReaderOwnedShortcut(123, 'k'), false, 'k tetap MailPage');
+assert.equal(isReaderOwnedShortcut(123, 'x'), false, 'x tetap MailPage (tandai baca)');
+assert.equal(isReaderOwnedShortcut(123, ''), false, 'key kosong → false');
+assert.equal(isReaderOwnedShortcut(123, null), false, 'key null → false');
+
+// Kontrak: konstanta berisi tepat s/r/f/u
+assert.deepEqual([...READER_OWNED_KEYS].sort(), ['f', 'r', 's', 'u'], 'READER_OWNED_KEYS = [s,r,f,u]');
 
 console.log('keyboard-ownership assertions passed');

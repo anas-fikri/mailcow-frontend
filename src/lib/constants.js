@@ -94,10 +94,11 @@ export const EDITOR_MODES = [
 ];
 
 // ─── Keyboard ownership ───────────────────────────────────────────────────────
-// Saat MessageReader terbuka (selectedMsgId set), aksi per-pesan (s=rstar,
-// r=balas, f=teruskan) dimiliki MessageReader — MailPage harus SKIP supaya
-// tidak double-fire (bug: 's' toggle flag 2x = net nol + 2 request).
-export const READER_OWNED_KEYS = ['s', 'r', 'f'];
+// Saat MessageReader terbuka (selectedMsgId set), aksi per-pesan (s=star,
+// r=balas, f=teruskan, u=belum dibaca) dimiliki MessageReader — MailPage
+// harus SKIP supaya tidak double-fire (bug: 's' toggle flag 2x = net nol +
+// 2 request). Peta lengkap + Delete/Esc: lihat src/lib/keymap.js.
+export const READER_OWNED_KEYS = ['s', 'r', 'f', 'u'];
 
 /** True bila shortcut per-pesan harus diserahkan ke MessageReader. */
 export function isReaderOwnedShortcut(selectedMsgId, key) {

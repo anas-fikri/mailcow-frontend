@@ -85,6 +85,25 @@ export function mergeSearchResults(messages) {
   return out.sort((a, b) => ts(b.date) - ts(a.date));
 }
 
+/**
+ * Saring daftar folder utk MoveToPicker: cocokkan query (case-insensitive)
+ * terhadap label ATAU path lengkap, buang folder sumber (excludeId) dan folder
+ * non-mail (Calendar/Contacts). Tanpa query → semua folder (urutan asli).
+ */
+export function filterFoldersForPicker(folders, query = '', excludeId = null) {
+  const q = String(query || '').trim().toLowerCase();
+  const list = Array.isArray(folders) ? folders : [];
+  return list.filter((f) => {
+    if (!f || !f.id) return false;
+    if (excludeId && f.id === excludeId) return false;
+    if (/^folder(Calendar|Contacts)$/i.test(f.id)) return false;
+    if (!q) return true;
+    const label = String(f.label || f.name || '').toLowerCase();
+    const path = String(f.path || '').toLowerCase().replace(/\//g, ' / ');
+    return label.includes(q) || path.includes(q);
+  });
+}
+
 /** Label pendek folder utk chip hasil pencarian (segmen terakhir path). */
 export function folderChipLabel(folder) {
   if (!folder) return '';
