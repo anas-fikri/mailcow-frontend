@@ -123,19 +123,19 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
   }
 
   return (
-    <div className="border border-border rounded-xl overflow-hidden">
+    <div className="border border-border rounded-lg overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-0.5 px-3 py-1.5 bg-muted/30 border-b border-border/40 flex-wrap">
         <button type="button" title="Tebal" onMouseDown={e => { e.preventDefault(); exec('bold'); }}
-          className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors">
+          className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150">
           <Bold size={15} />
         </button>
         <button type="button" title="Miring" onMouseDown={e => { e.preventDefault(); exec('italic'); }}
-          className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors">
+          className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150">
           <Italic size={15} />
         </button>
         <button type="button" title="Garis bawah" onMouseDown={e => { e.preventDefault(); exec('underline'); }}
-          className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors">
+          className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150">
           <Underline size={15} />
         </button>
 
@@ -147,13 +147,13 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
             type="button"
             title="Ukuran Font"
             onMouseDown={e => { e.preventDefault(); setFontSizeOpen(v => !v); }}
-            className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150 flex items-center gap-0.5"
           >
             <span className="text-[11px] font-semibold">A</span>
             <ChevronDown size={11} />
           </button>
           {fontSizeOpen && (
-            <div className="absolute top-full left-0 mt-1 z-20 bg-card border border-border shadow-xl rounded-lg overflow-hidden min-w-[130px]">
+            <div className="absolute top-full left-0 mt-1 z-20 bg-popover border border-border shadow-md rounded-lg overflow-hidden min-w-[130px]">
               {[
                 { size: 1, label: 'Sangat Kecil' },
                 { size: 2, label: 'Kecil' },
@@ -166,7 +166,7 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
                   key={o.size}
                   type="button"
                   onMouseDown={e => { e.preventDefault(); applyFontSize(o.size); }}
-                  className="block w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+                  className="block w-full text-left px-3 py-1.5 text-[13px] hover:bg-muted transition-colors duration-150"
                   style={{ fontSize: `${7 + o.size * 2}px` }}
                 >
                   {o.label}
@@ -177,7 +177,7 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
         </div>
 
         <button type="button" title="Tautan" onMouseDown={e => { e.preventDefault(); insertLink(); }}
-          className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors">
+          className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150">
           <Link size={15} />
         </button>
 
@@ -186,7 +186,7 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
           type="button"
           title="Upload Gambar dari File"
           onClick={e => { e.preventDefault(); fileInputRef.current?.click(); }}
-          className="p-1 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors"
+          className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150"
         >
           <ImagePlus size={15} />
         </button>
@@ -198,7 +198,7 @@ export default function HtmlEditor({ value, onChange, minHeight = 120, placehold
           onChange={onFileSelected}
         />
 
-        <span className="ml-auto text-[10px] text-muted-foreground/40 flex items-center gap-1">
+        <span className="ml-auto text-[11px] text-muted-foreground/40 flex items-center gap-1">
           {isPasting && <Loader2 size={12} className="animate-spin" />}
           HTML
         </span>

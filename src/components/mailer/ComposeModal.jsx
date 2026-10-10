@@ -875,46 +875,46 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className={`bg-background flex flex-col shadow-2xl relative ${
+            className={`bg-background flex flex-col relative ${
               isMinimized
-                ? 'pointer-events-auto w-[320px] max-w-[calc(100vw-16px)] rounded-t-xl border border-border border-b-0'
+                ? 'pointer-events-auto w-[320px] max-w-[calc(100vw-16px)] rounded-t-lg border border-border border-b-0 shadow-md'
                 : isFullscreen
-                  ? 'w-screen h-screen rounded-none'
-                  : 'w-[90vw] sm:w-[800px] max-w-full h-[90vh] sm:h-[600px] sm:max-h-[90vh] rounded-t-2xl sm:rounded-xl resize overflow-hidden'
+                  ? 'w-screen h-screen rounded-none shadow-lg'
+                  : 'w-[90vw] sm:w-[800px] max-w-full h-[90vh] sm:h-[600px] sm:max-h-[90vh] rounded-t-xl sm:rounded-xl border border-border shadow-lg resize overflow-hidden'
             }`}
             style={!isFullscreen && !isMinimized ? { minWidth: '320px', minHeight: '400px' } : undefined}
           >
             {/* Header — judul per mode + subjek; tombol ciutkan / layar penuh / tutup */}
-            <div className={`flex items-center justify-between gap-2 border-b border-border bg-card ${isMinimized ? 'px-3 py-2' : 'px-5 py-4'}`}>
+            <div className={`flex items-center justify-between gap-2 border-b border-border bg-card ${isMinimized ? 'px-3 py-2' : 'h-12 px-4'}`}>
               {isMinimized ? (
                 <button
                   type="button"
                   onClick={() => setIsMinimized(false)}
-                  className="flex-1 min-w-0 text-left text-sm font-semibold truncate hover:text-primary transition-colors"
+                  className="flex-1 min-w-0 text-left text-[13px] font-semibold truncate hover:text-primary transition-colors duration-150"
                   title="Pulihkan jendela compose"
                 >
                   {windowTitle}
                 </button>
               ) : (
-                <h2 className="text-base font-semibold truncate min-w-0" title={windowTitle}>{windowTitle}</h2>
+                <h2 className="text-sm font-semibold truncate min-w-0" title={windowTitle}>{windowTitle}</h2>
               )}
               <div className="flex items-center gap-1 shrink-0">
                 {isMinimized ? (
-                  <button type="button" onClick={() => setIsMinimized(false)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors" title="Pulihkan" aria-label="Pulihkan jendela compose">
-                    <ChevronUp size={18} />
+                  <button type="button" onClick={() => setIsMinimized(false)} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground transition-colors duration-150" title="Pulihkan" aria-label="Pulihkan jendela compose">
+                    <ChevronUp size={16} />
                   </button>
                 ) : (
                   <>
-                    <button type="button" onClick={() => { setIsMinimized(true); setScheduleMenuOpen(false); }} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors hidden sm:block" title="Ciutkan" aria-label="Ciutkan jendela compose">
-                      <Minus size={18} />
+                    <button type="button" onClick={() => { setIsMinimized(true); setScheduleMenuOpen(false); }} className="w-8 h-8 items-center justify-center rounded-md hover:bg-muted text-muted-foreground transition-colors duration-150 hidden sm:flex" title="Ciutkan" aria-label="Ciutkan jendela compose">
+                      <Minus size={16} />
                     </button>
-                    <button type="button" onClick={() => setIsFullscreen(!isFullscreen)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors hidden sm:block" title={isFullscreen ? 'Keluar layar penuh' : 'Layar Penuh'} aria-label={isFullscreen ? 'Keluar layar penuh' : 'Layar penuh'} aria-pressed={isFullscreen}>
-                      {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                    <button type="button" onClick={() => setIsFullscreen(!isFullscreen)} className="w-8 h-8 items-center justify-center rounded-md hover:bg-muted text-muted-foreground transition-colors duration-150 hidden sm:flex" title={isFullscreen ? 'Keluar layar penuh' : 'Layar Penuh'} aria-label={isFullscreen ? 'Keluar layar penuh' : 'Layar penuh'} aria-pressed={isFullscreen}>
+                      {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                     </button>
                   </>
                 )}
-                <button type="button" onClick={handleClose} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors" title="Tutup" aria-label="Tutup compose">
-                  <X size={18} />
+                <button type="button" onClick={handleClose} className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground transition-colors duration-150" title="Tutup" aria-label="Tutup compose">
+                  <X size={16} />
                 </button>
               </div>
             </div>
@@ -943,7 +943,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                       Cc/Bcc pindah ke baris bawah input, TIDAK menimpa chip/
                       label (label 64px + input min 150px + tombol ≈90px > 280px). */}
                   <div className="relative py-1 flex flex-wrap items-start border-b border-border/60 min-h-[44px]">
-                    <label htmlFor="compose-to" className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Kepada:</label>
+                    <label htmlFor="compose-to" className="text-[13px] font-medium w-14 text-muted-foreground shrink-0 mt-2">Kepada:</label>
                     <MultiEmailInput
                       inputId="compose-to"
                       value={to}
@@ -956,8 +956,8 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                         type="button"
                         onClick={() => setShowCc(v => !v)}
                         aria-expanded={showCc}
-                        className={`text-xs flex items-center gap-0.5 ${
-                          showCc ? 'text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'
+                        className={`text-xs text-primary hover:underline flex items-center gap-0.5 transition-colors duration-150 ${
+                          showCc ? 'font-semibold' : ''
                         }`}
                       >
                         Cc {showCc ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -966,8 +966,8 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                         type="button"
                         onClick={() => setShowBcc(v => !v)}
                         aria-expanded={showBcc}
-                        className={`text-xs flex items-center gap-0.5 ${
-                          showBcc ? 'text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'
+                        className={`text-xs text-primary hover:underline flex items-center gap-0.5 transition-colors duration-150 ${
+                          showBcc ? 'font-semibold' : ''
                         }`}
                       >
                         Bcc {showBcc ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -978,7 +978,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                   {/* Cc */}
                   {showCc && (
                     <div className="relative py-1 flex items-start border-b border-border/60 min-h-[44px]">
-                      <label htmlFor="compose-cc" className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Cc:</label>
+                      <label htmlFor="compose-cc" className="text-[13px] font-medium w-14 text-muted-foreground shrink-0 mt-2">Cc:</label>
                       <MultiEmailInput
                         inputId="compose-cc"
                         value={cc}
@@ -992,7 +992,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                   {/* Bcc */}
                   {showBcc && (
                     <div className="relative py-1 flex items-start border-b border-border/60 min-h-[44px]">
-                      <label htmlFor="compose-bcc" className="text-sm font-medium w-16 text-muted-foreground shrink-0 mt-2">Bcc:</label>
+                      <label htmlFor="compose-bcc" className="text-[13px] font-medium w-14 text-muted-foreground shrink-0 mt-2">Bcc:</label>
                       <MultiEmailInput
                         inputId="compose-bcc"
                         value={bcc}
@@ -1005,7 +1005,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
 
                   {/* Subject */}
                   <div className="py-2 flex items-center">
-                    <label htmlFor="compose-subject" className="text-sm font-medium w-16 text-muted-foreground shrink-0">Subjek:</label>
+                    <label htmlFor="compose-subject" className="text-[13px] font-medium w-14 text-muted-foreground shrink-0">Subjek:</label>
                     <input
                       id="compose-subject"
                       type="text"
@@ -1056,7 +1056,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                   {attachments.map((a) => (
                     <span
                       key={a.id}
-                      className="inline-flex items-center gap-1.5 bg-muted border border-border rounded-lg px-2.5 py-1.5 text-xs max-w-[220px]"
+                      className="inline-flex items-center gap-1.5 bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs max-w-[220px]"
                       title={a.pending ? `${a.name} — sedang dibaca` : a.name}
                     >
                       {a.pending
@@ -1075,7 +1075,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                       </button>
                     </span>
                   ))}
-                  <span className="text-[10px] text-muted-foreground ml-auto">
+                  <span className="text-[11px] text-muted-foreground ml-auto">
                     {attachments.length}/{sendLimits.maxAttachments} · {totalAttachmentSize(attachments)}
                   </span>
                 </div>
@@ -1131,29 +1131,31 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                     }}
                   />
 
-                  {/* Status draft autosave */}
-                  {draftState === 'saving' && (
-                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <Loader2 size={10} className="animate-spin" />
-                      Menyimpan draf...
-                    </span>
-                  )}
-                  {draftState === 'saved' && (
-                    <span className="text-[10px] text-green-600 dark:text-green-400">
-                      Draf tersimpan
-                    </span>
-                  )}
-                  {draftState === 'error' && (
-                    <span className="text-[10px] text-amber-600 dark:text-amber-400">
-                      Draf gagal disimpan — akan coba lagi
-                    </span>
-                  )}
-                  {attachmentsReading && (
-                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <Loader2 size={10} className="animate-spin" />
-                      Membaca lampiran...
-                    </span>
-                  )}
+                  {/* Status draft autosave — 11px muted, rata kanan cluster kiri */}
+                  <span className="ml-auto flex items-center gap-2 text-right">
+                    {draftState === 'saving' && (
+                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <Loader2 size={10} className="animate-spin" />
+                        Menyimpan draf...
+                      </span>
+                    )}
+                    {draftState === 'saved' && (
+                      <span className="text-[11px] text-muted-foreground">
+                        Draf tersimpan
+                      </span>
+                    )}
+                    {draftState === 'error' && (
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                        Draf gagal disimpan — akan coba lagi
+                      </span>
+                    )}
+                    {attachmentsReading && (
+                      <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <Loader2 size={10} className="animate-spin" />
+                        Membaca lampiran...
+                      </span>
+                    )}
+                  </span>
                 </div>
 
                 {/* Jadwalkan Kirim */}
@@ -1163,7 +1165,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                     onClick={() => setScheduleMenuOpen(o => !o)}
                     aria-expanded={scheduleMenuOpen}
                     aria-haspopup="menu"
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 border ${
                       schedulePick
                         ? 'border-primary/40 bg-primary/10 text-primary'
                         : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -1179,12 +1181,12 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                   {scheduleMenuOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setScheduleMenuOpen(false)} />
-                      <div className="absolute bottom-full mb-2 right-0 w-64 rounded-xl border bg-popover text-popover-foreground shadow-xl z-50 p-1.5" role="menu">
+                      <div className="absolute bottom-full mb-2 right-0 w-64 rounded-lg border border-border bg-popover text-popover-foreground shadow-md z-50 p-1.5" role="menu">
                         <button
                           type="button"
                           role="menuitem"
                           onClick={() => { setSchedulePick(''); setScheduleMenuOpen(false); }}
-                          className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors"
+                          className="w-full text-left px-3 py-2 rounded-md text-[13px] hover:bg-muted transition-colors duration-150"
                         >
                           Kirim sekarang
                         </button>
@@ -1192,7 +1194,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                           type="button"
                           role="menuitem"
                           onClick={() => { setSchedulePick(nextScheduleDate(18, 0)); setScheduleMenuOpen(false); }}
-                          className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors"
+                          className="w-full text-left px-3 py-2 rounded-md text-[13px] hover:bg-muted transition-colors duration-150"
                         >
                           Nanti · {formatScheduleLabel(nextScheduleDate(18, 0))}
                         </button>
@@ -1200,7 +1202,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                           type="button"
                           role="menuitem"
                           onClick={() => { setSchedulePick(nextScheduleDate(8, 0, 1)); setScheduleMenuOpen(false); }}
-                          className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors"
+                          className="w-full text-left px-3 py-2 rounded-md text-[13px] hover:bg-muted transition-colors duration-150"
                         >
                           Besok pagi · {formatScheduleLabel(nextScheduleDate(8, 0, 1))}
                         </button>
@@ -1226,7 +1228,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                   type="submit"
                   disabled={sending || success || attachmentsReading}
                   title={attachmentsReading ? 'Menunggu lampiran selesai dibaca' : (schedulePick ? 'Jadwalkan (Ctrl+Enter)' : 'Kirim (Ctrl+Enter)')}
-                  className="flex items-center gap-2 px-6 min-h-11 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 font-medium transition-colors disabled:opacity-60 text-sm shrink-0"
+                  className="flex items-center justify-center gap-2 px-6 min-h-11 py-2.5 w-full sm:w-auto bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium transition-colors duration-150 disabled:opacity-60 text-sm shrink-0"
                 >
                   {sending
                     ? <><Loader2 size={16} className="animate-spin" /> Mengirim...</>
@@ -1272,7 +1274,7 @@ function ConfirmDialog({ dialog, onDismiss }) {
         aria-modal="true"
         aria-labelledby="compose-confirm-title"
         aria-describedby="compose-confirm-message"
-        className="w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl p-5"
+        className="w-full max-w-sm rounded-xl border border-border bg-card shadow-lg p-5"
       >
         <h3 id="compose-confirm-title" className="text-base font-semibold">{dialog.title}</h3>
         <p id="compose-confirm-message" className="mt-2 text-sm text-muted-foreground">{dialog.message}</p>
@@ -1283,7 +1285,7 @@ function ConfirmDialog({ dialog, onDismiss }) {
               type="button"
               autoFocus={i === primaryIdx}
               onClick={() => { onDismiss(); a.onClick?.(); }}
-              className={`px-3 min-h-10 py-2 rounded-lg text-sm font-medium transition-colors ${variantClass(a.variant)}`}
+              className={`px-3 min-h-10 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${variantClass(a.variant)}`}
             >
               {a.label}
             </button>
@@ -1363,13 +1365,13 @@ function SignaturePicker({ email, onInsert }) {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-full left-0 mb-1 z-20 bg-card border border-border shadow-xl rounded-lg overflow-hidden min-w-[160px]">
+          <div className="absolute bottom-full left-0 mb-1 z-20 bg-popover border border-border shadow-md rounded-lg overflow-hidden min-w-[160px]">
             {sigs.map((s) => (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => { onInsert(s.html); setOpen(false); }}
-                className="block w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                className="block w-full text-left px-3 py-2 text-[13px] hover:bg-muted transition-colors duration-150"
               >
                 {s.name || 'Signature'}
               </button>
@@ -1635,13 +1637,13 @@ function RichEditor({ value, onChange, onAttachFiles, initialCaret, onEmlDropped
     { icon: RemoveFormatting, cmd: 'removeFormat', title: 'Hapus format' },
   ];
 
-  const btnClass = 'p-1.5 rounded hover:bg-border/60 text-muted-foreground hover:text-foreground transition-colors';
+  const btnClass = 'w-8 h-8 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors duration-150';
 
   return (
     <div className="flex flex-col flex-1 min-h-[200px] border-t border-border/40 relative">
       {/* Toolbar — onMouseDown (capture) menyimpan seleksi editor sebelum fokus pindah */}
       <div
-        className="flex items-center gap-0.5 px-5 py-2 bg-muted/30 border-b border-border/40 flex-wrap"
+        className="flex items-center gap-0.5 px-4 py-1.5 bg-background border-b border-border/40 flex-wrap sticky top-0 z-[5]"
         role="toolbar"
         aria-label="Format teks"
         onMouseDownCapture={saveSelection}
@@ -1659,11 +1661,11 @@ function RichEditor({ value, onChange, onAttachFiles, initialCaret, onEmlDropped
                 {showHeading && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowHeading(false)} />
-                    <div className="absolute top-full left-0 mt-1 z-20 bg-card border border-border shadow-xl rounded-lg overflow-hidden min-w-[100px]">
+                    <div className="absolute top-full left-0 mt-1 z-20 bg-popover border border-border shadow-md rounded-lg overflow-hidden min-w-[100px]">
                       {[{label:'Paragraf',tag:'p'},{label:'Heading 1',tag:'h1'},{label:'Heading 2',tag:'h2'},{label:'Heading 3',tag:'h3'},{label:'Heading 4',tag:'h4'},{label:'Heading 5',tag:'h5'}].map(h => (
                         <button key={h.tag} type="button"
                           onMouseDown={e => { e.preventDefault(); exec('formatBlock', h.tag); setShowHeading(false); }}
-                          className="block w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors">
+                          className="block w-full text-left px-3 py-1.5 text-[13px] hover:bg-muted transition-colors duration-150">
                           {h.label}
                         </button>
                       ))}
@@ -1720,7 +1722,7 @@ function RichEditor({ value, onChange, onAttachFiles, initialCaret, onEmlDropped
       {/* Popover tautan */}
       {linkPopover && (
         <div
-          className="absolute left-5 top-12 z-20 w-[min(360px,calc(100%-40px))] bg-card border border-border shadow-xl rounded-lg p-3 space-y-2"
+          className="absolute left-5 top-12 z-20 w-[min(360px,calc(100%-40px))] bg-popover border border-border shadow-md rounded-lg p-3 space-y-2"
           onKeyDown={(e) => {
             if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); applyLink(); }
             if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setLinkPopover(null); editorRef.current?.focus(); }
@@ -1813,7 +1815,7 @@ function SuggestionList({ items, onSelect, activeIdx, listId }) {
       ref={listRef}
       id={listId}
       role="listbox"
-      className="absolute top-full left-1 right-0 bg-card border border-border shadow-lg rounded-lg mt-1 z-20 overflow-hidden max-h-48 overflow-y-auto"
+      className="absolute top-full left-1 right-0 bg-popover border border-border shadow-md rounded-lg mt-1 z-20 overflow-hidden max-h-48 overflow-y-auto"
     >
       {items.map((c, i) => {
         const name  = c.name  || c.c_cn  || (Array.isArray(c) ? c[1] : '') || '';
@@ -1827,7 +1829,7 @@ function SuggestionList({ items, onSelect, activeIdx, listId }) {
             role="option"
             aria-selected={active}
             onMouseDown={e => { e.preventDefault(); onSelect(c); }}
-            className={`w-full text-left px-3 py-2 text-sm hover:bg-muted focus:bg-muted focus:outline-none ${active ? 'bg-muted' : ''}`}
+            className={`w-full text-left px-3 py-2 text-[13px] hover:bg-muted focus:bg-muted focus:outline-none transition-colors duration-150 ${active ? 'bg-muted' : ''}`}
           >
             <div className="font-medium text-foreground">{name || email}</div>
             {name && <div className="text-xs text-muted-foreground">{email}</div>}
@@ -1957,9 +1959,9 @@ function MultiEmailInput({ value, onChange, placeholder, suggestions, inputId })
             onDoubleClick={() => editChip(i)}
             title={chip.valid ? chip.email : chip.error}
             aria-invalid={!chip.valid || undefined}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border cursor-default select-none ${
+            className={`group flex items-center gap-1 px-2.5 py-1 rounded-full text-[13px] font-medium border cursor-default select-none ${
               chip.valid
-                ? 'bg-primary/10 text-primary border-primary/20'
+                ? 'bg-muted text-foreground border-transparent'
                 : 'bg-destructive/10 text-destructive border-destructive/40'
             }`}
           >
@@ -1968,7 +1970,7 @@ function MultiEmailInput({ value, onChange, placeholder, suggestions, inputId })
             <button
               type="button"
               onClick={() => removeEmail(i)}
-              className="hover:text-destructive opacity-70 hover:opacity-100 shrink-0 ml-1 transition-opacity"
+              className="hover:text-destructive opacity-60 group-hover:opacity-100 focus-visible:opacity-100 shrink-0 ml-1 transition-opacity duration-150"
               aria-label={`Hapus ${chip.email || chip.raw}`}
             >
               <X size={12} />

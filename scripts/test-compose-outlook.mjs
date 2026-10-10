@@ -58,7 +58,7 @@ ok(compose.includes("'fixed bottom-0 right-0 sm:right-6 z-50 pointer-events-none
 ok(compose.includes('aria-modal={!isMinimized}'), 'minimize: bukan modal');
 ok(compose.includes("${isMinimized ? 'hidden' : 'flex'} flex-col flex-1 overflow-hidden"), 'form disembunyikan (tetap mounted → autosave jalan)');
 ok(compose.includes('aria-label="Ciutkan jendela compose"') && compose.includes('aria-label="Pulihkan jendela compose"'), 'tombol ciutkan/pulihkan');
-ok(compose.includes('hidden sm:block" title="Ciutkan"'), 'ciutkan hanya desktop (mobile tetap layar penuh)');
+ok(compose.includes('hidden sm:flex" title="Ciutkan"'), 'ciutkan hanya desktop (mobile tetap layar penuh)');
 ok(compose.includes("setIsFullscreen(!isFullscreen)"), 'toggle layar penuh tetap ada');
 
 // ── C. Chip penerima ─────────────────────────────────────────────────────────

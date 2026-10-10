@@ -146,8 +146,8 @@ function writeZoom(v) {
   try { localStorage.setItem(ZOOM_KEY, String(v)); } catch { /* quota/privasi — abaikan */ }
 }
 
-// Tombol ikon toolbar: 44px target sentuh di layar kecil, 36px kompak di desktop.
-const TB_BTN = 'min-w-11 min-h-11 md:min-w-9 md:min-h-9 flex items-center justify-center rounded-lg';
+// Tombol ikon toolbar: 44px target sentuh di layar kecil, 32px kompak di desktop.
+const TB_BTN = 'min-w-11 min-h-11 md:min-w-8 md:min-h-8 flex items-center justify-center rounded-md transition-colors duration-150 ease-out';
 
 // Warna avatar pengirim deterministik dari alamat (pola Outlook/Gmail).
 const AVATAR_COLORS = [
@@ -837,12 +837,12 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-background w-full">
-      {/* Toolbar — kompak utk panel baca (ikon 44px di sentuh, 36px di desktop);
-          tooltip memuat shortcut. */}
-      <div className="px-2 py-1.5 sm:px-3 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10 flex-wrap gap-2">
+      {/* Toolbar — satu bar ritme .pane-header (h-12 px-4); ikon 44px di
+          sentuh, 32px kompak di desktop; tooltip memuat shortcut. */}
+      <div className="min-h-12 px-2 py-1 sm:px-4 border-b border-border flex items-center justify-between sticky top-0 bg-background z-10 flex-wrap gap-2">
         <div className="flex items-center gap-0.5 min-w-0">
           <button onClick={onClose} className={`${TB_BTN} md:hidden text-muted-foreground hover:text-foreground hover:bg-muted`} title="Kembali (Esc)" aria-label="Kembali">
-            <ArrowLeft size={18} />
+            <ArrowLeft size={16} />
           </button>
           {/* Navigasi pesan sebelumnya/berikutnya + posisi */}
           {navTotal > 0 && navIdx >= 0 && (
@@ -854,9 +854,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 title="Pesan sebelumnya (Ctrl+,)"
                 aria-label="Pesan sebelumnya"
               >
-                <ChevronLeft size={18} />
+                <ChevronLeft size={16} />
               </button>
-              <span className="text-[11px] tabular-nums text-muted-foreground whitespace-nowrap px-0.5" aria-live="polite">
+              <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap px-0.5" aria-live="polite">
                 {navIdx + 1} dari {navTotal}
               </span>
               <button
@@ -866,7 +866,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 title="Pesan berikutnya (Ctrl+.)"
                 aria-label="Pesan berikutnya"
               >
-                <ChevronRight size={18} />
+                <ChevronRight size={16} />
               </button>
             </div>
           )}
@@ -878,7 +878,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             aria-label="Tandai belum dibaca"
             aria-pressed={!isRead}
           >
-            {isRead ? <Mail size={18} /> : <MailOpen size={18} />}
+            {isRead ? <Mail size={16} /> : <MailOpen size={16} />}
           </button>
           <button
             onClick={() => flagMutation.mutate(!(msg.isFlagged))}
@@ -889,7 +889,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             aria-label="Tandai berbintang"
             aria-pressed={!!msg.isFlagged}
           >
-            <Star size={18} className={msg.isFlagged ? 'fill-amber-600 dark:fill-amber-400' : ''} />
+            <Star size={16} className={msg.isFlagged ? 'fill-amber-600 dark:fill-amber-400' : ''} />
           </button>
           <button
             onClick={requestDelete}
@@ -898,7 +898,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             title={folder === 'folderTrash' ? 'Hapus permanen (Del)' : 'Hapus (Del)'}
             aria-label="Hapus pesan"
           >
-            {deleteMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+            {deleteMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
           </button>
           {folder !== 'folderJunk' && (
             <button
@@ -908,7 +908,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               title="Laporkan Spam"
               aria-label="Laporkan spam"
             >
-              {spamMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <AlertTriangle size={18} />}
+              {spamMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <AlertTriangle size={16} />}
             </button>
           )}
           {folder === 'folderJunk' && (
@@ -919,7 +919,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               title="Bukan Spam"
               aria-label="Laporkan bukan spam dan kembalikan ke Kotak Masuk"
             >
-              {notSpamMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+              {notSpamMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
             </button>
           )}
           {/* Move to folder — click toggle (mobile-friendly) */}
@@ -931,12 +931,12 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               aria-label="Pindahkan ke folder lain"
               aria-expanded={moveOpen}
             >
-              <FolderOpen size={18} />
+              <FolderOpen size={16} />
             </button>
             {moveOpen && (
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setMoveOpen(false)} />
-                <div className="absolute top-full left-0 mt-1 bg-card border border-border shadow-xl rounded-lg z-40 min-w-[160px] max-h-72 overflow-y-auto">
+                <div className="absolute top-full left-0 mt-1 bg-popover border border-border shadow-md rounded-lg z-40 min-w-[160px] max-h-72 overflow-y-auto">
                   <div className="p-1.5 space-y-0.5">
                     <div className="px-3 py-1.5 text-xs text-muted-foreground font-medium">Pindahkan ke...</div>
                     {folders.filter((f) => f.id !== folder).map((f) => (
@@ -944,7 +944,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                         key={f.id}
                         onClick={() => { moveMutation.mutate(f.id); setMoveOpen(false); }}
                         disabled={moveMutation.isPending}
-                        className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-muted transition-colors disabled:opacity-50"
+                        className="w-full text-left px-3 py-2 rounded-md text-[13px] hover:bg-muted transition-colors duration-150 disabled:opacity-50"
                       >
                         {f.label}
                       </button>
@@ -960,10 +960,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             title="Unduh sebagai file .eml"
             aria-label="Unduh sebagai file .eml"
           >
-            <FileDown size={18} />
+            <FileDown size={16} />
           </button>
           <button onClick={handlePrint} className={`${TB_BTN} text-muted-foreground hover:text-foreground hover:bg-muted`} title="Cetak" aria-label="Cetak">
-            <Printer size={18} />
+            <Printer size={16} />
           </button>
           {(contactPerson?.email || contactPerson?.name) && (
             <button
@@ -972,19 +972,21 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               title="Tambah ke kontak"
               aria-label="Tambah pengirim ke kontak"
             >
-              <UserPlus size={18} />
+              <UserPlus size={16} />
             </button>
           )}
         </div>
 
-        {/* Balas / Balas Semua / Teruskan — yang lebih mungkin disorot
-            (heuristik Outlook: >1 penerima → Balas Semua). */}
-        <div className="flex items-center gap-0.5">
+        {/* Balas / Balas Semua / Teruskan — Balas = aksi primer solid;
+            Balas Semua & Teruskan tombol ghost tenang (heuristik replyAllLikely
+            tetap dihitung utk konteks, tanpa menukar penekanan visual). */}
+        <div className="flex items-center gap-1">
           <button
             data-shortcut="reply"
             onClick={handleReply}
             disabled={!!composeBusy}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 min-h-11 md:min-h-9 rounded-xl text-sm font-medium disabled:opacity-60 ${!replyAllLikely ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'text-muted-foreground hover:bg-muted'}`}
+            data-reply-all-likely={replyAllLikely || undefined}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 min-h-11 md:min-h-8 rounded-md text-sm font-medium disabled:opacity-60 transition-colors duration-150 ease-out bg-primary text-primary-foreground hover:bg-primary/90"
             title="Balas (R)"
             aria-label="Balas"
           >
@@ -995,7 +997,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             data-shortcut="reply-all"
             onClick={handleReplyAll}
             disabled={!!composeBusy}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 min-h-11 md:min-h-9 rounded-xl text-sm font-medium disabled:opacity-60 ${replyAllLikely ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'text-muted-foreground hover:bg-muted'}`}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 min-h-11 md:min-h-8 rounded-md text-sm font-medium disabled:opacity-60 transition-colors duration-150 ease-out text-muted-foreground hover:text-foreground hover:bg-muted"
             title="Balas Semua (Shift+R)"
             aria-label="Balas semua"
           >
@@ -1006,7 +1008,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
             data-shortcut="forward"
             onClick={handleForward}
             disabled={!!composeBusy}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 min-h-11 md:min-h-9 rounded-xl text-muted-foreground hover:bg-muted text-sm font-medium disabled:opacity-60"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 min-h-11 md:min-h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted text-sm font-medium disabled:opacity-60 transition-colors duration-150 ease-out"
             title={attachments.length > 0 ? 'Teruskan dengan lampiran (F)' : 'Teruskan (F)'}
             aria-label="Teruskan"
           >
@@ -1023,10 +1025,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       {phishingResult && phishingResult.level !== 'safe' && (() => {
         const risk = RISK_LEVELS[phishingResult.level];
         return (
-          <div className={`mx-4 mt-3 px-4 py-3 rounded-xl border ${risk.border} ${risk.bg} flex items-start gap-3`}>  
-            <AlertTriangle size={18} className={`${risk.color} shrink-0 mt-0.5`} />
+          <div className={`mx-4 mt-3 px-4 py-3 rounded-lg border ${risk.border} ${risk.bg} flex items-start gap-3`}>
+            <AlertTriangle size={16} className={`${risk.color} shrink-0 mt-0.5`} />
             <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold ${risk.color}`}>  
+              <p className={`text-sm font-semibold ${risk.color}`}>
                 {phishingResult.level === 'high' ? '⚠️ Peringatan Keamanan' : '⚡ Indikasi Phishing'}  
               </p>  
               <ul className="mt-1 text-xs text-muted-foreground space-y-0.5">  
@@ -1050,7 +1052,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       {/* Message header — avatar pengirim, tanggal manusiawi, ringkasan
           penerima + "Tampilkan detail" (daftar To/Cc/Balas-ke lengkap). */}
       <div className="px-4 sm:px-6 py-4 border-b border-border">
-        <h1 className="text-lg sm:text-xl font-semibold text-foreground mb-3 leading-tight break-words">{subject}</h1>
+        <h1 className="text-lg font-semibold tracking-tight text-foreground mb-3 leading-tight break-words">{subject}</h1>
         <div className="flex items-start gap-3">
           <div
             className={`w-10 h-10 rounded-full ${avatarColor(sender.email || sender.name)} text-white flex items-center justify-center text-sm font-semibold shrink-0 select-none`}
@@ -1061,7 +1063,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           <div className="flex-1 min-w-0 text-sm">
             <div className="flex items-baseline justify-between gap-3">
               <div className="min-w-0">
-                <span className="font-medium text-foreground truncate block" title={from}>{sender.name || sender.email || '(tanpa pengirim)'}</span>
+                <span className="text-sm font-semibold text-foreground truncate block" title={from}>{sender.name || sender.email || '(tanpa pengirim)'}</span>
                 {sender.name && sender.email && (
                   <span className="text-xs text-muted-foreground truncate block">{sender.email}</span>
                 )}
@@ -1092,7 +1094,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                   {toList.length ? (
                     <ul className="flex flex-wrap gap-1">
                       {toList.map((a, i) => (
-                        <li key={i} className="px-2 py-0.5 rounded-md bg-muted break-all" title={a.email}>{a.name ? `${a.name} <${a.email}>` : a.email}</li>
+                        <li key={i} className="px-2 py-0.5 rounded-full bg-muted break-all" title={a.email}>{a.name ? `${a.name} <${a.email}>` : a.email}</li>
                       ))}
                     </ul>
                   ) : '—'}
@@ -1103,7 +1105,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                     <dd className="text-foreground">
                       <ul className="flex flex-wrap gap-1">
                         {ccList.map((a, i) => (
-                          <li key={i} className="px-2 py-0.5 rounded-md bg-muted break-all" title={a.email}>{a.name ? `${a.name} <${a.email}>` : a.email}</li>
+                          <li key={i} className="px-2 py-0.5 rounded-full bg-muted break-all" title={a.email}>{a.name ? `${a.name} <${a.email}>` : a.email}</li>
                         ))}
                       </ul>
                     </dd>
@@ -1130,7 +1132,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       </div>
 
       {/* Message body */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 min-h-0">
+      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 min-h-0">
         {/* Kontrol zoom body (Ctrl/Cmd + / − / 0) */}
         <div className="flex items-center justify-end gap-0.5 -mt-2 mb-2 text-muted-foreground">
           <button type="button" onClick={() => setZoom(zoom - ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} className="min-w-8 min-h-8 flex items-center justify-center rounded-md hover:bg-muted hover:text-foreground disabled:opacity-30" title="Perkecil teks (Ctrl+−)" aria-label="Perkecil teks">
@@ -1174,7 +1176,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
         {attachments.length > 0 && (
           <div className="mt-8 pt-6 border-t border-border">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <h3 className="text-[13px] font-semibold text-foreground flex items-center gap-2">
                 <Paperclip size={16} />
                 Lampiran ({attachments.length})
                 {totalAttachmentSize(attachments) && (
@@ -1207,13 +1209,13 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                       key={idx}
                       href={attUrl || undefined}
                       onClick={(e) => { e.preventDefault(); openPreview(att); }}
-                      className="group relative rounded-xl overflow-hidden border border-border bg-card hover:ring-2 hover:ring-primary/30 transition-all"
+                      className="group relative rounded-lg overflow-hidden border border-border bg-card hover:border-primary/40 transition-colors duration-150"
                       title="Pratinjau gambar"
                     >
                       <img src={attUrl} alt={att.name} className="w-full h-36 object-cover" loading="lazy" />
                       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-3">
-                        <div className="text-white text-sm font-medium truncate">{att.name}</div>
-                        <div className="text-white/80 text-xs">{formatFileSize(att.size)}</div>
+                        <div className="text-white text-[13px] font-medium truncate">{att.name}</div>
+                        <div className="text-white/80 text-[11px] whitespace-nowrap">{formatFileSize(att.size)}</div>
                       </div>
                       <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Eye size={14} className="text-white" />
@@ -1230,7 +1232,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 return (
                   <div
                     key={idx}
-                    className="flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-muted transition-colors group"
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-muted transition-colors duration-150 group"
                   >
                     <a
                       href={attUrl || undefined}
@@ -1238,18 +1240,18 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                       className="flex items-center gap-3 flex-1 min-w-0"
                       title={previewable ? 'Pratinjau' : 'Buka di tab baru'}
                     >
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                        <FileText size={20} />
+                      <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center text-muted-foreground shrink-0">
+                        <FileText size={16} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-foreground truncate">{att.name}</div>
-                        <div className="text-xs text-muted-foreground">{formatFileSize(att.size) || att.contentType || ''}</div>
+                        <div className="text-[13px] font-medium text-foreground truncate">{att.name}</div>
+                        <div className="text-[11px] text-muted-foreground truncate whitespace-nowrap">{formatFileSize(att.size) || att.contentType || ''}</div>
                       </div>
                       {previewable && <Eye size={16} className="text-muted-foreground group-hover:text-primary shrink-0" />}
                     </a>
                     <button
                       onClick={() => { setDownloadingIdx(idx); downloadFileBlob(attUrl, att.name).catch(() => toast.error('Gagal mengunduh lampiran.')).finally(() => setDownloadingIdx(null)); }}
-                      className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary shrink-0 transition-colors"
+                      className={`p-2 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary shrink-0 transition-all duration-150 focus-visible:opacity-100 ${downloadingIdx === idx ? '' : 'sm:opacity-0 sm:group-hover:opacity-100'}`}
                       title="Unduh lampiran"
                       aria-label={`Unduh ${att.name}`}
                       disabled={downloadingIdx === idx}
@@ -1279,7 +1281,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => downloadFileBlob(lightbox.url, lightbox.name).catch(() => {})}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
                 >
                   <Download size={14} /> Unduh
                 </button>
@@ -1287,20 +1289,20 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                   href={lightbox.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors"
                 >
                   <ExternalLink size={14} /> Tab baru
                 </a>
                 <button
                   onClick={() => setLightbox(null)}
-                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  className="p-2 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors"
                   aria-label="Tutup pratinjau"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 rounded-xl overflow-hidden bg-black/40 border border-white/10">
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden bg-black/40 border border-white/10">
               {lightbox.kind === 'image' ? (
                 <img src={lightbox.url} alt={lightbox.name} className="w-full h-[80vh] object-contain" />
               ) : (
@@ -1319,7 +1321,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           onClick={() => setSheetPreview(null)}
         >
           <div
-            className="flex flex-col w-full max-w-6xl max-h-[85vh] bg-card rounded-2xl overflow-hidden border border-border shadow-2xl"
+            className="flex flex-col w-full max-w-6xl max-h-[85vh] bg-card rounded-xl overflow-hidden border border-border shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -1332,22 +1334,22 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               </div>
               <button
                 onClick={() => downloadFileBlob(sheetPreview.url, sheetPreview.name).catch(() => {})}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
               >
                 <Download size={14} /> Unduh
               </button>
               <button
                 onClick={() => setSheetPreview(null)}
-                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                className="p-2 rounded-md hover:bg-muted text-muted-foreground"
                 aria-label="Tutup pratinjau"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {sheetPreview.loading && (
                 <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
-                  <Loader2 size={18} className="animate-spin" /> Memuat pratinjau…
+                  <Loader2 size={16} className="animate-spin" /> Memuat pratinjau…
                 </div>
               )}
               {sheetPreview.error && (
@@ -1406,7 +1408,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           onClick={() => setDocPreview(null)}
         >
           <div
-            className="flex flex-col w-full max-w-4xl max-h-[85vh] bg-card rounded-2xl overflow-hidden border border-border shadow-2xl"
+            className="flex flex-col w-full max-w-4xl max-h-[85vh] bg-card rounded-xl overflow-hidden border border-border shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -1417,22 +1419,22 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               </div>
               <button
                 onClick={() => downloadFileBlob(docPreview.url, docPreview.name).catch(() => {})}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
               >
                 <Download size={14} /> Unduh
               </button>
               <button
                 onClick={() => setDocPreview(null)}
-                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                className="p-2 rounded-md hover:bg-muted text-muted-foreground"
                 aria-label="Tutup pratinjau"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
             <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
               {docPreview.loading && (
                 <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
-                  <Loader2 size={18} className="animate-spin" /> Memuat pratinjau dokumen…
+                  <Loader2 size={16} className="animate-spin" /> Memuat pratinjau dokumen…
                 </div>
               )}
               {docPreview.error && (
@@ -1457,7 +1459,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           onClick={() => setPackPreview(null)}
         >
           <div
-            className="flex flex-col w-full max-w-4xl max-h-[85vh] bg-card rounded-2xl overflow-hidden border border-border shadow-2xl"
+            className="flex flex-col w-full max-w-4xl max-h-[85vh] bg-card rounded-xl overflow-hidden border border-border shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -1476,22 +1478,22 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               </div>
               <button
                 onClick={() => downloadFileBlob(packPreview.url, packPreview.name).catch(() => {})}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
               >
                 <Download size={14} /> Unduh
               </button>
               <button
                 onClick={() => setPackPreview(null)}
-                className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                className="p-2 rounded-md hover:bg-muted text-muted-foreground"
                 aria-label="Tutup pratinjau"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {packPreview.loading && (
                 <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
-                  <Loader2 size={18} className="animate-spin" /> Memuat pratinjau…
+                  <Loader2 size={16} className="animate-spin" /> Memuat pratinjau…
                 </div>
               )}
               {packPreview.error && (
@@ -1566,10 +1568,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       {/* ── Konfirmasi hapus permanen (folder Sampah) ─────────────────────── */}
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setConfirmDelete(false)} role="dialog" aria-modal="true" aria-label="Konfirmasi hapus permanen">
-          <div className="bg-card w-full max-w-sm rounded-2xl shadow-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card w-full max-w-sm rounded-xl shadow-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 flex items-start gap-3">
               <div className="w-9 h-9 rounded-full bg-destructive/10 text-destructive flex items-center justify-center shrink-0">
-                <Trash2 size={18} />
+                <Trash2 size={16} />
               </div>
               <div className="min-w-0">
                 <h2 className="text-base font-semibold text-foreground">Hapus permanen?</h2>
@@ -1578,14 +1580,14 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               </div>
             </div>
             <div className="px-5 pb-4 flex gap-3">
-              <button type="button" onClick={() => setConfirmDelete(false)} className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-medium" autoFocus>
+              <button type="button" onClick={() => setConfirmDelete(false)} className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-md text-sm font-medium" autoFocus>
                 Batal
               </button>
               <button
                 type="button"
                 onClick={() => { setConfirmDelete(false); deleteMutation.mutate(); }}
                 disabled={deleteMutation.isPending}
-                className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground py-2 rounded-md text-sm font-medium flex items-center justify-center gap-2"
               >
                 {deleteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Hapus permanen'}
               </button>
@@ -1597,7 +1599,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       {/* ── Header mentah (viewsource) ─────────────────────────────────────── */}
       {headersModal && (
         <div className="fixed inset-0 z-[60] bg-black/85 flex flex-col items-center justify-center p-4" onClick={() => setHeadersModal(null)} role="dialog" aria-modal="true" aria-label="Header pesan">
-          <div className="flex flex-col w-full max-w-3xl max-h-[85vh] bg-card rounded-2xl overflow-hidden border border-border shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-col w-full max-w-3xl max-h-[85vh] bg-card rounded-xl overflow-hidden border border-border shadow-lg" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
               <Code2 size={16} className="text-primary shrink-0" />
               <div className="flex-1 min-w-0">
@@ -1608,19 +1610,19 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 <button
                   type="button"
                   onClick={() => navigator.clipboard?.writeText(headersModal.raw).then(() => toast.success('Header disalin')).catch(() => toast.error('Gagal menyalin header.'))}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium transition-colors"
                 >
                   <Copy size={14} /> Salin
                 </button>
               )}
-              <button onClick={() => setHeadersModal(null)} className="p-2 rounded-lg hover:bg-muted text-muted-foreground" aria-label="Tutup header">
-                <X size={18} />
+              <button onClick={() => setHeadersModal(null)} className="p-2 rounded-md hover:bg-muted text-muted-foreground" aria-label="Tutup header">
+                <X size={16} />
               </button>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {headersModal.loading && (
                 <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
-                  <Loader2 size={18} className="animate-spin" /> Memuat header…
+                  <Loader2 size={16} className="animate-spin" /> Memuat header…
                 </div>
               )}
               {headersModal.error && (
@@ -1640,7 +1642,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       {contactOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setContactOpen(false)} role="dialog" aria-modal="true" aria-label="Tambah ke kontak">
           <div
-            className="bg-card w-full max-w-md rounded-2xl shadow-xl overflow-hidden"
+            className="bg-card w-full max-w-md rounded-xl shadow-lg overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
@@ -1660,7 +1662,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                   id="contact-name"
                   defaultValue={contactPerson?.name || contactPerson?.email || ''}
                   placeholder="John Doe"
-                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="bg-muted border-none rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -1672,7 +1674,7 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                   type="email"
                   required
                   placeholder="email@domain.com"
-                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="bg-muted border-none rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -1680,21 +1682,21 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 <input
                   ref={contactPhoneRef}
                   placeholder="+62..."
-                  className="bg-muted border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="bg-muted border-none rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
                 />
               </div>
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setContactOpen(false)}
-                  className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-lg text-sm font-medium"
+                  className="flex-1 bg-muted hover:bg-muted/80 text-foreground py-2 rounded-md text-sm font-medium"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={contactSaving}
-                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground py-2 rounded-md text-sm font-medium flex items-center justify-center gap-2"
                 >
                   {contactSaving ? <Loader2 size={14} className="animate-spin" /> : 'Simpan'}
                 </button>
