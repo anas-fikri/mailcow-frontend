@@ -1,5 +1,32 @@
 # Active Task
 
+## 2026-10-11 — Webmail ala Outlook desktop (branch worktree-outlook-ux, BELUM deploy)
+
+Status: READY FOR REVIEW/UAT — 9 commit di branch `worktree-outlook-ux` (`0c3839d`..`ec4ba11`),
+build PASS, 76/76 suite test PASS, smoke runtime Puppeteer 12/12 OK (mock SOGo fixture).
+
+**Lingkup (review 4-agent lalu implementasi paralel):**
+- Daftar pesan: Ctrl/Shift+klik multi-select, klik kanan (menu konteks + submenu),
+  drag-drop pesan ke folder, MoveToPicker (cari folder), keyboard penuh ala Outlook
+  (panah buka pesan, Del, Ctrl+Q/U/R/Shift+R/F/A/E/N/Z, Ctrl+Shift+V/G), optimistic
+  update + undo 6 dtk (baris langsung hilang, Ctrl+Z), favorit folder, panel baca
+  kanan/bawah/nonaktif + lebar pane persist, density normal/ringkas.
+- Reader: Balas Semua (heuristik), prev/next + "x dari N", tandai-dibaca
+  segera/tunda-N-dtk/manual (preferensi), lipat kutipan, Tampilkan header (viewsource),
+  zoom A−/A+, forward bawa lampiran, konfirmasi hapus permanen di Trash.
+- Compose: Esc/Ctrl+Enter, minimize ke bar bawah (baca email sambil compose), chip
+  penerima tervalidasi + dedupe + saran panah, pengingat lampiran, beforeunload guard,
+  undo-send mengembalikan pesan ke compose, toolbar lengkap, jadwal pakai waktu lokal.
+- Shell/prefs: tab "Tata Letak & Baca" (default), menu akun di sidebar, BottomNav 5
+  item + "Lainnya", switch role=switch, kontras dark diperbaiki, suara notifikasi.
+- Backend: /api/send kini memasang In-Reply-To/References (threading balasan) —
+  `src/lib/threadingHeaders.js` masuk BACKEND_LIB_FILES deploy.sh.
+
+**Next:** UAT user di browser → merge ke main → `./deploy.sh` (frontend + backend
+server.js + src/lib). Branch sudah di-push ke GitLab.
+
+## Sesi sebelumnya
+
 ## 2026-10-08 — Fix "email terkirim masuk Trash, Sent kosong" (round-59: sent-copy)
 
 Status: COMPLETED

@@ -1,3 +1,17 @@
+# 2026-10-11 — Webmail ala Outlook desktop: siap UAT di branch worktree-outlook-ux
+- Review menyeluruh (4 agent: list flow, compose/reader, backend/api, shell/CSS) lalu
+  implementasi paralel 4 agent + fondasi prefs & threading oleh koordinator.
+- 9 commit, puncak: menu konteks, drag-drop, keyboard Outlook, optimistic update+undo,
+  Balas Semua, panel baca kanan/bawah/nonaktif, density, compose minimize, chip
+  penerima, pengingat lampiran, undo-send utuh, threading In-Reply-To/References.
+- Validasi: build PASS, 76/76 suite PASS (12 suite baru terdaftar di package.json),
+  smoke runtime Puppeteer (vite preview + mock SOGo dari fixture golden) 12/12 OK —
+  3 bug runtime ditemukan & difix: focus() pada elemen visibility:hidden diabaikan
+  browser (ContextMenu/MoveToPicker), Esc tidak sampai ke dialog saat fokus di luar
+  (ditangkap capture-phase), listHeight default terlalu pendek utk panel baca bawah.
+- BELUM deploy; branch ter-push. Deploy nanti wajib via ./deploy.sh (backend server.js
+  berubah: threadingHeaders.js baru di BACKEND_LIB_FILES).
+
 # 2026-10-08 — Sent-copy: email terkirim kini punya salinan di Sent (LIVE)
 - **Laporan user:** beberapa user (contoh bayu.gunawan@pcpexpress.com) melihat email
   "terkirim" masuk Trash, Sent kosong. Diagnosa (doveadm/postfix/proxy log/DB SOGo):

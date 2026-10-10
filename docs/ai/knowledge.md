@@ -1,5 +1,20 @@
 # Durable project knowledge
 
+## Outlook-UX round (2026-10-11)
+- SOGo `…/{uid}/view` JSON TIDAK membawa Message-ID/In-Reply-To/References (cek fixture
+  golden produksi); satu-satunya sumber = `…/{uid}/viewsource` (RFC822 mentah). Ambil
+  header saja dgn streaming + abort di baris kosong pertama agar lampiran tidak ikut
+  terunduh (`fetchMessageHeadersRaw`).
+- `el.focus()` pada elemen `visibility:hidden` DIABAIKAN browser — popover yang diukur
+  dulu (clamp posisi) harus fokus SETELAH `pos.ready`, bukan di mount.
+- Esc untuk popover/dialog global harus ditangkap di fase CAPTURE di `document` bila
+  fokus bisa berada di luar elemennya; kalau tidak, handler window MailPage yang menang.
+- Zustand-persist membaca `pcp-auth` saat reload — test runtime yang mengubah prefs
+  harus mem-patch `pcp-auth.state`, bukan hanya `pcp_prefs_v2_<email>`.
+- Smoke runtime tanpa backend: vite preview + Puppeteer setRequestInterception yang
+  menjawab /SOGo/* & /api/* dari fixture `scripts/fixtures/mail-golden-*.json` —
+  menemukan bug yang lolos dari 76 suite statis.
+
 ## Sent-copy + imapflow + sendQueue (2026-10-08)
 - TIDAK ADA jalur kirim webmail yang otomatis membuat salinan Sent — jalur SMTP proxy
   (/api/send) dan fallback SOGo 501 sama-sama tidak APPEND. Draft sisa (`\Draft`) yang
