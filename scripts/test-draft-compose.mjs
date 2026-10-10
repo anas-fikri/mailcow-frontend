@@ -106,8 +106,11 @@ ok(compose.includes('closedRef.current = false;'), 'reset modal harus reset clos
 // ── Reply/forward harus membawa composeMode 'reply' (signature reply) ────────
 // Tanpa ini ComposeModal memakai signature 'new' untuk balasan — salah.
 ok(reader.includes("composeMode: 'reply',"), 'handleReply harus kirim composeMode reply');
-ok(compose.includes("const composeMode = initialData?.composeMode === 'reply' ? 'reply' : 'new';"),
-  'ComposeModal harus memetakan composeMode reply');
+// Mode asli (new/reply/replyAll/forward/draft) dipertahankan utk judul &
+// aria-label; composeMode = mode signature ('reply' utk balasan & teruskan).
+ok(compose.includes("const realMode = normalizeComposeMode(initialData?.composeMode);")
+  && compose.includes("const composeMode = signatureModeFor(realMode);"),
+  'ComposeModal harus memetakan composeMode reply (via signatureModeFor)');
 ok(compose.includes("getSignatureFor(user.email, composeMode)"), 'ComposeModal harus pilih signature per mode');
 
 // ── Anti-overlap di lebar sempit ─────────────────────────────────────────────

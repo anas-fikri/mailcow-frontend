@@ -14,6 +14,8 @@ let toastId = 0;
 export const useToastStore = create((set) => ({
   toasts: [],
 
+  // action: { label, onClick, kind } — kind 'undo' | 'cancel' | 'open'
+  // menentukan ikon tombol (Toast.jsx); tanpa kind → tanpa ikon.
   addToast: ({ type = TOAST_TYPES.INFO, message, duration = 5000, action }) => {
     const id = ++toastId;
     const toast = { id, type, message, duration, action };
@@ -61,6 +63,6 @@ export const toast = {
       type: TOAST_TYPES.INFO,
       message,
       duration,
-      action: { label: 'Urungkan', onClick: onUndo },
+      action: { label: 'Urungkan', onClick: onUndo, kind: 'undo' },
     }),
 };

@@ -129,6 +129,20 @@ export async function insertImageFile(file, editorRef, onChange) {
   return ok;
 }
 
+/**
+ * Insert BEBERAPA gambar berurutan (drop/paste multi-file). Sekuensial agar
+ * urutan gambar sama dengan urutan file & caret maju setelah tiap gambar.
+ * Mengembalikan jumlah gambar yang berhasil disisipkan.
+ */
+export async function insertImageFiles(files, editorRef, onChange) {
+  let inserted = 0;
+  for (const file of Array.from(files || [])) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await insertImageFile(file, editorRef, onChange)) inserted++;
+  }
+  return inserted;
+}
+
 function getImageFilesFromClipboard(dt) {
   const files = [];
 
@@ -231,7 +245,8 @@ export async function handleEditorPaste(e, { editorRef, onChange, setIsPasting, 
   if (imageFiles.length > 0) {
     e.preventDefault();
     setIsPasting?.(true);
-    await insertImageFile(imageFiles[0], editorRef, onChange);
+    // Semua gambar di clipboard disisipkan (bukan hanya yang pertama).
+    await insertImageFiles(imageFiles, editorRef, onChange);
     setIsPasting?.(false);
     return 'ok';
   }
@@ -252,7 +267,7 @@ export async function handleEditorPaste(e, { editorRef, onChange, setIsPasting, 
   setIsPasting?.(true);
   const clipboardImages = await tryReadClipboardImages();
   if (clipboardImages.length > 0) {
-    await insertImageFile(clipboardImages[0], editorRef, onChange);
+    await insertImageFiles(clipboardImages, editorRef, onChange);
     setIsPasting?.(false);
     return 'ok';
   }
