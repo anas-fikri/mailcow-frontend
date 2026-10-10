@@ -43,9 +43,11 @@ export const CAL_COLORS = [
   'bg-teal-500/20 text-teal-700 dark:text-teal-300',
 ];
 
+// Teks avatar putih — semua shade dipilih agar kontras ≥ 4.5:1 (WCAG AA).
+// orange-500/teal-500/green-500/pink-500 + putih GAGAL AA → dinaikkan ke -600/-700.
 export const AVATAR_COLORS = [
-  'bg-blue-500', 'bg-purple-500', 'bg-green-500',
-  'bg-orange-500', 'bg-pink-500', 'bg-teal-500',
+  'bg-blue-600', 'bg-purple-600', 'bg-green-700',
+  'bg-orange-700', 'bg-pink-600', 'bg-teal-700',
 ];
 
 // ─── Folder helpers ───────────────────────────────────────────────────────────

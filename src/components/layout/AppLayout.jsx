@@ -18,7 +18,7 @@ const THEME_HUES = {
 };
 
 export default function AppLayout() {
-  const { isLoggedIn, theme, themeColor } = useAuthStore();
+  const { isLoggedIn, theme, themeColor, density, readingPane } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = React.useState(false); // Mobile sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
     try { return localStorage.getItem('pcp_sidebar_collapsed') === '1'; } catch { return false; }
@@ -72,24 +72,36 @@ export default function AppLayout() {
     document.documentElement.style.setProperty('--theme-hue', String(hue));
   }, [themeColor]);
 
+  // Hook tata letak ala Outlook di <html> (seperti data-theme): CSS global
+  // (.density-* di index.css) dan Skeleton membaca atribut ini — komponen
+  // tidak perlu membaca store satu per satu. themeInit.js menulis nilai awal
+  // sebelum paint pertama; effect ini menyinkronkan saat user mengubahnya.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.density = density === 'compact' ? 'compact' : 'normal';
+    root.dataset.readingPane = readingPane === 'bottom' || readingPane === 'off' ? readingPane : 'right';
+  }, [density, readingPane]);
+
   if (!isLoggedIn) return <Navigate to="/login" replace />;
 
   return (
-    <div className="flex h-screen supports-[height:100dvh]:h-dvh overflow-hidden bg-background text-foreground transition-colors duration-200">
+    <div className="flex h-screen supports-[height:100dvh]:h-dvh w-full max-w-[100vw] overflow-hidden bg-background text-foreground transition-colors duration-200">
       <SmtpHeartbeat />
-      
+
       {/* Mobile Sidebar Overlay */}
-      <div 
-        className={`fixed inset-0 bg-black/50 z-40 md:hidden ${sidebarOpen ? 'block' : 'hidden'}`} 
-        onClick={() => setSidebarOpen(false)} 
+      <div
+        className={`fixed inset-0 bg-black/50 z-40 md:hidden ${sidebarOpen ? 'block' : 'hidden'}`}
+        onClick={() => setSidebarOpen(false)}
       />
 
-      {/* Main Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 transform md:relative md:translate-x-0 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${sidebarCollapsed ? 'md:w-16' : 'md:w-56'} flex shrink-0`}>
+      {/* Main Sidebar — di mobile lebar dibatasi 85vw agar tidak melebihi layar 320px */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 max-w-[85vw] transform md:relative md:translate-x-0 md:max-w-none transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${sidebarCollapsed ? 'md:w-16' : 'md:w-56'} flex shrink-0`}>
         <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapse} onClose={() => setSidebarOpen(false)} />
       </div>
 
-      <main className="flex-1 overflow-hidden relative pb-16 md:pb-0 flex flex-col min-w-0">
+      {/* min-w-0 + overflow-x-hidden: anak flex tidak boleh memaksa lebar
+          melebihi viewport (320px) — scroll horizontal halaman dilarang. */}
+      <main className="flex-1 overflow-hidden overflow-x-hidden relative pb-16 md:pb-0 flex flex-col min-w-0 max-w-full">
         {/* Mobile Header for Sidebar Toggle (if needed globally, otherwise pages handle it) */}
         <Outlet context={{ setSidebarOpen }} />
       </main>

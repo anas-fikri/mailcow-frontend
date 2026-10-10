@@ -4,7 +4,8 @@
 (function applyInitialTheme() {
   try {
     var stored = JSON.parse(localStorage.getItem('pcp-auth') || '{}');
-    var theme = stored && stored.state ? stored.state.theme : null;
+    var state = stored && stored.state ? stored.state : {};
+    var theme = state.theme || null;
     var dark = theme === 'dark'
       || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
       || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -12,6 +13,13 @@
     root.classList.toggle('dark', dark);
     root.classList.toggle('light', !dark);
     root.setAttribute('data-theme', dark ? 'dark' : 'light');
+    // Tata letak ala Outlook: tulis hook data-density / data-reading-pane
+    // sebelum paint pertama supaya skeleton & daftar tidak "melompat" saat
+    // AppLayout menyinkronkan nilai dari store (nilai tak valid → default).
+    var density = state.density === 'compact' ? 'compact' : 'normal';
+    var pane = state.readingPane === 'bottom' || state.readingPane === 'off' ? state.readingPane : 'right';
+    root.setAttribute('data-density', density);
+    root.setAttribute('data-reading-pane', pane);
   } catch (_) {
     // Theme initialization must never prevent the application from starting.
   }

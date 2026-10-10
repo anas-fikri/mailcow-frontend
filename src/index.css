@@ -56,9 +56,11 @@
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    /* Kartu/panel (sidebar, list, reader) sedikit lebih terang dari
+       background supaya pane ala Outlook terbaca sebagai permukaan terpisah. */
+    --card: 222.2 47% 8%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 222.2 47% 9%;
     --popover-foreground: 210 40% 98%;
     --primary: var(--theme-hue, 217) 91.2% 59.8%;
     --primary-foreground: 222.2 47.4% 11.2%;
@@ -70,16 +72,21 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84% 58%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    /* Border harus lebih terang dari --muted/--secondary (17.5%) — kalau sama,
+       garis pemisah hilang di atas permukaan muted (hover row, input, chip). */
+    --border: 217.2 28% 24%;
+    --input: 217.2 28% 24%;
     --ring: var(--theme-hue, 217) 26.8% 83.9%;
   }
 
   * {
     border-color: var(--color-border);
   }
+  html {
+    background-color: hsl(var(--background));
+  }
   body {
-    background-color: var(--color-background);
+    background-color: hsl(var(--background));
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -128,8 +135,10 @@ input:-webkit-autofill:active {
   display: none;
 }
 
+/* Tautan mengikuti hue tema aktif (bukan biru hard-coded) — konsisten dengan
+   warna aksen yang dipilih user di Pengaturan. */
 .email-body a {
-  color: hsl(221.2, 83.2%, 53.3%);
+  color: hsl(var(--primary));
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -164,7 +173,7 @@ input:-webkit-autofill:active {
 
 /* Nested blockquote depth indicator */
 .email-body blockquote blockquote blockquote {
-  border-left-color: hsl(var(--primary), 0.4);
+  border-left-color: hsl(var(--primary) / 0.4);
 }
 
 /* Horizontal rule */
@@ -282,6 +291,49 @@ input:-webkit-autofill:active {
   .email-body a {
     color: #1a56db;
   }
+}
+
+/* ── Kepadatan daftar (Outlook: Normal / Ringkas) ─────────────────────────
+   AppLayout menulis `data-density="normal|compact"` dan
+   `data-reading-pane="right|bottom|off"` pada <html> dari store (seperti
+   data-theme). Komponen daftar cukup memakai kelas berikut — tanpa perlu
+   membaca store satu per satu:
+
+   .density-row       padding vertikal baris (py-3 → py-1.5 saat ringkas)
+   .density-row-x     padding horizontal baris (px-4 → px-3 saat ringkas)
+   .density-avatar    avatar baris (32px → 24px saat ringkas)
+   .density-gap       jarak antar elemen baris (gap-3 → gap-2 saat ringkas)
+   .density-text      ukuran teks sekunder (text-sm → text-xs saat ringkas)
+   .density-hide      elemen yang disembunyikan saat ringkas (mis. preview)
+   .density-skeleton  tinggi skeleton baris (ikut --row-min-h)
+
+   Variabel: --row-min-h (tinggi minimal baris), dipakai skeleton & virtual list. */
+:root {
+  --row-min-h: 4.5rem;
+}
+.density-row { padding-top: 0.75rem; padding-bottom: 0.75rem; min-height: var(--row-min-h); }
+.density-row-x { padding-left: 1rem; padding-right: 1rem; }
+.density-avatar { width: 2rem; height: 2rem; font-size: 0.75rem; }
+.density-gap { gap: 0.75rem; }
+.density-text { font-size: 0.875rem; line-height: 1.25rem; }
+.density-skeleton { min-height: var(--row-min-h); }
+
+:root[data-density="compact"] {
+  --row-min-h: 2.75rem;
+}
+[data-density="compact"] .density-row { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+[data-density="compact"] .density-row-x { padding-left: 0.75rem; padding-right: 0.75rem; }
+[data-density="compact"] .density-avatar { width: 1.5rem; height: 1.5rem; font-size: 0.625rem; }
+[data-density="compact"] .density-gap { gap: 0.5rem; }
+[data-density="compact"] .density-text { font-size: 0.75rem; line-height: 1rem; }
+[data-density="compact"] .density-hide { display: none; }
+
+/* Panel baca nonaktif: daftar memakai seluruh lebar (hook utk MailPage). */
+[data-reading-pane="off"] .reading-pane-only { display: none; }
+
+/* Saklar (role="switch") — animasi knob + reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .density-row, .density-avatar, [role="switch"] > span { transition: none !important; }
 }
 
 /* ── Mobile: cegah iOS Safari auto-zoom saat fokus ke field form ──

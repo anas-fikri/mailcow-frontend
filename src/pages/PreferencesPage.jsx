@@ -4,6 +4,7 @@ import {
   Settings, Lock, FileSignature, Plane, Eye, EyeOff,
   Loader2, CheckCircle2, AlertCircle, ChevronRight, BellRing,
   Sparkles, Copy, Globe, Palette, MessageSquare, Reply, Trash2, Plus,
+  LayoutPanelLeft, MailOpen, ArrowUpDown, MessagesSquare, Rows3, Volume2,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { registerSmtpSession, changePassword, fetchPreferences, savePreferences } from '../lib/api';
@@ -13,6 +14,279 @@ import HtmlEditor from '../components/HtmlEditor';
 import Skeleton from '../components/Skeleton';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Saklar aksesibel (WAI-ARIA switch): <button role="switch" aria-checked>.
+ * Menggantikan pola lama <div onClick> yang tidak bisa difokus keyboard dan
+ * tidak diumumkan screen reader. Space/Enter toggle bawaan <button>.
+ * - `label`: teks terlihat (dirender di kanan knob, jadi satu target klik).
+ * - `description`: teks bantu kecil di bawah label.
+ */
+function Switch({ checked, onChange, label, description, disabled = false, id, className = '' }) {
+  const autoId = React.useId();
+  const labelId = id || autoId;
+  const descId = description ? `${labelId}-desc` : undefined;
+  return (
+    <div className={`flex items-start justify-between gap-4 ${className}`}>
+      {(label || description) && (
+        <span className="min-w-0 flex-1">
+          {label && <span id={labelId} className="block text-sm font-medium text-foreground">{label}</span>}
+          {description && <span id={descId} className="block text-xs text-muted-foreground mt-0.5">{description}</span>}
+        </span>
+      )}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-labelledby={label ? labelId : undefined}
+        aria-describedby={descId}
+        disabled={disabled}
+        onClick={() => onChange?.(!checked)}
+        // min-h-11 + padding vertikal → target sentuh 44px walau knob 24px
+        className="relative shrink-0 inline-flex items-center min-h-11 px-1 -mx-1 rounded-full outline-none disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+      >
+        <span
+          aria-hidden="true"
+          className={`relative block w-11 h-6 rounded-full transition-colors ${checked ? 'bg-primary' : 'bg-muted-foreground/30'}`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : ''}`} />
+        </span>
+      </button>
+    </div>
+  );
+}
+
+/** Grup pilihan tunggal (radiogroup) ala segmented control — mendukung panah kiri/kanan. */
+function ChoiceGroup({ label, value, options, onChange, columns = 3 }) {
+  const groupId = React.useId();
+  const onKeyDown = (e) => {
+    const idx = options.findIndex((o) => o.id === value);
+    if (idx < 0) return;
+    let next = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = options[(idx + 1) % options.length];
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = options[(idx - 1 + options.length) % options.length];
+    if (next) { e.preventDefault(); onChange(next.id); e.currentTarget.querySelector(`[data-id="${next.id}"]`)?.focus(); }
+  };
+  const cols = { 2: 'grid-cols-2', 3: 'grid-cols-3' }[columns] || 'grid-cols-3';
+  return (
+    <div className="space-y-2">
+      <div id={groupId} className="text-sm font-medium text-foreground">{label}</div>
+      <div role="radiogroup" aria-labelledby={groupId} onKeyDown={onKeyDown} className={`grid ${cols} gap-2`}>
+        {options.map((o) => {
+          const selected = value === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              tabIndex={selected ? 0 : -1}
+              data-id={o.id}
+              onClick={() => onChange(o.id)}
+              className={`flex flex-col items-center gap-1.5 px-2 py-2.5 min-h-11 rounded-xl border text-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                selected ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted text-foreground'
+              }`}
+            >
+              {o.picto}
+              <span className="text-xs font-medium leading-tight">{o.label}</span>
+              {o.desc && <span className="text-[11px] text-muted-foreground leading-tight">{o.desc}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Piktogram mini tata letak panel baca (36×24): daftar + panel. */
+function PanePicto({ mode }) {
+  const stroke = 'currentColor';
+  return (
+    <svg width="40" height="26" viewBox="0 0 40 26" aria-hidden="true" className="opacity-80">
+      <rect x="0.5" y="0.5" width="39" height="25" rx="3" fill="none" stroke={stroke} strokeOpacity="0.5" />
+      {mode === 'right' && (
+        <>
+          <rect x="3" y="4" width="13" height="2.5" rx="1" fill={stroke} />
+          <rect x="3" y="9" width="13" height="2.5" rx="1" fill={stroke} opacity="0.6" />
+          <rect x="3" y="14" width="13" height="2.5" rx="1" fill={stroke} opacity="0.6" />
+          <rect x="3" y="19" width="13" height="2.5" rx="1" fill={stroke} opacity="0.6" />
+          <line x1="19.5" y1="1" x2="19.5" y2="25" stroke={stroke} strokeOpacity="0.5" />
+          <rect x="22" y="4" width="15" height="18" rx="1.5" fill={stroke} opacity="0.25" />
+        </>
+      )}
+      {mode === 'bottom' && (
+        <>
+          <rect x="3" y="3" width="34" height="2.5" rx="1" fill={stroke} />
+          <rect x="3" y="7.5" width="34" height="2.5" rx="1" fill={stroke} opacity="0.6" />
+          <line x1="1" y1="12.5" x2="39" y2="12.5" stroke={stroke} strokeOpacity="0.5" />
+          <rect x="3" y="15" width="34" height="8" rx="1.5" fill={stroke} opacity="0.25" />
+        </>
+      )}
+      {mode === 'off' && (
+        <>
+          <rect x="3" y="3.5" width="34" height="2.5" rx="1" fill={stroke} />
+          <rect x="3" y="8" width="34" height="2.5" rx="1" fill={stroke} opacity="0.6" />
+          <rect x="3" y="12.5" width="34" height="2.5" rx="1" fill={stroke} opacity="0.6" />
+          <rect x="3" y="17" width="34" height="2.5" rx="1" fill={stroke} opacity="0.6" />
+          <rect x="3" y="21.5" width="34" height="2" rx="1" fill={stroke} opacity="0.4" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+/** Piktogram kepadatan: Normal (3 baris tebal) vs Ringkas (5 baris tipis). */
+function DensityPicto({ mode }) {
+  const rows = mode === 'compact' ? [3, 7.5, 12, 16.5, 21] : [3.5, 10.5, 17.5];
+  const h = mode === 'compact' ? 2.5 : 4.5;
+  return (
+    <svg width="40" height="26" viewBox="0 0 40 26" aria-hidden="true" className="opacity-80">
+      <rect x="0.5" y="0.5" width="39" height="25" rx="3" fill="none" stroke="currentColor" strokeOpacity="0.5" />
+      {rows.map((y, i) => (
+        <rect key={y} x="3" y={y} width="34" height={h} rx="1" fill="currentColor" opacity={i === 0 ? 1 : 0.55} />
+      ))}
+    </svg>
+  );
+}
+
+// ─── Tata Letak & Baca (ala Outlook) ─────────────────────────────────────────
+// Semua kontrol langsung ditulis ke store (setPref/setConversationView/
+// setSortAsc) yang persist per akun — tidak ada tombol Simpan, seperti tema.
+function LayoutSection() {
+  const {
+    readingPane, density, markReadMode, markReadDelaySec,
+    conversationView, sortAsc, setPref, setConversationView, setSortAsc,
+  } = useAuthStore();
+  const [savedTick, setSavedTick] = useState(0);
+  const flash = () => setSavedTick((t) => t + 1);
+  // Tampilkan "Tersimpan otomatis" sebentar setelah perubahan — bukti visual
+  // bahwa tidak perlu tombol Simpan.
+  const [showSaved, setShowSaved] = useState(false);
+  useEffect(() => {
+    if (!savedTick) return;
+    setShowSaved(true);
+    const t = setTimeout(() => setShowSaved(false), 1800);
+    return () => clearTimeout(t);
+  }, [savedTick]);
+
+  const set = (key, value) => { setPref(key, value); flash(); };
+  const delay = Math.min(60, Math.max(1, Number(markReadDelaySec) || 3));
+  const markReadId = React.useId();
+
+  return (
+    <Section icon={LayoutPanelLeft} title="Tata Letak & Baca">
+      <div className="space-y-6 max-w-xl">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Atur tampilan kotak masuk ala Outlook. Perubahan langsung diterapkan dan disimpan untuk akun ini.
+          </p>
+          <span
+            role="status"
+            aria-live="polite"
+            className={`shrink-0 inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 transition-opacity ${
+              showSaved ? 'opacity-100 bg-green-500/10 text-green-700 dark:text-green-400' : 'opacity-70 text-muted-foreground'
+            }`}
+          >
+            <CheckCircle2 size={12} />
+            Tersimpan otomatis
+          </span>
+        </div>
+
+        <ChoiceGroup
+          label="Panel baca"
+          value={readingPane}
+          onChange={(v) => set('readingPane', v)}
+          options={[
+            { id: 'right',  label: 'Kanan',     desc: 'Daftar + pesan berdampingan', picto: <PanePicto mode="right" /> },
+            { id: 'bottom', label: 'Bawah',     desc: 'Pesan di bawah daftar',       picto: <PanePicto mode="bottom" /> },
+            { id: 'off',    label: 'Nonaktif',  desc: 'Pesan dibuka penuh',          picto: <PanePicto mode="off" /> },
+          ]}
+        />
+
+        <ChoiceGroup
+          label="Kepadatan daftar"
+          columns={2}
+          value={density}
+          onChange={(v) => set('density', v)}
+          options={[
+            { id: 'normal',  label: 'Normal',  desc: 'Dengan cuplikan isi', picto: <DensityPicto mode="normal" /> },
+            { id: 'compact', label: 'Ringkas', desc: 'Lebih banyak baris',  picto: <DensityPicto mode="compact" /> },
+          ]}
+        />
+
+        {/* Tandai dibaca */}
+        <fieldset className="space-y-2">
+          <legend className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <MailOpen size={15} className="text-primary" />
+            Tandai dibaca
+          </legend>
+          {[
+            { id: 'instant', label: 'Segera saat dibuka' },
+            { id: 'delay',   label: 'Setelah beberapa detik' },
+            { id: 'manual',  label: 'Manual saja (tombol / pintasan)' },
+          ].map((o) => {
+            const id = `${markReadId}-${o.id}`;
+            // Radio + label terpisah (bukan input number di dalam <label>) —
+            // satu <label> hanya boleh punya satu kontrol berlabel.
+            return (
+              <div key={o.id} className="flex items-center gap-3 min-h-11 px-2 -mx-2 rounded-lg hover:bg-muted/60">
+                <input
+                  id={id}
+                  type="radio"
+                  name="markReadMode"
+                  value={o.id}
+                  checked={markReadMode === o.id}
+                  onChange={() => set('markReadMode', o.id)}
+                  className="h-4 w-4 shrink-0 accent-[hsl(var(--primary))]"
+                />
+                <label htmlFor={id} className="text-sm text-foreground flex-1 min-h-11 flex items-center cursor-pointer">{o.label}</label>
+                {o.id === 'delay' && (
+                  <span className="flex items-center gap-1.5 text-sm text-muted-foreground shrink-0">
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      inputMode="numeric"
+                      aria-label="Jeda tandai dibaca (detik)"
+                      value={delay}
+                      disabled={markReadMode !== 'delay'}
+                      onChange={(e) => {
+                        const n = Math.min(60, Math.max(1, parseInt(e.target.value, 10) || 1));
+                        set('markReadDelaySec', n);
+                      }}
+                      className="w-16 bg-muted border-none rounded-lg px-2 py-1 text-sm text-foreground text-center focus:ring-2 focus:ring-primary focus:outline-none disabled:opacity-50 tabular-nums"
+                    />
+                    dtk
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </fieldset>
+
+        <hr className="border-border" />
+
+        <Switch
+          checked={!!conversationView}
+          onChange={(v) => { setConversationView(v); flash(); }}
+          label={<span className="inline-flex items-center gap-2"><MessagesSquare size={15} className="text-primary" />Tampilan percakapan</span>}
+          description="Kelompokkan balasan dengan subjek sama menjadi satu utas."
+        />
+
+        <ChoiceGroup
+          label={<span className="inline-flex items-center gap-2"><ArrowUpDown size={15} className="text-primary" />Urutan</span>}
+          columns={2}
+          value={sortAsc ? 'asc' : 'desc'}
+          onChange={(v) => { setSortAsc(v === 'asc'); flash(); }}
+          options={[
+            { id: 'desc', label: 'Terbaru di atas', picto: <Rows3 size={18} /> },
+            { id: 'asc',  label: 'Terlama di atas', picto: <Rows3 size={18} className="rotate-180" /> },
+          ]}
+        />
+      </div>
+    </Section>
+  );
+}
 function Section({ icon: Icon, title, children, loading }) {
   if (loading) {
     return (
@@ -627,17 +901,11 @@ function VacationSection() {
         <StatusMsg status={status} />
 
         {/* Toggle */}
-        <label className="flex items-center gap-3 cursor-pointer">
-          <div
-            onClick={() => setEnabled(p => !p)}
-            className={`relative w-11 h-6 rounded-full transition-colors ${enabled ? 'bg-primary' : 'bg-muted-foreground/30'}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-5' : ''}`} />
-          </div>
-          <span className="text-sm font-medium text-foreground">
-            {enabled ? 'Auto-reply aktif' : 'Auto-reply nonaktif'}
-          </span>
-        </label>
+        <Switch
+          checked={enabled}
+          onChange={setEnabled}
+          label={enabled ? 'Auto-reply aktif' : 'Auto-reply nonaktif'}
+        />
 
         {enabled && (
           <div className="space-y-4 pt-2">
@@ -701,6 +969,7 @@ const COLOR_PRESETS = [
 function NotifySection() {
   const { user } = useAuthStore();
   const [rich, setRich] = useState(true);
+  const [sound, setSound] = useState(false);
   const [permission, setPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
   );
@@ -708,12 +977,15 @@ function NotifySection() {
 
   useEffect(() => {
     if (!user?.email) return;
-    setRich(loadNotifyPrefs(user.email).rich !== false);
+    const p = loadNotifyPrefs(user.email);
+    setRich(p.rich !== false);
+    setSound(p.sound === true);
   }, [user?.email]);
 
-  const persist = (nextRich) => {
+  // Simpan sebagian (merge) — rich & sound masing-masing bisa diubah terpisah.
+  const persist = (patch) => {
     if (!user?.email) return;
-    saveNotifyPrefs(user.email, { rich: nextRich });
+    saveNotifyPrefs(user.email, patch);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   };
@@ -743,22 +1015,23 @@ function NotifySection() {
         )}
       </div>
 
-      <label className="flex items-start justify-between gap-4 cursor-pointer">
-        <span>
-          <span className="block text-sm font-medium text-foreground">Notifikasi kaya (pengirim + subjek)</span>
-          <span className="block text-xs text-muted-foreground mt-1">
-            Notifikasi menampilkan pengirim dan subjek email terbaru, bukan hanya jumlah pesan.
-          </span>
-        </span>
-        <input
-          type="checkbox"
-          checked={rich}
-          onChange={(e) => { setRich(e.target.checked); persist(e.target.checked); }}
-          className="mt-1 h-5 w-5 shrink-0 accent-[hsl(var(--primary))]"
-        />
-      </label>
+      <Switch
+        checked={rich}
+        onChange={(v) => { setRich(v); persist({ rich: v }); }}
+        label="Notifikasi kaya (pengirim + subjek)"
+        description="Notifikasi menampilkan pengirim dan subjek email terbaru, bukan hanya jumlah pesan."
+      />
 
-      {saved && <p className="text-xs text-primary">Tersimpan.</p>}
+      <Switch
+        checked={sound}
+        onChange={(v) => { setSound(v); persist({ sound: v }); }}
+        label={<span className="inline-flex items-center gap-2"><Volume2 size={15} className="text-primary" />Suara notifikasi</span>}
+        description="Mainkan bunyi singkat saat email baru masuk. Mengikuti volume perangkat."
+      />
+
+      <p className={`text-xs text-primary transition-opacity ${saved ? 'opacity-100' : 'opacity-0'}`} aria-live="polite">
+        Tersimpan.
+      </p>
     </div>
   );
 }
@@ -976,18 +1249,13 @@ function DisplaySection() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Hapus Email</label>
-            <label className="flex items-center gap-3 cursor-pointer mt-1">
-              <div
-                onClick={() => setConfirmDelete(p => p === '1' ? '0' : '1')}
-                className={`relative w-11 h-6 rounded-full transition-colors ${confirmDelete === '1' ? 'bg-primary' : 'bg-muted-foreground/30'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${confirmDelete === '1' ? 'translate-x-5' : ''}`} />
-              </div>
-              <span className="text-sm text-foreground">
-                {confirmDelete === '1' ? 'Konfirmasi sebelum menghapus' : 'Langsung hapus tanpa konfirmasi'}
-              </span>
-            </label>
+            <div className="text-sm font-medium text-foreground">Hapus Email</div>
+            <Switch
+              checked={confirmDelete === '1'}
+              onChange={(v) => setConfirmDelete(v ? '1' : '0')}
+              label={confirmDelete === '1' ? 'Konfirmasi sebelum menghapus' : 'Langsung hapus tanpa konfirmasi'}
+              description="Saat aktif, hapus menampilkan notifikasi Urungkan beberapa detik."
+            />
           </div>
         </div>
 
@@ -1005,19 +1273,44 @@ function DisplaySection() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PreferencesPage() {
   const { user } = useAuthStore();
+  // Tab "Tata Letak & Baca" PERTAMA dan jadi default — preferensi yang paling
+  // sering diubah (ala Outlook), bukan Password.
   const tabs = [
-    { id: 'display',  label: 'Tampilan',            icon: Globe },
-    { id: 'password', label: 'Password',            icon: Lock },
-    { id: 'signature', label: 'Signature',          icon: FileSignature },
-    { id: 'vacation', label: 'Auto-Reply Cuti',      icon: Plane },
-    { id: 'notify',   label: 'Notifikasi',           icon: BellRing },
+    { id: 'layout',   label: 'Tata Letak & Baca',  short: 'Tata Letak', icon: LayoutPanelLeft },
+    { id: 'display',  label: 'Tampilan',           short: 'Tampilan',   icon: Globe },
+    { id: 'password', label: 'Password',           short: 'Password',   icon: Lock },
+    { id: 'signature', label: 'Signature',         short: 'Signature',  icon: FileSignature },
+    { id: 'vacation', label: 'Auto-Reply Cuti',    short: 'Auto-Reply', icon: Plane },
+    { id: 'notify',   label: 'Notifikasi',         short: 'Notifikasi', icon: BellRing },
   ];
-  const [activeTab, setActiveTab] = useState('password');
+  const [activeTab, setActiveTab] = useState('layout');
+  const mobileTabRefs = useRef({});
+
+  // Pastikan pill tab aktif terlihat di bar yang bisa di-scroll (mobile).
+  useEffect(() => {
+    mobileTabRefs.current[activeTab]?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+  }, [activeTab]);
+
+  // Panah kiri/kanan berpindah tab (pola WAI-ARIA tabs) — berlaku di bar
+  // desktop maupun mobile.
+  const onTabKeyDown = (e) => {
+    const idx = tabs.findIndex((t) => t.id === activeTab);
+    let next = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = tabs[(idx + 1) % tabs.length];
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = tabs[(idx - 1 + tabs.length) % tabs.length];
+    else if (e.key === 'Home') next = tabs[0];
+    else if (e.key === 'End') next = tabs[tabs.length - 1];
+    if (next) {
+      e.preventDefault();
+      setActiveTab(next.id);
+      e.currentTarget.querySelector(`[data-tab="${next.id}"]`)?.focus();
+    }
+  };
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex flex-col sm:flex-row h-full min-w-0 overflow-hidden">
       {/* Sidebar tabs */}
-      <div className="w-52 shrink-0 border-r border-border bg-card flex flex-col hidden sm:flex">
+      <div className="w-52 shrink-0 border-r border-border bg-card flex-col hidden sm:flex">
         <div className="px-4 py-5 border-b border-border">
           <div className="flex items-center gap-2.5">
             <Settings size={18} className="text-primary" />
@@ -1027,44 +1320,63 @@ export default function PreferencesPage() {
             <div className="text-xs text-muted-foreground mt-2 truncate">{user.email}</div>
           )}
         </div>
-        <nav className="p-3 space-y-1">
+        <nav className="p-3 space-y-1" role="tablist" aria-label="Bagian pengaturan" aria-orientation="vertical" onKeyDown={onTabKeyDown}>
           {tabs.map(t => {
             const Icon = t.icon;
+            const active = activeTab === t.id;
             return (
               <button
                 key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                tabIndex={active ? 0 : -1}
+                data-tab={t.id}
                 onClick={() => setActiveTab(t.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all ${
-                  activeTab === t.id
+                className={`w-full flex items-center justify-between px-3 min-h-11 rounded-xl text-sm transition-all ${
+                  active
                     ? 'bg-primary/10 text-primary font-medium'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <Icon size={16} />
-                  {t.label}
+                <div className="flex items-center gap-3 min-w-0">
+                  <Icon size={16} className="shrink-0" />
+                  <span className="truncate">{t.label}</span>
                 </div>
-                {activeTab === t.id && <ChevronRight size={14} />}
+                {active && <ChevronRight size={14} className="shrink-0" />}
               </button>
             );
           })}
         </nav>
       </div>
 
-      {/* Mobile tab bar */}
-      <div className="sm:hidden border-b border-border bg-card flex">
+      {/* Mobile tab bar — pill yang bisa di-scroll horizontal (bukan 6 tab
+          terjepit text-xs); setiap pill target 44px, scrollbar disembunyikan. */}
+      <div
+        className="sm:hidden shrink-0 border-b border-border bg-card flex gap-1.5 px-3 py-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        role="tablist"
+        aria-label="Bagian pengaturan"
+        onKeyDown={onTabKeyDown}
+      >
         {tabs.map(t => {
           const Icon = t.icon;
+          const active = activeTab === t.id;
           return (
             <button
               key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              tabIndex={active ? 0 : -1}
+              data-tab={t.id}
+              ref={(el) => { mobileTabRefs.current[t.id] = el; }}
               onClick={() => setActiveTab(t.id)}
-              className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-xs transition-colors ${
-                activeTab === t.id ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground'
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 min-h-11 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Icon size={16} />
-              {t.label}
+              <Icon size={15} className="shrink-0" />
+              {t.short}
             </button>
           );
         })}
@@ -1073,8 +1385,9 @@ export default function PreferencesPage() {
       {/* Content — masing-masing tab disubung SectionErrorBoundary agar satu
           tab rusak (render error / library eksternal) tidak menjatuhkan seluruh
           halaman Settings dan memicu ErrorBoundary root ("Terjadi Kesalahan"). */}
-      <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+      <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
         <div className="max-w-2xl mx-auto space-y-6">
+          {activeTab === 'layout'    && <SectionErrorBoundary section="Tata Letak & Baca"><LayoutSection /></SectionErrorBoundary>}
           {activeTab === 'display'   && <SectionErrorBoundary section="Tampilan"><DisplaySection /></SectionErrorBoundary>}
           {activeTab === 'password'  && <SectionErrorBoundary section="Ganti Password"><ChangePasswordSection /></SectionErrorBoundary>}
           {activeTab === 'signature' && <SectionErrorBoundary section="Signature"><SignatureSection /></SectionErrorBoundary>}

@@ -11,23 +11,26 @@ function Skeleton({ className = '', ...props }) {
 }
 
 // ─── Message List Skeleton ────────────────────────────────────────────────────
+// Mengikuti kepadatan daftar (html[data-density="compact"]) lewat kelas
+// .density-* di index.css: baris lebih pendek, avatar lebih kecil, baris
+// preview disembunyikan — supaya skeleton tidak "melompat" saat data masuk.
 export function MessageListSkeleton({ count = 6 }) {
   return (
-    <div className="divide-y divide-border">
+    <div className="divide-y divide-border" data-testid="message-list-skeleton">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex items-start gap-3 p-3">
+        <div key={i} className="flex items-start density-gap density-row density-row-x density-skeleton">
           {/* Checkbox */}
           <Skeleton className="w-4 h-4 rounded mt-1" />
           {/* Avatar */}
-          <Skeleton className="w-8 h-8 rounded-full shrink-0 mt-0.5" />
+          <Skeleton className="density-avatar rounded-full shrink-0 mt-0.5" />
           {/* Content */}
-          <div className="flex-1 space-y-2">
+          <div className="flex-1 space-y-2 min-w-0">
             <div className="flex justify-between">
               <Skeleton className="h-4 w-1/3" />
               <Skeleton className="h-3 w-12" />
             </div>
             <Skeleton className="h-3.5 w-2/3" />
-            <Skeleton className="h-3 w-1/4" />
+            <Skeleton className="h-3 w-1/4 density-hide" />
           </div>
           {/* Unread dot */}
           <Skeleton className="w-2 h-2 rounded-full shrink-0 mt-2" />

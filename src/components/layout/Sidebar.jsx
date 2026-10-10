@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { Mail, LogOut, ChevronRight, HelpCircle, Timer } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { Mail, LogOut, ChevronRight, HelpCircle, Timer, Settings, Keyboard, ChevronUp } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
@@ -7,6 +7,10 @@ import { logout, fetchSmtpSessionStatus } from '../../lib/api'
 import { Sun, Moon, Monitor, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
 import { NAV_ITEMS } from '../../constants/navigation'
 import { formatRemaining, sessionWarningLevel, SHOW_BELOW_MINUTES } from '../../lib/sessionCountdown'
+import Avatar from '../Avatar'
+
+/** Nama event global utk membuka panel pintasan keyboard (didengarkan MailPage). */
+const OPEN_SHORTCUTS_EVENT = 'pcp:open-shortcuts'
 
 export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
   const { user, clearUser, theme, cycleTheme } = useAuthStore()
@@ -53,10 +57,10 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
   }
 
   return (
-    <aside className={`flex flex-col h-full bg-card border-r border-border w-full transition-all`}>
+    <aside className={`flex flex-col h-full min-w-0 bg-card border-r border-border w-full transition-all`}>
       {/* Brand */}
       <div className="px-4 py-5 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
             <Mail size={16} className="text-primary-foreground" />
           </div>
@@ -66,7 +70,7 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
             </span>
           )}
         </div>
-        
+
         {/* Toggle buttons */}
         <div className="flex items-center">
           {/* Mobile close */}
@@ -112,54 +116,198 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
         ))}
       </nav>
 
-      {/* User / Logout */}
-      <div className="p-3 border-t border-border flex flex-col gap-2">
-        <button
-          onClick={cycleTheme}
-          className={`flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all ${collapsed ? 'justify-center' : ''}`}
-          title="Ganti tema (klik untuk siklus: Gelap → Terang → Otomatis)"
-          aria-label="Ganti tema"
-        >
-          {theme === 'dark' && <Sun size={15} className="shrink-0" />}
-          {theme === 'light' && <Moon size={15} className="shrink-0" />}
-          {theme === 'auto' && <Monitor size={15} className="shrink-0" />}
-          {!collapsed && <span>Tema {theme === 'dark' ? 'Terang' : theme === 'light' ? 'Gelap' : 'Otomatis'}</span>}
-        </button>
-
+      {/* Bantuan + akun */}
+      <div className="p-3 border-t border-border flex flex-col gap-1">
         <a
           href={`/webmail/help/email-settings.html?domain=${user?.email ? user.email.split('@')[1] : 'pcpexpress.com'}`}
           target="_blank"
           rel="noopener noreferrer"
-          className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all ${collapsed ? 'justify-center' : ''}`}
+          className={`flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all ${collapsed ? 'justify-center' : ''}`}
           title="Panduan Setting Email"
+          aria-label="Panduan Setting Email"
         >
           <HelpCircle size={15} className="shrink-0" />
-          {!collapsed && <span>Panduan Setting</span>}
+          {!collapsed && <span className="truncate">Panduan Setting</span>}
         </a>
 
-        {!collapsed && (
-          <div className="flex items-center gap-2.5 px-2 py-2">
-            <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
-              {user?.cn?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?'}
-            </div>
-            <span className="text-xs text-muted-foreground truncate flex-1">{user?.cn || user?.email}</span>
-          </div>
-        )}
         {/* Countdown sesi SMTP — hanya tampil saat < 15 mnt agar tidak berisik */}
         {!collapsed && remainingMs != null && remainingMs < SHOW_BELOW_MINUTES * 60_000 && (
           <SessionCountdown remainingMs={remainingMs} />
         )}
-        <button
-          onClick={handleLogout}
-          className={`flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all ${collapsed ? 'justify-center' : ''}`}
-          title="Keluar"
-          aria-label="Keluar"
-        >
-          <LogOut size={15} className="shrink-0" />
-          {!collapsed && <span>Keluar</span>}
-        </button>
+
+        <AccountMenu
+          user={user}
+          theme={theme}
+          collapsed={collapsed}
+          onCycleTheme={cycleTheme}
+          onOpenSettings={() => { navigate('/settings'); if (window.innerWidth < 768) onClose(); }}
+          onOpenShortcuts={() => {
+            // MailPage (atau halaman lain) mendengarkan event ini utk membuka
+            // panel pintasan — Sidebar tidak perlu tahu implementasinya.
+            try { window.dispatchEvent(new CustomEvent(OPEN_SHORTCUTS_EVENT)); } catch { /* browser lama */ }
+            if (window.innerWidth < 768) onClose();
+          }}
+          onLogout={handleLogout}
+        />
       </div>
     </aside>
+  )
+}
+
+/**
+ * Menu akun ala Outlook: avatar + nama membuka dropdown (role="menu") berisi
+ * identitas, Pengaturan, siklus tema, pintasan keyboard, dan Keluar.
+ * Aksesibilitas: Esc / klik-luar menutup; panah atas/bawah, Home/End
+ * berpindah item; fokus kembali ke tombol pemicu saat menutup.
+ */
+function AccountMenu({ user, theme, collapsed, onCycleTheme, onOpenSettings, onOpenShortcuts, onLogout }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef(null)
+  const triggerRef = useRef(null)
+  const menuRef = useRef(null)
+
+  const displayName = user?.cn || user?.email?.split('@')[0] || 'Akun'
+  const themeLabel = theme === 'dark' ? 'Gelap' : theme === 'light' ? 'Terang' : 'Otomatis'
+  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
+
+  const close = (restoreFocus = true) => {
+    setOpen(false)
+    if (restoreFocus) triggerRef.current?.focus()
+  }
+
+  // Klik di luar + Esc
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false)
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close() }
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('touchstart', onPointer, { passive: true })
+    document.addEventListener('keydown', onKey, true)
+    // Fokus ke item pertama saat terbuka (pola WAI-ARIA menu button).
+    const first = menuRef.current?.querySelector('[role="menuitem"]')
+    first?.focus()
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('touchstart', onPointer)
+      document.removeEventListener('keydown', onKey, true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- close stabil secara fungsional
+  }, [open])
+
+  // Navigasi panah di dalam menu
+  const onMenuKeyDown = (e) => {
+    const items = Array.from(menuRef.current?.querySelectorAll('[role="menuitem"]') || [])
+    if (!items.length) return
+    const idx = items.indexOf(document.activeElement)
+    let next = null
+    if (e.key === 'ArrowDown') next = items[(idx + 1) % items.length]
+    else if (e.key === 'ArrowUp') next = items[(idx - 1 + items.length) % items.length]
+    else if (e.key === 'Home') next = items[0]
+    else if (e.key === 'End') next = items[items.length - 1]
+    else if (e.key === 'Tab') { close(false); return }
+    if (next) { e.preventDefault(); next.focus() }
+  }
+
+  const onTriggerKeyDown = (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setOpen(true) }
+  }
+
+  const run = (fn, { keepOpen = false } = {}) => () => {
+    fn?.()
+    if (!keepOpen) close()
+  }
+
+  const itemCls = 'w-full flex items-center gap-3 px-3 min-h-11 rounded-lg text-sm text-left text-foreground hover:bg-muted focus-visible:bg-muted outline-none transition-colors'
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={onTriggerKeyDown}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Menu akun ${displayName}`}
+        title={collapsed ? displayName : undefined}
+        className={`w-full flex items-center gap-2.5 px-2 min-h-11 rounded-xl hover:bg-muted transition-colors ${collapsed ? 'justify-center' : ''} ${open ? 'bg-muted' : ''}`}
+      >
+        <Avatar name={user?.cn} email={user?.email} size="sm" title="" />
+        {!collapsed && (
+          <>
+            <span className="flex-1 min-w-0 text-left">
+              <span className="block text-xs font-medium text-foreground truncate">{displayName}</span>
+              <span className="block text-[11px] text-muted-foreground truncate">{user?.email}</span>
+            </span>
+            <ChevronUp size={14} className={`shrink-0 text-muted-foreground transition-transform ${open ? '' : 'rotate-180'}`} aria-hidden="true" />
+          </>
+        )}
+      </button>
+
+      {open && (
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label="Menu akun"
+          onKeyDown={onMenuKeyDown}
+          className={`absolute z-50 w-64 max-w-[calc(100vw-1.5rem)] bg-popover border border-border rounded-xl shadow-xl p-1.5 ${
+            collapsed ? 'left-full bottom-0 ml-2' : 'left-0 right-0 bottom-full mb-2 w-auto'
+          }`}
+        >
+          {/* Identitas */}
+          <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border mb-1">
+            <Avatar name={user?.cn} email={user?.email} size="md" title="" />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-foreground truncate">{displayName}</div>
+              <div className="text-xs text-muted-foreground truncate" title={user?.email}>{user?.email}</div>
+            </div>
+          </div>
+
+          <button type="button" role="menuitem" tabIndex={-1} className={itemCls} onClick={run(onOpenSettings)}>
+            <Settings size={15} className="shrink-0 text-muted-foreground" />
+            <span>Pengaturan</span>
+          </button>
+
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className={itemCls}
+            onClick={run(onCycleTheme, { keepOpen: true })}
+            aria-label="Ganti tema"
+            title="Klik untuk siklus: Gelap → Terang → Otomatis"
+          >
+            <ThemeIcon size={15} className="shrink-0 text-muted-foreground" />
+            <span className="flex-1">Tema</span>
+            <span className="text-xs text-muted-foreground">{themeLabel}</span>
+          </button>
+
+          <button type="button" role="menuitem" tabIndex={-1} className={itemCls} onClick={run(onOpenShortcuts)}>
+            <Keyboard size={15} className="shrink-0 text-muted-foreground" />
+            <span className="flex-1">Pintasan keyboard</span>
+            <kbd className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground font-mono">?</kbd>
+          </button>
+
+          <div className="border-t border-border my-1" role="separator" />
+
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className={`${itemCls} hover:text-destructive hover:bg-destructive/10 focus-visible:bg-destructive/10`}
+            onClick={run(onLogout)}
+            aria-label="Keluar"
+          >
+            <LogOut size={15} className="shrink-0" />
+            <span>Keluar</span>
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
