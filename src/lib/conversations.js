@@ -17,6 +17,22 @@ const SUBJECT_PREFIXES = [
   /^Vs:\s*/i, /^Enc:\s*/i, /^RIF:\s*/i, /^TR:\s*/i,
 ];
 
+/**
+ * Subjek TAMPILAN percakapan ala Outlook: prefix Re:/Fwd:/FW: (berulang)
+ * dibuang tapi kapitalisasi asli dipertahankan — beda dgn normalizeSubject
+ * yang me-lowercase utk kunci grouping.
+ */
+export function stripSubjectPrefixes(subject) {
+  if (!subject || typeof subject !== 'string') return '';
+  let s = subject.trim();
+  let prev;
+  do {
+    prev = s;
+    for (const re of SUBJECT_PREFIXES) s = s.replace(re, '');
+  } while (s !== prev);
+  return s.trim();
+}
+
 export function normalizeSubject(subject) {
   if (!subject || typeof subject !== 'string') return '';
   let s = subject.trim();
@@ -30,7 +46,15 @@ export function normalizeSubject(subject) {
 
 export function senderDisplayName(fromValue, fallback = 'Unknown Sender') {
   const str = String(fromValue || '');
-  const name = str.split('<')[0].trim();
+  let name = str.split('<')[0].trim();
+  // Artefak kutip dari header mentah ("'Eko Budi' <eko@x>") — Outlook
+  // menampilkan nama TANPA kutip pembungkus (tunggal/ganda, berulang).
+  let prev;
+  do {
+    prev = name;
+    const m = /^(['"])(.*)\1$/.exec(name);
+    if (m) name = m[2].trim();
+  } while (name !== prev && name);
   return name || str || fallback;
 }
 
@@ -85,6 +109,9 @@ export function groupConversations(messages = [], asc = false, selfEmail = '', o
         norm,
         key: `${norm}::${String(msg.uid ?? msg.date ?? groups.length).replace(/\W+/g, '')}`,
         subject: String(msg.subject || '') || '(Tanpa Subjek)',
+        // Header thread menampilkan subjek TANPA prefix Re:/Fwd: (Outlook) —
+        // subjek lengkap tetap di `subject` utk title/aria-label.
+        displaySubject: stripSubjectPrefixes(String(msg.subject || '')) || '(Tanpa Subjek)',
         messages: [],
         participants: new Set(),
       };

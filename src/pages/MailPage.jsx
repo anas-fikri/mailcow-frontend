@@ -11,7 +11,7 @@ import DOMPurify from 'dompurify';
 import { PURIFY_CONFIG } from '../lib/pasteUtils';
 import { useAuthStore } from '../store/authStore';
 import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markReadBulk, markFlaggedBulk, markMessagesAsJunk, markMessagesAsNotJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, undoScheduledSend } from '../lib/api';
-import { formatAddresses } from '../lib/format';
+import { formatAddresses, parseAddressList, formatRecipientSummary } from '../lib/format';
 import { extractHtml, extractAttachments } from '../lib/messageHtml';
 import { analyzePhishing, RISK_LEVELS } from '../lib/phishingDetection';
 import { parseSizeToBytes } from '../lib/attachments';
@@ -2348,6 +2348,18 @@ export default function MailPage() {
       : (isActive ? 'bg-muted border-primary' : isFocused ? 'border-primary/40 bg-muted/30' : 'border-transparent');
     // Nama yang ditampilkan — dipakai juga untuk inisial avatar
     const senderLabel = isSentOrDraft ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender');
+    // Baris anak percakapan (nested): tampilkan NAMA saja ala Outlook —
+    // kutip pembungkus dibuang, alamat email disembunyikan (header thread
+    // sudah membawa subjek + konteks; baris anak cukup nama + waktu).
+    // Baris datar (non-thread) juga ala Outlook: NAMA saja, alamat lengkap di
+    // title (hover). Fallback ke alamat/raw bila nama kosong.
+    let displayLabel = senderLabel;
+    {
+      const parsed = parseAddressList(senderLabel);
+      displayLabel = isSentOrDraft
+        ? (formatRecipientSummary(parsed, { max: 2 }) || '(Tanpa Penerima)')
+        : (parsed[0]?.name || parsed[0]?.email || senderLabel);
+    }
     const colorKey = flagColorOf(msg.uid, rowFolder);
     const hasFlag = !!msg.isFlagged || !!colorKey;
     // Lightweight phishing check: From/Reply-To domain mismatch (hanya header, tanpa body)
@@ -2401,14 +2413,15 @@ export default function MailPage() {
           onTouchMove={(e) => handleRowTouchMove(e, msg.uid)}
           onTouchEnd={() => handleRowTouchEnd(msg.uid)}
           onTouchCancel={() => handleRowTouchEnd(msg.uid)}
-          className={`group w-full flex items-start text-left ${ROW_PAD_CLS} hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 ${leftBorderCls}select-none [-webkit-touch-callout:none] ${activeCls} ${isSelected ? 'bg-primary/10' : ''} ${replyBusy?.uid === msg.uid ? 'opacity-70' : ''}`}
+          className={`group w-full flex items-start text-left ${nested ? 'px-3 py-2 min-h-11' : ROW_PAD_CLS} hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 ${leftBorderCls}select-none [-webkit-touch-callout:none] ${activeCls} ${isSelected ? 'bg-primary/10' : ''} ${replyBusy?.uid === msg.uid ? 'opacity-70' : ''}`}
         >
-          {/* Avatar — saat hover/seleksi diganti checkbox (pola Gmail, tidak menumpuk) */}
-          <div className="relative w-8 h-8 shrink-0 mr-2 mt-0.5">
+          {/* Avatar — saat hover/seleksi diganti checkbox (pola Gmail, tidak menumpuk).
+              Baris anak percakapan: avatar 24px (lebih ringkas, konteks di header). */}
+          <div className={`relative ${nested ? 'w-6 h-6' : 'w-8 h-8'} shrink-0 mr-2 mt-0.5`}>
             <div className={`absolute inset-0 rounded-full overflow-hidden transition-opacity duration-150 ${
               checkboxVisible ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
             }`}>
-              <Avatar name={senderLabel} size="sm" />
+              <Avatar name={senderLabel} size="sm" className={nested ? 'w-6! h-6! text-[10px]!' : ''} />
             </div>
             <button
               onClick={(e) => toggleSelectMsg(e, msg.uid)}
@@ -2421,9 +2434,9 @@ export default function MailPage() {
               aria-label="Pilih pesan"
             >
               {isSelected ? (
-                <CheckSquare size={15} className="text-primary" />
+                <CheckSquare size={nested ? 13 : 15} className="text-primary" />
               ) : (
-                <Square size={15} className="text-muted-foreground" />
+                <Square size={nested ? 13 : 15} className="text-muted-foreground" />
               )}
             </button>
 
@@ -2508,10 +2521,10 @@ export default function MailPage() {
                 <button
                   type="button"
                   onClick={(e) => searchBySender(senderLabel, e)}
-                  title={`Cari semua email dari pengirim ini`}
+                  title={`${senderLabel} — klik untuk cari semua email dari pengirim ini`}
                   className={`text-sm truncate text-left hover:underline ${msg.isRead ? 'text-foreground font-normal' : 'text-foreground font-semibold'}`}
                 >
-                  {senderLabel}
+                  {displayLabel}
                 </button>
                 {phishingCheck && (
                   <span className="shrink-0 text-amber-500 dark:text-amber-400" title={`⚠️ ${phishingCheck.finding}`}>
@@ -2650,30 +2663,37 @@ export default function MailPage() {
                 <span className="text-xs text-muted-foreground tabular-nums group-hover:hidden">{msg.date}</span>
               </div>
             </div>
-            <div className={`text-[13px] truncate ${msg.isRead ? 'text-muted-foreground' : 'text-foreground font-medium'}`} title={typeof msg.subject === 'string' ? msg.subject : ''}>
-              {searchedAll && msg.folderId && msg.folderId !== selectedFolder && folderLabelById.get(msg.folderId) && (
-                <span className="inline-flex items-center mr-1.5 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground align-middle" title={`Dari folder ${folderLabelById.get(msg.folderId)}`}>
-                  {folderLabelById.get(msg.folderId)}
-                </span>
-              )}
-              {typeof msg.subject === 'string' && msg.subject ? msg.subject : '(Tanpa Subjek)'}
-            </div>
+            {/* Baris anak percakapan: subjek TIDAK diulang — header thread
+                sudah membawanya (Outlook); mengulang "RE: …" di tiap anak
+                hanya menenggelamkan nama pengirim. */}
+            {!nested && (
+              <div className={`text-[13px] truncate ${msg.isRead ? 'text-muted-foreground' : 'text-foreground font-medium'}`} title={typeof msg.subject === 'string' ? msg.subject : ''}>
+                {searchedAll && msg.folderId && msg.folderId !== selectedFolder && folderLabelById.get(msg.folderId) && (
+                  <span className="inline-flex items-center mr-1.5 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground align-middle" title={`Dari folder ${folderLabelById.get(msg.folderId)}`}>
+                    {folderLabelById.get(msg.folderId)}
+                  </span>
+                )}
+                {typeof msg.subject === 'string' && msg.subject ? msg.subject : '(Tanpa Subjek)'}
+              </div>
+            )}
             {/* density-hide: baris chip disembunyikan saat mode ringkas (ikon
                 lampiran tetap tampil di cluster tanggal). */}
-            <div className="mt-1 flex items-center gap-1.5 density-hide">
-              {(() => {
-                const cat = classifyEmail(msg);
-                if (cat === EMAIL_CATEGORIES.UTAMA || cat === EMAIL_CATEGORIES.SPAM) return null;
-                return (
-                  <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${CATEGORY_BADGE_CLASS[cat] || ''}`}>
-                    {CATEGORY_LABELS[cat]}
-                  </span>
-                );
-              })()}
-              {msg.hasAtt && (
-                <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">📎 Lampiran</span>
-              )}
-            </div>
+            {!nested && (
+              <div className="mt-1 flex items-center gap-1.5 density-hide">
+                {(() => {
+                  const cat = classifyEmail(msg);
+                  if (cat === EMAIL_CATEGORIES.UTAMA || cat === EMAIL_CATEGORIES.SPAM) return null;
+                  return (
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${CATEGORY_BADGE_CLASS[cat] || ''}`}>
+                      {CATEGORY_LABELS[cat]}
+                    </span>
+                  );
+                })()}
+                {msg.hasAtt && (
+                  <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">📎 Lampiran</span>
+                )}
+              </div>
+            )}
           </div>
 
           {!msg.isRead && (
@@ -2948,14 +2968,17 @@ export default function MailPage() {
                 <span className="sr-only">{conversationView ? 'Conversation aktif' : 'Aktifkan conversation'}</span>
               </button>
               {conversationView && (
-                <span className="hidden sm:inline-flex items-center max-w-[9rem] truncate rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground" title={`${visibleConversationGroups.length} grup percakapan`}>
+                <span className="hidden sm:inline-flex items-center shrink-0 whitespace-nowrap rounded-full bg-muted px-2 py-1 text-[11px] font-medium tabular-nums text-muted-foreground" title={`${visibleConversationGroups.length} grup percakapan`}>
                   {visibleConversationGroups.length} percakapan
                 </span>
               )}
               {/* Expand/Collapse all — hanya di conversation view */}
               {conversationView && visibleConversationGroups.length > 0 && (
                 <>
-                  <span className="hidden lg:inline text-[11px] text-muted-foreground whitespace-nowrap">
+                  {/* shrink-0 + inline-flex + tabular-nums: chip ini hidup di
+                      flex overflow-x-auto — tanpa shrink-0 angka 3-digit
+                      tertekan dan tumpang-tindih ("7!14 thread"). */}
+                  <span className="hidden lg:inline-flex items-center shrink-0 whitespace-nowrap text-[11px] tabular-nums text-muted-foreground">
                     {expandableConversationGroups.length} thread
                   </span>
                   <button
@@ -3402,85 +3425,83 @@ export default function MailPage() {
                       // Parent list pakai divide-y → pemisah antar grup cukup
                       // dari situ; border-b di sini bikin garis ganda.
                       <div key={group.key} className="relative">
-                        {/* Group header (Outlook-like): avatar stack + subjek
-                            (tebal bila ada belum dibaca) + peserta + waktu
-                            terbaru + count + chevron. Semua line min-w-0/
-                            truncate/shrink-0 supaya tidak saling menimpa. */}
-                        <button
-                          onClick={() => toggleConversation(group.key)}
-                          aria-expanded={isExpanded}
-                          aria-label={`${isExpanded ? 'Ciutkan' : 'Perluas'} percakapan ${group.subject}`}
-                          className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-                        >
-                          {/* Avatar stack (maks 3, overlap tipis ala Outlook) */}
-                          <div className="flex -space-x-1.5 shrink-0">
-                            {senders.slice(0, 3).map((s, i) => (
-                              <Avatar
-                                key={i}
-                                name={s}
-                                size="sm"
-                                className={`ring-2 ring-background ${i > 0 ? 'relative' : ''}`}
-                              />
-                            ))}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className={`text-sm truncate ${group.hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`} title={group.subject}>
-                                {group.subject}
+                        {/* Group header (Outlook-like): baris 1 = SUBJEK
+                            ternormalisasi (tebal bila ada belum dibaca),
+                            baris 2 = ringkasan NAMA peserta. Kanan: waktu
+                            terbaru + badge angka belum-dibaca + bintang +
+                            paperclip. Klik header = expand + buka pesan
+                            TERBARU di panel baca (perilaku Outlook); chevron
+                            terpisah = expand/collapse saja. Semua line
+                            min-w-0/truncate/shrink-0 agar tidak menimpa. */}
+                        <div className="flex items-stretch bg-muted/30 hover:bg-muted/50 transition-colors">
+                          <button
+                            onClick={() => {
+                              if (!isExpanded) toggleConversation(group.key);
+                              if (selectionMode) return;
+                              if (selectedUids.length > 0) setSelectedUids([]);
+                              if (group.latest) openMessage(group.latest.uid);
+                            }}
+                            aria-label={`Buka pesan terbaru percakapan ${group.subject}`}
+                            className="flex-1 min-w-0 flex items-center gap-2.5 pl-3 pr-2 density-row text-left"
+                          >
+                            {/* Avatar stack (maks 3, lebih kecil dari baris pesan) */}
+                            <div className="flex -space-x-1.5 shrink-0">
+                              {senders.slice(0, 3).map((s, i) => (
+                                <Avatar
+                                  key={i}
+                                  name={s}
+                                  size="sm"
+                                  className={`w-6! h-6! text-[10px]! ring-2 ring-background ${i > 0 ? 'relative' : ''}`}
+                                />
+                              ))}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`text-sm truncate ${group.hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`} title={group.subject}>
+                                  {group.displaySubject || group.subject}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                                {formatRecipientSummary(senders.map((s) => ({ name: s })), { max: 3 })}
+                                {group.messages.length > 1 && ` · ${group.messages.length} pesan`}
+                              </div>
+                            </div>
+                            {latest?.date && (
+                              <span className="text-xs text-muted-foreground tabular-nums shrink-0">{latest.date}</span>
+                            )}
+                            {/* Belum dibaca: badge ANGKA saja (aksen) — detail di title. */}
+                            {group.unreadCount > 0 && (
+                              <span
+                                className="min-w-5 h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-primary/10 text-primary text-[11px] font-semibold tabular-nums shrink-0"
+                                title={`${group.unreadCount} belum dibaca`}
+                              >
+                                {group.unreadCount}
                               </span>
-                              {group.hasUnread && (
-                                <span className="w-2 h-2 rounded-full bg-primary shrink-0" aria-hidden />
-                              )}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                              {senders.length > 2
-                                ? `${senders.slice(0, 2).join(', ')} +${senders.length - 2}`
-                                : senders.join(', ')}
-                              {group.messages.length > 1 && ` · ${group.messages.length} pesan`}
-                            </div>
-                          </div>
-                          {latest?.date && (
-                            <span className="text-xs text-muted-foreground tabular-nums shrink-0">{latest.date}</span>
-                          )}
-                          {/* Belum dibaca: hitungan eksplisit per thread —
-                              dot biru di subjek hanya sinyal ada/tidak. */}
-                          {group.unreadCount > 0 && (
-                            <span
-                              className="text-[11px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full shrink-0"
-                              title={`${group.unreadCount} pesan belum dibaca dalam percakapan`}
-                            >
-                              {group.unreadCount} belum dibaca
-                            </span>
-                          )}
-                          {/* Flag thread: bintang warna flag pesan terbaru
-                              yang ditandai; angka hanya bila >1. */}
-                          {group.hasFlagged && (
-                            <span
-                              className="text-[11px] text-amber-600 dark:text-amber-400 bg-muted px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-0.5"
-                              title={`${group.flaggedCount} pesan ditandai dalam percakapan`}
-                            >
-                              <Star size={10} className={headerFlagCls} aria-hidden />
-                              {group.flaggedCount > 1 ? group.flaggedCount : null}
-                            </span>
-                          )}
-                          {/* Lampiran thread: saat collapsed hanya baris terbaru
-                              yang dirender — lampiran di pesan lama tidak
-                              terlihat. Chip agregat di header menutup celah itu
-                              (pola Gmail/Outlook: paperclip di baris thread). */}
-                          {group.hasAttachment && (
-                            <span
-                              className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-0.5"
-                              title={`${group.attachmentCount} pesan berlampiran dalam percakapan`}
-                            >
-                              <Paperclip size={10} aria-hidden />
-                              {group.attachmentCount}
-                            </span>
-                          )}
-                          <span className="text-[11px] tabular-nums text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
-                            {group.messages.length}
-                          </span>
-                          <ChevronDown size={14} className={`text-muted-foreground shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
-                        </button>
+                            )}
+                            {/* Flag thread: bintang warna flag pesan terbaru yang ditandai. */}
+                            {group.hasFlagged && (
+                              <span className="shrink-0 inline-flex" title={`${group.flaggedCount} pesan ditandai dalam percakapan`}>
+                                <Star size={12} className={headerFlagCls} aria-hidden />
+                              </span>
+                            )}
+                            {/* Lampiran thread: saat collapsed hanya baris terbaru
+                                yang dirender — ikon agregat menutup celah itu
+                                (pola Gmail/Outlook: paperclip di baris thread). */}
+                            {group.hasAttachment && (
+                              <span className="shrink-0 inline-flex" title={`${group.attachmentCount} pesan berlampiran dalam percakapan`}>
+                                <Paperclip size={12} className="text-muted-foreground" aria-hidden />
+                              </span>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => toggleConversation(group.key)}
+                            aria-expanded={isExpanded}
+                            aria-label={`${isExpanded ? 'Ciutkan' : 'Perluas'} percakapan ${group.subject}`}
+                            className="shrink-0 min-w-11 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <ChevronDown size={14} className={`shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+                          </button>
+                        </div>
                         {/* Preview pesan terbaru selalu terlihat, seperti Outlook.
                             Saat collapsed hanya pesan terbaru dirender; saat
                             expanded pesan lama ikut ditampilkan. Jadi collapse

@@ -13,7 +13,7 @@ import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { toSafeUrl } from '../../lib/safeUrl';
-import { formatAddresses } from '../../lib/format';
+import { formatAddresses, parseAddressList, formatRecipientSummary } from '../../lib/format';
 import { extractHtml, extractAttachments, isInlineBodyImage } from '../../lib/messageHtml';
 import { proxyExternalImages } from '../../lib/imageProxy';
 import { resolveCidReferences } from '../../lib/cidImages';
@@ -22,7 +22,7 @@ import { convertDocxToHtml } from '../../lib/docPreview';
 import { parsePptx, listZip } from '../../lib/packPreview';
 import { buildEml, htmlToText, collectInlineCids } from '../../lib/emlUtils';
 import { analyzePhishing, RISK_LEVELS } from '../../lib/phishingDetection';
-import { buildReplyDataAsync, escapeHtml, formatLongDateId, normalizeAddressList } from '../../lib/replyBuilder';
+import { buildReplyDataAsync, escapeHtml, formatLongDateId } from '../../lib/replyBuilder';
 import { splitQuotedHtml } from '../../lib/quoteCollapse';
 import { getInitials } from '../../lib/initials';
 
@@ -172,6 +172,42 @@ function avatarColor(seed) {
  *   dibaca (auto-mark / toggle manual) agar daftar bisa update cache-nya
  *   secara optimistis tanpa refetch seluruh daftar.
  */
+/**
+ * Chip penerima di panel detail (pola Outlook): nama + email muted, title =
+ * alamat lengkap, klik = salin alamat (subtle — ikon copy muncul saat hover).
+ * Daftar membungkus; penerima sangat banyak di-scroll (max-h-64).
+ */
+function RecipientChips({ list }) {
+  const copyAddr = async (addr) => {
+    const text = addr.email || addr.name;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Alamat disalin');
+    } catch {
+      toast.error('Gagal menyalin alamat.');
+    }
+  };
+  if (!list?.length) return <span className="text-muted-foreground">—</span>;
+  return (
+    <ul className="flex flex-wrap gap-1 max-h-64 overflow-y-auto">
+      {list.map((a, i) => (
+        <li key={i} className="max-w-full">
+          <button
+            type="button"
+            onClick={() => copyAddr(a)}
+            className="group/chip inline-flex items-center gap-1 max-w-full min-h-11 md:min-h-7 rounded-full border border-border bg-muted/50 hover:bg-muted px-2 py-0.5 text-left transition-colors"
+            title={`${a.name && a.email ? `${a.name} <${a.email}>` : (a.email || a.name)} — klik untuk salin`}
+          >
+            {a.name && <span className="text-xs text-foreground truncate max-w-[14rem]">{a.name}</span>}
+            <span className="text-[11px] text-muted-foreground truncate max-w-[16rem]">{a.email || null}</span>
+            <Copy size={10} className="shrink-0 text-muted-foreground opacity-0 group-hover/chip:opacity-100 transition-opacity" aria-hidden />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, onSnoozeCleared, onReadStateChange, shortcutsEnabled = true, siblingUids = [], onNavigateTo }) {
   const { user, markReadMode, markReadDelaySec } = useAuthStore();
   const queryClient = useQueryClient();
@@ -527,10 +563,12 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   const replyTo = formatAddresses(msg['reply-to']);
   const subject = msg.subject || '(Tanpa Subjek)';
   const date = msg.date || '';
-  const fromList = normalizeAddressList(msg.from);
-  const toList = normalizeAddressList(msg.to);
-  const ccList = normalizeAddressList(msg.cc);
-  const replyToList = normalizeAddressList(msg['reply-to']);
+  // parseAddressList (format.js): kutip pembungkus nama ('Eko Budi') dibuang,
+  // nama ber-koma dalam kutip tidak terbelah — tampilan ala Outlook.
+  const fromList = parseAddressList(msg.from);
+  const toList = parseAddressList(msg.to);
+  const ccList = parseAddressList(msg.cc);
+  const replyToList = parseAddressList(msg['reply-to']);
   const sender = fromList[0] || { name: '', email: '' };
   const longDate = formatLongDateId(date);
   // Heuristik Outlook: >1 penerima (To+Cc) → "Balas Semua" lebih mungkin.
@@ -1070,10 +1108,13 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               </div>
               <time className="text-muted-foreground text-xs shrink-0 text-right whitespace-nowrap" title={date}>{longDate}</time>
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-              <span className="truncate min-w-0">
-                Kepada: {toList.length ? toList.map((a) => a.name || a.email).join(', ') : '—'}
-                {ccList.length > 0 && <> · Cc: {ccList.map((a) => a.name || a.email).join(', ')}</>}
+            {/* Ringkasan penerima ala Outlook: NAMA saja (kutip dibuang),
+                boleh membungkus sampai 2 baris; daftar panjang dipangkas
+                "+N lainnya" — daftar LENGKAP ada di panel detail. */}
+            <div className="mt-1 flex items-start gap-1.5 text-[13px] text-muted-foreground min-w-0">
+              <span className="min-w-0 line-clamp-2 break-words" title={`Kepada: ${to || '—'}${cc ? ` · Cc: ${cc}` : ''}`}>
+                Kepada: {formatRecipientSummary(toList, { max: 5, moreSuffix: ' lainnya' }) || '—'}
+                {ccList.length > 0 && <> · Cc: {formatRecipientSummary(ccList, { max: 3, moreSuffix: ' lainnya' })}</>}
               </span>
               <button
                 type="button"
@@ -1086,46 +1127,34 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
               </button>
             </div>
             {showDetails && (
-              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
-                <dt className="text-muted-foreground text-right">Dari</dt>
-                <dd className="text-foreground break-all">{from || '—'}</dd>
-                <dt className="text-muted-foreground text-right">Kepada</dt>
-                <dd className="text-foreground">
-                  {toList.length ? (
-                    <ul className="flex flex-wrap gap-1">
-                      {toList.map((a, i) => (
-                        <li key={i} className="px-2 py-0.5 rounded-full bg-muted break-all" title={a.email}>{a.name ? `${a.name} <${a.email}>` : a.email}</li>
-                      ))}
-                    </ul>
-                  ) : '—'}
-                </dd>
-                {ccList.length > 0 && (
-                  <>
-                    <dt className="text-muted-foreground text-right">Cc</dt>
-                    <dd className="text-foreground">
-                      <ul className="flex flex-wrap gap-1">
-                        {ccList.map((a, i) => (
-                          <li key={i} className="px-2 py-0.5 rounded-full bg-muted break-all" title={a.email}>{a.name ? `${a.name} <${a.email}>` : a.email}</li>
-                        ))}
-                      </ul>
-                    </dd>
-                  </>
-                )}
-                {replyToList.length > 0 && (
-                  <>
-                    <dt className="text-muted-foreground text-right">Balas ke</dt>
-                    <dd className="text-foreground break-all">{replyTo}</dd>
-                  </>
-                )}
-                <dt className="text-muted-foreground text-right">Tanggal</dt>
-                <dd className="text-foreground">{longDate}{date && longDate !== date ? <span className="text-muted-foreground"> · {date}</span> : null}</dd>
-                <dt className="text-muted-foreground text-right">Sumber</dt>
-                <dd>
-                  <button type="button" onClick={openHeaders} className="inline-flex items-center gap-1 text-primary hover:underline">
-                    <Code2 size={12} /> Tampilkan header
-                  </button>
-                </dd>
-              </dl>
+              <div className="mt-3 rounded-lg border border-border bg-muted/20 p-3">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs">
+                  <dt className="text-muted-foreground text-right pt-1">Dari</dt>
+                  <dd className="text-foreground min-w-0"><RecipientChips list={fromList} /></dd>
+                  <dt className="text-muted-foreground text-right pt-1">Kepada</dt>
+                  <dd className="text-foreground min-w-0"><RecipientChips list={toList} /></dd>
+                  {ccList.length > 0 && (
+                    <>
+                      <dt className="text-muted-foreground text-right pt-1">Cc</dt>
+                      <dd className="text-foreground min-w-0"><RecipientChips list={ccList} /></dd>
+                    </>
+                  )}
+                  {replyToList.length > 0 && (
+                    <>
+                      <dt className="text-muted-foreground text-right pt-1">Balas ke</dt>
+                      <dd className="text-foreground min-w-0"><RecipientChips list={replyToList} /></dd>
+                    </>
+                  )}
+                  <dt className="text-muted-foreground text-right">Tanggal</dt>
+                  <dd className="text-foreground">{longDate}{date && longDate !== date ? <span className="text-muted-foreground"> · {date}</span> : null}</dd>
+                  <dt className="text-muted-foreground text-right">Sumber</dt>
+                  <dd>
+                    <button type="button" onClick={openHeaders} className="inline-flex items-center gap-1 text-primary hover:underline">
+                      <Code2 size={12} /> Tampilkan header
+                    </button>
+                  </dd>
+                </dl>
+              </div>
             )}
           </div>
         </div>

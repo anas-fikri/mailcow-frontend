@@ -86,7 +86,8 @@
     "test:keymap": "node scripts/test-keymap.mjs",
     "test:context-menu-position": "node scripts/test-context-menu-position.mjs",
     "test:move-picker": "node scripts/test-move-picker.mjs",
-    "test:outlook-ux": "node scripts/test-outlook-ux.mjs"
+    "test:outlook-ux": "node scripts/test-outlook-ux.mjs",
+    "test:address-parse": "node scripts/test-address-parse.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
