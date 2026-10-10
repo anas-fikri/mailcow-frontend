@@ -105,11 +105,11 @@ export default function Avatar({ name, email, size = 'md', className = '', title
             className="fixed z-[60] pointer-events-none animate-[tooltip-in_0.12s_ease-out]"
             style={{ top: tipPos.y, left: tipPos.x }}
           >
-            <div className="relative bg-card border border-border rounded-lg shadow-xl px-2.5 py-1.5 text-xs text-foreground max-w-[260px] break-words whitespace-pre-wrap">
+            <div className="relative bg-popover border border-border rounded-lg shadow-md px-2.5 py-1.5 text-xs text-popover-foreground max-w-[260px] break-words whitespace-pre-wrap">
               {tip}
               {/* Caret menunjuk ke arah avatar */}
               <span
-                className={`absolute top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-card ${
+                className={`absolute top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-popover ${
                   tipPos.side === 'right' ? '-left-1 border-l border-b' : '-right-1 border-r border-t'
                 } border-border`}
               />

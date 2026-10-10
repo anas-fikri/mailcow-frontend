@@ -56,11 +56,12 @@ export default class ErrorBoundary extends React.Component {
       }
 
       return (
-        <div className="flex flex-col items-center justify-center min-h-[400px] p-8 bg-background text-foreground">
-          <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mb-6">
-            <AlertTriangle size={28} className="text-destructive" />
+        <div className="flex flex-col items-center justify-center min-h-[400px] p-4 sm:p-8 bg-background text-foreground">
+          <div className="w-full max-w-xl flex flex-col items-center bg-card border border-border rounded-lg shadow-sm p-6 sm:p-8">
+          <div className="w-14 h-14 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
+            <AlertTriangle size={26} className="text-destructive" />
           </div>
-          <h2 className="text-xl font-semibold mb-2">Terjadi Kesalahan</h2>
+          <h2 className="text-xl font-semibold tracking-tight mb-2">Terjadi Kesalahan</h2>
           <p className="text-sm text-muted-foreground text-center max-w-md mb-6">
             Maaf, terjadi kesalahan yang tidak terduga. Silakan coba refresh halaman atau kembali.
           </p>
@@ -73,7 +74,7 @@ export default class ErrorBoundary extends React.Component {
           <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
             <button
               onClick={this.toggleDetails}
-              className="flex items-center gap-2 px-4 py-2 border border-border hover:bg-muted text-foreground rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 min-h-11 sm:min-h-9 border border-border hover:bg-muted text-foreground rounded-md text-sm font-medium transition-colors duration-150"
             >
               {this.state.showDetails ? <EyeOff size={16} /> : <Eye size={16} />}
               {this.state.showDetails ? 'Sembunyikan Detail' : 'Lihat Detail Error'}
@@ -85,16 +86,16 @@ export default class ErrorBoundary extends React.Component {
               <p className="text-[11px] text-muted-foreground">
                 Informasi ini hanya untuk debugging dan dapat memuat data pribadi.
               </p>
-              <pre className="bg-muted/60 border border-border rounded-lg p-3 text-[11px] leading-relaxed overflow-auto max-h-48 break-all whitespace-pre-wrap font-mono text-foreground">
+              <pre className="bg-muted/60 border border-border rounded-md p-3 text-[11px] leading-relaxed overflow-auto max-h-48 break-all whitespace-pre-wrap font-mono text-foreground">
                 {String(this.state.error?.message || this.state.error || 'Kesalahan tidak diketahui.')}
               </pre>
               {this.state.error?.stack && (
-                <pre className="bg-muted/60 border border-border rounded-lg p-3 text-[10px] leading-relaxed overflow-auto max-h-56 break-all whitespace-pre-wrap font-mono text-muted-foreground">
+                <pre className="bg-muted/60 border border-border rounded-md p-3 text-[11px] leading-relaxed overflow-auto max-h-56 break-all whitespace-pre-wrap font-mono text-muted-foreground">
                   {String(this.state.error.stack)}
                 </pre>
               )}
               {this.state.errorInfo?.componentStack && (
-                <pre className="bg-muted/60 border border-border rounded-lg p-3 text-[10px] leading-relaxed overflow-auto max-h-56 break-all whitespace-pre-wrap font-mono text-muted-foreground">
+                <pre className="bg-muted/60 border border-border rounded-md p-3 text-[11px] leading-relaxed overflow-auto max-h-56 break-all whitespace-pre-wrap font-mono text-muted-foreground">
                   {String(this.state.errorInfo.componentStack)}
                 </pre>
               )}
@@ -104,18 +105,19 @@ export default class ErrorBoundary extends React.Component {
           <div className="flex items-center gap-3">
             <button
               onClick={this.handleGoBack}
-              className="flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 min-h-11 sm:min-h-9 bg-muted hover:bg-muted/80 text-foreground rounded-md text-sm font-medium transition-colors duration-150"
             >
               <ArrowLeft size={16} />
               Kembali
             </button>
             <button
               onClick={this.handleReset}
-              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium transition-colors"
+              className="flex items-center gap-2 px-4 py-2 min-h-11 sm:min-h-9 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors duration-150"
             >
               <RefreshCw size={16} />
               Coba Lagi
             </button>
+          </div>
           </div>
         </div>
       );

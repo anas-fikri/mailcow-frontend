@@ -54,13 +54,15 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    /* Palet gelap "modern clean": background L≈7% (bukan hitam pekat),
+       saturasi diturunkan agar netral ala Linear/Notion — hue tetap 222. */
+    --background: 222 32% 7%;
     --foreground: 210 40% 98%;
-    /* Kartu/panel (sidebar, list, reader) sedikit lebih terang dari
+    /* Kartu/panel (sidebar, list, reader) satu step lebih terang dari
        background supaya pane ala Outlook terbaca sebagai permukaan terpisah. */
-    --card: 222.2 47% 8%;
+    --card: 222 30% 10%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 47% 9%;
+    --popover: 222 28% 12%;
     --popover-foreground: 210 40% 98%;
     --primary: var(--theme-hue, 217) 91.2% 59.8%;
     --primary-foreground: 222.2 47.4% 11.2%;
@@ -73,9 +75,10 @@
     --destructive: 0 84% 58%;
     --destructive-foreground: 210 40% 98%;
     /* Border harus lebih terang dari --muted/--secondary (17.5%) — kalau sama,
-       garis pemisah hilang di atas permukaan muted (hover row, input, chip). */
-    --border: 217.2 28% 24%;
-    --input: 217.2 28% 24%;
+       garis pemisah hilang di atas permukaan muted (hover row, input, chip).
+       L 24% = hairline jelas terbaca di atas background 7% & card 10%. */
+    --border: 217 24% 24%;
+    --input: 217 24% 24%;
     --ring: var(--theme-hue, 217) 26.8% 83.9%;
   }
 
@@ -97,6 +100,21 @@
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
   }
+}
+
+/* ─── Shell utilities (kontrak desain — dipakai semua halaman/agent) ───────
+   .pane-header — tinggi header pane/halaman yang SERAGAM di seluruh app:
+   setara Tailwind `flex items-center h-12 px-4 border-b border-border
+   bg-background` + shrink-0 (tidak gepeng di kolom flex). Tambahkan kelas
+   lain (justify-between, gap-2, dst.) di samping kelas ini sesuai kebutuhan. */
+.pane-header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 3rem;              /* h-12 */
+  padding-inline: 1rem;      /* px-4 */
+  border-bottom: 1px solid hsl(var(--border));
+  background-color: hsl(var(--background));
 }
 
 /* ─── Avatar tooltip animation ───────────────────────────────────────────── */
@@ -331,9 +349,16 @@ input:-webkit-autofill:active {
 /* Panel baca nonaktif: daftar memakai seluruh lebar (hook utk MailPage). */
 [data-reading-pane="off"] .reading-pane-only { display: none; }
 
-/* Saklar (role="switch") — animasi knob + reduced-motion */
+/* Saklar (role="switch") — animasi knob + reduced-motion.
+   Reduced-motion global: semua transisi/animasi dipersingkat ke hampir-nol
+   (bukan 0ms, agar event transitionend/animationend tetap fire). */
 @media (prefers-reduced-motion: reduce) {
   .density-row, .density-avatar, [role="switch"] > span { transition: none !important; }
+  *, ::before, ::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /* ── Mobile: cegah iOS Safari auto-zoom saat fokus ke field form ──

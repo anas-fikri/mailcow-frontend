@@ -53,7 +53,7 @@ const TOKENS = {
     destructive: parseHsl('0 72% 46%'),               // diubah 84.2/60.2 → 72/46
   },
   dark: {
-    background: [222.2, 84, 4.9],
+    background: [222, 32, 7],   // dipin ulang: dark bg modern-clean (index.css .dark --background)
     muted: [217.2, 32.6, 17.5],
     mutedForeground: [215, 20.2, 65.1],
     foreground: [210, 40, 98],

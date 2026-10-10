@@ -47,12 +47,12 @@ export function MessageReaderSkeleton() {
       {/* Toolbar skeleton */}
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
-          <Skeleton className="w-8 h-8 rounded-lg" />
-          <Skeleton className="w-8 h-8 rounded-lg" />
+          <Skeleton className="w-8 h-8 rounded-md" />
+          <Skeleton className="w-8 h-8 rounded-md" />
         </div>
         <div className="flex gap-2">
-          <Skeleton className="w-16 h-8 rounded-lg" />
-          <Skeleton className="w-20 h-8 rounded-lg" />
+          <Skeleton className="w-16 h-8 rounded-md" />
+          <Skeleton className="w-20 h-8 rounded-md" />
         </div>
       </div>
       {/* Header */}
@@ -139,10 +139,10 @@ export function FoldersListSkeleton({ count = 5 }) {
 // ─── Table / Stats skeleton ──────────────────────────────────────────────────
 export function StatsCardSkeleton() {
   return (
-    <div className="bg-card border border-border rounded-xl p-5 space-y-3">
+    <div className="bg-card border border-border rounded-lg p-5 space-y-3">
       <div className="flex items-center justify-between">
         <Skeleton className="h-4 w-24" />
-        <Skeleton className="w-8 h-8 rounded-lg" />
+        <Skeleton className="w-8 h-8 rounded-md" />
       </div>
       <Skeleton className="h-8 w-16" />
       <Skeleton className="h-3 w-32" />

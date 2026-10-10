@@ -115,7 +115,7 @@ export default function LoginPage() {
       >
         {/* Mobile First Header */}
         <div className="flex flex-col items-center mb-8 gap-3 text-center">
-          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shadow-md">
+          <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center">
             <Mail size={24} className="text-primary-foreground" />
           </div>
           <div>
@@ -125,7 +125,7 @@ export default function LoginPage() {
         </div>
 
         {/* Shadcn Card Style */}
-        <div className="bg-card text-card-foreground md:border md:shadow-sm rounded-xl p-0 md:p-6 transition-colors">
+        <div className="bg-card text-card-foreground md:border md:border-border md:shadow-sm rounded-lg p-0 md:p-6 transition-colors">
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {/* Email */}
             <div className="flex flex-col gap-2">
@@ -163,7 +163,8 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPass((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 -m-2 text-muted-foreground hover:text-foreground transition-colors duration-150"
+                  aria-label={showPass ? 'Sembunyikan password' : 'Tampilkan password'}
                 >
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>

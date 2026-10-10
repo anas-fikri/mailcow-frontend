@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Mail, LogOut, ChevronRight, HelpCircle, Timer, Settings, Keyboard, ChevronUp } from 'lucide-react'
+import { Mail, LogOut, HelpCircle, Timer, Settings, Keyboard, ChevronUp } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
@@ -58,14 +58,15 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
 
   return (
     <aside className={`flex flex-col h-full min-w-0 bg-card border-r border-border w-full transition-all`}>
-      {/* Brand */}
-      <div className="px-4 py-5 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <Mail size={16} className="text-primary-foreground" />
+      {/* Brand — tinggi disamakan dengan .pane-header (h-12) agar sejajar
+          dengan header pane konten di sebelahnya. */}
+      <div className="h-12 px-3 border-b border-border flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0 pl-1">
+          <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center shrink-0">
+            <Mail size={15} className="text-primary-foreground" />
           </div>
           {!collapsed && (
-            <span className="font-bold text-foreground text-sm truncate capitalize">
+            <span className="font-semibold tracking-tight text-foreground text-[13px] truncate capitalize">
               {user?.email ? user.email.split('@')[1] : 'Webmail'}
             </span>
           )}
@@ -74,59 +75,51 @@ export default function Sidebar({ collapsed, onToggleCollapse, onClose }) {
         {/* Toggle buttons */}
         <div className="flex items-center">
           {/* Mobile close */}
-          <button className="md:hidden min-w-11 min-h-11 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" onClick={onClose} aria-label="Tutup menu">
+          <button className="md:hidden min-w-11 min-h-11 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors duration-150" onClick={onClose} aria-label="Tutup menu">
             <X size={18} />
           </button>
           {/* Desktop collapse */}
-          <button className="hidden md:flex min-w-11 min-h-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" onClick={onToggleCollapse} aria-label={collapsed ? 'Buka sidebar' : 'Ciutkan sidebar'}>
+          <button className="hidden md:flex min-w-11 min-h-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors duration-150" onClick={onToggleCollapse} aria-label={collapsed ? 'Buka sidebar' : 'Ciutkan sidebar'}>
             {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           </button>
         </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 p-3 flex flex-col gap-1 overflow-y-auto overflow-x-hidden">
+      {/* Nav — state aktif satu sinyal saja: tint bg-primary/10 + teks primary
+          (kontrak desain: tanpa border + chevron bertumpuk). */}
+      <nav className="flex-1 p-2 flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
         {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
             onClick={() => { if(window.innerWidth < 768) onClose(); }}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              `flex items-center gap-2.5 px-3 min-h-11 md:min-h-9 rounded-md text-[13px] font-medium transition-colors duration-150 ${
                 collapsed ? 'justify-center' : ''
               } ${isActive
-                 ? 'bg-primary/20 text-primary border border-primary/20'
+                 ? 'bg-primary/10 text-primary'
                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                }`
             }
             title={collapsed ? label : undefined}
           >
-            {({ isActive }) => (
-              <>
-                <Icon size={17} className="shrink-0" />
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 truncate">{label}</span>
-                    {isActive && <ChevronRight size={14} className="text-primary" />}
-                  </>
-                )}
-              </>
-            )}
+            <Icon size={18} className="shrink-0" />
+            {!collapsed && <span className="flex-1 truncate">{label}</span>}
           </NavLink>
         ))}
       </nav>
 
       {/* Bantuan + akun */}
-      <div className="p-3 border-t border-border flex flex-col gap-1">
+      <div className="p-2 border-t border-border flex flex-col gap-0.5">
         <a
           href={`/webmail/help/email-settings.html?domain=${user?.email ? user.email.split('@')[1] : 'pcpexpress.com'}`}
           target="_blank"
           rel="noopener noreferrer"
-          className={`flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all ${collapsed ? 'justify-center' : ''}`}
+          className={`flex items-center gap-2.5 px-3 min-h-11 md:min-h-9 rounded-md text-[13px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors duration-150 ${collapsed ? 'justify-center' : ''}`}
           title="Panduan Setting Email"
           aria-label="Panduan Setting Email"
         >
-          <HelpCircle size={15} className="shrink-0" />
+          <HelpCircle size={18} className="shrink-0" />
           {!collapsed && <span className="truncate">Panduan Setting</span>}
         </a>
 
@@ -221,7 +214,7 @@ function AccountMenu({ user, theme, collapsed, onCycleTheme, onOpenSettings, onO
     if (!keepOpen) close()
   }
 
-  const itemCls = 'w-full flex items-center gap-3 px-3 min-h-11 rounded-lg text-sm text-left text-foreground hover:bg-muted focus-visible:bg-muted outline-none transition-colors'
+  const itemCls = 'w-full flex items-center gap-2.5 px-3 min-h-11 md:min-h-9 rounded-md text-[13px] text-left text-foreground hover:bg-muted focus-visible:bg-muted outline-none transition-colors duration-150'
 
   return (
     <div ref={rootRef} className="relative">
@@ -234,7 +227,7 @@ function AccountMenu({ user, theme, collapsed, onCycleTheme, onOpenSettings, onO
         aria-expanded={open}
         aria-label={`Menu akun ${displayName}`}
         title={collapsed ? displayName : undefined}
-        className={`w-full flex items-center gap-2.5 px-2 min-h-11 rounded-xl hover:bg-muted transition-colors ${collapsed ? 'justify-center' : ''} ${open ? 'bg-muted' : ''}`}
+        className={`w-full flex items-center gap-2.5 px-2 min-h-11 rounded-md hover:bg-muted transition-colors duration-150 ${collapsed ? 'justify-center' : ''} ${open ? 'bg-muted' : ''}`}
       >
         <Avatar name={user?.cn} email={user?.email} size="sm" title="" />
         {!collapsed && (
@@ -254,7 +247,7 @@ function AccountMenu({ user, theme, collapsed, onCycleTheme, onOpenSettings, onO
           role="menu"
           aria-label="Menu akun"
           onKeyDown={onMenuKeyDown}
-          className={`absolute z-50 w-64 max-w-[calc(100vw-1.5rem)] bg-popover border border-border rounded-xl shadow-xl p-1.5 ${
+          className={`absolute z-50 w-64 max-w-[calc(100vw-1.5rem)] bg-popover border border-border rounded-lg shadow-md p-1 ${
             collapsed ? 'left-full bottom-0 ml-2' : 'left-0 right-0 bottom-full mb-2 w-auto'
           }`}
         >
@@ -268,7 +261,7 @@ function AccountMenu({ user, theme, collapsed, onCycleTheme, onOpenSettings, onO
           </div>
 
           <button type="button" role="menuitem" tabIndex={-1} className={itemCls} onClick={run(onOpenSettings)}>
-            <Settings size={15} className="shrink-0 text-muted-foreground" />
+            <Settings size={16} className="shrink-0 text-muted-foreground" />
             <span>Pengaturan</span>
           </button>
 
@@ -281,15 +274,15 @@ function AccountMenu({ user, theme, collapsed, onCycleTheme, onOpenSettings, onO
             aria-label="Ganti tema"
             title="Klik untuk siklus: Gelap → Terang → Otomatis"
           >
-            <ThemeIcon size={15} className="shrink-0 text-muted-foreground" />
+            <ThemeIcon size={16} className="shrink-0 text-muted-foreground" />
             <span className="flex-1">Tema</span>
             <span className="text-xs text-muted-foreground">{themeLabel}</span>
           </button>
 
           <button type="button" role="menuitem" tabIndex={-1} className={itemCls} onClick={run(onOpenShortcuts)}>
-            <Keyboard size={15} className="shrink-0 text-muted-foreground" />
+            <Keyboard size={16} className="shrink-0 text-muted-foreground" />
             <span className="flex-1">Pintasan keyboard</span>
-            <kbd className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground font-mono">?</kbd>
+            <kbd className="text-[11px] px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground font-mono">?</kbd>
           </button>
 
           <div className="border-t border-border my-1" role="separator" />
@@ -302,7 +295,7 @@ function AccountMenu({ user, theme, collapsed, onCycleTheme, onOpenSettings, onO
             onClick={run(onLogout)}
             aria-label="Keluar"
           >
-            <LogOut size={15} className="shrink-0" />
+            <LogOut size={16} className="shrink-0" />
             <span>Keluar</span>
           </button>
         </div>
@@ -319,13 +312,13 @@ function SessionCountdown({ remainingMs }) {
   const level = sessionWarningLevel(remainingMs);
   const text = formatRemaining(remainingMs);
   const palette = {
-    ok:     'bg-muted text-muted-foreground',
+    ok:     'text-muted-foreground',
     warn:   'bg-amber-500/10 text-amber-900 dark:text-amber-400',
     urgent: 'bg-destructive/10 text-destructive animate-pulse',
   }[level];
   return (
     <div
-      className={`mx-2 mb-1 px-2.5 py-1 rounded-md text-[11px] flex items-center gap-1.5 ${palette}`}
+      className={`mx-1 mb-0.5 px-3 py-1 rounded-md text-[11px] flex items-center gap-1.5 ${palette}`}
       title="Sesi SMTP akan berakhir — klik Keluar untuk perpanjang."
     >
       <Timer size={11} className="shrink-0" />

@@ -50,14 +50,14 @@ export default function BottomNav() {
             role="dialog"
             aria-modal="true"
             aria-label="Menu lainnya"
-            className="absolute inset-x-0 bottom-0 bg-card border-t border-border rounded-t-2xl shadow-xl p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]"
+            className="absolute inset-x-0 bottom-0 bg-card border-t border-border rounded-t-xl shadow-lg p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]"
           >
             <div className="flex items-center justify-between px-2 pt-1 pb-2">
               <span className="text-sm font-semibold text-foreground">Lainnya</span>
               <button
                 type="button"
                 onClick={() => setMoreOpen(false)}
-                className="min-w-11 min-h-11 -mr-2 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+                className="min-w-11 min-h-11 -mr-2 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors duration-150"
                 aria-label="Tutup menu lainnya"
               >
                 <X size={18} />
@@ -68,7 +68,7 @@ export default function BottomNav() {
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm font-medium ${
+                  `flex items-center gap-2.5 px-3 min-h-11 rounded-md text-[13px] font-medium transition-colors duration-150 ${
                     isActive ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
                   }`
                 }
