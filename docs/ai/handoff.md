@@ -1,3 +1,14 @@
+# 2026-10-11 (lanjutan) — Round visual "modern clean" di branch yang sama
+- Atas permintaan user ("UI ga banyak perubahan"): restyle seluruh app — kontrak desain
+  seragam (radius md/lg/xl berjenjang, tanpa shadow-xl/2xl, pemisah garis tipis, teks
+  min 11px, aksen hanya aksi utama, utility `.pane-header` h-12), palet dark lebih
+  netral, baris pesan hierarki baru (unread semibold + titik aksen, subjek netral),
+  halaman sekunder (Preferences/Contacts/Calendar/Rules/Stats) diseragamkan.
+- 6 commit style (22e8114..51c8d32). Validasi ulang: 76/76 suite PASS, build PASS,
+  smoke Puppeteer 12/12 PASS (terang/gelap/ringkas/mobile 375px tanpa overflow).
+- Review lokal: `VITE_API_PROXY_TARGET=https://mail.pcpexpress.co.id npm run dev`
+  (vite.config kini dukung override /api) → http://localhost:5199/webmail/.
+
 # 2026-10-11 — Webmail ala Outlook desktop: siap UAT di branch worktree-outlook-ux
 - Review menyeluruh (4 agent: list flow, compose/reader, backend/api, shell/CSS) lalu
   implementasi paralel 4 agent + fondasi prefs & threading oleh koordinator.
