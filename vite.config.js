@@ -120,9 +120,13 @@ export default defineConfig({
           });
         },
       },
+      // VITE_API_PROXY_TARGET: arahkan /api ke backend lain saat review/dev
+      // (mis. https://mail.pcpexpress.co.id agar sesi SMTP & kirim email jalan
+      // tanpa backend lokal). Default tetap backend lokal port 3001.
       '/api': {
-        target: 'http://127.0.0.1:3001',
-        changeOrigin: false,
+        target: process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3001',
+        changeOrigin: !!process.env.VITE_API_PROXY_TARGET,
+        secure: true,
       },
     },
   },
