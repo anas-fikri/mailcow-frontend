@@ -232,7 +232,7 @@ REMOTE_DEPLOY
 # systemd user service `sogo-smtp-proxy` di $REMOTE_BACKEND_DIR. deploy.sh
 # sebelumnya TIDAK men-sync ini — backend bisa kedaluwarsa meski frontend live.
 REMOTE_BACKEND_DIR="${REMOTE_BACKEND_DIR:-/home/anas.fikri/sogo-proxy}"
-BACKEND_LIB_FILES="src/lib/ssrfGuard.js src/lib/emailValidation.js src/lib/smtpCookie.js src/lib/remoteImage.js src/lib/attachmentValidation.js src/lib/sendQueue.js src/lib/sentCopy.js"
+BACKEND_LIB_FILES="src/lib/ssrfGuard.js src/lib/emailValidation.js src/lib/smtpCookie.js src/lib/remoteImage.js src/lib/attachmentValidation.js src/lib/sendQueue.js src/lib/sentCopy.js src/lib/threadingHeaders.js"
 
 # Pastikan KEY=VALUE (atau KEY="value") ada di $env_path pada server.
 # Idempotent: jika sudah sama, no-op; jika hilang → append; jika beda → ganti.

@@ -25,6 +25,7 @@ import { z } from 'zod';
 import { isSafeRecipient, recipientAddress, validateRecipientList, hasControlChars } from './src/lib/emailValidation.js';
 import { parseCookies, buildSmtpSessionCookie, clearSmtpSessionCookie, SMTP_SESSION_COOKIE } from './src/lib/smtpCookie.js';
 import { fetchRemoteImage } from './src/lib/remoteImage.js';
+import { buildThreadingHeaders } from './src/lib/threadingHeaders.js';
 import { validateAttachments, MAX_ATTACHMENTS, MAX_FILE_MB_DEFAULT, MAX_TOTAL_MB_DEFAULT, MAX_ATTACHMENTS_DEFAULT } from './src/lib/attachmentValidation.js';
 import {
   createSendQueue, buildQueueEntry, dueEntries, pendingForUser, canCancel,
@@ -159,6 +160,8 @@ function buildMailOptions(sessionUser, payload) {
     subject: payload.subject,
     [payload.isHTML ? 'html' : 'text']: payload.body,
     attachments: att,
+    // In-Reply-To / References (threading balasan) — disanitasi ketat di lib.
+    ...buildThreadingHeaders(payload),
   };
 }
 
@@ -703,6 +706,11 @@ const sendEmailSchema = z.object({
   // Kirim Terjadwal: ISO timestamp (opsional). Tanpa ini, kirim langsung
   // (atau ditahan SEND_UNDO_SECONDS bila > 0 utk fitur undo send).
   sendAt: z.string().max(40).optional(),
+  // Threading balasan (RFC 5322): In-Reply-To = Message-ID asal, References =
+  // rantai References asal + Message-ID asal. Divalidasi ketat (hanya token
+  // <id@host> dipisah spasi) sebelum masuk header — mencegah header injection.
+  inReplyTo: z.string().max(998).optional().default(''),
+  references: z.string().max(4000).optional().default(''),
   // UI dapat mengirim display-name: "Nama <user@example.com>".
   // Format dan alamat akhirnya divalidasi setelah parsing, sebelum Nodemailer.
   from: z.string().max(998).optional().default(''),
