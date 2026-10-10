@@ -105,7 +105,11 @@ ok(compose.includes('closedRef.current = false;'), 'reset modal harus reset clos
 
 // ── Reply/forward harus membawa composeMode 'reply' (signature reply) ────────
 // Tanpa ini ComposeModal memakai signature 'new' untuk balasan — salah.
-ok(reader.includes("composeMode: 'reply',"), 'handleReply harus kirim composeMode reply');
+// Reader kini memakai replyBuilder; composeMode = mode ('reply'|'replyAll'|'forward')
+// dan ComposeModal memetakannya ke signature 'reply' via signatureModeFor.
+const replyBuilder = fs.readFileSync('src/lib/replyBuilder.js', 'utf8');
+ok(replyBuilder.includes('composeMode: mode,'), 'replyBuilder harus set composeMode = mode');
+ok(reader.includes('buildReplyDataAsync'), 'handleReply harus memakai replyBuilder');
 // Mode asli (new/reply/replyAll/forward/draft) dipertahankan utk judul &
 // aria-label; composeMode = mode signature ('reply' utk balasan & teruskan).
 ok(compose.includes("const realMode = normalizeComposeMode(initialData?.composeMode);")

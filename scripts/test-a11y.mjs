@@ -190,7 +190,10 @@ assert.ok(reader.includes('dangerouslySetInnerHTML={{ __html: renderHtml }}'), '
 passCount++;
 assert.ok(reader.includes('${renderHtml}') && reader.includes('win.print()'), 'Reader: print tidak memakai renderHtml (proxy)');
 passCount++;
-assert.ok(reader.includes('<br><br>${cleanHtml}</blockquote>'), 'Reader: quote balasan memakai cleanHtml (URL asli, bukan proxy)');
+// Quote balasan kini disusun replyBuilder; reader harus mengoper cleanHtml
+// (URL asli) — bukan renderHtml yang sudah di-proxy — sebagai bodyHtml.
+assert.ok(reader.includes('bodyHtml: cleanHtml'), 'Reader: quote balasan memakai cleanHtml (URL asli, bukan proxy)');
+assert.ok(!reader.includes('bodyHtml: renderHtml'), 'Reader: bodyHtml tidak boleh memakai renderHtml (proxy)');
 passCount++;
 
 // Auto-advance reader: setelah hapus/pindah/spam buka pesan berikutnya
