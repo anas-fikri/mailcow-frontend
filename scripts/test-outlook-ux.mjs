@@ -75,7 +75,7 @@ ok(!/style=\{\{ width: listW \}\}/.test(mail), 'inline width listW mobile dihapu
 ok(mail.includes("setPref('paneWidths', { ...cur, folders: folderW, list: listW, listHeight: listH })"), 'paneWidths dipersist via setPref (debounce)');
 ok(mail.includes("setPref('collapsedFolders', next)") && mail.includes("setPref('favoriteFolders'"), 'collapsed/favorit dipersist via setPref');
 ok(mail.includes('role="separator"') && mail.includes('onPointerDown={onPointerDown}') && mail.includes('onKeyDown={onKeyDown}'), 'pegangan resize aksesibel (separator + pointer + keyboard)');
-ok(mail.includes("const ROW_PAD_CLS = 'density-row px-3'") && mail.includes('density-hide'), 'kelas density dari index.css dipakai di baris');
+ok(mail.includes("const ROW_PAD_CLS = 'density-row px-4'") && mail.includes('density-hide'), 'kelas density dari index.css dipakai di baris');
 ok(mail.includes('Kembali ke daftar'), "readingPane off: tombol kembali di desktop");
 ok(mail.includes('notifyPrefsRef.current?.sound === true) playNotifyBeep()'), 'suara notifikasi mengikuti preferensi sound');
 

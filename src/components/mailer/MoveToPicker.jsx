@@ -108,13 +108,13 @@ export default function MoveToPicker({ folders = [], excludeId = null, count = 1
       aria-modal="false"
       aria-label="Pindahkan ke folder"
       onKeyDown={onKeyDown}
-      className="fixed z-[70] w-[min(92vw,320px)] bg-card border border-border rounded-xl shadow-xl flex flex-col overflow-hidden"
+      className="fixed z-[70] w-[min(92vw,320px)] bg-card border border-border rounded-lg shadow-md flex flex-col overflow-hidden"
       style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}
       data-testid="move-to-picker"
     >
       <div className="px-3 pt-3 pb-2 border-b border-border">
         <div className="flex items-center justify-between gap-2 mb-2">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Pindahkan {count > 1 ? `${count} pesan` : 'pesan'} ke…
           </span>
           <button type="button" onClick={close} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" aria-label="Tutup">
@@ -135,7 +135,7 @@ export default function MoveToPicker({ folders = [], excludeId = null, count = 1
             role="combobox"
             aria-expanded="true"
             aria-autocomplete="list"
-            className="w-full bg-muted border-none rounded-lg pl-8 pr-2 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+            className="w-full bg-muted border border-transparent rounded-md pl-8 pr-2 py-1.5 text-sm focus:border-ring focus:ring-2 focus:ring-primary/20 focus:outline-none transition-colors"
           />
         </div>
       </div>
@@ -158,8 +158,8 @@ export default function MoveToPicker({ folders = [], excludeId = null, count = 1
               disabled={busy}
               onMouseEnter={() => setActiveIdx(idx)}
               onClick={() => choose(f)}
-              className={`w-full flex items-center gap-2 px-3 min-h-9 text-left text-sm transition-colors disabled:opacity-60 ${
-                active ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
+              className={`w-full flex items-center gap-2 px-3 min-h-9 text-left text-[13px] transition-colors disabled:opacity-60 ${
+                active ? 'bg-muted text-foreground' : 'text-foreground hover:bg-muted'
               }`}
               style={{ paddingLeft: `${12 + depth * 14}px` }}
               title={f.path || f.label}
@@ -170,7 +170,7 @@ export default function MoveToPicker({ folders = [], excludeId = null, count = 1
           );
         })}
       </div>
-      <div className="px-3 py-1.5 border-t border-border text-[10px] text-muted-foreground flex items-center gap-2">
+      <div className="px-3 py-1.5 border-t border-border text-[11px] text-muted-foreground flex items-center gap-2">
         {busy ? <Loader2 size={12} className="animate-spin" aria-hidden /> : null}
         <span>↑↓ pilih · Enter pindahkan · Esc batal</span>
       </div>

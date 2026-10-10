@@ -29,7 +29,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="kbd-help-title"
-            className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
+            className="bg-card border border-border rounded-xl shadow-lg w-full max-w-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -40,7 +40,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
                 </div>
                 <h2 id="kbd-help-title" className="text-base font-semibold">Pintasan Keyboard</h2>
               </div>
-              <button onClick={onClose} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors" aria-label="Tutup bantuan pintasan">
+              <button onClick={onClose} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors" aria-label="Tutup bantuan pintasan">
                 <X size={18} />
               </button>
             </div>
@@ -49,7 +49,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 max-h-[65vh] overflow-y-auto">
               {SHORTCUT_GROUPS.map((group) => (
                 <div key={group.title}>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
                     {group.title}
                   </h3>
                   <div className="space-y-1.5">
@@ -60,7 +60,7 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
                           {s.keys.map((key, i) => (
                             <React.Fragment key={key}>
                               {i > 0 && <span className="text-xs text-muted-foreground">/</span>}
-                              <kbd className="px-2 py-0.5 bg-muted border border-border rounded-md text-xs font-mono text-foreground shadow-sm whitespace-nowrap">
+                              <kbd className="px-2 py-0.5 bg-muted border border-border rounded-md text-[11px] font-mono text-foreground whitespace-nowrap">
                                 {prettyKey(key)}
                               </kbd>
                             </React.Fragment>
@@ -76,8 +76,8 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
             {/* Footer */}
             <div className="px-5 py-3 border-t border-border bg-muted/20">
               <p className="text-xs text-muted-foreground">
-                Tekan <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">?</kbd> kapan saja untuk membuka bantuan ini.
-                Saat pesan terbuka, <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">r</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">f</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">s</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">u</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">Del</kbd> berlaku pada pesan itu.
+                Tekan <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">?</kbd> kapan saja untuk membuka bantuan ini.
+                Saat pesan terbuka, <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">r</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">f</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">s</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">u</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">Del</kbd> berlaku pada pesan itu.
               </p>
             </div>
           </motion.div>

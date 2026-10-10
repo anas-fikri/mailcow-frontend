@@ -125,7 +125,7 @@ export default function ContextMenu({ x = 0, y = 0, items = [], onClose, ariaLab
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onContextMenu={(e) => e.preventDefault()}
-      className="fixed z-[70] min-w-[200px] max-w-[280px] py-1 bg-card border border-border rounded-xl shadow-xl text-sm outline-none select-none"
+      className="fixed z-[70] min-w-[200px] max-w-[280px] py-1 bg-card border border-border rounded-lg shadow-md text-[13px] outline-none select-none"
       style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}
       data-testid="context-menu"
     >
@@ -148,7 +148,7 @@ export default function ContextMenu({ x = 0, y = 0, items = [], onClose, ariaLab
               tabIndex={active ? 0 : -1}
               onMouseEnter={() => { setActiveIdx(idx); setOpenSub(hasChildren ? idx : null); }}
               onClick={(e) => { e.stopPropagation(); select(item); }}
-              className={`flex items-center gap-2.5 px-3 min-h-9 text-left rounded-lg mx-1 w-[calc(100%-0.5rem)] transition-colors
+              className={`flex items-center gap-2.5 px-3 min-h-9 text-left rounded-[4px] mx-1 w-[calc(100%-0.5rem)] transition-colors
                 ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                 ${active ? 'bg-muted' : ''}
                 ${item.danger ? 'text-destructive' : 'text-foreground'}`}
@@ -158,7 +158,7 @@ export default function ContextMenu({ x = 0, y = 0, items = [], onClose, ariaLab
               </span>
               <span className="flex-1 min-w-0 truncate">{item.label}</span>
               {item.checked ? <Check size={14} className="text-primary shrink-0" aria-hidden /> : null}
-              {item.shortcut ? <kbd className="text-[10px] text-muted-foreground font-mono shrink-0">{item.shortcut}</kbd> : null}
+              {item.shortcut ? <kbd className="text-[11px] text-muted-foreground font-mono shrink-0">{item.shortcut}</kbd> : null}
               {hasChildren ? <ChevronRight size={14} className="text-muted-foreground shrink-0" aria-hidden /> : null}
             </button>
             {hasChildren && openSub === idx && (
@@ -233,7 +233,7 @@ function SubMenu({ parentEl, items, onSelect, onBack, onEscape, label }) {
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onContextMenu={(e) => e.preventDefault()}
-      className="fixed z-[71] min-w-[180px] py-1 bg-card border border-border rounded-xl shadow-xl text-sm outline-none select-none"
+      className="fixed z-[71] min-w-[180px] py-1 bg-card border border-border rounded-lg shadow-md text-[13px] outline-none select-none"
       style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}
     >
       {items.map((item, idx) => {
@@ -251,7 +251,7 @@ function SubMenu({ parentEl, items, onSelect, onBack, onEscape, label }) {
             tabIndex={active ? 0 : -1}
             onMouseEnter={() => setActiveIdx(idx)}
             onClick={(e) => { e.stopPropagation(); if (!item.disabled) onSelect(item); }}
-            className={`flex items-center gap-2.5 px-3 min-h-9 text-left rounded-lg mx-1 w-[calc(100%-0.5rem)] transition-colors
+            className={`flex items-center gap-2.5 px-3 min-h-9 text-left rounded-[4px] mx-1 w-[calc(100%-0.5rem)] transition-colors
               ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
               ${active ? 'bg-muted' : ''}
               ${item.danger ? 'text-destructive' : 'text-foreground'}`}

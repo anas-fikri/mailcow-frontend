@@ -76,14 +76,14 @@ export default function QuickRuleModal({ isOpen, onClose, sender, folders = [], 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md z-10">
+      <div className="relative bg-card border border-border rounded-xl shadow-lg w-full max-w-md z-10">
         {/* Header */}
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Filter size={16} className="text-primary" />
             <h3 className="text-base font-semibold text-foreground">Buat Aturan Otomatis</h3>
           </div>
-          <button onClick={onClose} aria-label="Tutup" className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted">
+          <button onClick={onClose} aria-label="Tutup" className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted">
             <X size={16} />
           </button>
         </div>
@@ -96,7 +96,7 @@ export default function QuickRuleModal({ isOpen, onClose, sender, folders = [], 
           {/* Pengirim (read-only — kondisi rule) */}
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">Pengirim</label>
-            <div className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground truncate">
+            <div className="bg-muted border border-border rounded-md px-3 py-2 text-sm text-foreground truncate">
               {sender}
             </div>
           </div>
@@ -109,7 +109,7 @@ export default function QuickRuleModal({ isOpen, onClose, sender, folders = [], 
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full bg-muted border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-ring focus:ring-2 focus:ring-primary/20"
             />
           </div>
 
@@ -119,7 +119,7 @@ export default function QuickRuleModal({ isOpen, onClose, sender, folders = [], 
             <select
               value={actionFolder}
               onChange={(e) => setActionFolder(e.target.value)}
-              className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full bg-muted border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-ring focus:ring-2 focus:ring-primary/20"
             >
               <option value="">— Pilih folder —</option>
               {folders
@@ -138,14 +138,14 @@ export default function QuickRuleModal({ isOpen, onClose, sender, folders = [], 
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
+              className="px-4 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={saving || !email}
-              className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 transition-colors"
             >
               <Filter size={14} />
               {saving ? 'Menyimpan...' : 'Simpan Aturan'}

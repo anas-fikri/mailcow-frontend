@@ -95,14 +95,14 @@ function CategoryTabs({ messages, categoryFilter, onSelect }) {
             key={t.id || 'all'}
             type="button"
             onClick={() => onSelect(active ? null : t.id)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
               active
-                ? 'bg-primary/10 text-primary'
+                ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
           >
             {t.label}
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${active ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+            <span className={`text-[11px] tabular-nums px-1.5 py-0.5 rounded-full ${active ? 'bg-background text-foreground' : 'bg-muted text-muted-foreground'}`}>
               {t.count}
             </span>
           </button>
@@ -216,7 +216,7 @@ function playNotifyBeep() {
 
 // Mode baris "ringkas" ditentukan CSS lewat <html data-density> (AppLayout);
 // kelas .density-* di index.css. Di sini hanya kelas yang perlu ikut.
-const ROW_PAD_CLS = 'density-row px-3';
+const ROW_PAD_CLS = 'density-row px-4';
 
 // ─── Pull-to-Refresh (mobile) ────────────────────────────────────────────────
 const PULL_THRESHOLD = 80;
@@ -2342,7 +2342,7 @@ export default function MailPage() {
     // Di dalam percakapan, garis kiri berasal dari thread line wrapper
     // (border-l-2). Baris tidak memakai border-l-4 sendiri → tidak ada
     // dua garis kiri yang bertumpuk; aktif cukup ditandai bg + teks.
-    const leftBorderCls = nested ? '' : 'border-l-4 ';
+    const leftBorderCls = nested ? '' : 'border-l-2 ';
     const activeCls = nested
       ? (isActive ? 'bg-muted/80' : isFocused ? 'bg-muted/30' : '')
       : (isActive ? 'bg-muted border-primary' : isFocused ? 'border-primary/40 bg-muted/30' : 'border-transparent');
@@ -2401,7 +2401,7 @@ export default function MailPage() {
           onTouchMove={(e) => handleRowTouchMove(e, msg.uid)}
           onTouchEnd={() => handleRowTouchEnd(msg.uid)}
           onTouchCancel={() => handleRowTouchEnd(msg.uid)}
-          className={`group w-full flex items-start text-left ${ROW_PAD_CLS} hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 ${leftBorderCls}select-none [-webkit-touch-callout:none] ${activeCls} ${isSelected ? 'bg-primary/5' : ''} ${replyBusy?.uid === msg.uid ? 'opacity-70' : ''}`}
+          className={`group w-full flex items-start text-left ${ROW_PAD_CLS} hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 ${leftBorderCls}select-none [-webkit-touch-callout:none] ${activeCls} ${isSelected ? 'bg-primary/10' : ''} ${replyBusy?.uid === msg.uid ? 'opacity-70' : ''}`}
         >
           {/* Avatar — saat hover/seleksi diganti checkbox (pola Gmail, tidak menumpuk) */}
           <div className="relative w-8 h-8 shrink-0 mr-2 mt-0.5">
@@ -2431,7 +2431,7 @@ export default function MailPage() {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setFlagPickerOpen(null)} />
                 <div
-                  className="fixed z-50 bg-card border border-border shadow-xl rounded-xl p-2 flex gap-1.5"
+                  className="fixed z-50 bg-card border border-border shadow-md rounded-lg p-2 flex gap-1.5"
                   style={{ left: Math.min(flagPickerOpen.x, window.innerWidth - 200), top: Math.min(flagPickerOpen.y, window.innerHeight - 80) }}
                 >
                   {FLAG_COLOR_KEYS.map((key) => (
@@ -2482,14 +2482,14 @@ export default function MailPage() {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setSnoozePicker(null)} />
                 <div
-                  className="fixed z-50 bg-card border border-border shadow-xl rounded-xl p-1.5 min-w-[140px]"
+                  className="fixed z-50 bg-card border border-border shadow-md rounded-lg p-1.5 min-w-[140px]"
                   style={{ left: Math.min(snoozePicker.x, window.innerWidth - 180), top: Math.min(snoozePicker.y, window.innerHeight - 200) }}
                 >
                   {SNOOZE_PRESETS.map((p) => (
                     <button
                       key={p.id}
                       onClick={(e) => { e.stopPropagation(); handleSnooze(msg.uid, p.hours); }}
-                      className="block w-full text-left px-3 min-h-11 flex items-center rounded-lg text-sm hover:bg-muted transition-colors"
+                      className="block w-full text-left px-3 min-h-11 flex items-center rounded-[4px] text-[13px] hover:bg-muted transition-colors"
                     >
                       {p.label}
                     </button>
@@ -2509,7 +2509,7 @@ export default function MailPage() {
                   type="button"
                   onClick={(e) => searchBySender(senderLabel, e)}
                   title={`Cari semua email dari pengirim ini`}
-                  className={`text-sm truncate text-left hover:underline ${msg.isRead ? 'text-muted-foreground font-medium' : 'text-foreground font-bold'}`}
+                  className={`text-sm truncate text-left hover:underline ${msg.isRead ? 'text-foreground font-normal' : 'text-foreground font-semibold'}`}
                 >
                   {senderLabel}
                 </button>
@@ -2524,7 +2524,7 @@ export default function MailPage() {
                     tanggal (date group-hover:hidden). Sebelumnya tombol ini
                     opacity-0 tapi TETAP reserve ruang → di lebar list 240px
                     pengirim terpotong jadi ~13px oleh 4 tombol invisible. */}
-                <div className="hidden group-hover:flex items-center gap-1.5">
+                <div className="hidden group-hover:flex items-center gap-1.5 rounded-md border border-border bg-background px-0.5">
                   {/* Quick reply — hover desktop, fetch detail & buka compose */}
                   {!isTouch && (
                     <button
@@ -2647,12 +2647,12 @@ export default function MailPage() {
                   })()}
                 </button>
                 {msg.hasAtt && <Paperclip size={12} className="text-muted-foreground shrink-0" aria-label="Berlampiran" />}
-                <span className="text-xs text-muted-foreground group-hover:hidden">{msg.date}</span>
+                <span className="text-xs text-muted-foreground tabular-nums group-hover:hidden">{msg.date}</span>
               </div>
             </div>
-            <div className={`text-sm truncate ${msg.isRead ? 'text-muted-foreground' : 'text-primary font-medium'}`} title={typeof msg.subject === 'string' ? msg.subject : ''}>
+            <div className={`text-[13px] truncate ${msg.isRead ? 'text-muted-foreground' : 'text-foreground font-medium'}`} title={typeof msg.subject === 'string' ? msg.subject : ''}>
               {searchedAll && msg.folderId && msg.folderId !== selectedFolder && folderLabelById.get(msg.folderId) && (
-                <span className="inline-flex items-center mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground align-middle" title={`Dari folder ${folderLabelById.get(msg.folderId)}`}>
+                <span className="inline-flex items-center mr-1.5 px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground align-middle" title={`Dari folder ${folderLabelById.get(msg.folderId)}`}>
                   {folderLabelById.get(msg.folderId)}
                 </span>
               )}
@@ -2665,13 +2665,13 @@ export default function MailPage() {
                 const cat = classifyEmail(msg);
                 if (cat === EMAIL_CATEGORIES.UTAMA || cat === EMAIL_CATEGORIES.SPAM) return null;
                 return (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${CATEGORY_BADGE_CLASS[cat] || ''}`}>
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${CATEGORY_BADGE_CLASS[cat] || ''}`}>
                     {CATEGORY_LABELS[cat]}
                   </span>
                 );
               })()}
               {msg.hasAtt && (
-                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">📎 Lampiran</span>
+                <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">📎 Lampiran</span>
               )}
             </div>
           </div>
@@ -2707,7 +2707,7 @@ export default function MailPage() {
     return (
       <React.Fragment key={favorite ? `fav:${folder.id}` : folder.id}>
         <div
-          className={`flex items-center group rounded-xl transition-colors ${isDropTarget ? 'ring-2 ring-primary bg-primary/10' : ''}`}
+          className={`flex items-center group rounded-md transition-colors ${isDropTarget ? 'ring-2 ring-primary bg-primary/10' : ''}`}
           style={{ paddingLeft: favorite ? 0 : `${(folder.depth || 0) * 16}px` }}
           onContextMenu={(e) => handleFolderContextMenu(e, folder)}
           onDragEnter={(e) => handleFolderDragOver(e, folder)}
@@ -2732,18 +2732,18 @@ export default function MailPage() {
             type="button"
             onClick={() => selectFolder(folder.id)}
             aria-current={isActive ? 'page' : undefined}
-            className={`flex-1 flex items-center justify-between min-w-0 px-2 py-2.5 rounded-xl text-sm transition-all ${
+            className={`flex-1 flex items-center justify-between min-w-0 px-2 py-2.5 rounded-md text-[13px] transition-colors ${
               isActive
-                ? 'bg-primary/10 text-primary font-medium'
+                ? 'relative bg-muted text-primary font-medium before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-primary'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              <Icon size={18} className="shrink-0" />
+              <Icon size={16} className="shrink-0" />
               <span className="truncate" title={favorite ? (folder.path || folder.label) : folder.label}>{folder.label}</span>
             </div>
             {badge > 0 && (
-              <span className="bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ml-1">
+              <span className={`${folder.type === 'inbox' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded-full shrink-0 ml-1`}>
                 {badge > 99 ? '99+' : badge}
               </span>
             )}
@@ -2753,7 +2753,7 @@ export default function MailPage() {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); toggleFavorite(folder.id); }}
-              className={`p-1.5 rounded-lg hover:bg-muted ${isFav ? 'text-amber-500' : 'text-muted-foreground hover:text-amber-500'}`}
+              className={`p-1.5 rounded-md hover:bg-muted ${isFav ? 'text-amber-500' : 'text-muted-foreground hover:text-amber-500'}`}
               title={isFav ? `Hapus ${folder.label} dari Favorit` : `Tambah ${folder.label} ke Favorit`}
               aria-label={isFav ? `Hapus ${folder.label} dari Favorit` : `Tambah ${folder.label} ke Favorit`}
               aria-pressed={isFav}
@@ -2764,7 +2764,7 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setFolderDialog({ mode: 'create', parent: folder }); }}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-muted"
                 title={`Buat subfolder di ${folder.label}`}
                 aria-label={`Buat subfolder di ${folder.label}`}
               >
@@ -2775,7 +2775,7 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setFolderDialog({ mode: 'delete', folder }); }}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                 title={`Hapus ${folder.label}`}
                 aria-label={`Hapus ${folder.label}`}
               >
@@ -2803,17 +2803,17 @@ export default function MailPage() {
           folderPanelOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Compose button */}
-        <div className="p-4 border-b border-border flex items-center justify-between gap-2">
+        {/* Compose button — baris header pane (ritme .pane-header, h-12) */}
+        <div className="pane-header justify-between gap-2">
           <button
             onClick={() => { setComposeData(null); setComposeOpen(true); setFolderPanelOpen(false); }}
-            className="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 px-4 rounded-xl transition-colors shadow-sm"
+            className="flex-1 flex items-center justify-center gap-2 h-11 md:h-9 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-4 rounded-md transition-colors"
           >
-            <Edit3 size={18} />
+            <Edit3 size={16} />
             <span>Tulis Pesan</span>
           </button>
           <button
-            className="md:hidden p-2 rounded-full hover:bg-muted text-muted-foreground"
+            className="md:hidden p-2 rounded-md hover:bg-muted text-muted-foreground"
             onClick={() => setFolderPanelOpen(false)}
           >
             <X size={20} />
@@ -2826,7 +2826,7 @@ export default function MailPage() {
               juga target drag-and-drop pesan. */}
           {!loadingFolders && favoriteFolders.length > 0 && (
             <div className="mb-2 pb-2 border-b border-border" data-folder-section="favorites">
-              <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
                 <Star size={10} className="fill-current text-amber-500" aria-hidden /> Favorit
               </div>
               {favoriteFolders
@@ -2845,7 +2845,7 @@ export default function MailPage() {
 
           {/* ── Flag Color Filter ──────────────────────────────────────── */}
           <div className="pt-3 mt-2 border-t border-border">
-            <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
               Filter Flag
             </div>
             <div className="mt-1 space-y-0.5">
@@ -2860,9 +2860,9 @@ export default function MailPage() {
                       setFlagFilter(isActive ? null : key);
                       setFolderPanelOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-[13px] transition-colors ${
                       isActive
-                        ? 'bg-primary/10 text-primary font-medium'
+                        ? 'relative bg-muted text-primary font-medium before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-primary'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                     }`}
                   >
@@ -2871,7 +2871,7 @@ export default function MailPage() {
                       <span>{colorDef.label}</span>
                     </div>
                     {count > 0 && (
-                      <span className="text-[10px] text-muted-foreground">{count}</span>
+                      <span className="text-[11px] tabular-nums text-muted-foreground">{count}</span>
                     )}
                   </button>
                 );
@@ -2903,7 +2903,7 @@ export default function MailPage() {
         }`}
       >
         {/* Header */}
-        <div className="p-3 border-b border-border flex flex-col gap-3 bg-card sticky top-0 z-10">            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,auto)] items-start gap-x-3 gap-y-2">
+        <div className="px-4 pt-1 pb-2 border-b border-border flex flex-col gap-2 bg-background sticky top-0 z-10">            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,auto)] items-center gap-x-3 gap-y-1">
             {/* min-w-0 + truncate: judul folder menyusut duluan saat lebar panel
                 list menyempit (dynamic sizing), tombol aksi di kanan tetap utuh */}
             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -2913,7 +2913,7 @@ export default function MailPage() {
               >
                 <Menu size={20} />
               </button>
-              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 min-w-0">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2 min-w-0 min-h-12">
                 <span className="truncate">{selectedFolderMeta.label}</span>
                 <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 tabular-nums shrink-0">
                   {messages.length < totalMessageCount ? (
@@ -2937,7 +2937,7 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={() => setConversationView(!conversationView)}
-                className={`min-w-11 min-h-11 flex items-center justify-center rounded-full transition-colors ${
+                className={`min-w-11 min-h-11 flex items-center justify-center rounded-md transition-colors ${
                   conversationView ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
                 }`}
                 title={conversationView ? 'Tampilan biasa' : 'Tampilan percakapan'}
@@ -2948,14 +2948,14 @@ export default function MailPage() {
                 <span className="sr-only">{conversationView ? 'Conversation aktif' : 'Aktifkan conversation'}</span>
               </button>
               {conversationView && (
-                <span className="hidden sm:inline-flex items-center max-w-[9rem] truncate rounded-full bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary" title={`${visibleConversationGroups.length} grup percakapan`}>
+                <span className="hidden sm:inline-flex items-center max-w-[9rem] truncate rounded-full bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground" title={`${visibleConversationGroups.length} grup percakapan`}>
                   {visibleConversationGroups.length} percakapan
                 </span>
               )}
               {/* Expand/Collapse all — hanya di conversation view */}
               {conversationView && visibleConversationGroups.length > 0 && (
                 <>
-                  <span className="hidden lg:inline text-[10px] text-muted-foreground whitespace-nowrap">
+                  <span className="hidden lg:inline text-[11px] text-muted-foreground whitespace-nowrap">
                     {expandableConversationGroups.length} thread
                   </span>
                   <button
@@ -2963,7 +2963,7 @@ export default function MailPage() {
                   onClick={allExpandableConversationsOpen
                     ? collapseAllConversations
                     : expandAllConversations}
-                  className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground transition-colors"
+                  className="min-w-11 min-h-11 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground transition-colors"
                   title={allExpandableConversationsOpen ? 'Ciutkan semua' : 'Perluas semua'}
                   aria-label={allExpandableConversationsOpen ? 'Ciutkan semua percakapan' : 'Perluas semua percakapan'}
                 >
@@ -2978,7 +2978,7 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={() => setSortAsc(!sortAsc)}
-                className={`min-w-11 min-h-11 flex items-center justify-center rounded-full transition-colors ${
+                className={`min-w-11 min-h-11 flex items-center justify-center rounded-md transition-colors ${
                   sortAsc ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
                 }`}
                 title={sortAsc ? 'Terlama dulu' : 'Terbaru dulu'}
@@ -2990,7 +2990,7 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={() => setUnreadOnly(!unreadOnly)}
-                className={`min-w-11 min-h-11 flex items-center justify-center rounded-full transition-colors ${
+                className={`min-w-11 min-h-11 flex items-center justify-center rounded-md transition-colors ${
                   unreadOnly ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
                 }`}
                 title={unreadOnly ? 'Tampilkan semua' : 'Hanya belum dibaca'}
@@ -3002,7 +3002,7 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={() => setHasAttachmentOnly(!hasAttachmentOnly)}
-                className={`min-w-11 min-h-11 flex items-center justify-center rounded-full transition-colors ${
+                className={`min-w-11 min-h-11 flex items-center justify-center rounded-md transition-colors ${
                   hasAttachmentOnly ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
                 }`}
                 title={hasAttachmentOnly ? 'Tampilkan semua' : 'Hanya email berlampiran'}
@@ -3014,7 +3014,7 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={() => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] })}
-                className="min-w-11 min-h-11 flex items-center justify-center rounded-full hover:bg-muted text-muted-foreground"
+                className="min-w-11 min-h-11 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground"
                 title="Muat ulang pesan"
                 aria-label="Muat ulang pesan"
               >
@@ -3030,7 +3030,7 @@ export default function MailPage() {
                 onClick={() => markAllReadMutation.mutate({ folderId: selectedFolder })}
                 disabled={markAllReadMutation.isPending}
                 aria-busy={markAllReadMutation.isPending || undefined}
-                className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
                 title="Tandai semua di folder ini sebagai dibaca"
               >
                 {markAllReadMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />}
@@ -3043,7 +3043,7 @@ export default function MailPage() {
                   disabled={archiveMutation.isPending}
                   aria-busy={archiveMutation.isPending || undefined}
                   aria-haspopup="dialog"
-                  className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
                   title="Pindahkan semua ke Arsip"
                 >
                   {archiveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
@@ -3053,7 +3053,7 @@ export default function MailPage() {
               {pendingSends.length > 0 && (
                 <button
                   onClick={() => setPendingOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-lg text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-md text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
                   title={`${pendingSends.length} kiriman terjadwal — klik untuk kelola`}
                 >
                   <CalendarClock size={14} />
@@ -3089,7 +3089,7 @@ export default function MailPage() {
 
           {/* Soft-ask notifikasi — sekali, bisa ditutup; klik = enable */}
           {notifAsk && (
-            <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-xl bg-primary/10 border border-primary/20 text-sm">
+            <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-primary/10 border border-primary/20 text-sm">
               <BellRing size={16} className="text-primary shrink-0" />
               <span className="flex-1 min-w-0 text-foreground">
                 Aktifkan notifikasi agar tahu saat ada email baru masuk?
@@ -3097,7 +3097,7 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={handleEnableNotifications}
-                className="shrink-0 px-3 py-1 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
+                className="shrink-0 px-3 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
               >
                 Aktifkan
               </button>
@@ -3124,7 +3124,7 @@ export default function MailPage() {
                   onChange={(e) => setSearchInput(e.target.value)}
                   ref={searchInputRef}
                   maxLength={300}
-                  className="w-full bg-muted border-none rounded-lg pl-9 pr-10 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                  className="w-full bg-muted border border-transparent rounded-md pl-9 pr-10 py-2 text-sm focus:border-ring focus:ring-2 focus:ring-primary/20 focus:outline-none transition-colors"
                 />
                 {searchInput && (
                   <button
@@ -3140,7 +3140,7 @@ export default function MailPage() {
               <button
                 type="button"
                 onClick={() => setShowSearchFilter(!showSearchFilter)}
-                className={`min-w-11 min-h-11 flex items-center justify-center rounded-lg transition-colors ${
+                className={`min-w-11 min-h-11 flex items-center justify-center rounded-md transition-colors ${
                   searchCriteria !== 'all' ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:bg-muted'
                 }`}
                 title="Filter pencarian"
@@ -3153,7 +3153,7 @@ export default function MailPage() {
 
             {/* Search criteria dropdown */}
             {showSearchFilter && (
-              <div className="absolute top-full left-0 right-12 mt-1 bg-card border border-border shadow-lg rounded-lg z-20 p-1.5 flex gap-1 flex-wrap">
+              <div className="absolute top-full left-0 right-12 mt-1 bg-card border border-border shadow-md rounded-lg z-20 p-1.5 flex gap-1 flex-wrap">
                 {SEARCH_CRITERIA.map((c) => (
                   <button
                     key={c.id}
@@ -3175,7 +3175,8 @@ export default function MailPage() {
 
         {/* Bulk actions toolbar */}
         {selectedUids.length > 0 && (
-          <div className="bg-primary/10 px-4 py-2 flex items-center justify-between border-b border-border text-sm flex-wrap gap-2">
+          <div className="px-3 py-2 border-b border-border bg-background">
+          <div className="rounded-lg border border-border bg-muted/40 px-2 py-1 flex items-center justify-between text-sm flex-wrap gap-2">
             <div className="flex items-center gap-3">
               {selectionMode && (
                 <button
@@ -3199,7 +3200,7 @@ export default function MailPage() {
                 type="button"
                 onClick={(e) => openMovePicker(selectedUids, { x: e.clientX, y: e.clientY })}
                 disabled={bulkBusy}
-                className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-lg text-xs font-medium bg-background border border-border text-foreground hover:bg-muted disabled:opacity-50"
+                className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-md text-xs font-medium bg-background border border-border text-foreground hover:bg-muted disabled:opacity-50"
                 aria-label="Pindah pesan terpilih ke folder"
                 aria-haspopup="dialog"
                 title="Pindahkan ke folder\u2026 (Ctrl+Shift+V)"
@@ -3267,6 +3268,7 @@ export default function MailPage() {
               </button>
             </div>
           </div>
+          </div>
         )}
 
         {/* FAB: Tulis Pesan (mobile) */}
@@ -3328,7 +3330,7 @@ export default function MailPage() {
               const filterNames = empty.filters.map((f) => FILTER_LABELS_ID[f] || f).join(', ');
               return (
                 <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground gap-4 px-6">
-                  <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
                     {searchQuery ? <Search size={24} className="opacity-40" /> : <Mail size={24} className="opacity-40" />}
                   </div>
                   <div className="text-center">
@@ -3337,7 +3339,7 @@ export default function MailPage() {
                         : empty.kind === 'filters' ? 'Tidak ada pesan yang cocok dengan filter'
                         : 'Belum ada pesan'}
                     </p>
-                    <p className="text-xs mt-1">
+                    <p className="text-[13px] mt-1">
                       {empty.kind === 'search'
                         ? `Tidak ada hasil untuk "${searchQuery}"${empty.scopeNote ? ' — ' + empty.scopeNote : ''}`
                         : empty.kind === 'filters'
@@ -3354,7 +3356,7 @@ export default function MailPage() {
                     <div className="flex items-center gap-2 flex-wrap justify-center">
                       <button
                         onClick={clearSearch}
-                        className="px-3 min-h-11 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                        className="px-3 min-h-11 rounded-md text-xs font-medium border border-border bg-background text-foreground hover:bg-muted transition-colors"
                       >
                         Bersihkan pencarian
                       </button>
@@ -3363,7 +3365,7 @@ export default function MailPage() {
                   {empty.kind === 'filters' && (
                     <button
                       onClick={resetAllFilters}
-                      className="px-3 min-h-11 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      className="px-3 min-h-11 rounded-md text-xs font-medium border border-border bg-background text-foreground hover:bg-muted transition-colors"
                     >
                       Reset semua filter
                     </button>
@@ -3423,7 +3425,7 @@ export default function MailPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className={`text-sm truncate ${group.hasUnread ? 'font-bold text-foreground' : 'font-medium text-foreground'}`} title={group.subject}>
+                              <span className={`text-sm truncate ${group.hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`} title={group.subject}>
                                 {group.subject}
                               </span>
                               {group.hasUnread && (
@@ -3438,13 +3440,13 @@ export default function MailPage() {
                             </div>
                           </div>
                           {latest?.date && (
-                            <span className="text-xs text-muted-foreground shrink-0">{latest.date}</span>
+                            <span className="text-xs text-muted-foreground tabular-nums shrink-0">{latest.date}</span>
                           )}
                           {/* Belum dibaca: hitungan eksplisit per thread —
                               dot biru di subjek hanya sinyal ada/tidak. */}
                           {group.unreadCount > 0 && (
                             <span
-                              className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full shrink-0"
+                              className="text-[11px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full shrink-0"
                               title={`${group.unreadCount} pesan belum dibaca dalam percakapan`}
                             >
                               {group.unreadCount} belum dibaca
@@ -3454,7 +3456,7 @@ export default function MailPage() {
                               yang ditandai; angka hanya bila >1. */}
                           {group.hasFlagged && (
                             <span
-                              className="text-[10px] text-amber-600 dark:text-amber-400 bg-muted px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-0.5"
+                              className="text-[11px] text-amber-600 dark:text-amber-400 bg-muted px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-0.5"
                               title={`${group.flaggedCount} pesan ditandai dalam percakapan`}
                             >
                               <Star size={10} className={headerFlagCls} aria-hidden />
@@ -3467,14 +3469,14 @@ export default function MailPage() {
                               (pola Gmail/Outlook: paperclip di baris thread). */}
                           {group.hasAttachment && (
                             <span
-                              className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-0.5"
+                              className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-0.5"
                               title={`${group.attachmentCount} pesan berlampiran dalam percakapan`}
                             >
                               <Paperclip size={10} aria-hidden />
                               {group.attachmentCount}
                             </span>
                           )}
-                          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
+                          <span className="text-[11px] tabular-nums text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
                             {group.messages.length}
                           </span>
                           <ChevronDown size={14} className={`text-muted-foreground shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
@@ -3508,7 +3510,7 @@ export default function MailPage() {
                     let flatIdx = 0;
                     return dateGroups.map((group) => (
                       <div key={group.key}>
-                        <div className="sticky top-0 z-10 px-3 py-1.5 bg-background/95 backdrop-blur-sm text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/60">
+                        <div className="sticky top-0 z-10 px-4 py-1.5 bg-background text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
                           {group.label}
                         </div>
                         {group.messages.map((msg) => {
@@ -3532,7 +3534,7 @@ export default function MailPage() {
               ) : (
                 (selectedFolder === 'folderINBOX' || totalMessageCount > messages.length) && (
                   <div className="px-4 py-3 flex justify-center border-t border-border">
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[11px] text-muted-foreground">
                       {selectedFolder === 'folderINBOX'
                         ? `Menampilkan ${messagesInWindow.length} email (5 bulan terakhir). Email lebih lama bisa dicari.`
                         : `Menampilkan ${messages.length} dari ${totalMessageCount} email terbaru. Cari email lama via pencarian.`}
@@ -3561,7 +3563,7 @@ export default function MailPage() {
             <button
               type="button"
               onClick={() => setSelectedMsgId(null)}
-              className="flex items-center gap-1.5 px-3 min-h-9 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
+              className="flex items-center gap-1.5 px-3 min-h-9 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted"
               aria-label="Kembali ke daftar pesan"
             >
               <ArrowLeft size={16} /> Kembali ke daftar
@@ -3601,7 +3603,7 @@ export default function MailPage() {
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
               <Mail size={24} className="opacity-50" />
             </div>
             <p className="text-sm">Pilih email untuk membaca</p>
@@ -3636,7 +3638,7 @@ export default function MailPage() {
             className="absolute inset-0 bg-black/50"
             onClick={() => { setFolderDialog(null); setNewFolderName(''); }}
           />
-          <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-sm p-5">
+          <div className="relative bg-card border border-border rounded-xl shadow-lg w-full max-w-sm p-5">
             {folderDialog.mode === 'create' ? (
               <>
                 <h3 className="text-base font-semibold mb-1">Buat Subfolder</h3>
@@ -3658,20 +3660,20 @@ export default function MailPage() {
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     placeholder="Nama folder"
-                    className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 mb-4"
+                    className="w-full bg-background border border-border rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-ring focus:ring-2 focus:ring-primary/20 mb-4"
                   />
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => { setFolderDialog(null); setNewFolderName(''); }}
-                      className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors"
+                      className="px-4 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted transition-colors"
                     >
                       Batal
                     </button>
                     <button
                       type="submit"
                       disabled={!newFolderName.trim() || createFolderMutation.isPending}
-                      className="px-4 py-2 rounded-xl text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                      className="px-4 py-2 rounded-md text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
                     >
                       {createFolderMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Buat Folder'}
                     </button>
@@ -3689,7 +3691,7 @@ export default function MailPage() {
                   <button
                     type="button"
                     onClick={() => setFolderDialog(null)}
-                    className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors"
+                    className="px-4 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted transition-colors"
                   >
                     Batal
                   </button>
@@ -3702,7 +3704,7 @@ export default function MailPage() {
                         { onSuccess: () => setFolderDialog(null) }
                       );
                     }}
-                    className="px-4 py-2 rounded-xl text-sm bg-destructive text-destructive-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 rounded-md text-sm bg-destructive text-destructive-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition-colors"
                   >
                     {deleteFolderMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Hapus'}
                   </button>
@@ -3717,7 +3719,7 @@ export default function MailPage() {
       {archiveConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="archive-confirm-title">
           <div className="absolute inset-0 bg-black/50" onClick={() => setArchiveConfirmOpen(false)} />
-          <div className="relative bg-card border border-border rounded-2xl shadow-xl w-full max-w-sm p-5">
+          <div className="relative bg-card border border-border rounded-xl shadow-lg w-full max-w-sm p-5">
             <h3 id="archive-confirm-title" className="text-base font-semibold mb-1">Arsipkan seluruh folder?</h3>
             <p className="text-sm text-muted-foreground mb-4">
               <span className="font-medium text-foreground">{messages.length.toLocaleString('id')} pesan</span> di{' '}
@@ -3732,7 +3734,7 @@ export default function MailPage() {
                 type="button"
                 autoFocus
                 onClick={() => setArchiveConfirmOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors"
+                className="px-4 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted transition-colors"
               >
                 Batal
               </button>
@@ -3743,7 +3745,7 @@ export default function MailPage() {
                   setArchiveConfirmOpen(false);
                   archiveMutation.mutate({ uids: messages.map((m) => m.uid), sourceFolder: selectedFolder });
                 }}
-                className="px-4 py-2 rounded-xl text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 rounded-md text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {archiveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Arsipkan semua'}
               </button>
@@ -3794,7 +3796,7 @@ export default function MailPage() {
           onClick={() => setPendingOpen(false)}
         >
           <div
-            className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            className="bg-card border border-border rounded-xl shadow-lg w-full max-w-md overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-4 border-b border-border flex items-center justify-between">
@@ -3802,7 +3804,7 @@ export default function MailPage() {
                 <CalendarClock size={16} className="text-primary" />
                 <h2 className="text-base font-semibold">Kiriman Terjadwal</h2>
               </div>
-              <button onClick={() => setPendingOpen(false)} className="p-1.5 rounded-full hover:bg-muted text-muted-foreground">
+              <button onClick={() => setPendingOpen(false)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground">
                 <X size={18} />
               </button>
             </div>
@@ -3811,7 +3813,7 @@ export default function MailPage() {
                 <p className="text-sm text-muted-foreground text-center py-6">Tidak ada kiriman terjadwal.</p>
               )}
               {pendingSends.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/20">
+                <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{p.subject || '(Tanpa Subjek)'}</p>
                     <p className="text-xs text-muted-foreground truncate">{p.to}</p>
@@ -3828,7 +3830,7 @@ export default function MailPage() {
                         })
                         .catch((err) => toast.error(err.message || 'Gagal membatalkan.'));
                     }}
-                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
                   >
                     Batalkan
                   </button>
