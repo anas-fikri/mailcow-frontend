@@ -459,6 +459,12 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     writeZoom(v);
   }
 
+  // Cache hasil split+sanitasi ulang kutipan (dipakai di bawah, SETELAH early
+  // return). Memakai ref yang dideklarasikan DI SINI — bukan useMemo di bawah —
+  // karena hook setelah early return mengubah jumlah hook antar-render dan
+  // membuat seluruh app crash (bug QA 2026-10-11: "Rendered more hooks").
+  const quotedCacheRef = React.useRef({ key: null, value: null });
+
   // Hook ini WAJIB dideklarasikan sebelum early return apa pun di bawah.
   // Query berpindah dari loading → loaded menyebabkan render ulang; jika hook
   // berada setelah `if (!msgId)`/`if (isLoading)`, jumlah hook berubah dan
@@ -600,15 +606,25 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // (temuan security review 2026-10-11, PoC terverifikasi). Karena itu KEDUA
   // potongan WAJIB disanitasi ulang tepat sebelum render; split yang jatuh di
   // posisi aman menghasilkan HTML identik, split yang "merusak" dinetralkan.
-  const quoted = React.useMemo(() => {
-    if (!rawHtml) return { main: renderHtml, quote: '' };
-    const q = splitQuotedHtml(renderHtml);
-    if (!q.quote) return { main: renderHtml, quote: '' };
-    return {
-      main: DOMPurify.sanitize(q.main, EMAIL_PURIFY_CONFIG),
-      quote: DOMPurify.sanitize(q.quote, EMAIL_PURIFY_CONFIG),
-    };
-  }, [rawHtml, renderHtml]);
+  // BUKAN hook (kita berada setelah early return) — memo manual via
+  // quotedCacheRef yang dideklarasikan sebelum early return.
+  const quoted = (() => {
+    const key = rawHtml ? renderHtml : null;
+    if (quotedCacheRef.current.key === key && quotedCacheRef.current.value) return quotedCacheRef.current.value;
+    let value;
+    if (!rawHtml) value = { main: renderHtml, quote: '' };
+    else {
+      const q = splitQuotedHtml(renderHtml);
+      value = !q.quote
+        ? { main: renderHtml, quote: '' }
+        : {
+          main: DOMPurify.sanitize(q.main, EMAIL_PURIFY_CONFIG),
+          quote: DOMPurify.sanitize(q.quote, EMAIL_PURIFY_CONFIG),
+        };
+    }
+    quotedCacheRef.current = { key, value };
+    return value;
+  })();
   const hasQuote = !!quoted.quote;
 
   function handlePrint() {
