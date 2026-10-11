@@ -1,6 +1,16 @@
 # Durable project knowledge
 
 ## Gotcha yang terbukti mahal (2026-10-11)
+- Custom `lookup` untuk http/https.request (DNS pinning anti-rebinding di
+  remoteImage.js) WAJIB mendukung `opts.all === true` → callback(null, [{address,
+  family}]). Node ≥20 mengaktifkan autoSelectFamily dan memanggil lookup dalam mode
+  itu; membalas (address, family) → "Invalid IP address: undefined" → SEMUA gambar
+  eksternal email 500 diam-diam (hanya terlihat sbg WARN di verify_image_proxy
+  deploy.sh). Dijaga oleh test:pin-lookup (uji nyata http stack, bukan mock).
+- Cek SSRF di deploy.sh bisa 502 sesaat tepat setelah restart sogo-smtp-proxy
+  (race startup) — cek ulang beberapa detik kemudian sebelum menyimpulkan rusak.
+- sogo-smtp-proxy adalah USER service: `systemctl --user is-active sogo-smtp-proxy`
+  (versi system-level selalu "inactive").
 - `scripts/test-*.mjs` yang tidak didaftarkan sebagai `test:*` di package.json TIDAK
   pernah dijalankan siapa pun (28 file sempat yatim, termasuk guard hook-order).
   Setiap test baru WAJIB didaftarkan.
