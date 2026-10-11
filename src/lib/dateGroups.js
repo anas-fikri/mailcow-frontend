@@ -7,46 +7,31 @@
  * "older" bucket rather than crashing.
  */
 
+// Batas grup (QA 2026-10-11: 02-Okt tampil di "Bulan Lalu" padahal hari ini
+// 11-Okt — dulu "Bulan Lalu" = 7..29 hari ke belakang, bukan bulan kalender):
+//   Hari Ini (0) · Kemarin (1) · Minggu Ini (2..6 hari — jendela nama-hari
+//   SOGo) · Bulan Ini (bulan kalender yang sama, ≥7 hari) · Bulan Lalu
+//   (bulan kalender sebelumnya) · Lebih Lama.
 export const DATE_GROUPS = [
-  { id: 'today',    label: 'Hari Ini',     minDays: 0 },
-  { id: 'yesterday', label: 'Kemarin',     minDays: 1 },
-  { id: 'thisWeek', label: 'Minggu Ini',   minDays: 2 },
-  { id: 'thisMonth', label: 'Bulan Lalu',  minDays: 7 },
-  { id: 'older',    label: 'Lebih Lama',   minDays: 30 },
+  { id: 'today',     label: 'Hari Ini' },
+  { id: 'yesterday', label: 'Kemarin' },
+  { id: 'thisWeek',  label: 'Minggu Ini' },
+  { id: 'thisMonth', label: 'Bulan Ini' },
+  { id: 'lastMonth', label: 'Bulan Lalu' },
+  { id: 'older',     label: 'Lebih Lama' },
 ];
 
-const GROUP_BY_DAYS = {
-  0: 'today',
-  1: 'yesterday',
-  2: 'thisWeek',
-  3: 'thisWeek',
-  4: 'thisWeek',
-  5: 'thisWeek',
-  6: 'thisWeek',
-  7: 'thisMonth',
-  8: 'thisMonth',
-  9: 'thisMonth',
-  10: 'thisMonth',
-  11: 'thisMonth',
-  12: 'thisMonth',
-  13: 'thisMonth',
-  14: 'thisMonth',
-  15: 'thisMonth',
-  16: 'thisMonth',
-  17: 'thisMonth',
-  18: 'thisMonth',
-  19: 'thisMonth',
-  20: 'thisMonth',
-  21: 'thisMonth',
-  22: 'thisMonth',
-  23: 'thisMonth',
-  24: 'thisMonth',
-  25: 'thisMonth',
-  26: 'thisMonth',
-  27: 'thisMonth',
-  28: 'thisMonth',
-  29: 'thisMonth',
-};
+/** Kunci grup untuk selisih hari kalender + tanggal terurai (murni). */
+function groupKeyFor(diffDays, parsed, now) {
+  if (diffDays <= 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays <= 6) return 'thisWeek';
+  const monthIndex = (d) => d.getFullYear() * 12 + d.getMonth();
+  const delta = monthIndex(now) - monthIndex(parsed);
+  if (delta <= 0) return 'thisMonth';
+  if (delta === 1) return 'lastMonth';
+  return 'older';
+}
 
 function startOfDay(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -245,7 +230,7 @@ export function getDateGroup(value, now = new Date()) {
   }
   let diffDays = Math.round((startOfDay(now) - startOfDay(parsed)) / 86_400_000);
   if (diffDays < 0) diffDays = 0;
-  const key = GROUP_BY_DAYS[diffDays] || 'older';
+  const key = groupKeyFor(diffDays, parsed, now);
   const meta = DATE_GROUPS.find((g) => g.id === key);
   return { key, label: meta.label, days: diffDays };
 }

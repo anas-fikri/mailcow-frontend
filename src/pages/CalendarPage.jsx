@@ -405,6 +405,7 @@ export default function CalendarPage() {
             </span>
             <button
               onClick={() => openCreateModal(selected)}
+              aria-label="Tambah acara"
               className="flex items-center gap-1.5 h-8 px-3 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors duration-150"
             >
               <Plus size={16} />
@@ -748,15 +749,17 @@ function MonthView({ current, selected, events, isLoading, onSelectDate, onEvent
                 </span>
                 {/* Tombol buat event: muncul saat hover atau hari terpilih/hari ini */}
                 <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); onCellClick(date); }}
                   title="Buat event di tanggal ini"
+                  aria-label={`Tambah acara ${date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`}
                   className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                     sel || today
                       ? 'opacity-100 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground'
                       : 'opacity-0 group-hover:opacity-100 bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground'
                   }`}
                 >
-                  +
+                  <span aria-hidden="true">+</span>
                 </button>
               </div>
               <div className="mt-1 space-y-0.5 w-full overflow-hidden">

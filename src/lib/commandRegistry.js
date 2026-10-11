@@ -14,6 +14,8 @@
 //   folders                     : cache ['folders', token] (array) | null —
 //                                 grup Folder hanya muncul bila tersedia.
 
+import { FOLDER_TYPE_LABELS } from './mailboxTree.js';
+
 /** Ikon dirender CommandPalette dari key string — registry bebas dependensi UI. */
 export const COMMAND_ICONS = [
   'mail', 'calendar', 'contacts', 'rules', 'stats', 'settings',
@@ -35,10 +37,41 @@ const NAV_ITEMS = [
   { id: 'nav-settings', label: 'Pengaturan', path: '/settings', icon: 'settings', keywords: ['settings', 'preferensi', 'tema', 'opsi'] },
 ];
 
-/** Path folder yang ramah dibaca: "Arsip / 2025" (fallback label/name). */
+// Nama IMAP standar → label pohon folder (fallback bila `type` tidak ada).
+const STANDARD_IMAP_LABELS = {
+  inbox: FOLDER_TYPE_LABELS.inbox,
+  sent: FOLDER_TYPE_LABELS.sent,
+  'sent items': FOLDER_TYPE_LABELS.sent,
+  drafts: FOLDER_TYPE_LABELS.drafts,
+  draft: FOLDER_TYPE_LABELS.drafts,
+  trash: FOLDER_TYPE_LABELS.trash,
+  'deleted items': FOLDER_TYPE_LABELS.trash,
+  junk: FOLDER_TYPE_LABELS.junk,
+  spam: FOLDER_TYPE_LABELS.junk,
+};
+
+/**
+ * Label folder di palet = label pohon folder (Kotak Masuk/Terkirim/Draft/
+ * Sampah/Spam — FOLDER_TYPE_LABELS), BUKAN nama IMAP mentah (INBOX/Sent/…).
+ * Subfolder tampil sebagai path ramah-baca: "Arsip / 2025",
+ * "Kotak Masuk / Proyek" (segmen pertama standar ikut diterjemahkan).
+ */
 export function folderCommandLabel(folder) {
   const raw = String(folder?.path || folder?.label || folder?.name || '').trim();
-  return raw.replace(/\//g, ' / ') || folder?.id || '';
+  const segments = raw.split('/').map((x) => x.trim()).filter(Boolean);
+  if (segments.length <= 1) {
+    const typeLabel = FOLDER_TYPE_LABELS[folder?.type]
+      || (folder?.type === 'draft' ? FOLDER_TYPE_LABELS.drafts : undefined);
+    return typeLabel
+      || STANDARD_IMAP_LABELS[raw.toLowerCase()]
+      || String(folder?.label || '').trim()
+      || raw
+      || folder?.id
+      || '';
+  }
+  const first = STANDARD_IMAP_LABELS[segments[0].toLowerCase()];
+  if (first) segments[0] = first;
+  return segments.join(' / ');
 }
 
 /**
@@ -79,7 +112,8 @@ export function buildCommands(ctx = {}) {
         label: folderCommandLabel(f),
         group: 'Folder',
         icon: 'folder',
-        keywords: ['folder', 'pindah', 'buka', String(f.label || f.name || '')],
+        // Nama IMAP mentah (INBOX/Sent/…) tetap jadi kata kunci pencarian.
+        keywords: ['folder', 'pindah', 'buka', ...new Set([f.label, f.name, f.path].map((x) => String(x || '')).filter(Boolean))],
         active: ctx.currentFolderId ? ctx.currentFolderId === f.id : false,
         run: () => dispatchMail('goto-folder', { folderId: f.id }),
       }));

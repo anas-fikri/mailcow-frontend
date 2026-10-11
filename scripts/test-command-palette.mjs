@@ -55,6 +55,19 @@ ok(folderCmds[0].active === true, 'folder aktif (currentFolderId) ditandai activ
 folderCmds[1].run();
 assert.deepEqual(calls.pop(), ['dispatchMail', 'goto-folder', { folderId: 'folderArsip%2F2025' }], 'folder → dispatch goto-folder'); pass++;
 ok(folderCommandLabel({ label: 'Draf' }) === 'Draf', 'folderCommandLabel fallback label');
+// Label = label pohon folder, bukan nama IMAP mentah (QA 2026-10-11)
+ok(folderCmds[0].label === 'Kotak Masuk', 'INBOX tampil sbg "Kotak Masuk"');
+ok(folderCmds[0].keywords.includes('INBOX'), 'nama IMAP mentah tetap jadi kata kunci');
+ok(folderCommandLabel({ path: 'Sent', name: 'Sent', label: 'Terkirim', type: 'sent' }) === 'Terkirim', 'Sent → Terkirim');
+ok(folderCommandLabel({ path: 'Trash', name: 'Trash' }) === 'Sampah', 'Trash tanpa type → Sampah');
+ok(folderCommandLabel({ path: 'Junk', name: 'Junk', type: 'junk' }) === 'Spam', 'Junk → Spam');
+ok(folderCommandLabel({ path: 'Drafts', name: 'Drafts', type: 'draft' }) === 'Draft', 'Drafts (type draft) → Draft');
+ok(folderCommandLabel({ path: 'INBOX/Proyek', label: 'Proyek', type: 'folder' }) === 'Kotak Masuk / Proyek', 'subfolder INBOX → "Kotak Masuk / Proyek"');
+ok(folderCommandLabel({ path: 'Klien', name: 'Klien', label: 'Klien', type: 'folder' }) === 'Klien', 'folder custom tetap namanya');
+{
+  const hit = filterCommands(flattenCommands(buildCommands(ctx)), 'inbox');
+  ok(hit.some((c) => c.id === 'folder-folderINBOX'), 'cari "inbox" tetap menemukan Kotak Masuk');
+}
 
 // Tanpa ctx.folders → grup Folder tidak ada
 ok(!buildCommands({}).some((g) => g.title === 'Folder'), 'grup Folder hanya muncul bila ctx.folders tersedia');

@@ -130,4 +130,19 @@ ok(compose.includes('flex items-center gap-2 flex-1 min-w-0 flex-wrap'),
   'Cluster kiri footer harus flex-1 min-w-0 flex-wrap');
 ok(compose.includes('disabled:opacity-60 text-sm shrink-0"'), 'Tombol Kirim harus shrink-0 (tidak menyusut/tertimpa)');
 
+// ── Draft yatim (QA 2026-10-11): penerima saja ≠ konten; form kosong → buang ──
+ok(compose.includes('const meaningfulContent = hasMeaningfulDraftContent({'),
+  'gerbang autosave memakai hasMeaningfulDraftContent (penerima saja tidak cukup)');
+ok(compose.includes('if (!token || !user?.email || !meaningfulContent) {'),
+  'runAutosave tidak menyimpan tanpa konten bermakna');
+ok(compose.includes('if (!isOpen || success || !meaningfulContent) return;'),
+  'jadwal autosave menunggu konten bermakna');
+ok(compose.includes('if (!meaningfulContent && !sentRef.current && !success) { discardAndClose(); return; }'),
+  'tutup dengan form kosong → hapus draft yang dibuat sesi ini');
+ok(compose.includes('injectedSigsRef.current = [...injectedSigsRef.current, sigHtml'),
+  'signature tersuntik dicatat (dikecualikan dari konten bermakna)');
+// Draft ASLI (edit-draft) tidak boleh dihapus oleh jalur Buang/form kosong.
+ok(compose.includes('draftUidRef.current && draftUidRef.current !== editingDraftUidRef.current) {\n      deleteDraft(token, draftUidRef.current);'),
+  'discardAndClose hanya menghapus copy sesi ini, bukan draft asli');
+
 console.log('\nDraft/compose audit: ' + passCount + ' assertions PASS ✅');

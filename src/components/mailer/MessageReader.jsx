@@ -208,7 +208,7 @@ function RecipientChips({ list }) {
   );
 }
 
-export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, onSnoozeCleared, onReadStateChange, shortcutsEnabled = true, siblingUids = [], onNavigateTo }) {
+export default function MessageReader({ folder, msgId, onClose, onReply, folders = [], onMoveComplete, onSnoozeCleared, onReadStateChange, shortcutsEnabled = true, siblingUids = [], siblingTotal, onNavigateTo }) {
   const { user, markReadMode, markReadDelaySec } = useAuthStore();
   const queryClient = useQueryClient();
   const token = user?.sogoToken;
@@ -924,7 +924,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 <ChevronLeft size={16} />
               </button>
               <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap px-0.5" aria-live="polite">
-                {navIdx + 1} dari {navTotal}
+                {navIdx + 1} dari {navTotal.toLocaleString('id')}
+                {siblingTotal > navTotal && (
+                  <span className="hidden sm:inline" title={`${siblingTotal.toLocaleString('id')} email di folder; ${navTotal.toLocaleString('id')} sudah dimuat`}> (total {siblingTotal.toLocaleString('id')})</span>
+                )}
               </span>
               <button
                 onClick={() => nextUid && onNavigateTo?.(nextUid)}
@@ -1196,7 +1199,20 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
           <button type="button" onClick={() => setZoom(zoom - ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} className="min-w-8 min-h-8 flex items-center justify-center rounded-md hover:bg-muted hover:text-foreground disabled:opacity-30" title="Perkecil teks (Ctrl+−)" aria-label="Perkecil teks">
             <ZoomOut size={14} />
           </button>
-          <button type="button" onClick={() => setZoom(1)} className="text-[11px] tabular-nums px-1 min-h-8 rounded-md hover:bg-muted hover:text-foreground" title="Ukuran normal (Ctrl+0)" aria-label="Ukuran teks normal">
+          {/* Zoom tersimpan global (per perangkat) — saat ≠100% chip disorot
+              supaya user sadar email baru ikut diperbesar; klik = reset 100%. */}
+          <button
+            type="button"
+            onClick={() => setZoom(1)}
+            data-zoom-active={zoom !== 1 || undefined}
+            className={`text-[11px] tabular-nums px-1.5 min-h-8 rounded-md transition-colors ${
+              zoom !== 1
+                ? 'bg-primary/10 text-primary font-semibold hover:bg-primary/15'
+                : 'hover:bg-muted hover:text-foreground'
+            }`}
+            title={zoom !== 1 ? `Zoom ${Math.round(zoom * 100)}% — klik untuk kembali ke 100% (Ctrl+0)` : 'Ukuran normal (Ctrl+0)'}
+            aria-label={zoom !== 1 ? `Zoom ${Math.round(zoom * 100)} persen, klik untuk kembali ke 100 persen` : 'Ukuran teks normal'}
+          >
             {Math.round(zoom * 100)}%
           </button>
           <button type="button" onClick={() => setZoom(zoom + ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} className="min-w-8 min-h-8 flex items-center justify-center rounded-md hover:bg-muted hover:text-foreground disabled:opacity-30" title="Perbesar teks (Ctrl++)" aria-label="Perbesar teks">

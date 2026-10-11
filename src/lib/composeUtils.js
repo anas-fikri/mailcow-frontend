@@ -313,3 +313,71 @@ export function buildReopenSnapshot(state = {}) {
     ...(state.sendAt ? { sendAt: state.sendAt } : {}),
   };
 }
+
+// ─── Gerbang autosave: "konten bermakna" ─────────────────────────────────────
+// QA 2026-10-11: compose berisi chip penerima saja (lalu dikosongkan & ditutup
+// "bersih") meninggalkan draft yatim di folder Draf. Autosave kini menunggu
+// konten BERMAKNA: subjek, ATAU teks body selain signature, ATAU lampiran.
+// Penerima saja TIDAK cukup.
+
+/** HTML/teks → teks polos per baris (br/p/div → baris baru). */
+function htmlToLines(html) {
+  return String(html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|div|li|tr|h[1-6]|blockquote)\s*>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;| /gi, ' ')
+    .replace(/&(?:amp|lt|gt|quot|#39);/gi, 'x')
+    .split('\n')
+    .map((l) => l.replace(/[ \t\r\f\v]+/g, ' ').trim());
+}
+
+/** Teks polos ringkas (untuk mencocokkan signature tanpa peduli markup). */
+function flatText(html) {
+  return htmlToLines(html).filter(Boolean).join(' ').trim();
+}
+
+const SIG_DELIMITER_RE = /^--\s?$/;
+
+/**
+ * True bila body memuat teks yang DITULIS user (bukan hanya signature).
+ * - Signature yang diketahui (`signatures`: HTML/teks yang disuntikkan compose)
+ *   dibuang dulu; sisa teks apa pun dihitung.
+ * - Bila tidak ada signature yang dikenali, baris pemisah "--" dianggap awal
+ *   signature: hanya teks SEBELUM pemisah yang dihitung.
+ */
+export function hasMeaningfulBodyText(body, signatures = []) {
+  let text = flatText(body);
+  if (!text) return false;
+  let removedKnown = false;
+  for (const sig of Array.isArray(signatures) ? signatures : [signatures]) {
+    const s = flatText(sig);
+    if (s && text.includes(s)) {
+      text = text.split(s).join(' ');
+      removedKnown = true;
+    }
+  }
+  const lines = removedKnown
+    ? text.split(/\s+/)
+    : htmlToLines(body);
+  const counted = [];
+  for (const line of lines) {
+    if (SIG_DELIMITER_RE.test(line)) {
+      if (removedKnown) continue; // pemisah sisa signature yang sudah dibuang
+      break; // signature tak dikenal: berhenti di pemisah
+    }
+    counted.push(line);
+  }
+  return counted.join('').replace(/\s+/g, '').length > 0;
+}
+
+/**
+ * Konten draft yang layak di-autosave: subjek, teks body selain signature,
+ * atau lampiran. Penerima (to/cc/bcc) TIDAK dihitung.
+ */
+export function hasMeaningfulDraftContent({ subject = '', body = '', attachments = [], signatures = [] } = {}) {
+  if (String(subject || '').trim()) return true;
+  if (Array.isArray(attachments) && attachments.length > 0) return true;
+  return hasMeaningfulBodyText(body, signatures);
+}

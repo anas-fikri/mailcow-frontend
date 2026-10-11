@@ -45,6 +45,7 @@ import { loadNotifyPrefs, saveNotifyPrefs } from '../lib/notifyPrefs';
 import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate, applyMessageWindow } from '../lib/dateGroups';
 import { groupConversations, normalizeSubject as normalizeConversationSubject } from '../lib/conversations';
 import { searchAllFolders, mergeSearchResults, folderChipLabel, analyzeEmptyList, FILTER_LABELS_ID } from '../lib/mailSearch';
+import { buildRowAriaLabel } from '../lib/messageRows';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 const MESSAGE_WINDOW_MONTHS = 5;
@@ -90,8 +91,41 @@ function CategoryTabs({ messages, categoryFilter, onSelect }) {
       .filter((c) => c !== EMAIL_CATEGORIES.SPAM)
       .map((c) => ({ id: c, label: CATEGORY_LABELS[c], count: counts[c] })),
   ];
+  // Overflow tab kategori (list 340px): scrollbar native disembunyikan
+  // (QA: scrollbar tebal menimpa label) → overflow ditandai gradien tepi
+  // (mask, tidak bergantung warna latar) yang hanya muncul di sisi yang
+  // masih bisa di-scroll.
+  const scrollerRef = useRef(null);
+  const [edges, setEdges] = useState({ start: false, end: false });
+  const updateEdges = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const start = el.scrollLeft > 1;
+    const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setEdges((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
+  }, []);
+  useEffect(() => {
+    updateEdges();
+    const el = scrollerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(updateEdges);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [updateEdges, tabs.length, messages.length]);
+  const fade = '1.25rem';
+  const maskImage = edges.start || edges.end
+    ? `linear-gradient(to right, ${edges.start ? 'transparent' : '#000'}, #000 ${fade}, #000 calc(100% - ${fade}), ${edges.end ? 'transparent' : '#000'})`
+    : undefined;
   return (
-    <div className="flex items-center gap-1 overflow-x-auto pb-0.5 -mx-1 px-1">
+    <div
+      ref={scrollerRef}
+      onScroll={updateEdges}
+      data-category-tabs=""
+      data-overflow-start={edges.start || undefined}
+      data-overflow-end={edges.end || undefined}
+      style={maskImage ? { maskImage, WebkitMaskImage: maskImage } : undefined}
+      className="flex items-center gap-1 overflow-x-auto scrollbar-none snap-x snap-proximity scroll-px-1 pb-0.5 -mx-1 px-1"
+    >
       {tabs.map((t) => {
         const active = categoryFilter === t.id;
         return (
@@ -99,7 +133,7 @@ function CategoryTabs({ messages, categoryFilter, onSelect }) {
             key={t.id || 'all'}
             type="button"
             onClick={() => onSelect(active ? null : t.id)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+            className={`snap-start shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
               active
                 ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -1077,6 +1111,22 @@ export default function MailPage() {
     [conversationView, sortedMessages, dateGroups]
   );
 
+  // Urutan SELURUH baris yang sudah dimuat & lolos filter (bukan irisan
+  // render visibleCount) — dipakai navigasi reader "N dari M". Bug lama:
+  // reader menerima visibleOrderUids (window render 50) → "N dari 50" walau
+  // ratusan header sudah dimuat, dan Berikutnya mentok di baris ke-50.
+  const loadedFlatOrder = useMemo(() => {
+    if (conversationView) return [];
+    const visibleGlobal = searchQuery && globalResults && globalResults.length > 0
+      ? globalResults.filter((m) => !hiddenByFolder[m.folderId || selectedFolder]?.has(String(m.uid)))
+      : [];
+    const all = sortMessagesByDate(visibleGlobal.length > 0
+      ? mergeSearchResults([...filteredLoadedMessages, ...visibleGlobal])
+      : filteredLoadedMessages);
+    const groups = reorderDateGroups(groupMessagesByDate(all, (m) => m.date), sortAsc);
+    return (sortAsc ? groups.map((g) => [...g.messages].reverse()) : groups.map((g) => g.messages)).flat();
+  }, [conversationView, searchQuery, globalResults, hiddenByFolder, selectedFolder, filteredLoadedMessages, sortAsc]);
+
   // Conversation grouping dibuat setelah displayMessages tersedia di bawah.
   // Jangan grouping seluruh `messages`: pesan yang sedang snooze/filter harus
   // mengikuti daftar yang benar-benar terlihat oleh user agar tidak muncul
@@ -1102,6 +1152,18 @@ export default function MailPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortedMessages.length]);
+
+  // Pastikan thread TERBUKA (idempoten) — dipakai klik header thread.
+  // Bukan toggle: klik header saat sudah terbuka (atau klik ganda) dulu
+  // menutup thread; kini hanya chevron yang men-toggle.
+  const expandConversation = useCallback((key) => {
+    setExpandedConversations((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }, []);
 
   const toggleConversation = useCallback((key) => {
     setExpandedConversations(prev => {
@@ -1794,6 +1856,17 @@ export default function MailPage() {
     return focusOrder.map((m) => m.uid);
   }, [conversationView, conversationGroups, focusOrder]);
 
+  // Urutan navigasi reader = semua baris TERMUAT (conversation: grup sudah
+  // dibangun dari seluruh header termuat; datar: loadedFlatOrder).
+  const readerOrderUids = useMemo(() => {
+    if (conversationView && conversationGroups.length > 0) return visibleOrderUids;
+    return loadedFlatOrder.map((m) => m.uid);
+  }, [conversationView, conversationGroups, visibleOrderUids, loadedFlatOrder]);
+  // Total folder (server) — hanya bermakna tanpa pencarian/filter (selain itu
+  // M = jumlah termuat yang lolos filter, total folder menyesatkan).
+  const readerTotalCount = !searchQuery && filteredLoadedMessages.length === messagesInWindow.length
+    && totalMessageCount > readerOrderUids.length ? totalMessageCount : undefined;
+
   // Shift+klik = range select (pola Gmail): pilih semua antara anchor terakhir
   // dan baris yang diklik (termasuk keduanya), union dgn seleksi yang ada.
   const selectRangeFromAnchor = (uid) => {
@@ -2379,6 +2452,12 @@ export default function MailPage() {
       { id: 'reply', label: 'Balas', icon: Reply, disabled: !single, shortcut: 'Ctrl+R', onSelect: () => openReplyFor(msg.uid, 'reply', folder) },
       { id: 'replyAll', label: 'Balas Semua', icon: ReplyAll, disabled: !single, shortcut: 'Ctrl+Shift+R', onSelect: () => openReplyFor(msg.uid, 'replyAll', folder) },
       { id: 'forward', label: 'Teruskan', icon: Forward, disabled: !single, shortcut: 'Ctrl+F', onSelect: () => openReplyFor(msg.uid, 'forward', folder) },
+      // Cari per pengirim — dulu lewat klik nama di baris (membajak klik
+      // "buka pesan"); kini hanya di menu konteks. Folder Terkirim/Draf
+      // menampilkan penerima, bukan pengirim → item disembunyikan.
+      ...(!isSentOrDraft && single && msg.from
+        ? [{ id: 'searchSender', label: 'Cari email dari pengirim ini', icon: Search, onSelect: () => searchBySender(msg.from) }]
+        : []),
       { separator: true },
       anyUnread
         ? { id: 'read', label: single ? 'Tandai dibaca' : `Tandai ${n} dibaca`, icon: MailOpen, shortcut: 'Ctrl+Q', onSelect: () => forEachFolderGroup(uids, (f, l) => bulkMarkReadMutation.mutate({ uids: l, folder: f, read: true })) }
@@ -2473,6 +2552,46 @@ export default function MailPage() {
     // Desktop: muncul saat hover. Layar sentuh: star selalu tampil, checkbox saat mode seleksi.
     const checkboxVisible = isSelected || (isTouch && selectionMode);
     const starVisible = hasFlag || isTouch;
+    // Nama aksesibel baris: "<pengirim>, <subjek>, <waktu>, belum dibaca".
+    const rowAriaLabel = buildRowAriaLabel({
+      sender: displayLabel,
+      subject: typeof msg.subject === 'string' ? msg.subject : '',
+      date: msg.date,
+      unread: !msg.isRead,
+      flagged: hasFlag,
+      hasAttachment: !!msg.hasAtt,
+    });
+    // Tombol aksi hover: abaikan klik ganda/tripel (klik ke-2 dobel-klik
+    // baris dulu mendarat di "Balas cepat" → compose terbuka tak sengaja).
+    // detail 0 = aktivasi keyboard (Enter/Spasi) → tetap diizinkan.
+    const stopDbl = (e) => { e.stopPropagation(); e.preventDefault(); };
+    const isDeliberateClick = (e) => e.detail <= 1;
+    // Roving: aksi hover hanya bisa di-Tab dari baris yang sedang fokus.
+    const actionTab = isFocused ? 0 : -1;
+    const renderStarButton = (tabIndex) => (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
+        }}
+        onDoubleClick={stopDbl}
+        tabIndex={tabIndex}
+        className={`p-1.5 rounded-md transition-colors ${
+          starVisible ? '' : 'text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400'
+        }`}
+        aria-label="Tandai penting"
+      >
+        {(() => {
+          if (colorKey && FLAG_COLORS[colorKey]) {
+            return <Star size={14} className={`${FLAG_COLORS[colorKey].text} ${FLAG_COLORS[colorKey].fill}`} />;
+          }
+          if (msg.isFlagged) {
+            return <Star size={14} className="text-amber-600 fill-amber-600 dark:text-amber-400 dark:fill-amber-400" />;
+          }
+          return <Star size={14} className="text-muted-foreground" />;
+        })()}
+      </button>
+    );
 
     return (
       <SwipeableRow
@@ -2501,6 +2620,8 @@ export default function MailPage() {
           // Roving tabindex: baris fokus bisa menerima fokus DOM (Shift+F10
           // membuka menu konteks, pembaca layar mengikuti navigasi panah).
           tabIndex={isFocused ? 0 : -1}
+          role="button"
+          aria-label={rowAriaLabel}
           data-mail-row={msg.uid}
           data-selected={isSelected || isActive || undefined}
           onFocus={() => { if (idx >= 0 && focusIdx !== idx) setFocusIdx(idx); }}
@@ -2509,7 +2630,7 @@ export default function MailPage() {
           onTouchMove={(e) => handleRowTouchMove(e, msg.uid)}
           onTouchEnd={() => handleRowTouchEnd(msg.uid)}
           onTouchCancel={() => handleRowTouchEnd(msg.uid)}
-          className={`group w-full flex items-start text-left ${nested ? 'px-3 py-2 min-h-11' : ROW_PAD_CLS} hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 ${leftBorderCls}select-none [-webkit-touch-callout:none] ${activeCls} ${isSelected ? 'bg-primary/10' : ''} ${replyBusy?.uid === msg.uid ? 'opacity-70' : ''}`}
+          className={`mail-row group w-full flex items-start text-left ${nested ? 'px-3 py-2 min-h-11' : ROW_PAD_CLS} hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 ${leftBorderCls}select-none [-webkit-touch-callout:none] ${activeCls} ${isSelected ? 'bg-primary/10' : ''} ${replyBusy?.uid === msg.uid ? 'opacity-70' : ''}`}
         >
           {/* Avatar — saat hover/seleksi diganti checkbox (pola Gmail, tidak menumpuk).
               Baris anak percakapan: avatar 24px (lebih ringkas, konteks di header). */}
@@ -2612,16 +2733,16 @@ export default function MailPage() {
           <div className="flex-1 min-w-0">
             {/* items-center: cluster ikon (snooze/arsip/star/date) tetap sejajar
                 vertikal dengan baris pengirim walau lebar list berubah-ubah */}
-            <div className="flex justify-between items-center mb-1 gap-2">
+            <div className="relative flex justify-between items-center mb-1 gap-2">
               <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                <button
-                  type="button"
-                  onClick={(e) => searchBySender(senderLabel, e)}
-                  title={`${senderLabel} — klik untuk cari semua email dari pengirim ini`}
-                  className={`text-sm truncate text-left hover:underline ${msg.isRead ? 'text-foreground font-normal' : 'text-foreground font-semibold'}`}
+                {/* Nama = teks biasa (klik baris = buka pesan). Cari per
+                    pengirim pindah ke menu konteks (klik kanan). */}
+                <span
+                  title={senderLabel}
+                  className={`text-sm truncate ${msg.isRead ? 'text-foreground font-normal' : 'text-foreground font-semibold'}`}
                 >
                   {displayLabel}
-                </button>
+                </span>
                 {phishingCheck && (
                   <span className="shrink-0 text-amber-500 dark:text-amber-400" title={`⚠️ ${phishingCheck.finding}`}>
                     <AlertTriangle size={13} />
@@ -2629,19 +2750,28 @@ export default function MailPage() {
                 )}
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* Aksi hover (Gmail-like): HANYA tampil saat hover, menggantikan
-                    tanggal (date group-hover:hidden). Sebelumnya tombol ini
-                    opacity-0 tapi TETAP reserve ruang → di lebar list 240px
-                    pengirim terpotong jadi ~13px oleh 4 tombol invisible. */}
-                <div className="hidden group-hover:flex items-center gap-1.5 rounded-md border border-border bg-background px-0.5">
+                {/* Aksi hover (Gmail-like). Dulu `hidden group-hover:flex`
+                    menggantikan tanggal SEKETIKA saat hover → klik kedua
+                    dobel-klik mendarat di "Balas cepat". */}
+                {/* row-quick-actions (index.css): HANYA pointer presisi
+                    (hover:hover & pointer:fine), muncul ~250ms setelah
+                    hover menetap (klik pertama/dobel-klik tidak mendarat di
+                    aksi), langsung tampil saat fokus keyboard. Overlay
+                    absolut di kanan baris → tidak reserve ruang pengirim. */}
+                <div
+                  className="row-quick-actions absolute right-0 top-1/2 -translate-y-1/2 z-[1] items-center gap-1.5 rounded-md border border-border bg-background px-0.5 shadow-sm"
+                  onDoubleClick={stopDbl}
+                >
                   {/* Quick reply — hover desktop, fetch detail & buka compose */}
                   {!isTouch && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!isDeliberateClick(e)) return;
                         quickReply(msg.uid, rowFolder);
                       }}
-                      tabIndex={-1}
+                      tabIndex={actionTab}
+                      onDoubleClick={stopDbl}
                       disabled={!!replyBusy}
                       className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                       title="Balas cepat"
@@ -2655,9 +2785,11 @@ export default function MailPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!isDeliberateClick(e)) return;
                         setQuickRuleSender(senderLabel);
                       }}
-                      tabIndex={-1}
+                      tabIndex={actionTab}
+                      onDoubleClick={stopDbl}
                       className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors"
                       title="Buat aturan otomatis untuk pengirim ini"
                       aria-label="Buat aturan otomatis untuk pengirim ini"
@@ -2670,9 +2802,11 @@ export default function MailPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!isDeliberateClick(e)) return;
                         setSnoozePicker(snoozePicker?.uid === msg.uid ? null : { uid: msg.uid, x: e.clientX, y: e.clientY });
                       }}
-                      tabIndex={-1}
+                      tabIndex={actionTab}
+                      onDoubleClick={stopDbl}
                       className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors"
                       title="Snooze"
                       aria-label="Tunda pesan"
@@ -2685,12 +2819,14 @@ export default function MailPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!isDeliberateClick(e)) return;
                         // Lewat archiveUids → performMove (jendela undo +
                         // purge snooze/flag-color saat commit) — uid folder
                         // asal tidak berlaku setelah pindah (audit 2026-09-05).
                         archiveUids([msg.uid], rowFolder);
                       }}
-                      tabIndex={-1}
+                      tabIndex={actionTab}
+                      onDoubleClick={stopDbl}
                       className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors"
                       title="Arsip"
                       aria-label="Arsipkan pesan"
@@ -2703,9 +2839,11 @@ export default function MailPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!isDeliberateClick(e)) return;
                         scheduleDeleteFrom([msg.uid], rowFolder);
                       }}
-                      tabIndex={-1}
+                      tabIndex={actionTab}
+                      onDoubleClick={stopDbl}
                       className="p-1.5 rounded-md text-muted-foreground hover:text-destructive transition-colors"
                       title="Hapus"
                       aria-label="Hapus pesan"
@@ -2719,9 +2857,11 @@ export default function MailPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!isDeliberateClick(e)) return;
                         notJunkMutation.mutate({ uids: [msg.uid], folder: rowFolder });
                       }}
-                      tabIndex={-1}
+                      tabIndex={actionTab}
+                      onDoubleClick={stopDbl}
                       className="p-1.5 rounded-md text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                       title="Bukan Spam"
                       aria-label="Laporkan bukan spam dan kembalikan ke Kotak Masuk"
@@ -2729,34 +2869,13 @@ export default function MailPage() {
                       <ShieldCheck size={14} />
                     </button>
                   )}
+                  {!starVisible && !isTouch && renderStarButton(actionTab)}
                 </div>
-                {/* Star/flag — SELALU tampil bila berflag atau layar sentuh;
-                    saat desktop & tidak berflag muncul bersama cluster hover.
-                    Date disembunyikan saat hover (group-hover:hidden) supaya
-                    aksi menggantikan posisi tanggal, bukan menimpa pengirim. */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
-                  }}
-                  tabIndex={starVisible ? 0 : -1}
-                  className={`p-1.5 rounded-md transition-colors ${
-                    starVisible ? '' : 'hidden group-hover:flex text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400'
-                  }`}
-                  aria-label="Tandai penting"
-                >
-                  {(() => {
-                    if (colorKey && FLAG_COLORS[colorKey]) {
-                      return <Star size={14} className={`${FLAG_COLORS[colorKey].text} ${FLAG_COLORS[colorKey].fill}`} />;
-                    }
-                    if (msg.isFlagged) {
-                      return <Star size={14} className="text-amber-600 fill-amber-600 dark:text-amber-400 dark:fill-amber-400" />;
-                    }
-                    return <Star size={14} className="text-muted-foreground" />;
-                  })()}
-                </button>
+                {/* Star/flag — SELALU tampil (in-flow) bila berflag atau layar
+                    sentuh; desktop & tidak berflag: ada di overlay aksi hover. */}
+                {starVisible && renderStarButton(0)}
                 {msg.hasAtt && <Paperclip size={12} className="text-muted-foreground shrink-0" aria-label="Berlampiran" />}
-                <span className="text-xs text-muted-foreground tabular-nums group-hover:hidden">{msg.date}</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{msg.date}</span>
               </div>
             </div>
             {/* Baris anak percakapan: subjek TIDAK diulang — header thread
@@ -3541,10 +3660,12 @@ export default function MailPage() {
                             TERBARU di panel baca (perilaku Outlook); chevron
                             terpisah = expand/collapse saja. Semua line
                             min-w-0/truncate/shrink-0 agar tidak menimpa. */}
-                        <div className="flex items-stretch bg-muted/30 hover:bg-muted/50 transition-colors">
+                        <div className="@container flex items-stretch bg-muted/30 hover:bg-muted/50 transition-colors">
                           <button
                             onClick={() => {
-                              if (!isExpanded) toggleConversation(group.key);
+                              // Header = SELALU buka pesan terbaru + pastikan
+                              // terbuka (tidak pernah menutup). Toggle = chevron.
+                              expandConversation(group.key);
                               if (selectionMode) return;
                               if (selectedUids.length > 0) setSelectedUids([]);
                               if (group.latest) openMessage(group.latest.uid);
@@ -3552,54 +3673,60 @@ export default function MailPage() {
                             aria-label={`Buka pesan terbaru percakapan ${group.subject}`}
                             className="flex-1 min-w-0 flex items-center gap-2.5 pl-3 pr-2 density-row text-left"
                           >
-                            {/* Avatar stack (maks 3, lebih kecil dari baris pesan) */}
+                            {/* Avatar stack: maks 2 di daftar sempit, 3 bila
+                                kontainer ≥ 28rem (container query). */}
                             <div className="flex -space-x-1.5 shrink-0">
                               {senders.slice(0, 3).map((s, i) => (
                                 <Avatar
                                   key={i}
                                   name={s}
                                   size="sm"
-                                  className={`w-6! h-6! text-[10px]! ring-2 ring-background ${i > 0 ? 'relative' : ''}`}
+                                  className={`w-6! h-6! text-[10px]! ring-2 ring-background ${i > 0 ? 'relative' : ''} ${i === 2 ? 'hidden! @md:flex!' : ''}`}
                                 />
                               ))}
                             </div>
+                            {/* Dua baris (QA: subjek terpotong ~7 karakter di
+                                340px): baris 1 = subjek (lebar penuh) + waktu;
+                                baris 2 = peserta · N pesan + badge/ikon. */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className={`text-sm truncate ${group.hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`} title={group.subject}>
+                                <span className={`flex-1 min-w-0 text-sm truncate ${group.hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'}`} title={group.subject}>
                                   {group.displaySubject || group.subject}
                                 </span>
+                                {latest?.date && (
+                                  <span className="text-xs text-muted-foreground tabular-nums shrink-0">{latest.date}</span>
+                                )}
                               </div>
-                              <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                                {formatRecipientSummary(senders.map((s) => ({ name: s })), { max: 3 })}
-                                {group.messages.length > 1 && ` · ${group.messages.length} pesan`}
+                              <div className="flex items-center gap-1.5 min-w-0 mt-0.5">
+                                <span className="flex-1 min-w-0 text-[11px] text-muted-foreground truncate">
+                                  {formatRecipientSummary(senders.map((s) => ({ name: s })), { max: 3 })}
+                                  {group.messages.length > 1 && ` · ${group.messages.length} pesan`}
+                                </span>
+                                {/* Belum dibaca: badge ANGKA saja (aksen) — detail di title. */}
+                                {group.unreadCount > 0 && (
+                                  <span
+                                    className="min-w-5 h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-primary/10 text-primary text-[11px] font-semibold tabular-nums shrink-0"
+                                    title={`${group.unreadCount} belum dibaca`}
+                                  >
+                                    {group.unreadCount}
+                                  </span>
+                                )}
+                                {/* Flag thread: bintang warna flag pesan terbaru yang ditandai. */}
+                                {group.hasFlagged && (
+                                  <span className="shrink-0 inline-flex" title={`${group.flaggedCount} pesan ditandai dalam percakapan`}>
+                                    <Star size={12} className={headerFlagCls} aria-hidden />
+                                  </span>
+                                )}
+                                {/* Lampiran thread: saat collapsed hanya baris terbaru
+                                    yang dirender — ikon agregat menutup celah itu
+                                    (pola Gmail/Outlook: paperclip di baris thread). */}
+                                {group.hasAttachment && (
+                                  <span className="shrink-0 inline-flex" title={`${group.attachmentCount} pesan berlampiran dalam percakapan`}>
+                                    <Paperclip size={12} className="text-muted-foreground" aria-hidden />
+                                  </span>
+                                )}
                               </div>
                             </div>
-                            {latest?.date && (
-                              <span className="text-xs text-muted-foreground tabular-nums shrink-0">{latest.date}</span>
-                            )}
-                            {/* Belum dibaca: badge ANGKA saja (aksen) — detail di title. */}
-                            {group.unreadCount > 0 && (
-                              <span
-                                className="min-w-5 h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-primary/10 text-primary text-[11px] font-semibold tabular-nums shrink-0"
-                                title={`${group.unreadCount} belum dibaca`}
-                              >
-                                {group.unreadCount}
-                              </span>
-                            )}
-                            {/* Flag thread: bintang warna flag pesan terbaru yang ditandai. */}
-                            {group.hasFlagged && (
-                              <span className="shrink-0 inline-flex" title={`${group.flaggedCount} pesan ditandai dalam percakapan`}>
-                                <Star size={12} className={headerFlagCls} aria-hidden />
-                              </span>
-                            )}
-                            {/* Lampiran thread: saat collapsed hanya baris terbaru
-                                yang dirender — ikon agregat menutup celah itu
-                                (pola Gmail/Outlook: paperclip di baris thread). */}
-                            {group.hasAttachment && (
-                              <span className="shrink-0 inline-flex" title={`${group.attachmentCount} pesan berlampiran dalam percakapan`}>
-                                <Paperclip size={12} className="text-muted-foreground" aria-hidden />
-                              </span>
-                            )}
                           </button>
                           <button
                             onClick={() => toggleConversation(group.key)}
@@ -3629,7 +3756,7 @@ export default function MailPage() {
                     );
                   })
                 : (() => {
-                    // Group by tanggal (pola Gmail): Hari Ini / Kemarin / Minggu Ini / Bulan Lalu / Lebih Lama
+                    // Group by tanggal (pola Gmail): Hari Ini / Kemarin / Minggu Ini / Bulan Ini / Bulan Lalu / Lebih Lama
                     if (conversationView) {
                       return sortedMessages.map((msg, idx) => renderMessageRow(msg, idx));
                     }
@@ -3703,7 +3830,8 @@ export default function MailPage() {
           <MessageReader
             folder={searchQuery && activeMessage?.folderId ? activeMessage.folderId : selectedFolder}
             msgId={selectedMsgId}
-            siblingUids={visibleOrderUids}
+            siblingUids={readerOrderUids}
+            siblingTotal={readerTotalCount}
             onNavigateTo={(uid) => setSelectedMsgId(uid)}
             onClose={() => setSelectedMsgId(null)}
             onReply={(data) => { setComposeData(data); setComposeOpen(true); }}

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { StatCard, DonutChart, ProgressBar } from '../components/Charts';
 import { fetchAllStats } from '../lib/stats';
+import { hasStorageData } from '../lib/storageStats';
 import { useAuthStore } from '../store/authStore';
 
 // ─── Warna chart ──────────────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ export default function StatsPage() {
 
   const summary = data?.summary;
   const storage = data?.storage;
+  const storageAvailable = hasStorageData(storage);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -174,24 +176,43 @@ export default function StatsPage() {
               </div>
               <HardDrive size={18} className="text-muted-foreground" />
             </div>
-            <div className="space-y-4">
-              <ProgressBar
-                value={storage?.used || 0}
-                max={storage?.total || 0}
-                label="Storage Mailbox"
-                color={storage?.used && storage?.total && storage.used / storage.total > 0.8 ? 'warning' : 'primary'}
-              />
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="bg-muted/30 rounded-lg p-3 text-center">
-                  <div className="text-lg font-semibold text-foreground tabular-nums">{storage?.mailboxes || 0}</div>
-                  <div className="text-xs text-muted-foreground">Mailboxes</div>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-3 text-center">
-                  <div className="text-lg font-semibold text-foreground tabular-nums">{storage?.domains || 0}</div>
-                  <div className="text-xs text-muted-foreground">Domain</div>
+            {isLoading ? (
+              <div className="space-y-3" aria-busy="true" aria-label="Memuat data penyimpanan">
+                <div className="h-4 w-2/3 rounded-md bg-muted animate-pulse" />
+                <div className="h-2 w-full rounded-md bg-muted animate-pulse" />
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="h-16 rounded-lg bg-muted/50 animate-pulse" />
+                  <div className="h-16 rounded-lg bg-muted/50 animate-pulse" />
                 </div>
               </div>
-            </div>
+            ) : storageAvailable ? (
+              <div className="space-y-4">
+                <ProgressBar
+                  value={storage.used || 0}
+                  max={storage.total || 0}
+                  label="Storage Mailbox"
+                  color={storage.used && storage.total && storage.used / storage.total > 0.8 ? 'warning' : 'primary'}
+                />
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="bg-muted/30 rounded-lg p-3 text-center">
+                    <div className="text-lg font-semibold text-foreground tabular-nums">{storage.mailboxes || 0}</div>
+                    <div className="text-xs text-muted-foreground">Mailboxes</div>
+                  </div>
+                  <div className="bg-muted/30 rounded-lg p-3 text-center">
+                    <div className="text-lg font-semibold text-foreground tabular-nums">{storage.domains || 0}</div>
+                    <div className="text-xs text-muted-foreground">Domain</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // Data kuota belum tersedia dari server — jangan tampilkan nol
+              // palsu (0% · 0/0 · 0 Mailboxes · 0 Domain) seolah data nyata.
+              <div className="flex flex-col items-center justify-center text-center gap-2 py-6" role="status" data-storage-empty="">
+                <HardDrive size={20} className="text-muted-foreground" aria-hidden />
+                <p className="text-sm font-medium text-foreground">Data penyimpanan tidak tersedia</p>
+                <p className="text-xs text-muted-foreground max-w-[240px]">Server belum mengirim informasi kuota mailbox.</p>
+              </div>
+            )}
           </div>
         </div>
 

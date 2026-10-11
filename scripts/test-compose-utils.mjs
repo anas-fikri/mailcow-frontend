@@ -6,7 +6,7 @@ import {
   splitRecipients, joinRecipients, parseRecipientChip, dedupeRecipients, addRecipients,
   looksLikeRecipientList, firstInvalidChip,
   formatLocalDateTimeInput, parseLocalDateTimeInput, formatScheduleLabel, formatCountdown,
-  buildReopenSnapshot,
+  buildReopenSnapshot, hasMeaningfulDraftContent, hasMeaningfulBodyText,
 } from '../src/lib/composeUtils.js';
 
 let passCount = 0;
@@ -135,5 +135,32 @@ const snapEmpty = buildReopenSnapshot({});
 eq(snapEmpty.composeMode, 'new');
 ok(!('sendAt' in snapEmpty), 'tanpa jadwal → tanpa sendAt');
 eq(snapEmpty.attachments, []);
+
+// ── hasMeaningfulDraftContent: gerbang autosave (QA 2026-10-11) ──────────────
+// Penerima saja TIDAK cukup → tidak ada draft yatim di folder Draf.
+{
+  const SIG = '<p>Salam,<br>Anas Fikri<br>PCP Express</p>';
+  ok(!hasMeaningfulDraftContent({}), 'kosong → tidak bermakna');
+  ok(!hasMeaningfulDraftContent({ subject: '   ', body: '' }), 'subjek spasi saja → tidak bermakna');
+  ok(hasMeaningfulDraftContent({ subject: 'Laporan' }), 'subjek → bermakna');
+  ok(hasMeaningfulDraftContent({ attachments: [{ name: 'a.pdf' }] }), 'lampiran → bermakna');
+  // Body hanya signature tersuntik (rich): "<br>--<br>" + signature
+  ok(!hasMeaningfulDraftContent({ body: `<br>--<br>${SIG}`, signatures: [SIG] }), 'body = signature saja (dikenal) → tidak bermakna');
+  ok(!hasMeaningfulDraftContent({ body: `<br>--<br>${SIG}` }), 'body = signature saja (tak dikenal, pemisah --) → tidak bermakna');
+  ok(!hasMeaningfulDraftContent({ body: `<p><br></p><p>&nbsp;</p><br>--<br>${SIG}` }), 'paragraf kosong + signature → tidak bermakna');
+  // Mode teks polos: "\n--\n" + signature
+  ok(!hasMeaningfulDraftContent({ body: '\n--\nSalam,\nAnas' }), 'plain: signature saja → tidak bermakna');
+  ok(hasMeaningfulDraftContent({ body: 'Halo Pak\n--\nSalam,\nAnas' }), 'plain: teks sebelum signature → bermakna');
+  // Teks user sebelum signature
+  ok(hasMeaningfulDraftContent({ body: `<p>Mohon dicek.</p><br>--<br>${SIG}`, signatures: [SIG] }), 'teks + signature → bermakna');
+  // Signature dikenal: teks SETELAH signature tetap dihitung
+  ok(hasMeaningfulBodyText(`<br>--<br>${SIG}<p>PS: lampiran menyusul</p>`, [SIG]), 'teks setelah signature dikenal → bermakna');
+  // Body tanpa signature
+  ok(hasMeaningfulBodyText('<div>ok</div>'), 'teks pendek → bermakna');
+  ok(!hasMeaningfulBodyText('<div><br></div>'), 'hanya markup kosong → tidak bermakna');
+  ok(!hasMeaningfulBodyText(null), 'null aman');
+  // Penerima diabaikan (bukan field helper) — kontrak eksplisit
+  ok(!hasMeaningfulDraftContent({ to: 'budi@x.id', cc: 'ani@x.id', body: '' }), 'penerima saja → tidak bermakna');
+}
 
 console.log('\ncomposeUtils: ' + passCount + ' assertions PASS ✅');

@@ -14,6 +14,12 @@
 //     "---------- Forwarded message ---------", "---------- Pesan Diteruskan",
 //     header Outlook "Dari: … Dikirim:" / "From: … Sent:"
 //   - Baris kutipan teks polos "&gt; …" (text/plain yang dibungkus pre-wrap)
+//   - Blok header Outlook desktop (tanpa blockquote/gmail_quote/divRplyFwdMsg):
+//     label "From:/Dari:" di awal baris, disusul ≤400 karakter teks oleh
+//     "Sent:/Dikirim:/Date:/Tanggal:", "To:/Kepada:", "Subject:/Subjek:/
+//     Perihal:" — biasanya dalam <div style="border-top:solid #E1E1E1 1.0pt">
+//     atau setelah <hr>. Cut dinaikkan ke elemen blok TERLUAR yang dimulai
+//     oleh header itu (div border-top); <hr> tepat sebelumnya ikut dilipat.
 
 const BLOCK_TAG_RE = /<(blockquote|div|p|table)\b[^>]*>/gi;
 
@@ -79,6 +85,56 @@ function backToBlockStart(html, idx) {
   return best;
 }
 
+/** Naikkan backToBlockStart berulang sampai stabil (blok bersarang yang
+ * semuanya DIMULAI oleh marker, mis. div border-top > p.MsoNormal > b). */
+function climbToOuterBlockStart(html, idx) {
+  let cur = idx;
+  for (let i = 0; i < 8; i++) {
+    const next = backToBlockStart(html, cur);
+    if (next === cur) break;
+    cur = next;
+  }
+  return cur;
+}
+
+/** Sertakan <hr> pemisah yang tepat mendahului cut (Outlook web/desktop). */
+function absorbPrecedingHr(html, idx) {
+  const before = html.slice(0, idx);
+  const m = before.match(/<hr\b[^>]*>\s*$/i);
+  return m ? m.index : idx;
+}
+
+// Label header Outlook — dicek pada TEKS (tag dibuang) setelah "From:/Dari:".
+const OUTLOOK_FROM_RE = /(?:From|Dari)\s*:/gi;
+const OUTLOOK_HEADER_WINDOW = 400;
+const OUTLOOK_REQUIRED_LABELS = [
+  /(?:^|\s)(?:Sent|Dikirim|Date|Tanggal)\s*:/i,
+  /(?:^|\s)(?:To|Kepada)\s*:/i,
+  /(?:^|\s)(?:Subject|Subjek|Perihal|Hal)\s*:/i,
+];
+
+/**
+ * Blok header Outlook (From/Sent/To/Subject, label ID/EN). Label "From:" harus
+ * teks PERTAMA di node-nya (didahului ">" / baris baru / awal dokumen) dan di
+ * luar tag; ketiga label lain wajib ada dalam ≤400 karakter teks berikutnya.
+ * @returns {number} index cut atau -1
+ */
+export function findOutlookHeaderBlock(html) {
+  const src = String(html ?? '');
+  OUTLOOK_FROM_RE.lastIndex = 0;
+  let m;
+  while ((m = OUTLOOK_FROM_RE.exec(src))) {
+    const idx = m.index;
+    if (insideTag(src, idx)) continue;
+    const before = src.slice(Math.max(0, idx - 200), idx).replace(/&nbsp;/gi, ' ');
+    if (!/(?:^|[>\n])[ \t ]*$/.test(before)) continue;
+    const text = stripTags(src.slice(idx, idx + OUTLOOK_HEADER_WINDOW * 6)).slice(0, OUTLOOK_HEADER_WINDOW);
+    if (!OUTLOOK_REQUIRED_LABELS.every((re) => re.test(text))) continue;
+    return absorbPrecedingHr(src, climbToOuterBlockStart(src, idx));
+  }
+  return -1;
+}
+
 /**
  * Cari posisi awal kutipan. @returns {{ index:number, kind:string }|null}
  */
@@ -93,8 +149,10 @@ export function findQuoteStart(html) {
 
   for (const { kind, re } of CONTAINER_MARKERS) {
     const m = src.match(re);
-    if (m) consider(m.index, kind);
+    if (m) consider(kind === 'outlook' ? absorbPrecedingHr(src, m.index) : m.index, kind);
   }
+
+  consider(findOutlookHeaderBlock(src), 'outlook-header-block');
 
   // <blockquote> polos: terima hanya bila setelah </blockquote> terakhir
   // hampir tidak ada teks lagi (signature pendek masih boleh).

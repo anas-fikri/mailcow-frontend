@@ -57,7 +57,8 @@ const now = new Date('2026-09-04T14:30:00');
 const sorted = sortMessagesByDate(msgs, { now });
 assert.deepEqual(sorted.map((m) => m.uid), [9, 12, 11, 10], 'urutan date-desc benar');
 assert.equal(getDateGroup(byUid.get(9).date, now).key, 'today');
-assert.equal(getDateGroup(byUid.get(10).date, now).key, 'thisMonth');
+// 27-Agu dilihat 4-Sep = bulan kalender sebelumnya → Bulan Lalu (batas kalender, QA 2026-10-11)
+assert.equal(getDateGroup(byUid.get(10).date, now).key, 'lastMonth');
 assert.equal(getDateGroup(byUid.get(11).date, now).key, 'thisWeek');
 
 // Window 5 bulan tidak membuang pesan yang sah

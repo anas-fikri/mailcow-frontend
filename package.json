@@ -81,6 +81,7 @@
     "test:compose-outlook": "node scripts/test-compose-outlook.mjs",
     "test:reply-builder": "node scripts/test-reply-builder.mjs",
     "test:quote-collapse": "node scripts/test-quote-collapse.mjs",
+    "test:storage-stats": "node scripts/test-storage-stats.mjs",
     "test:reader-api": "node scripts/test-reader-api.mjs",
     "test:mail-selection": "node scripts/test-mail-selection.mjs",
     "test:keymap": "node scripts/test-keymap.mjs",

@@ -1,7 +1,7 @@
 // ── Unit test: src/lib/quoteCollapse.js (lipat kutipan balasan) ──────────────
 // Jalankan: node scripts/test-quote-collapse.mjs
 import assert from 'node:assert/strict';
-import { splitQuotedHtml, findQuoteStart, stripTags } from '../src/lib/quoteCollapse.js';
+import { splitQuotedHtml, findQuoteStart, stripTags, findOutlookHeaderBlock } from '../src/lib/quoteCollapse.js';
 
 let pass = 0;
 const ok = (cond, msg = 'assertion') => { assert.ok(cond, msg); pass++; };
@@ -72,7 +72,7 @@ eq(splitQuotedHtml('<p>FYI.</p><p>---------- Forwarded message ---------<br>From
 {
   const html = '<p>Balasan saya.</p><div style="border-top:1px solid #e1e1e1"><b>Dari:</b> Budi &lt;b@x.id&gt;<br><b>Dikirim:</b> Jumat<br><b>Kepada:</b> Saya<br><b>Subjek:</b> X</div><blockquote>isi lama panjang sekali untuk dilipat</blockquote>';
   const r = splitQuotedHtml(html);
-  ok(r.kind === 'outlook-header' || r.kind === 'blockquote', `header Outlook/blockquote dikenali (${r.kind})`);
+  ok(['outlook-header', 'outlook-header-block', 'blockquote'].includes(r.kind), `header Outlook/blockquote dikenali (${r.kind})`);
   eq(r.main, '<p>Balasan saya.</p>');
 }
 
@@ -128,6 +128,69 @@ eq(splitQuotedHtml('<p>FYI.</p><p>---------- Forwarded message ---------<br>From
   const html = '<p>Hai.</p><blockquote type="cite"><p>isi lama panjang sekali untuk dilipat</p></blockquote>';
   const r = splitQuotedHtml(html);
   eq(r.main + r.quote, html, 'pemisahan tidak mengubah konten');
+}
+
+// ── Outlook desktop (QA 2026-10-11): TANPA blockquote/gmail_quote/divRplyFwdMsg ──
+// Pasca-DOMPurify: div border-top berisi p.MsoNormal dengan <b><span>From:</span></b>.
+{
+  const main = '<div class="WordSection1"><p class="MsoNormal"><span lang="IN">Baik Pak, sudah saya terima. Terima kasih.</span></p>'
+    + '<p class="MsoNormal"><span lang="IN">&nbsp;</span></p>';
+  const quote = '<div style="border:none;border-top:solid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm">'
+    + '<p class="MsoNormal"><b><span lang="EN-US">From:</span></b><span lang="EN-US"> Budi Santoso &lt;budi@pcpexpress.com&gt; <br>'
+    + '<b>Sent:</b> Friday, October 9, 2026 2:24 PM<br><b>To:</b> Anas Fikri &lt;anas.fikri@pcpexpress.com&gt;<br>'
+    + '<b>Cc:</b> Tim Ops &lt;ops@pcpexpress.com&gt;<br><b>Subject:</b> RE: Laporan pengiriman minggu ini</span></p></div>'
+    + '<p class="MsoNormal">&nbsp;</p><p class="MsoNormal">Mohon dicek laporan terlampir sebelum rapat hari Senin.</p></div>';
+  const html = main + quote;
+  const r = splitQuotedHtml(html);
+  eq(r.kind, 'outlook-header-block', 'header Outlook EN di div border-top dikenali');
+  eq(r.main, main, 'cut tepat SEBELUM div border-top (bukan di tengah <p>)');
+  ok(r.quote.startsWith('<div style="border:none;border-top:solid #E1E1E1'), 'kutipan mulai di div border-top');
+  eq(r.main + r.quote, html, 'pemisahan tidak mengubah konten');
+}
+// Label Indonesia (Outlook ID: Dari/Dikirim/Kepada/Perihal) + varian border-top tanpa border:none
+{
+  const html = '<div><p class="MsoNormal">Siap, akan diproses hari ini.</p>'
+    + '<div style="border-top:solid #E1E1E1 1.0pt;padding:3pt 0 0 0"><p class="MsoNormal"><b>Dari:</b> Rina &lt;rina@x.id&gt;<br>'
+    + '<b>Dikirim:</b> Kamis, 08 Oktober 2026 09.12<br><b>Kepada:</b> Anas &lt;anas@x.id&gt;<br>'
+    + '<b>Perihal:</b> Permintaan pickup</p></div><p class="MsoNormal">Mohon jadwalkan pickup untuk 12 koli besok pagi.</p></div>';
+  const r = splitQuotedHtml(html);
+  eq(r.kind, 'outlook-header-block', 'label Indonesia dikenali');
+  eq(r.main, '<div><p class="MsoNormal">Siap, akan diproses hari ini.</p>');
+  // "Subjek:" + "Tanggal:" juga diterima
+  ok(findOutlookHeaderBlock('<p>Ok.</p><p><b>Dari:</b> A<br><b>Tanggal:</b> 1 Okt<br><b>Kepada:</b> B<br><b>Subjek:</b> C</p><p>isi lama yang panjang</p>') > 0, 'Subjek/Tanggal dikenali');
+}
+// Outlook web: <hr> + header → hr ikut dilipat
+{
+  const html = '<div>Noted, terima kasih.</div><hr style="display:inline-block;width:98%">'
+    + '<div dir="ltr"><font face="Calibri"><b>From:</b> Budi<br><b>Sent:</b> Friday<br><b>To:</b> Anas<br><b>Subject:</b> X</font></div>'
+    + '<div>Isi lama yang panjang sekali untuk dilipat.</div>';
+  const r = splitQuotedHtml(html);
+  eq(r.main, '<div>Noted, terima kasih.</div>', '<hr> pemisah masuk ke kutipan');
+  ok(r.quote.startsWith('<hr'), 'kutipan mulai di <hr>');
+}
+// divRplyFwdMsg didahului <hr> → hr ikut dilipat (tidak tertinggal di main)
+{
+  const html = '<p>Baik.</p><hr tabindex="-1"><div id="divRplyFwdMsg" dir="ltr"><b>From:</b> A<br><b>Sent:</b> B</div><div>Isi lama yang panjang sekali untuk dilipat.</div>';
+  const r = splitQuotedHtml(html);
+  eq(r.kind, 'outlook');
+  eq(r.main, '<p>Baik.</p>');
+}
+// Label tidak lengkap (tanpa Subject) → bukan header Outlook
+eq(findOutlookHeaderBlock('<p>Hai.</p><p><b>From:</b> A<br><b>Sent:</b> B<br><b>To:</b> C</p><p>' + 'lanjutan '.repeat(10) + '</p>'), -1, 'tanpa Subject: tidak dikenali');
+// Label di tengah kalimat (bukan awal baris) → abaikan
+eq(findOutlookHeaderBlock('<p>Paket dikirim from: gudang, sent: kemarin, to: kantor, subject: stok.</p>'), -1, 'label di tengah kalimat bukan header');
+// Label di dalam atribut → abaikan (insideTag)
+eq(findOutlookHeaderBlock('<p>Lihat <a title="From: A Sent: B To: C Subject: D" href="#">tautan</a> ini.</p>'), -1, 'label di atribut tag diabaikan');
+// Header terlalu jauh (>400 karakter teks antara From: dan label lain) → abaikan
+eq(findOutlookHeaderBlock('<p><b>From:</b> A ' + 'x'.repeat(450) + '<br><b>Sent:</b> B<br><b>To:</b> C<br><b>Subject:</b> D</p>'), -1, 'label di luar jendela 400 karakter');
+// Newsletter: "From:/To:/Subject:" muncul di tengah artikel panjang → tetap
+// boleh dideteksi hanya bila main tidak kosong; forward tanpa komentar (main
+// kosong) TIDAK dilipat.
+{
+  const html = '<div style="border-top:solid #E1E1E1 1.0pt"><p><b>From:</b> A<br><b>Sent:</b> B<br><b>To:</b> C<br><b>Subject:</b> D</p></div><p>Isi diteruskan yang cukup panjang untuk dilipat.</p>';
+  const r = splitQuotedHtml(html);
+  eq(r.quote, '', 'main kosong (forward tanpa komentar) → tidak dilipat');
+  eq(r.main, html);
 }
 
 // stripTags

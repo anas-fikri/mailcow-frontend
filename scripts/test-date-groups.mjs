@@ -25,7 +25,13 @@ const fortyDaysAgo = Math.floor(now.getTime() / 1000 - 40 * 86400);
 assert.equal(getDateGroup(oneHourAgo, now).key, 'today');
 assert.equal(getDateGroup(threeDaysAgo, now).key, 'thisWeek');
 assert.equal(getDateGroup(tenDaysAgo, now).key, 'thisMonth');
-assert.equal(getDateGroup(fortyDaysAgo, now).key, 'older');
+// 40 hari dari 19-Agu = 10-Jul → bulan kalender sebelumnya → Bulan Lalu
+// (dulu 'older'; batas kini bulan kalender, bukan 30 hari).
+assert.equal(getDateGroup(fortyDaysAgo, now).key, 'lastMonth');
+assert.equal(getDateGroup(tenDaysAgo, now).label, 'Bulan Ini');
+assert.equal(getDateGroup(fortyDaysAgo, now).label, 'Bulan Lalu');
+const seventyDaysAgo = Math.floor(now.getTime() / 1000 - 70 * 86400); // 10-Jun
+assert.equal(getDateGroup(seventyDaysAgo, now).key, 'older');
 
 // Unparseable → older bucket
 assert.equal(getDateGroup('not-a-date', now).key, 'older');
@@ -34,8 +40,8 @@ assert.equal(getDateGroup('not-a-date', now).key, 'older');
 const msgs = [
   { id: 1, date: oneHourAgo },
   { id: 2, date: oneHourAgo },
-  { id: 3, date: fortyDaysAgo },
-  { id: 4, date: fortyDaysAgo },
+  { id: 3, date: seventyDaysAgo },
+  { id: 4, date: seventyDaysAgo },
 ];
 const groups = groupMessagesByDate(msgs, (m) => m.date, now);
 assert.equal(groups.length, 2);
@@ -45,7 +51,29 @@ assert.equal(groups[1].key, 'older');
 assert.equal(groups[1].messages.length, 2);
 
 // DATE_GROUPS sanity
-assert.ok(DATE_GROUPS.length >= 4);
+assert.deepEqual(DATE_GROUPS.map((g) => g.label),
+  ['Hari Ini', 'Kemarin', 'Minggu Ini', 'Bulan Ini', 'Bulan Lalu', 'Lebih Lama']);
+
+// ── Batas bulan kalender (QA 2026-10-11) ──────────────────────────────────────
+{
+  const qaNow = new Date('2026-10-11T12:00:00');
+  assert.equal(getDateGroup('02/10/2026', qaNow).key, 'thisMonth', '02-Okt dari 11-Okt = Bulan Ini (bukan Bulan Lalu)');
+  assert.equal(getDateGroup('02/10/2026', qaNow).label, 'Bulan Ini');
+  assert.equal(getDateGroup('05/10/2026', qaNow).key, 'thisWeek', '6 hari → Minggu Ini');
+  assert.equal(getDateGroup('04/10/2026', qaNow).key, 'thisMonth', '7 hari, bulan sama → Bulan Ini');
+  assert.equal(getDateGroup('30/09/2026', qaNow).key, 'lastMonth', 'September = Bulan Lalu');
+  assert.equal(getDateGroup('01/09/2026', qaNow).key, 'lastMonth');
+  assert.equal(getDateGroup('31/08/2026', qaNow).key, 'older', 'Agustus = Lebih Lama');
+  // Awal bulan: ≤6 hari ke bulan lalu tetap Minggu Ini (jendela nama-hari)
+  const earlyNow = new Date('2026-10-03T09:00:00');
+  assert.equal(getDateGroup('29/09/2026', earlyNow).key, 'thisWeek', 'lintas bulan ≤6 hari → Minggu Ini');
+  assert.equal(getDateGroup('20/09/2026', earlyNow).key, 'lastMonth', '13 hari, bulan lalu → Bulan Lalu');
+  // Pergantian tahun: Desember dilihat di Januari = Bulan Lalu
+  const janNow = new Date('2027-01-20T09:00:00');
+  assert.equal(getDateGroup('10/12/2026', janNow).key, 'lastMonth', 'Des → Jan = Bulan Lalu (lintas tahun)');
+  assert.equal(getDateGroup('10/11/2026', janNow).key, 'older');
+  assert.equal(getDateGroup('05/01/2027', janNow).key, 'thisMonth');
+}
 
 // ── sortMessagesByDate: urut by DATE (bukan uid), date-descending ───────────
 // uid SOGo per-folder TIDAK dijamin sekuensial dgn waktu — sort by uid bisa
@@ -74,14 +102,14 @@ assert.deepEqual(sortedUndef.map((m) => m.uid), [5, 4, 3, 2, 1], 'semua tanggal 
 
 // ── reorderDateGroups: asc membalik urutan GRUP (header), isi grup tetap ────
 const flatGroups = groupMessagesByDate(sorted, (m) => m.date, now);
-assert.deepEqual(flatGroups.map((g) => g.key), ['today', 'thisMonth', 'older']);
+assert.deepEqual(flatGroups.map((g) => g.key), ['today', 'thisMonth', 'lastMonth', 'older']);
 const flatGroupsAsc = reorderDateGroups(flatGroups, true);
-assert.deepEqual(flatGroupsAsc.map((g) => g.key), ['older', 'thisMonth', 'today'],
+assert.deepEqual(flatGroupsAsc.map((g) => g.key), ['older', 'lastMonth', 'thisMonth', 'today'],
   'sortAsc (terlama dulu) → header Lebih Lama di atas');
 assert.deepEqual(reorderDateGroups(flatGroups, false), flatGroups, 'tanpa asc tidak berubah');
 // Isi tiap grup tetap date-descending walau grup dibalik.
-assert.equal(flatGroupsAsc[2].messages.length, 2, 'grup Hari Ini tetap berisi pesan tsb');
-assert.deepEqual(flatGroupsAsc[2].messages.map((m) => m.uid), [4, 2], 'isi grup tidak dibalik');
+assert.equal(flatGroupsAsc[3].messages.length, 2, 'grup Hari Ini tetap berisi pesan tsb');
+assert.deepEqual(flatGroupsAsc[3].messages.map((m) => m.uid), [4, 2], 'isi grup tidak dibalik');
 
 // ── applyMessageWindow (batas N bulan Kotak Masuk; search menembusnya) ───────
 const now2 = new Date('2026-08-19T12:00:00Z');

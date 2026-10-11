@@ -25,7 +25,7 @@ import {
   needsAttachmentReminder,
   splitRecipients, joinRecipients, parseRecipientChip, addRecipients, looksLikeRecipientList, firstInvalidChip,
   formatLocalDateTimeInput, parseLocalDateTimeInput, formatScheduleLabel, formatCountdown,
-  buildReopenSnapshot,
+  buildReopenSnapshot, hasMeaningfulDraftContent,
 } from '../../lib/composeUtils';
 
 // Batas lampiran default (fallback bila config server belum tiba — lihat
@@ -110,6 +110,9 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
 
   // Ref untuk mencegah double-inject signature
   const sigInjected = useRef(false);
+  // Signature yang disuntikkan sesi ini (HTML/teks) — dikecualikan dari
+  // "konten bermakna" (body yang hanya berisi signature tidak di-autosave).
+  const injectedSigsRef = useRef([]);
 
   // Mode tulis awal dari preferensi SOGo (SOGoMailComposeMessageType):
   // 'text' → buka compose langsung Plain Text. Diterapkan SEKALI per bukaan,
@@ -151,6 +154,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
   useEffect(() => {
     if (isOpen) {
       sigInjected.current = false;
+      injectedSigsRef.current = [];
       setTo(initialData?.to || '');
       setCc(initialData?.cc || '');
       setBcc(initialData?.bcc || '');
@@ -203,7 +207,12 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
   // Simpan otomatis ke folder Draf (SOGo) saat compose berhenti diketik ±3 dtk.
   // Draft dibuat sekali per bukaan; konten di-save berulang; draft dihapus
   // setelah email terkirim (deleteDraft) supaya tidak menumpuk di Draf.
-  const hasContent = !!(to.trim() || cc.trim() || bcc.trim() || subject.trim() || body.trim() || attachments.length > 0);
+  // Gerbang AUTOSAVE (QA 2026-10-11): penerima saja tidak cukup — chip
+  // penerima yang lalu dikosongkan dulu meninggalkan draft yatim di Draf.
+  // Bermakna = subjek, teks body selain signature, atau lampiran.
+  const meaningfulContent = hasMeaningfulDraftContent({
+    subject, body, attachments, signatures: injectedSigsRef.current,
+  });
 
   // Setiap edit: buka gerbang autosave + bersihkan banner error lama (error
   // dibersihkan pada edit berikutnya, bukan menempel selamanya).
@@ -214,7 +223,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
   }, []);
 
   const runAutosave = useCallback(async () => {
-    if (!token || !user?.email || !hasContent) {
+    if (!token || !user?.email || !meaningfulContent) {
       autosaveDirty.current = false;
       return;
     }
@@ -299,11 +308,11 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, user?.email, hasContent, to, cc, bcc, subject, body, editorMode, userFrom, attachments,
+  }, [token, user?.email, meaningfulContent, to, cc, bcc, subject, body, editorMode, userFrom, attachments,
     threading.inReplyTo, threading.references, threading.sourceFolder, threading.sourceUid]);
 
   useEffect(() => {
-    if (!isOpen || success || !hasContent) return;
+    if (!isOpen || success || !meaningfulContent) return;
     // Autosave HANYA setelah user mengubah apa pun — membuka draft/reply yang
     // sudah terisi (initialData) tanpa edit tidak boleh langsung membuat
     // salinan draft baru di folder Draf.
@@ -312,7 +321,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => { runAutosave(); }, 3000);
     return () => clearTimeout(saveTimerRef.current);
-  }, [isOpen, success, hasContent, to, cc, bcc, subject, body, editorMode, runAutosave]);
+  }, [isOpen, success, meaningfulContent, to, cc, bcc, subject, body, editorMode, runAutosave]);
 
   // Bersihkan timer saat unmount
   useEffect(() => () => clearTimeout(saveTimerRef.current), []);
@@ -359,6 +368,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
           ? sigHtml.replace(/<br\s*[\/]?>/gi, '\n').replace(/<[^>]*>?/gm, '')
           : sigHtml;
         const sigBlock = editorMode === 'plain' ? `\n--\n${sigText}` : `<br>--<br>${sigText}`;
+        injectedSigsRef.current = [...injectedSigsRef.current, sigHtml, sigText];
         return bqIdx > 0
           ? cur.slice(0, bqIdx) + sigBlock + cur.slice(bqIdx)
           : cur + sigBlock;
@@ -729,8 +739,15 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
   // tanya "Buang perubahan?" (Simpan draf / Buang / Batal, pola Outlook).
   function handleClose() {
     if (confirmDialog) { setConfirmDialog(null); return; }
-    const needsConfirm = userEditedRef.current && hasContent && !sentRef.current && !success;
-    if (!needsConfirm) { finishClose(); return; }
+    const needsConfirm = userEditedRef.current && meaningfulContent && !sentRef.current && !success;
+    if (!needsConfirm) {
+      // Form kosong / hanya penerima: tidak ada yang layak disimpan → buang
+      // draft yang DIBUAT sesi ini (autosave lama / in-flight). Draft ASLI
+      // (mode edit-draft) tidak pernah dihapus di jalur ini.
+      if (!meaningfulContent && !sentRef.current && !success) { discardAndClose(); return; }
+      finishClose();
+      return;
+    }
     setIsMinimized(false); // dialog hanya dirender saat jendela terbuka penuh
     setConfirmDialog({
       title: 'Buang perubahan?',
@@ -767,7 +784,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
   function finishClose() {
     closedRef.current = true; // autosave in-flight harus tahu modal sudah ditutup
     clearTimeout(saveTimerRef.current);
-    const unsaved = autosaveDirty.current && userEditedRef.current && hasContent;
+    const unsaved = autosaveDirty.current && userEditedRef.current && meaningfulContent;
     if (editingDraftUidRef.current && token && !autosaveBusy.current) {
       if (unsaved) {
         // Tutup SEBELUM autosave sempat jalan (edit masih di memori):
@@ -1119,6 +1136,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                     onInsert={(sigHtml) => {
                       if (typeof sigHtml !== 'string' || !sigHtml) return;
                       markUserEdited();
+                      injectedSigsRef.current = [...injectedSigsRef.current, sigHtml];
                       setBody(cur => {
                         if (cur.includes(sigHtml.substring(0, 80))) return cur;
                         const bqIdx = cur.indexOf('<blockquote');

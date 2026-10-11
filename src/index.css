@@ -373,3 +373,39 @@ input:-webkit-autofill:active {
     font-size: 16px !important;
   }
 }
+
+/* ── Aksi cepat baris pesan (hover) ──
+   1. HANYA untuk pointer presisi: di layar sentuh / pointer kasar aksi tidak
+      pernah tampil (QA: muncul di baris 375px menimpa jam).
+   2. Hover-intent ~250ms: klik pertama / klik kedua dobel-klik pada baris
+      tidak boleh mendarat di aksi (dulu membuka compose "Balas cepat").
+      visibility:hidden selama delay → elemen tidak menerima klik; klik
+      jatuh ke baris (buka pesan).
+   3. Fokus keyboard (focus-visible, bukan fokus akibat klik mouse) →
+      tampil seketika, tanpa delay. */
+.row-quick-actions { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .mail-row:hover .row-quick-actions {
+    display: flex;
+    animation: row-quick-reveal 120ms ease-out 250ms both;
+  }
+  .mail-row:focus-visible .row-quick-actions,
+  .mail-row:has(.row-quick-actions :focus-visible) .row-quick-actions {
+    display: flex;
+    animation: none;
+    visibility: visible;
+    opacity: 1;
+  }
+}
+@keyframes row-quick-reveal {
+  from { visibility: hidden; opacity: 0; }
+  to { visibility: visible; opacity: 1; }
+}
+
+/* Scroller horizontal tanpa scrollbar native (tab kategori) — overflow tetap
+   bisa ditemukan lewat gradien tepi (.scroll-fade-x) + scroll-snap. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
+}

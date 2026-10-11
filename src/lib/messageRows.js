@@ -127,3 +127,21 @@ export function parseMessageRows(data) {
 
   return rows.map((row) => parseMessageRow(row, hasColumnRow ? columns : [])).filter(Boolean);
 }
+
+/**
+ * Nama aksesibel baris daftar pesan (pembaca layar):
+ * "<pengirim>, <subjek>, <waktu>[, belum dibaca][, ditandai][, berlampiran]".
+ * Bagian kosong dilewati; subjek kosong -> "(Tanpa Subjek)".
+ */
+export function buildRowAriaLabel({ sender, subject, date, unread = false, flagged = false, hasAttachment = false } = {}) {
+  const clean = (v) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
+  const parts = [
+    clean(sender) || 'Pengirim tidak dikenal',
+    clean(subject) || '(Tanpa Subjek)',
+    clean(date),
+  ];
+  if (unread) parts.push('belum dibaca');
+  if (flagged) parts.push('ditandai');
+  if (hasAttachment) parts.push('berlampiran');
+  return parts.filter(Boolean).join(', ');
+}

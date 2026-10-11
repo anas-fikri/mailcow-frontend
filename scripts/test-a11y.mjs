@@ -159,24 +159,29 @@ assert.ok(sidebar.includes('aria-label="Keluar"'), 'Sidebar logout aria hilang')
 assert.ok(sidebar.includes('text-amber-900 dark:text-amber-400'), 'SessionCountdown amber-900 hilang');
 passCount += 5;
 
-// Sender jadi <button> (keyboard accessible)
-assert.ok(mail.includes('onClick={(e) => searchBySender(senderLabel, e)}') && mail.includes('<button\n                type="button"'), 'Sender bukan <button>');
-passCount++;
+// Nama pengirim = teks biasa (klik baris = buka pesan, QA 2026-10-11);
+// cari per pengirim pindah ke menu konteks. Baris punya nama aksesibel.
+assert.ok(!mail.includes('onClick={(e) => searchBySender(senderLabel, e)}'), 'Klik nama pengirim tidak boleh menjalankan pencarian');
+assert.ok(mail.includes("label: 'Cari email dari pengirim ini'"), 'Menu konteks: "Cari email dari pengirim ini" hilang');
+assert.ok(mail.includes('aria-label={rowAriaLabel}') && mail.includes('role="button"'), 'Baris pesan: nama aksesibel (pengirim, subjek, waktu) hilang');
+passCount += 3;
 
 // Row hover actions + flag picker
 for (const label of ['Buat aturan otomatis untuk pengirim ini', 'Tunda pesan', 'Arsipkan pesan', 'Hapus pesan']) {
   assert.ok(mail.includes(`aria-label="${label}"`), `MailPage row: aria-label "${label}" hilang`);
   passCount++;
 }
-// Anti-overlap: aksi hover harus hidden (bukan opacity-0) supaya tidak reserve
-// ruang di lebar sempit — pengirim tidak boleh terjepit ~13px oleh 4 tombol
-// invisible. Date diganti posisinya oleh aksi saat hover (group-hover:hidden).
-assert.ok(mail.includes('hidden group-hover:flex items-center gap-1.5'), 'MailPage: aksi hover tidak hidden (reserve ruang di lebar sempit)');
-passCount++;
-assert.ok(mail.includes('group-hover:hidden'), 'MailPage: date tidak disembunyikan saat hover (aksi menimpa pengirim)');
-passCount++;
-assert.ok(mail.includes("starVisible ? '' : 'hidden group-hover:flex"), 'MailPage: star unflagged tidak hidden-until-hover (reserve ruang)');
-passCount++;
+// Anti-overlap: aksi hover = overlay absolut (tidak reserve ruang pengirim di
+// lebar sempit). Reveal diatur .row-quick-actions di index.css: hanya
+// pointer presisi, delay hover-intent 250ms, fokus keyboard seketika.
+// (QA 2026-10-11: dobel-klik baris mendarat di "Balas cepat".)
+assert.ok(mail.includes('className="row-quick-actions absolute right-0'), 'MailPage: aksi hover harus overlay row-quick-actions');
+assert.ok(/\.row-quick-actions \{ display: none; \}/.test(css), 'CSS: aksi hover default display:none (tidak reserve ruang)');
+assert.ok(css.includes('@media (hover: hover) and (pointer: fine)') && /row-quick-reveal [^;]*250ms/.test(css), 'CSS: aksi hover hanya pointer presisi + delay 250ms');
+assert.ok(mail.includes('{starVisible && renderStarButton(0)}') && mail.includes('{!starVisible && !isTouch && renderStarButton(actionTab)}'), 'MailPage: star unflagged harus di overlay (tidak reserve ruang)');
+assert.ok(mail.includes('const isDeliberateClick = (e) => e.detail <= 1;') && mail.includes('if (!isDeliberateClick(e)) return;\n                        quickReply(msg.uid, rowFolder);'), 'MailPage: Balas cepat harus abaikan klik ganda');
+assert.ok(mail.includes('onDoubleClick={stopDbl}'), 'MailPage: aksi hover harus menelan dblclick');
+passCount += 6;
 assert.ok(mail.includes('aria-label="Hapus flag"'), 'Flag remove aria hilang');
 passCount++;
 
@@ -198,7 +203,7 @@ passCount++;
 
 // Auto-advance reader: setelah hapus/pindah/spam buka pesan berikutnya
 // (siblingUids/onNavigateTo harus tetap dikonsumsi — regresi commit 6c1485f).
-assert.ok(reader.includes('siblingUids = []') && reader.includes('onNavigateTo }'), 'Reader: siblingUids/onNavigateTo props hilang');
+assert.ok(reader.includes('siblingUids = []') && reader.includes('onNavigateTo })'), 'Reader: siblingUids/onNavigateTo props hilang');
 passCount++;
 assert.ok(reader.includes('function navigateAfter()'), 'Reader: navigateAfter hilang');
 passCount++;
@@ -206,7 +211,10 @@ assert.ok(reader.includes('siblingUids[idx + 1] ?? siblingUids[idx - 1]'), 'Read
 passCount++;
 assert.ok(reader.includes('navigateAfter();'), 'Reader: navigateAfter tidak dipakai setelah aksi');
 passCount++;
-assert.ok(mail.includes('siblingUids={visibleOrderUids}') && mail.includes('onNavigateTo={(uid) => setSelectedMsgId(uid)}'), 'MailPage: prop auto-advance ke reader hilang');
+assert.ok(mail.includes('siblingUids={readerOrderUids}') && mail.includes('onNavigateTo={(uid) => setSelectedMsgId(uid)}'), 'MailPage: prop auto-advance ke reader hilang');
+passCount++;
+// Posisi "N dari M" = seluruh baris TERMUAT, bukan irisan render visibleCount.
+assert.ok(/const loadedFlatOrder = useMemo\([\s\S]*?filteredLoadedMessages/.test(mail), 'MailPage: urutan reader harus dari filteredLoadedMessages (bukan displayMessages)');
 passCount++;
 
 // Conversation group header: aria-expanded + tidak ada border ganda bertumpuk
@@ -565,6 +573,44 @@ assert.ok(
   calendar.includes('onDragStart={(e) => onDragStart(ev, e)}'),
   'CalendarPage: view meneruskan native event drag (Shift = pindah seri)'
 );
+passCount++;
+
+// ── QA 2026-10-11 (a11y + friksi) ────────────────────────────────────────────
+// Password: tiap input punya <label htmlFor> terasosiasi.
+for (const id of ['pw-${f.key}', 'pw-new', 'pw-confirm']) {
+  const isTpl = id.includes('${');
+  const forAttr = isTpl ? 'htmlFor={`' + id + '`}' : `htmlFor="${id}"`;
+  const idAttr = isTpl ? 'id={`' + id + '`}' : `id="${id}"`;
+  assert.ok(prefs.includes(forAttr) && prefs.includes(idAttr), `Preferences: label password "${id}" tidak terasosiasi`);
+  passCount++;
+}
+// Signature: hanya SATU tombol berlabel "Tambah Signature" (tombol simpan editor
+// berlabel beda) + editor terbuka saat mode tambah.
+assert.equal((prefs.match(/^\s*Tambah Signature\s*$/gm) || []).length, 1, 'Preferences: tombol "Tambah Signature" ganda');
+assert.ok(prefs.includes("{editingId ? 'Simpan Perubahan' : 'Simpan Signature'}"), 'Preferences: tombol simpan editor harus "Simpan Signature"');
+assert.ok(prefs.includes('(editingId || adding || !sigList.length)'), 'Preferences: editor harus terbuka saat mode tambah');
+passCount += 3;
+// Kalender: tombol "+" hari punya aria-label "Tambah acara <tanggal>".
+assert.ok(calendar.includes('aria-label={`Tambah acara ${date.toLocaleDateString('), 'Calendar: tombol + hari tanpa aria-label "Tambah acara <tanggal>"');
+passCount++;
+// Statistik: kartu Penyimpanan punya empty state (bukan nol palsu).
+assert.ok(stats.includes('Data penyimpanan tidak tersedia') && stats.includes('storageAvailable ?'), 'Stats: empty state penyimpanan hilang');
+passCount++;
+// Header thread: klik header SELALU expand (idempoten) + buka terbaru; hanya
+// chevron yang toggle. Dua baris (subjek + waktu / peserta + badge).
+assert.ok(mail.includes('const expandConversation = useCallback((key) => {'), 'MailPage: expandConversation (idempoten) hilang');
+assert.ok(mail.includes('expandConversation(group.key);\n                              if (selectionMode) return;'), 'MailPage: klik header thread harus expandConversation, bukan toggle');
+assert.ok(!mail.includes('if (!isExpanded) toggleConversation(group.key);'), 'MailPage: klik header tidak boleh toggle');
+assert.ok(mail.includes("onClick={() => toggleConversation(group.key)}"), 'MailPage: chevron tetap toggle');
+assert.ok(mail.includes("${i === 2 ? 'hidden! @md:flex!' : ''}"), 'MailPage: avatar stack maks 2 di daftar sempit');
+passCount += 5;
+// Tab kategori: tanpa scrollbar native, gradien tepi + scroll-snap.
+assert.ok(mail.includes('overflow-x-auto scrollbar-none snap-x'), 'MailPage: tab kategori masih menampilkan scrollbar native');
+assert.ok(css.includes('@utility scrollbar-none') && css.includes('&::-webkit-scrollbar { display: none; }'), 'CSS: utilitas scrollbar-none hilang');
+assert.ok(mail.includes('data-overflow-end={edges.end || undefined}'), 'MailPage: indikator overflow tab kategori hilang');
+passCount += 3;
+// Zoom reader: chip disorot saat ≠100%, klik = reset.
+assert.ok(reader.includes('data-zoom-active={zoom !== 1 || undefined}') && reader.includes('onClick={() => setZoom(1)}'), 'Reader: chip zoom tidak disorot/ reset');
 passCount++;
 
 console.log(`\nA11y audit: ${passCount} assertions PASS ✅`);

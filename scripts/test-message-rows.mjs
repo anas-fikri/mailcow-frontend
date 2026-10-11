@@ -79,3 +79,19 @@ assert.equal(sent[0].uid, 7);
 assert.equal(sent[0].subject, 'Sent item');
 
 console.log('messageRows assertions passed');
+
+// buildRowAriaLabel: nama aksesibel baris (pengirim, subjek, waktu, status)
+{
+  const { buildRowAriaLabel } = await import('../src/lib/messageRows.js');
+  assert.equal(
+    buildRowAriaLabel({ sender: 'Budi', subject: 'Laporan Q3', date: '09:12', unread: true }),
+    'Budi, Laporan Q3, 09:12, belum dibaca',
+  );
+  assert.equal(
+    buildRowAriaLabel({ sender: '  Ani  ', subject: '', date: '', flagged: true, hasAttachment: true }),
+    'Ani, (Tanpa Subjek), ditandai, berlampiran',
+  );
+  assert.equal(buildRowAriaLabel({}), 'Pengirim tidak dikenal, (Tanpa Subjek)');
+  assert.equal(buildRowAriaLabel({ sender: 'A', subject: 'Baris\n  dua', date: 'Kemarin' }), 'A, Baris dua, Kemarin');
+  console.log('buildRowAriaLabel OK');
+}

@@ -440,9 +440,11 @@ function ChangePasswordSection() {
 
         {[{ key: 'old', label: 'Password Saat Ini', showKey: 'old' }].map(f => (
           <div key={f.key} className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">{f.label}</label>
+            <label htmlFor={`pw-${f.key}`} className="text-sm font-medium text-foreground">{f.label}</label>
             <div className="relative">
               <input
+                id={`pw-${f.key}`}
+                autoComplete="current-password"
                 type={showPw[f.showKey] ? 'text' : 'password'}
                 required
                 value={form[f.key]}
@@ -450,6 +452,7 @@ function ChangePasswordSection() {
                 className="w-full h-9 bg-background border border-border rounded-md px-3 pr-10 text-sm focus:ring-2 focus:ring-primary focus:outline-none"
               />
               <button type="button" onClick={() => setShowPw(p => ({ ...p, [f.showKey]: !p[f.showKey] }))}
+                aria-label={showPw[f.showKey] ? 'Sembunyikan password saat ini' : 'Tampilkan password saat ini'}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                 {showPw[f.showKey] ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
@@ -458,9 +461,11 @@ function ChangePasswordSection() {
         ))}
 
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">Password Baru</label>
+          <label htmlFor="pw-new" className="text-sm font-medium text-foreground">Password Baru</label>
           <div className="relative">
             <input
+              id="pw-new"
+              autoComplete="new-password"
               type={showPw.new ? 'text' : 'password'}
               required
               minLength={MIN_LABEL}
@@ -470,11 +475,12 @@ function ChangePasswordSection() {
               placeholder={form.new ? '' : `Min ${MIN_LABEL} karakter, huruf + angka + simbol`}
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              <button type="button" onClick={handleGenerate} title="Generate password aman"
+              <button type="button" onClick={handleGenerate} title="Generate password aman" aria-label="Buat password aman"
                 className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors">
                 <Sparkles size={15} />
               </button>
               <button type="button" onClick={showPw.new ? undefined : () => setShowPw(p => ({ ...p, new: !p.new }))}
+                aria-label={showPw.new ? 'Password baru ditampilkan' : 'Tampilkan password baru'}
                 className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                 {showPw.new ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
@@ -483,7 +489,7 @@ function ChangePasswordSection() {
           {form.new && (
             <div className="flex items-center gap-2">
               <PasswordStrengthBar password={form.new} />
-              <button type="button" onClick={handleCopy} title="Salin password"
+              <button type="button" onClick={handleCopy} title="Salin password" aria-label="Salin password baru"
                 className="shrink-0 p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                 {copied ? <CheckCircle2 size={14} className="text-green-500" /> : <Copy size={14} />}
               </button>
@@ -492,9 +498,11 @@ function ChangePasswordSection() {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">Konfirmasi Password Baru</label>
+          <label htmlFor="pw-confirm" className="text-sm font-medium text-foreground">Konfirmasi Password Baru</label>
           <div className="relative">
             <input
+              id="pw-confirm"
+              autoComplete="new-password"
               type={showPw.confirm ? 'text' : 'password'}
               required
               value={form.confirm}
@@ -504,6 +512,7 @@ function ChangePasswordSection() {
               }`}
             />
             <button type="button" onClick={() => setShowPw(p => ({ ...p, confirm: !p.confirm }))}
+              aria-label={showPw.confirm ? 'Sembunyikan konfirmasi password' : 'Tampilkan konfirmasi password'}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
               {showPw.confirm ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
@@ -535,6 +544,9 @@ function SignatureSection() {
   const [sigList, setSigList]       = useState([]);      // [{id,name,html}]
   const [defaults, setDefaults]     = useState({ new: null, reply: null });
   const [editingId, setEditingId]   = useState(null);    // id yang sedang diedit (null = kosong/tambah)
+  // Mode tambah eksplisit: dulu tombol "Tambah Signature" (bawah) hanya
+  // startEdit(null) → editor tidak muncul bila daftar sudah berisi.
+  const [adding, setAdding]         = useState(false);
   const [sigName, setSigName]       = useState('');
   const [sigHtml, setSigHtml]       = useState('');
   const [status, setStatus]         = useState(null);
@@ -599,7 +611,8 @@ function SignatureSection() {
     setDefaults(data.defaults);
   }
 
-  function startEdit(sig) {
+  function startEdit(sig, { add = false } = {}) {
+    setAdding(add);
     setEditingId(sig?.id || null);
     setSigName(sig?.name || '');
     setSigHtml(sig?.html || '');
@@ -668,7 +681,7 @@ function SignatureSection() {
         {/* Daftar signature */}
         {sigList.length === 0 ? (
           <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-6 text-center">
-            Belum ada signature. Klik "Tambah Signature" untuk membuat.
+            Belum ada signature. Isi formulir di bawah untuk membuat yang pertama.
           </div>
         ) : (
           <div className="space-y-2">
@@ -727,11 +740,12 @@ function SignatureSection() {
         )}
 
         {/* Editor signature aktif */}
-        {(editingId || !sigList.length) && (
+        {(editingId || adding || !sigList.length) && (
           <div className="border border-border rounded-lg p-4 space-y-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Nama Signature</label>
+              <label htmlFor="sig-name" className="text-sm font-medium text-foreground">Nama Signature</label>
               <input
+                id="sig-name"
                 type="text"
                 value={sigName}
                 onChange={(e) => setSigName(e.target.value)}
@@ -755,9 +769,9 @@ function SignatureSection() {
                 className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground h-9 px-4 rounded-md text-sm font-medium"
               >
                 <FileSignature size={14} />
-                {editingId ? 'Simpan Perubahan' : 'Tambah Signature'}
+                {editingId ? 'Simpan Perubahan' : 'Simpan Signature'}
               </button>
-              {editingId && (
+              {(editingId || (adding && sigList.length > 0)) && (
                 <button
                   type="button"
                   onClick={() => startEdit(null)}
@@ -771,10 +785,12 @@ function SignatureSection() {
         )}
 
         <div className="flex items-center gap-3">
-          {!editingId && (
+          {/* Satu-satunya tombol "Tambah Signature" — disembunyikan saat
+              editor sudah terbuka (edit/tambah/daftar kosong). */}
+          {!editingId && !adding && sigList.length > 0 && (
             <button
               type="button"
-              onClick={() => startEdit(null)}
+              onClick={() => startEdit(null, { add: true })}
               className="flex items-center gap-2 h-9 border border-border hover:bg-muted text-foreground px-4 rounded-md text-sm font-medium"
             >
               <Plus size={15} />

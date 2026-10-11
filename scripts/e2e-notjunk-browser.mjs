@@ -271,12 +271,12 @@ try {
   log('folder Junk terbuka, row uji tampil');
 
   // ── 5. Klik "Bukan Spam" (ShieldCheck per-baris) ──────────────────────────
-  // Catatan: cluster aksi per-baris = `hidden group-hover:flex`, dan headless
+  // Catatan: cluster aksi per-baris = `.row-quick-actions` (hover + delay 250ms), dan headless
   // shell TIDAK mengaktifkan CSS :hover via CDP mouse events (ElementHandle
   // .hover() tidak berpengaruh). Solusi deterministik: paksa cluster tampil
   // via injected CSS, lalu klik tombol asli (handler mutasi tetap yang diuji;
   // reveal-by-hover murni concern CSS, bukan logika).
-  await page.addStyleTag({ content: '.group-hover\\:flex { display: flex !important; }' });
+  await page.addStyleTag({ content: '.row-quick-actions { display: flex !important; visibility: visible !important; opacity: 1 !important; animation: none !important; }' });
   await page.waitForFunction(() => {
     const b = document.querySelector('button[title="Bukan Spam"]');
     return !!b && b.offsetParent !== null;
