@@ -1,7 +1,7 @@
 {
   "version": 2,
   "last_session": "2026-10-11T00:00:00Z",
-  "context": "PCP Express Webmail — branch worktree-outlook-ux: UX ala Outlook desktop (context menu, drag-drop, keyboard, optimistic+undo, Balas Semua, panel baca kanan/bawah/nonaktif, compose minimize, threading In-Reply-To/References). 76/76 test + smoke Puppeteer 12/12. BELUM deploy — tunggu UAT lalu merge ke main + ./deploy.sh.",
+  "context": "PCP Express Webmail — UX ala Outlook + visual modern clean + command palette + security fix (quote split re-sanitize) di-merge ke main & deploy 2026-10-11. 108/108 test, smoke 12/12.",
   "modules": {
     "deploy": {
       "status": "updated",
@@ -26,12 +26,28 @@
       "note": "SOGo endpoint 404 — path nginx /SOGo/so/*/changePassword dead-end"
     },
     "outlook-ux": {
-      "status": "ready-for-uat",
-      "branch": "worktree-outlook-ux",
-      "note": "backend server.js berubah (threadingHeaders.js) — deploy harus via deploy.sh penuh"
+      "status": "live",
+      "branch": "main",
+      "note": "deploy via deploy.sh penuh (server.js berubah: threadingHeaders.js)"
     }
   },
-  "bugs_found": [],
+  "bugs_found": [
+    {
+      "date": "2026-10-11",
+      "bug": "DOMPurify bypass via quote split (HIGH)",
+      "status": "fixed"
+    },
+    {
+      "date": "2026-10-11",
+      "bug": "tab reload loop (dev stamp per-request)",
+      "status": "fixed"
+    },
+    {
+      "date": "2026-10-11",
+      "bug": "MessageReader hook-order crash",
+      "status": "fixed"
+    }
+  ],
   "progress": [
     {
       "what": "deploy.sh: build di server dari GitLab — aman, source of truth GitLab",
@@ -51,7 +67,8 @@
       "status": "done",
       "updated_at": "2026-09-24T02:14:00Z"
     },
-    "2026-10-11: Outlook-UX round selesai di branch worktree-outlook-ux (9 commit, 76/76 test, smoke 12/12)"
+    "2026-10-11: Outlook-UX round selesai di branch worktree-outlook-ux (9 commit, 76/76 test, smoke 12/12)",
+    "2026-10-11: merge worktree-outlook-ux → main + deploy production"
   ],
   "active_task": {
     "id": "none",

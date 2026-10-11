@@ -1,3 +1,19 @@
+# 2026-10-11 (final) — Round cerdas + QA + security → merge main & deploy
+- Fitur: command palette Ctrl/Cmd+K, prefetch pesan saat hover, toast email baru +
+  "Buka", mode percakapan ala Outlook (header subjek+peserta), panel detail penerima.
+- Bug besar diperbaiki: tab reload sendiri tiap ~60 dtk (stamp build per-request di
+  dev; versi baru kini toast "Muat ulang", reload hanya saat tab tersembunyi); crash
+  app-wide "Rendered more hooks" (useMemo setelah early return di MessageReader).
+- Security review: 1 HIGH diperbaiki — bypass DOMPurify via split kutipan (marker di
+  dalam atribut) → kedua potongan disanitasi ulang; test regresi PoC permanen.
+- QA live sweep (read-only, mailbox asli): 13 temuan diperbaiki (quick-action hover
+  mencegat klik → reply tak sengaja, autosave draft kosong yatim, dst).
+- 28 suite test lama ternyata TIDAK terdaftar di package.json (salah satunya guard
+  urutan hook yg akan menangkap crash di atas) → kini terdaftar: total 108/108 PASS.
+- Validasi: build PASS, smoke Puppeteer 12/12, 0 runtime error.
+- Catatan user: QA sempat meninggalkan 1 draft kosong di Drafts (ke
+  ine.purnaeningsih@) — perlu dihapus manual oleh user.
+
 # 2026-10-11 (lanjutan) — Round visual "modern clean" di branch yang sama
 - Atas permintaan user ("UI ga banyak perubahan"): restyle seluruh app — kontrak desain
   seragam (radius md/lg/xl berjenjang, tanpa shadow-xl/2xl, pemisah garis tipis, teks

@@ -1,5 +1,15 @@
 # Durable project knowledge
 
+## Gotcha yang terbukti mahal (2026-10-11)
+- `scripts/test-*.mjs` yang tidak didaftarkan sebagai `test:*` di package.json TIDAK
+  pernah dijalankan siapa pun (28 file sempat yatim, termasuk guard hook-order).
+  Setiap test baru WAJIB didaftarkan.
+- Vite `transformIndexHtml` jalan per REQUEST di dev — nilai acak di sana (stamp
+  build-version) membuat deployCheck melihat "versi baru" tiap poll → reload loop.
+- Memisah HTML tersanitasi sebagai STRING lalu me-render ulang tiap potongan via
+  dangerouslySetInnerHTML = bypass sanitizer (marker bisa jatuh di dalam atribut).
+  Selalu sanitasi ulang hasil potongan.
+
 ## Outlook-UX round (2026-10-11)
 - SOGo `…/{uid}/view` JSON TIDAK membawa Message-ID/In-Reply-To/References (cek fixture
   golden produksi); satu-satunya sumber = `…/{uid}/viewsource` (RFC822 mentah). Ambil
