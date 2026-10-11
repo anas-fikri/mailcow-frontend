@@ -55,9 +55,23 @@ export async function resolveSafeAddresses(hostname) {
 
 // Pin koneksi ke IP yang sudah divalidasi — cegah DNS rebinding (koneksi memakai
 // IP hasil resolusi pertama, bukan resolusi ulang yang bisa mengarah ke privat).
+//
+// Node ≥20 (net autoSelectFamily / Happy Eyeballs) memanggil lookup dengan
+// `{ all: true }` dan MENGHARAPKAN array [{address,family}]; membalas
+// (address, family) di mode itu → "Invalid IP address: undefined" dan SEMUA
+// gambar eksternal gagal 500 (bug produksi ditemukan saat deploy 2026-10-11).
+// Hormati kedua bentuk; tetap hanya alamat yang SUDAH divalidasi.
 export function pinLookup(records) {
   const first = records[0];
-  return (_hostname, _opts, cb) => cb(null, first.address, first.family);
+  return (_hostname, opts, cb) => {
+    const callback = typeof opts === 'function' ? opts : cb;
+    const options = typeof opts === 'object' && opts ? opts : {};
+    if (options.all) {
+      callback(null, records.map((r) => ({ address: r.address, family: r.family })));
+    } else {
+      callback(null, first.address, first.family);
+    }
+  };
 }
 
 /**

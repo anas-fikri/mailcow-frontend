@@ -118,7 +118,8 @@
     "test:send-auth-order": "node scripts/test-send-auth-order.mjs",
     "test:single-react": "node scripts/test-single-react.mjs",
     "test:sw-cache-consistency": "node scripts/test-sw-cache-consistency.mjs",
-    "test:ui-actions-layout": "node scripts/test-ui-actions-layout.mjs"
+    "test:ui-actions-layout": "node scripts/test-ui-actions-layout.mjs",
+    "test:pin-lookup": "node scripts/test-pin-lookup.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",
