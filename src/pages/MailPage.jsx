@@ -3019,7 +3019,10 @@ export default function MailPage() {
         }`}
       >
         {/* Header */}
-        <div className="px-4 pt-1 pb-2 border-b border-border flex flex-col gap-2 bg-background sticky top-0 z-10">            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,auto)] items-center gap-x-3 gap-y-1">
+        {/* z-20 (bukan z-10): header ini membentuk stacking context utk dropdown
+            kriteria pencarian di dalamnya; header grup tanggal (z-10, lebih akhir
+            di DOM) tidak boleh menutupi dropdown tsb. */}
+        <div className="px-4 pt-1 pb-2 border-b border-border flex flex-col gap-2 bg-background sticky top-0 z-20">            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,auto)] items-center gap-x-3 gap-y-1">
             {/* min-w-0 + truncate: judul folder menyusut duluan saat lebar panel
                 list menyempit (dynamic sizing), tombol aksi di kanan tetap utuh */}
             <div className="flex items-center gap-2 min-w-0 flex-1">
