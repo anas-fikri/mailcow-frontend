@@ -88,7 +88,8 @@
     "test:move-picker": "node scripts/test-move-picker.mjs",
     "test:outlook-ux": "node scripts/test-outlook-ux.mjs",
     "test:address-parse": "node scripts/test-address-parse.mjs",
-    "test:quote-split-security": "node scripts/test-quote-split-security.mjs"
+    "test:quote-split-security": "node scripts/test-quote-split-security.mjs",
+    "test:command-palette": "node scripts/test-command-palette.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

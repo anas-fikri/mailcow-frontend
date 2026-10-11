@@ -34,6 +34,7 @@ export const MAIL_ACTIONS = {
   REPLY_ALL: 'replyAll',
   FORWARD: 'forward',
   UNDO: 'undo',
+  OPEN_PALETTE: 'openPalette',
 };
 
 const A = MAIL_ACTIONS;
@@ -59,6 +60,9 @@ export function resolveMailShortcut(ev, ctx = {}) {
 
   // ── Sedang mengetik di input ─────────────────────────────────────────────
   if (ctx.inInput) {
+    // Ctrl/Cmd+K membuka palet perintah bahkan saat mengetik (AppLayout
+    // menangkapnya lebih dulu di fase capture; cabang ini kontrak/fallback).
+    if (mod && !alt && !shift && key === 'k') return act(A.OPEN_PALETTE);
     if (mod && !alt && (key === '/' || key === 'e')) return act(A.FOCUS_SEARCH);
     if (!mod && !alt && key === 'escape') return act(A.BLUR_INPUT);
     return null;
@@ -82,6 +86,7 @@ export function resolveMailShortcut(ev, ctx = {}) {
       case 'u': return act(A.MARK_UNREAD);
       case 'e': return act(A.FOCUS_SEARCH);
       case 'n': return act(A.COMPOSE);
+      case 'k': return shift ? null : act(A.OPEN_PALETTE);
       case 'z': return shift ? null : act(A.UNDO);
       case 'r': return hasTarget ? act(shift ? A.REPLY_ALL : A.REPLY) : null;
       case 'f': return hasTarget && !shift ? act(A.FORWARD) : null;
@@ -134,6 +139,13 @@ export function resolveMailShortcut(ev, ctx = {}) {
 
 /** Daftar pintasan utk modal bantuan — dikelompokkan ala Outlook. */
 export const SHORTCUT_GROUPS = [
+  {
+    title: 'Umum',
+    shortcuts: [
+      { keys: ['Ctrl+K'], desc: 'Palet perintah — semua aksi & folder' },
+      { keys: ['?'], desc: 'Tampilkan bantuan pintasan' },
+    ],
+  },
   {
     title: 'Navigasi',
     shortcuts: [

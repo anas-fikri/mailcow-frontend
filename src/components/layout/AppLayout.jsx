@@ -1,8 +1,11 @@
 import React, { useEffect } from 'react';
-import { Outlet, Navigate } from 'react-router';
+import { Outlet, Navigate, useNavigate, useLocation } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
 import SmtpHeartbeat from '../SmtpHeartbeat';
+import CommandPalette from '../CommandPalette';
+import { buildCommands } from '../../lib/commandRegistry';
 import { useAuthStore } from '../../store/authStore';
 
 /** Hue override for each themeColor preset (light-mode hue) */
@@ -18,7 +21,13 @@ const THEME_HUES = {
 };
 
 export default function AppLayout() {
-  const { isLoggedIn, theme, themeColor, density, readingPane } = useAuthStore();
+  const {
+    isLoggedIn, theme, themeColor, density, readingPane,
+    user, conversationView, setTheme, setPref,
+  } = useAuthStore();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = React.useState(false); // Mobile sidebar state
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
     try { return localStorage.getItem('pcp_sidebar_collapsed') === '1'; } catch { return false; }
@@ -31,6 +40,62 @@ export default function AppLayout() {
     });
   }, []);
   
+  // ── Palet perintah (Ctrl/Cmd+K) ───────────────────────────────────────────
+  const [paletteOpen, setPaletteOpen] = React.useState(false);
+
+  // Ctrl/Cmd+K ditangkap di FASE CAPTURE pada window — jalan sebelum handler
+  // bubble MailPage (keyHandlerRef) & sebelum input mana pun; stopPropagation
+  // mencegah keduanya ikut memproses. Shift/Alt tidak dicuri.
+  useEffect(() => {
+    const onPaletteKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      if (String(e.key).toLowerCase() !== 'k') return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPaletteOpen((v) => !v);
+    };
+    window.addEventListener('keydown', onPaletteKey, true);
+    return () => window.removeEventListener('keydown', onPaletteKey, true);
+  }, []);
+
+  // Fallback event (keymap OPEN_PALETTE / tombol lain yang ingin membuka palet).
+  useEffect(() => {
+    const onOpen = () => setPaletteOpen(true);
+    window.addEventListener('pcp:open-palette', onOpen);
+    return () => window.removeEventListener('pcp:open-palette', onOpen);
+  }, []);
+
+  // Aksi spesifik mail dikirim sebagai CustomEvent 'pcp:palette' (pola
+  // pcp:open-shortcuts); MailPage punya SATU listener yang memetakan ke
+  // handler yang sudah ada. Di luar rute /mail: pindah dulu, beri jeda agar
+  // MailPage (lazy chunk) sempat mount listener-nya.
+  const onMailRoute = location.pathname === '/' || location.pathname.startsWith('/mail');
+  const dispatchMail = React.useCallback((action, extra) => {
+    const fire = () => window.dispatchEvent(new CustomEvent('pcp:palette', { detail: { action, ...(extra || {}) } }));
+    if (onMailRoute) { fire(); return; }
+    navigate('/mail');
+    setTimeout(fire, 300);
+  }, [onMailRoute, navigate]);
+
+  // Perintah dibangun SAAT palet dibuka — daftar folder dibaca dari cache
+  // React Query ['folders', token] (read-only peek; tanpa wiring/store baru).
+  const paletteGroups = React.useMemo(() => {
+    if (!paletteOpen) return [];
+    const folders = queryClient.getQueryData(['folders', user?.sogoToken]);
+    return buildCommands({
+      navigate,
+      dispatchMail,
+      openShortcuts: () => dispatchMail('open-shortcuts'),
+      setTheme,
+      setPref,
+      theme,
+      density,
+      readingPane,
+      conversationView,
+      folders: Array.isArray(folders) ? folders : null,
+    });
+  }, [paletteOpen, queryClient, user?.sogoToken, navigate, dispatchMail, setTheme, setPref, theme, density, readingPane, conversationView]);
+
   // Resolve tema aktual: 'auto' mengikuti prefers-color-scheme sistem, dengan
   // listener perubahan skema agar UI ikut berubah tanpa reload.
   const [systemDark, setSystemDark] = React.useState(
@@ -106,6 +171,9 @@ export default function AppLayout() {
         <Outlet context={{ setSidebarOpen }} />
       </main>
       <BottomNav />
+
+      {/* Palet perintah global — Ctrl/Cmd+K */}
+      <CommandPalette open={paletteOpen} groups={paletteGroups} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

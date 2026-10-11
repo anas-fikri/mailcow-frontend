@@ -49,6 +49,10 @@ import { searchAllFolders, mergeSearchResults, folderChipLabel, analyzeEmptyList
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 const MESSAGE_WINDOW_MONTHS = 5;
 
+// Chip hint palet perintah di input pencarian — di macOS tampil ⌘K.
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '');
+const PALETTE_HINT = IS_MAC ? '⌘K' : 'Ctrl+K';
+
 // Jalankan tasks dengan concurrency terbatas, toleran gagal (allSettled).
 // Dipakai utk batch per-uid (mark-all-read, dll) — SOGo tidak punya endpoint
 // batch; request massal paralel penuh memicu 429/500/timeout.
@@ -366,6 +370,7 @@ export default function MailPage() {
   const collapsedFolders = useMemo(() => new Set(collapsedFolderIds), [collapsedFolderIds]);
   const favoriteSet = useMemo(() => new Set(favoriteFolders), [favoriteFolders]);
   const prevUnseenRef = useRef(null); // notifikasi email baru — bandingkan unseen count
+  const newMailToastAtRef = useRef(0); // throttle toast email baru (maks 1 per burst)
   const notifGrantedRef = useRef(false); // cegah minta izin berulang
   // Soft-ask notifikasi: banner in-app (bukan prompt browser otomatis — prompt
   // otomatis sering dibuang user & denied permanen). null = belum diputuskan.
@@ -373,6 +378,11 @@ export default function MailPage() {
   const [selectionMode, setSelectionMode] = useState(false); // mode seleksi (long-press di layar sentuh)
   const [isTouch] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches
+  );
+  // Prefetch pesan saat hover baris HANYA utk pointer presisi (mouse/trackpad)
+  // — di layar sentuh mouseenter sintetis menyertai tap dan hanya memboroskan request.
+  const [isFinePointer] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches
   );
   // Dialog folder: { mode: 'create', parent } | { mode: 'delete', folder } | null
   const [folderDialog, setFolderDialog] = useState(null);
@@ -407,6 +417,36 @@ export default function MailPage() {
 
   // Pending deletes for undo — timers only (state diurus oleh toast)
   const pendingTimers = useRef({});
+
+  // Hover prefetch (reader terasa instan): setelah 120ms hover-intent di baris,
+  // prefetch detail pesan ke cache ['message', token, folder, uid] — key yang
+  // SAMA dgn useQuery MessageReader, jadi saat dibuka data sudah ada.
+  // Side-effect-free: markRead TIDAK ada di queryFn (lihat MessageReader).
+  // Guard: pointer presisi saja, maks 1 prefetch in-flight, skip bila cache
+  // masih segar (<30 dtk), timer dibatalkan saat mouse keluar baris.
+  const hoverPrefetchTimer = useRef(null);
+  const prefetchInFlight = useRef(false);
+  const schedulePrefetchMessage = useCallback((uid, folder) => {
+    if (!isFinePointer) return;
+    const token = user?.sogoToken;
+    if (!token || uid == null) return;
+    if (hoverPrefetchTimer.current) clearTimeout(hoverPrefetchTimer.current);
+    hoverPrefetchTimer.current = setTimeout(() => {
+      hoverPrefetchTimer.current = null;
+      if (prefetchInFlight.current) return; // maks 1 prefetch berjalan
+      const key = ['message', token, folder, uid];
+      const state = queryClient.getQueryState(key);
+      if (state?.data !== undefined && Date.now() - (state.dataUpdatedAt || 0) < 30_000) return; // masih segar
+      prefetchInFlight.current = true;
+      queryClient
+        .prefetchQuery({ queryKey: key, queryFn: () => fetchMessage(token, folder, uid), staleTime: 30_000 })
+        .finally(() => { prefetchInFlight.current = false; });
+    }, 120);
+  }, [isFinePointer, user?.sogoToken, queryClient]);
+  const cancelPrefetchMessage = useCallback(() => {
+    if (hoverPrefetchTimer.current) { clearTimeout(hoverPrefetchTimer.current); hoverPrefetchTimer.current = null; }
+  }, []);
+  useEffect(() => () => cancelPrefetchMessage(), [cancelPrefetchMessage]);
 
   // Resize handles — nilai awal dari preferensi per-akun; perubahan dipersist
   // (debounce 300ms) lewat setPref('paneWidths'). Baca nilai terbaru dari
@@ -706,6 +746,26 @@ export default function MailPage() {
         });
         n.onclick = () => { window.focus(); n.close(); };
       } catch { /* Safari/older — abaikan */ }
+    }
+    // Toast in-app dgn aksi "Buka" — HANYA saat tab terlihat (tab tersembunyi
+    // sudah dilayani Notification API di atas). Throttle: maks 1 toast per
+    // burst poll (jendela 30 dtk) agar beberapa email sekaligus tidak menumpuk.
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      const now = Date.now();
+      if (now - newMailToastAtRef.current > 30_000) {
+        newMailToastAtRef.current = now;
+        const latest = newestMessageRef.current;
+        const sender = latest ? formatAddresses(latest.from) : '';
+        const subj = latest ? (latest.subject || '(Tanpa Subjek)') : '';
+        useToastStore.getState().addToast({
+          type: 'info',
+          message: sender ? `Email baru dari ${sender}: ${subj}` : 'Email baru di Kotak Masuk',
+          duration: 8000,
+          action: latest?.uid != null
+            ? { label: 'Buka', kind: 'open', onClick: () => { selectFolder('folderINBOX'); openMessage(latest.uid); } }
+            : undefined,
+        });
+      }
     }
   }, [unseenCount, selectedFolder]);
 
@@ -2116,6 +2176,8 @@ export default function MailPage() {
         break;
       }
       case A.UNDO: undoLast(); break;
+      // Fallback: normalnya Ctrl/Cmd+K sudah ditangkap AppLayout di fase capture.
+      case A.OPEN_PALETTE: window.dispatchEvent(new CustomEvent('pcp:open-palette')); break;
       default: break;
     }
   }
@@ -2170,6 +2232,38 @@ export default function MailPage() {
     const handler = (ev) => keyHandlerRef.current?.(ev);
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // ── Palet perintah (AppLayout) → aksi mail ─────────────────────────────────
+  // SATU listener CustomEvent 'pcp:palette' memetakan detail.action ke handler
+  // yang SUDAH ada (tanpa alur baru; dialog konfirmasi tetap berlaku). Handler
+  // disimpan di ref tiap render (pola keyHandlerRef) agar closure tidak basi.
+  const paletteActionRef = useRef(null);
+  paletteActionRef.current = (detail) => {
+    switch (detail?.action) {
+      case 'compose': setComposeData(null); setComposeOpen(true); break;
+      case 'focus-search':
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select?.();
+        break;
+      case 'goto-folder': if (detail.folderId) selectFolder(detail.folderId); break;
+      case 'mark-all-read':
+        if (!markAllReadMutation.isPending) markAllReadMutation.mutate({ folderId: selectedFolder });
+        break;
+      case 'refresh':
+        queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder], refetchType: 'active' });
+        queryClient.invalidateQueries({ queryKey: ['unseen', user?.sogoToken] });
+        queryClient.invalidateQueries({ queryKey: ['unseen-per-folder', user?.sogoToken] });
+        break;
+      case 'toggle-conversation': setConversationView(!conversationView); break;
+      case 'open-shortcuts': setKeyboardHelpOpen(true); break;
+      default: break;
+    }
+  };
+  useEffect(() => {
+    const onPalette = (e) => paletteActionRef.current?.(e.detail);
+    window.addEventListener('pcp:palette', onPalette);
+    return () => window.removeEventListener('pcp:palette', onPalette);
   }, []);
 
   // Fokus TIDAK di-reset saat panjang daftar berubah (bug lama: hapus baris
@@ -2399,6 +2493,8 @@ export default function MailPage() {
         <div
           onClick={(e) => handleRowClick(e, msg.uid, idx)}
           onContextMenu={(e) => handleRowContextMenu(e, msg, idx)}
+          onMouseEnter={() => schedulePrefetchMessage(msg.uid, rowFolder)}
+          onMouseLeave={cancelPrefetchMessage}
           draggable={!isTouch}
           onDragStart={(e) => handleRowDragStart(e, msg)}
           onDragEnd={handleRowDragEnd}
@@ -3158,6 +3254,15 @@ export default function MailPage() {
                   >
                     <X size={14} />
                   </button>
+                )}
+                {/* Hint palet perintah — desktop saja; saat ada teks digantikan tombol X */}
+                {!searchInput && (
+                  <kbd
+                    className="hidden md:inline-flex absolute right-2 top-1/2 -translate-y-1/2 items-center px-1.5 py-0.5 rounded-md border border-border bg-background text-[11px] font-mono text-muted-foreground pointer-events-none select-none"
+                    aria-hidden="true"
+                  >
+                    {PALETTE_HINT}
+                  </kbd>
                 )}
               </div>
               <button
