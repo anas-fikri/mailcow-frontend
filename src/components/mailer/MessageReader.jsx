@@ -593,9 +593,22 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // asli — konten itu dikirim sebagai email dan harus punya URL valid utk
   // penerima (lihat catatan di src/lib/imageProxy.js).
   const renderHtml = rawHtml ? proxyExternalImages(cleanHtml) : cleanHtml;
-  // Lipat kutipan balasan (pola Gmail/Outlook "…"). Pemisahan dilakukan pada
-  // HTML yang SUDAH disanitasi; kedua potongan dirender lewat jalur yang sama.
-  const quoted = rawHtml ? splitQuotedHtml(renderHtml) : { main: renderHtml, quote: '' };
+  // Lipat kutipan balasan (pola Gmail/Outlook "…"). KEAMANAN: pemisahan
+  // berbasis string bisa memotong di TENGAH atribut (marker kutipan di dalam
+  // title/alt) sehingga markup inert di dalam atribut "hidup kembali" saat
+  // potongan di-parse ulang oleh dangerouslySetInnerHTML — bypass DOMPurify
+  // (temuan security review 2026-10-11, PoC terverifikasi). Karena itu KEDUA
+  // potongan WAJIB disanitasi ulang tepat sebelum render; split yang jatuh di
+  // posisi aman menghasilkan HTML identik, split yang "merusak" dinetralkan.
+  const quoted = React.useMemo(() => {
+    if (!rawHtml) return { main: renderHtml, quote: '' };
+    const q = splitQuotedHtml(renderHtml);
+    if (!q.quote) return { main: renderHtml, quote: '' };
+    return {
+      main: DOMPurify.sanitize(q.main, EMAIL_PURIFY_CONFIG),
+      quote: DOMPurify.sanitize(q.quote, EMAIL_PURIFY_CONFIG),
+    };
+  }, [rawHtml, renderHtml]);
   const hasQuote = !!quoted.quote;
 
   function handlePrint() {
@@ -1189,7 +1202,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
                 <span className="tracking-widest leading-none">…</span>
                 {quoteOpen ? 'Sembunyikan kutipan' : 'Tampilkan kutipan'}
               </button>
-              {/* Kutipan: HTML sudah lewat DOMPurify (prepareHtmlContent) —
+              {/* Kutipan: HTML disanitasi ULANG pasca-split (lihat komentar
+                  keamanan di atas pada useMemo quoted) —
                   hanya disembunyikan via atribut hidden, bukan dirender ulang. */}
               <div data-quote hidden={!quoteOpen} dangerouslySetInnerHTML={{ __html: quoted.quote }} />
             </>
