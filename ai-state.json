@@ -5,7 +5,7 @@
   },
   "project": {
     "name": "sogo-frontend",
-    "summary": "PCP Express Webmail — 2026-10-14: insiden email duplikat (proses server.js yatim + flush tanpa guard) diperbaiki \u0026 live (149a406); Aturan kini server-side Sieve via SOGo ala Outlook (Dari/Kepada/Cc, prioritas) live (cc04c3d)."
+    "summary": "PCP Express Webmail (live 7e47751): UX ala Outlook, Aturan Sieve server-side, antrean kirim anti-duplikat, status baca dikendalikan app, hapus folder ke Sampah, notif email baru berbasis UID. Check: npm test && npm run build. Terbuka: backup mailbox rutin."
   },
   "schema_version": 2
 }
