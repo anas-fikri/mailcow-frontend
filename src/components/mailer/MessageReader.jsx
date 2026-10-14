@@ -272,8 +272,10 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     queryClient.setQueriesData({ queryKey: ['messages', token, folder] }, (old) => {
       if (!old || !Array.isArray(old.messages)) return old;
       let touched = false;
+      // String-safe: uid daftar bisa number, msgId dari route/props string.
       const messages = old.messages.map((m) => {
-        if (m?.uid !== msgId) return m;
+        if (m == null || String(m.uid) !== String(msgId)) return m;
+        if (Object.keys(patch).every((k) => m[k] === patch[k])) return m; // sudah sama
         touched = true;
         return { ...m, ...patch };
       });
@@ -290,29 +292,70 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // uid yang ditandai "belum dibaca" manual tidak boleh langsung ditandai
   // dibaca lagi oleh effect ini (ref, bukan state: tidak perlu render ulang).
   const manualUnreadRef = React.useRef(null);
+  // `${folder}/${uid}` yang sudah diproses tandai-dibaca otomatis — cegah
+  // percobaan ulang beruntun (mis. rollback optimis setelah gagal) untuk
+  // pesan yang sama selama tetap terbuka.
+  const autoReadDoneRef = React.useRef(null);
   React.useEffect(() => {
     if (manualUnreadRef.current !== null && manualUnreadRef.current !== msgId) manualUnreadRef.current = null;
-  }, [msgId]);
+    autoReadDoneRef.current = null;
+  }, [msgId, folder]);
   const isRead = !!(msg && (msg.isRead === 1 || msg.isRead === true));
   React.useEffect(() => {
-    if (!msg || !msgId || !token || isRead) return;
+    if (!msg || !msgId || !token) return;
+    if (isRead) {
+      // Detail sudah "dibaca" (mis. SOGo /view menandai \Seen sendiri saat
+      // SOGoMailAutoMarkAsReadDelay=0, atau tab lain) tetapi baris daftar bisa
+      // masih "belum dibaca" → sinkronkan daftar LOKAL, tanpa request.
+      // applyReadLocal di MailPage idempoten (hanya baris yang berubah).
+      onReadStateChange?.(msgId, true);
+      patchListCache({ isRead: true });
+      return;
+    }
     if (markReadMode === 'manual') return;
     if (manualUnreadRef.current === msgId) return;
+    const doneKey = `${folder}/${msgId}`;
+    if (autoReadDoneRef.current === doneKey) return;
     const delayMs = markReadMode === 'delay' ? Math.max(0, Number(markReadDelaySec) || 0) * 1000 : 0;
+    const optimistic = markReadMode !== 'delay'; // 'instant' → baris langsung dibaca
     const targetKey = messageKey;
     const targetUid = msgId;
     const targetFolder = folder;
-    const timer = setTimeout(() => {
-      markRead(token, targetFolder, targetUid, true).then(() => {
-        queryClient.setQueryData(targetKey, (old) => (old ? { ...old, isRead: 1 } : old));
-        queryClient.setQueriesData({ queryKey: ['messages', token, targetFolder] }, (old) => {
-          if (!old || !Array.isArray(old.messages)) return old;
-          return { ...old, messages: old.messages.map((m) => (m?.uid === targetUid ? { ...m, isRead: true } : m)) };
+    const patchTargetList = (read) => {
+      queryClient.setQueriesData({ queryKey: ['messages', token, targetFolder] }, (old) => {
+        if (!old || !Array.isArray(old.messages)) return old;
+        let touched = false;
+        const messages = old.messages.map((m) => {
+          if (m == null || String(m.uid) !== String(targetUid) || !!m.isRead === read) return m;
+          touched = true;
+          return { ...m, isRead: read };
         });
-        queryClient.invalidateQueries({ queryKey: ['unseen', token] });
+        return touched ? { ...old, messages } : old;
+      });
+    };
+    const run = () => {
+      autoReadDoneRef.current = doneKey;
+      if (optimistic) {
+        // onReadStateChange DULU (applyReadLocal menghitung baris berubah utk
+        // badge unseen), lalu patch cache reader (no-op bila sudah dibaca).
         onReadStateChange?.(targetUid, true);
-      }).catch(() => { /* gagal tandai dibaca: tidak kritis, pesan tetap tampil */ });
-    }, delayMs);
+        patchTargetList(true);
+      }
+      markRead(token, targetFolder, targetUid, true).then(() => {
+        onReadStateChange?.(targetUid, true);
+        patchTargetList(true);
+        queryClient.setQueryData(targetKey, (old) => (old ? { ...old, isRead: 1 } : old));
+        queryClient.invalidateQueries({ queryKey: ['unseen', token] });
+      }).catch(() => {
+        // Gagal tandai dibaca: tidak kritis; kembalikan baris yang optimis.
+        if (optimistic && manualUnreadRef.current !== targetUid) {
+          onReadStateChange?.(targetUid, false);
+          patchTargetList(false);
+        }
+      });
+    };
+    if (delayMs === 0) { run(); return; }
+    const timer = setTimeout(run, delayMs);
     return () => clearTimeout(timer);
   }, [msg, isRead, msgId, folder, token, markReadMode, markReadDelaySec]);
 

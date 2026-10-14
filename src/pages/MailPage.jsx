@@ -5,12 +5,12 @@ import {
   AlertCircle, Search, Trash, CheckSquare, Square, MailOpen, RefreshCw,
   Folder, FolderPlus, Star, Undo2, Filter, ArrowUpDown, MessagesSquare, AlertTriangle, ChevronDown, ChevronRight,
   Archive, BellRing, CheckCheck, Clock, Paperclip, CalendarClock, Reply, ShieldCheck,
-  ReplyAll, Forward, FolderInput, ArrowLeft, Flag, StarOff,
+  ReplyAll, Forward, FolderInput, ArrowLeft, Flag, StarOff, MoreHorizontal,
 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { PURIFY_CONFIG } from '../lib/pasteUtils';
 import { useAuthStore } from '../store/authStore';
-import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markReadBulk, markFlaggedBulk, markMessagesAsJunk, markMessagesAsNotJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, undoScheduledSend } from '../lib/api';
+import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markReadBulk, markFlaggedBulk, markMessagesAsJunk, markMessagesAsNotJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, undoScheduledSend, ensureServerMarkReadDisabled, isServerMarkReadDisabled } from '../lib/api';
 import { formatAddresses, parseAddressList, formatRecipientSummary } from '../lib/format';
 import { extractHtml, extractAttachments } from '../lib/messageHtml';
 import { analyzePhishing, RISK_LEVELS } from '../lib/phishingDetection';
@@ -46,6 +46,7 @@ import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessag
 import { groupConversations, normalizeSubject as normalizeConversationSubject } from '../lib/conversations';
 import { searchAllFolders, mergeSearchResults, folderChipLabel, analyzeEmptyList, FILTER_LABELS_ID } from '../lib/mailSearch';
 import { buildRowAriaLabel } from '../lib/messageRows';
+import { planToolbar } from '../lib/mailToolbar';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 const MESSAGE_WINDOW_MONTHS = 5;
@@ -423,6 +424,24 @@ export default function MailPage() {
   const [newFolderName, setNewFolderName] = useState('');
   // Menu konteks (klik kanan): { kind:'message'|'folder', x, y, uids, folder, msg }
   const [ctxMenu, setCtxMenu] = useState(null);
+  // Menu "Lainnya" (⋯) di toolbar header daftar: { x, y } | null.
+  const [toolbarMenu, setToolbarMenu] = useState(null);
+  const toolbarMenuClosedAt = useRef(0);
+  // Lebar konten header daftar (ResizeObserver) → planToolbar memutuskan ikon
+  // mana yang muat dalam SATU baris; sisanya masuk menu "Lainnya".
+  const [listHeaderW, setListHeaderW] = useState(0);
+  const listHeaderObserver = useRef(null);
+  const listHeaderRef = useCallback((el) => {
+    listHeaderObserver.current?.disconnect();
+    listHeaderObserver.current = null;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.round(entries[0]?.contentRect?.width || 0);
+      setListHeaderW((prev) => (prev === w ? prev : w));
+    });
+    ro.observe(el);
+    listHeaderObserver.current = ro;
+  }, []);
   // Popover "Pindahkan ke…": { uids, sourceFolder, x?, y? }
   const [movePicker, setMovePicker] = useState(null);
   // Konfirmasi "Arsip" seluruh folder (header) — sebelumnya tanpa konfirmasi.
@@ -462,6 +481,10 @@ export default function MailPage() {
   const prefetchInFlight = useRef(false);
   const schedulePrefetchMessage = useCallback((uid, folder) => {
     if (!isFinePointer) return;
+    // GET /view SOGo menandai \Seen di server selama SOGoMailAutoMarkAsReadDelay
+    // belum -1 → prefetch hover akan diam-diam menandai email dibaca. Nonaktif
+    // sampai ensureServerMarkReadDisabled mengonfirmasi -1.
+    if (!isServerMarkReadDisabled()) return;
     const token = user?.sogoToken;
     if (!token || uid == null) return;
     if (hoverPrefetchTimer.current) clearTimeout(hoverPrefetchTimer.current);
@@ -481,6 +504,17 @@ export default function MailPage() {
     if (hoverPrefetchTimer.current) { clearTimeout(hoverPrefetchTimer.current); hoverPrefetchTimer.current = null; }
   }, []);
   useEffect(() => () => cancelPrefetchMessage(), [cancelPrefetchMessage]);
+
+  // Matikan auto-tandai-dibaca SOGo di server (sekali per akun per browser)
+  // agar aplikasi yang memiliki status baca (instant/delay/manual). Non-blocking.
+  useEffect(() => {
+    const email = user?.email;
+    const token = user?.sogoToken;
+    if (!email || !token) return;
+    ensureServerMarkReadDisabled(token, email).catch((err) => {
+      console.warn('[mail] gagal menonaktifkan auto-tandai-dibaca server:', err?.message || err);
+    });
+  }, [user?.email, user?.sogoToken]);
 
   // Resize handles — nilai awal dari preferensi per-akun; perubahan dipersist
   // (debounce 300ms) lewat setPref('paneWidths'). Baca nilai terbaru dari
@@ -3028,6 +3062,61 @@ export default function MailPage() {
     );
   };
 
+
+  // ── Toolbar header daftar (satu baris + menu "Lainnya") ────────────────────
+  const toolbarPlan = planToolbar(listHeaderW, {
+    hamburger: typeof window !== 'undefined' && window.innerWidth < 768,
+    fixedSlots: pendingSends.length > 0 ? 3 : 2,
+  });
+  const toolbarShown = new Set(toolbarPlan.visible);
+  const refreshMessageList = () => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] });
+  const openToolbarMenu = (e) => {
+    // Klik pada tombol saat menu terbuka: mousedown (di luar menu) sudah
+    // menutupnya → jangan langsung dibuka lagi (toggle).
+    if (toolbarMenu || Date.now() - toolbarMenuClosedAt.current < 250) { setToolbarMenu(null); return; }
+    const r = e.currentTarget.getBoundingClientRect();
+    setToolbarMenu({ x: Math.max(8, r.right - 220), y: r.bottom + 4 });
+  };
+  const closeToolbarMenu = () => { toolbarMenuClosedAt.current = Date.now(); setToolbarMenu(null); };
+  const buildToolbarMenuItems = () => {
+    const items = [];
+    const overflowDefs = {
+      unread: { id: 'unread', label: 'Hanya belum dibaca', icon: MailOpen, checked: unreadOnly, onSelect: () => setUnreadOnly(!unreadOnly) },
+      refresh: { id: 'refresh', label: 'Muat ulang pesan', icon: RefreshCw, onSelect: refreshMessageList },
+      sort: { id: 'sort', label: 'Terlama dulu', icon: ArrowUpDown, checked: sortAsc, onSelect: () => setSortAsc(!sortAsc) },
+      attachment: { id: 'attachment', label: 'Hanya email berlampiran', icon: Paperclip, checked: hasAttachmentOnly, onSelect: () => setHasAttachmentOnly(!hasAttachmentOnly) },
+    };
+    toolbarPlan.overflow.forEach((k) => { if (overflowDefs[k]) items.push(overflowDefs[k]); });
+    if (items.length) items.push({ separator: true });
+    if (conversationView && visibleConversationGroups.length > 0) {
+      items.push({
+        id: 'conv-expand',
+        label: allExpandableConversationsOpen ? 'Ciutkan semua' : 'Perluas semua',
+        icon: allExpandableConversationsOpen ? ChevronRight : ChevronDown,
+        disabled: expandableConversationGroups.length === 0,
+        onSelect: allExpandableConversationsOpen ? collapseAllConversations : expandAllConversations,
+      });
+    }
+    items.push({
+      id: 'mark-all-read',
+      label: 'Tandai semua dibaca',
+      icon: CheckCheck,
+      disabled: messages.length === 0 || markAllReadMutation.isPending,
+      onSelect: () => markAllReadMutation.mutate({ folderId: selectedFolder }),
+    });
+    if (archiveFolder && selectedFolder !== archiveFolder.id) {
+      items.push({
+        id: 'archive-folder',
+        label: 'Arsipkan folder',
+        icon: Archive,
+        disabled: messages.length === 0 || archiveMutation.isPending,
+        // Arsip SELURUH folder → konfirmasi dulu (dialog dgn jumlah).
+        onSelect: () => setArchiveConfirmOpen(true),
+      });
+    }
+    return items;
+  };
+
   return (
     <div className="flex h-full w-full bg-background overflow-hidden relative">
       {/* Mobile overlay */}
@@ -3145,41 +3234,62 @@ export default function MailPage() {
         {/* z-20 (bukan z-10): header ini membentuk stacking context utk dropdown
             kriteria pencarian di dalamnya; header grup tanggal (z-10, lebih akhir
             di DOM) tidak boleh menutupi dropdown tsb. */}
-        <div className="px-4 pt-1 pb-2 border-b border-border flex flex-col gap-2 bg-background sticky top-0 z-20">            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,auto)] items-center gap-x-3 gap-y-1">
+        <div ref={listHeaderRef} data-list-header className="px-4 pt-1 pb-2 border-b border-border flex flex-col gap-2 bg-background sticky top-0 z-20">
+          {/* Baris 1 (ala Outlook): judul + jumlah (kiri, truncate) · toolbar
+              ikon SATU baris (kanan). Toolbar tidak pernah wrap — ikon
+              berprioritas rendah pindah ke menu "Lainnya" saat sempit
+              (planToolbar). Jumlah percakapan = teks meta kecil di bawah judul. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,auto)] items-center gap-x-2">
             {/* min-w-0 + truncate: judul folder menyusut duluan saat lebar panel
                 list menyempit (dynamic sizing), tombol aksi di kanan tetap utuh */}
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <button
-                className="md:hidden p-2 rounded-md hover:bg-muted text-muted-foreground shrink-0"
+                className="md:hidden min-w-11 min-h-11 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground shrink-0"
                 onClick={() => setFolderPanelOpen(true)}
+                aria-label="Buka daftar folder"
               >
                 <Menu size={20} />
               </button>
-              <h2 className="text-base font-semibold text-foreground flex items-center gap-2 min-w-0 min-h-12">
-                <span className="truncate">{selectedFolderMeta.label}</span>
-                <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 tabular-nums shrink-0">
-                  {messages.length < totalMessageCount ? (
-                    <>
-                      <span>{messages.length.toLocaleString('id')}</span>
-                      <span className="opacity-50">/</span>
+              <div className="min-w-0 flex flex-col justify-center min-h-12">
+                <h2 className="text-base font-semibold leading-tight text-foreground flex items-center gap-2 min-w-0">
+                  <span className="truncate">{selectedFolderMeta.label}</span>
+                  <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 tabular-nums shrink-0">
+                    {messages.length < totalMessageCount ? (
+                      <>
+                        <span>{messages.length.toLocaleString('id')}</span>
+                        <span className="opacity-50">/</span>
+                        <span>{totalMessageCount.toLocaleString('id')}</span>
+                      </>
+                    ) : (
                       <span>{totalMessageCount.toLocaleString('id')}</span>
-                    </>
-                  ) : (
-                    <span>{totalMessageCount.toLocaleString('id')}</span>
-                  )}
-                  {loadingMore && <Loader2 size={10} className="animate-spin text-muted-foreground flex-none" />}
-                </span>
-
-              </h2>
+                    )}
+                    {loadingMore && <Loader2 size={10} className="animate-spin text-muted-foreground flex-none" />}
+                  </span>
+                </h2>
+                {conversationView && (
+                  <p
+                    className="mt-0.5 text-xs leading-tight text-muted-foreground tabular-nums truncate"
+                    data-conversation-meta
+                    title={`${visibleConversationGroups.length} grup percakapan, ${expandableConversationGroups.length} berisi lebih dari satu pesan`}
+                  >
+                    {visibleConversationGroups.length} percakapan · {expandableConversationGroups.length} thread
+                  </p>
+                )}
+              </div>
               {isFetchingMessages && !loadingMessages && (
                 <Loader2 size={14} className="animate-spin text-muted-foreground shrink-0" />
               )}
             </div>
-            <div className="col-span-2 flex items-center gap-1 min-w-0 max-w-full overflow-x-auto pb-0.5" data-mailbox-toolbar="actions">
+            <div
+              role="toolbar"
+              aria-label="Aksi daftar pesan"
+              className="flex flex-nowrap items-center justify-end gap-0.5 min-w-0 overflow-hidden"
+              data-mailbox-toolbar="actions"
+            >
               <button
                 type="button"
                 onClick={() => setConversationView(!conversationView)}
-                className={`min-w-11 min-h-11 flex items-center justify-center rounded-md transition-colors ${
+                className={`min-w-11 min-h-11 shrink-0 flex items-center justify-center rounded-md transition-colors ${
                   conversationView ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
                 }`}
                 title={conversationView ? 'Tampilan biasa' : 'Tampilan percakapan'}
@@ -3189,173 +3299,89 @@ export default function MailPage() {
                 <MessagesSquare size={16} />
                 <span className="sr-only">{conversationView ? 'Conversation aktif' : 'Aktifkan conversation'}</span>
               </button>
-              {conversationView && (
-                <span className="hidden sm:inline-flex items-center shrink-0 whitespace-nowrap rounded-full bg-muted px-2 py-1 text-[11px] font-medium tabular-nums text-muted-foreground" title={`${visibleConversationGroups.length} grup percakapan`}>
-                  {visibleConversationGroups.length} percakapan
-                </span>
-              )}
-              {/* Expand/Collapse all — hanya di conversation view */}
-              {conversationView && visibleConversationGroups.length > 0 && (
-                <>
-                  {/* shrink-0 + inline-flex + tabular-nums: chip ini hidup di
-                      flex overflow-x-auto — tanpa shrink-0 angka 3-digit
-                      tertekan dan tumpang-tindih ("7!14 thread"). */}
-                  <span className="hidden lg:inline-flex items-center shrink-0 whitespace-nowrap text-[11px] tabular-nums text-muted-foreground">
-                    {expandableConversationGroups.length} thread
-                  </span>
-                  <button
-                  type="button"
-                  onClick={allExpandableConversationsOpen
-                    ? collapseAllConversations
-                    : expandAllConversations}
-                  className="min-w-11 min-h-11 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground transition-colors"
-                  title={allExpandableConversationsOpen ? 'Ciutkan semua' : 'Perluas semua'}
-                  aria-label={allExpandableConversationsOpen ? 'Ciutkan semua percakapan' : 'Perluas semua percakapan'}
-                >
-                  {allExpandableConversationsOpen ? (
-                    <ChevronRight size={16} />
-                  ) : (
-                    <ChevronDown size={16} />
-                  )}
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => setSortAsc(!sortAsc)}
-                className={`min-w-11 min-h-11 flex items-center justify-center rounded-md transition-colors ${
-                  sortAsc ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
-                }`}
-                title={sortAsc ? 'Terlama dulu' : 'Terbaru dulu'}
-                aria-label={sortAsc ? 'Urutkan terlama dulu' : 'Urutkan terbaru dulu'}
-                aria-pressed={sortAsc}
-              >
-                <ArrowUpDown size={16} className={sortAsc ? 'rotate-180' : ''} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setUnreadOnly(!unreadOnly)}
-                className={`min-w-11 min-h-11 flex items-center justify-center rounded-md transition-colors ${
-                  unreadOnly ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
-                }`}
-                title={unreadOnly ? 'Tampilkan semua' : 'Hanya belum dibaca'}
-                aria-label={unreadOnly ? 'Tampilkan semua pesan' : 'Hanya pesan belum dibaca'}
-                aria-pressed={unreadOnly}
-              >
-                <MailOpen size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setHasAttachmentOnly(!hasAttachmentOnly)}
-                className={`min-w-11 min-h-11 flex items-center justify-center rounded-md transition-colors ${
-                  hasAttachmentOnly ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
-                }`}
-                title={hasAttachmentOnly ? 'Tampilkan semua' : 'Hanya email berlampiran'}
-                aria-label={hasAttachmentOnly ? 'Tampilkan semua email' : 'Hanya email berlampiran'}
-                aria-pressed={hasAttachmentOnly}
-              >
-                <Paperclip size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() => queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] })}
-                className="min-w-11 min-h-11 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground"
-                title="Muat ulang pesan"
-                aria-label="Muat ulang pesan"
-              >
-                <RefreshCw size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* Aksi cepat: tandai semua dibaca + arsip */}
-          {messages.length > 0 && (
-            <div className="flex items-center gap-1 -mx-1 px-1">
-              <button
-                onClick={() => markAllReadMutation.mutate({ folderId: selectedFolder })}
-                disabled={markAllReadMutation.isPending}
-                aria-busy={markAllReadMutation.isPending || undefined}
-                className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                title="Tandai semua di folder ini sebagai dibaca"
-              >
-                {markAllReadMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />}
-                Tandai Semua Dibaca
-              </button>
-              {archiveFolder && selectedFolder !== archiveFolder.id && (
+              {toolbarShown.has('unread') && (
                 <button
-                  // Arsip SELURUH folder → konfirmasi dulu (dialog dgn jumlah).
-                  onClick={() => setArchiveConfirmOpen(true)}
-                  disabled={archiveMutation.isPending}
-                  aria-busy={archiveMutation.isPending || undefined}
-                  aria-haspopup="dialog"
-                  className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-                  title="Pindahkan semua ke Arsip"
+                  type="button"
+                  onClick={() => setUnreadOnly(!unreadOnly)}
+                  className={`min-w-11 min-h-11 shrink-0 flex items-center justify-center rounded-md transition-colors ${
+                    unreadOnly ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+                  }`}
+                  title={unreadOnly ? 'Tampilkan semua' : 'Hanya belum dibaca'}
+                  aria-label={unreadOnly ? 'Tampilkan semua pesan' : 'Hanya pesan belum dibaca'}
+                  aria-pressed={unreadOnly}
                 >
-                  {archiveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
-                  Arsip
+                  <MailOpen size={16} />
+                </button>
+              )}
+              {toolbarShown.has('refresh') && (
+                <button
+                  type="button"
+                  onClick={refreshMessageList}
+                  className="min-w-11 min-h-11 shrink-0 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground"
+                  title="Muat ulang pesan"
+                  aria-label="Muat ulang pesan"
+                >
+                  <RefreshCw size={16} />
+                </button>
+              )}
+              {toolbarShown.has('sort') && (
+                <button
+                  type="button"
+                  onClick={() => setSortAsc(!sortAsc)}
+                  className={`min-w-11 min-h-11 shrink-0 flex items-center justify-center rounded-md transition-colors ${
+                    sortAsc ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+                  }`}
+                  title={sortAsc ? 'Terlama dulu' : 'Terbaru dulu'}
+                  aria-label={sortAsc ? 'Urutkan terlama dulu' : 'Urutkan terbaru dulu'}
+                  aria-pressed={sortAsc}
+                >
+                  <ArrowUpDown size={16} className={sortAsc ? 'rotate-180' : ''} />
+                </button>
+              )}
+              {toolbarShown.has('attachment') && (
+                <button
+                  type="button"
+                  onClick={() => setHasAttachmentOnly(!hasAttachmentOnly)}
+                  className={`min-w-11 min-h-11 shrink-0 flex items-center justify-center rounded-md transition-colors ${
+                    hasAttachmentOnly ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+                  }`}
+                  title={hasAttachmentOnly ? 'Tampilkan semua' : 'Hanya email berlampiran'}
+                  aria-label={hasAttachmentOnly ? 'Tampilkan semua email' : 'Hanya email berlampiran'}
+                  aria-pressed={hasAttachmentOnly}
+                >
+                  <Paperclip size={16} />
                 </button>
               )}
               {pendingSends.length > 0 && (
                 <button
+                  type="button"
                   onClick={() => setPendingOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 min-h-11 rounded-md text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+                  className="relative min-w-11 min-h-11 shrink-0 flex items-center justify-center rounded-md text-primary hover:bg-primary/10 transition-colors"
                   title={`${pendingSends.length} kiriman terjadwal — klik untuk kelola`}
                 >
-                  <CalendarClock size={14} />
-                  Terjadwal ({pendingSends.length})
+                  <CalendarClock size={16} />
+                  <span aria-hidden="true" className="absolute top-1 right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[11px] leading-4 font-medium tabular-nums text-center">
+                    {pendingSends.length}
+                  </span>
+                  <span className="sr-only">Terjadwal ({pendingSends.length})</span>
                 </button>
               )}
-            </div>
-          )}
-
-          {/* Category tabs — Utama/Promosi/Sosial/Update (mirip Gmail) */}
-          {!searchQuery && (
-            <CategoryTabs
-              messages={categorySource}
-              categoryFilter={categoryFilter}
-              onSelect={setCategoryFilter}
-            />
-          )}
-
-          {/* Info hasil pencarian: jumlah + scope + clear cepat */}
-          {searchQuery && (
-            <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-              <span>
-                {sortedMessages.length} hasil
-                {fetchingGlobal && !searchedAll
-                  ? ' • mencari folder lain…'
-                  : searchedAll ? ' • semua folder' : ` • di ${selectedFolderMeta.label}`}
-              </span>
-              <button type="button" onClick={clearSearch} className="text-primary hover:underline min-h-11">
-                Bersihkan
-              </button>
-            </div>
-          )}
-
-          {/* Soft-ask notifikasi — sekali, bisa ditutup; klik = enable */}
-          {notifAsk && (
-            <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-primary/10 border border-primary/20 text-sm">
-              <BellRing size={16} className="text-primary shrink-0" />
-              <span className="flex-1 min-w-0 text-foreground">
-                Aktifkan notifikasi agar tahu saat ada email baru masuk?
-              </span>
               <button
                 type="button"
-                onClick={handleEnableNotifications}
-                className="shrink-0 px-3 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
+                onClick={openToolbarMenu}
+                className={`min-w-11 min-h-11 shrink-0 flex items-center justify-center rounded-md transition-colors ${
+                  toolbarMenu ? 'bg-muted text-foreground' : 'hover:bg-muted text-muted-foreground'
+                }`}
+                title="Lainnya"
+                aria-label="Aksi lainnya"
+                aria-haspopup="menu"
+                aria-expanded={!!toolbarMenu}
+                data-mailbox-toolbar="more"
               >
-                Aktifkan
-              </button>
-              <button
-                type="button"
-                onClick={() => { setNotifAsk(false); notifGrantedRef.current = true; }}
-                aria-label="Jangan tampilkan lagi"
-                className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
-              >
-                <X size={14} />
+                <MoreHorizontal size={16} />
               </button>
             </div>
-          )}
+          </div>
 
           {/* Search with filter */}
           <form onSubmit={handleSearchSubmit} className="relative">
@@ -3425,6 +3451,57 @@ export default function MailPage() {
               </div>
             )}
           </form>
+
+          {/* Info hasil pencarian: jumlah + scope + clear cepat */}
+          {searchQuery && (
+            <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+              <span>
+                {sortedMessages.length} hasil
+                {fetchingGlobal && !searchedAll
+                  ? ' • mencari folder lain…'
+                  : searchedAll ? ' • semua folder' : ` • di ${selectedFolderMeta.label}`}
+              </span>
+              <button type="button" onClick={clearSearch} className="text-primary hover:underline min-h-11">
+                Bersihkan
+              </button>
+            </div>
+          )}
+
+          {/* Category tabs — Utama/Promosi/Sosial/Update (mirip Gmail) */}
+          {!searchQuery && (
+            <CategoryTabs
+              messages={categorySource}
+              categoryFilter={categoryFilter}
+              onSelect={setCategoryFilter}
+            />
+          )}
+
+          {/* Soft-ask notifikasi — SATU baris tipis, bisa ditutup; klik = enable.
+              Tombol tampak 28px; area sentuh diperluas ke ≥44px via ::after. */}
+          {notifAsk && (
+            <div className="flex items-center gap-2 h-9 pl-3 pr-1 rounded-md bg-primary/10 border border-primary/20 text-xs" data-notif-ask>
+              <BellRing size={14} className="text-primary shrink-0" aria-hidden="true" />
+              <span className="flex-1 min-w-0 truncate text-foreground" title="Aktifkan notifikasi agar tahu saat ada email baru masuk">
+                Aktifkan notifikasi email baru
+              </span>
+              <button
+                type="button"
+                onClick={handleEnableNotifications}
+                className="relative shrink-0 h-7 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 after:content-[''] after:absolute after:-inset-y-2 after:inset-x-0"
+              >
+                Aktifkan
+              </button>
+              <button
+                type="button"
+                onClick={() => { setNotifAsk(false); notifGrantedRef.current = true; }}
+                aria-label="Jangan tampilkan lagi"
+                title="Jangan tampilkan lagi"
+                className="relative shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted after:content-[''] after:absolute after:-inset-2"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Bulk actions toolbar */}
@@ -4024,6 +4101,16 @@ export default function MailPage() {
           items={ctxMenu.kind === 'folder' ? buildFolderMenuItems(ctxMenu.folder) : buildMessageMenuItems(ctxMenu)}
           onClose={() => setCtxMenu(null)}
           ariaLabel={ctxMenu.kind === 'folder' ? `Menu folder ${ctxMenu.folder?.label || ''}` : 'Menu pesan'}
+        />
+      )}
+
+      {toolbarMenu && (
+        <ContextMenu
+          x={toolbarMenu.x}
+          y={toolbarMenu.y}
+          items={buildToolbarMenuItems()}
+          onClose={closeToolbarMenu}
+          ariaLabel="Aksi lainnya daftar pesan"
         />
       )}
 

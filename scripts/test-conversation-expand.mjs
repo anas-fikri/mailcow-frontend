@@ -9,12 +9,13 @@ assert.match(src, /filter\(\(group\) => group\.messages\.length > 1\)\.slice\(0,
   'expand-all excludes singleton conversations and caps at 50');
 assert.match(src, /expandableConversationGroups\.every\(\(group\) => expandedConversations\.has\(group\.key\)\)/,
   'all-open state checks every expandable thread key');
-assert.match(src, /onClick=\{allExpandableConversationsOpen\s*\?/,
+// Perluas/Ciutkan semua kini item menu "Lainnya" (header ringkas).
+assert.match(src, /onSelect: allExpandableConversationsOpen \? collapseAllConversations : expandAllConversations/,
   'toggle uses actual expandable state');
 assert.match(src, /group\.messages\[0\]/,
   'latest message preview remains visible when collapsed');
 assert.match(src, /group\.messages\.slice\(1\)\.map/,
   'older messages are revealed only when expanded');
-assert.match(src, /title=\{allExpandableConversationsOpen\s*\? 'Ciutkan semua' : 'Perluas semua'\}/,
-  'toggle title reflects actual state');
+assert.match(src, /label: allExpandableConversationsOpen \? 'Ciutkan semua' : 'Perluas semua'/,
+  'toggle label reflects actual state');
 console.log('conversation-expand: assertions PASS');

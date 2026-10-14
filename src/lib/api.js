@@ -1796,6 +1796,12 @@ export async function fetchPreferences(sogoToken, email) {
  * Juga menyimpan ke localStorage agar fetchPreferences bisa baca balik.
  */
 export async function savePreferences(sogoToken, prefs, email) {
+  // Knob server "tandai dibaca otomatis" sudah dimatikan (-1) oleh
+  // ensureServerMarkReadDisabled → jangan biarkan snapshot prefs lama
+  // (dimuat sebelum knob diubah) menyalakannya kembali saat Pengaturan disimpan.
+  if (serverMarkReadOff && prefs && prefs.defaults && typeof prefs.defaults === 'object' && !Array.isArray(prefs.defaults)) {
+    prefs = { ...prefs, defaults: { ...prefs.defaults, SOGoMailAutoMarkAsReadDelay: -1 } };
+  }
   const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Preferences/save`, {
     method: 'POST',
     credentials: 'include',
@@ -1877,4 +1883,72 @@ export async function saveSieveFilters(sogoToken, email, filters) {
   if (!res.ok) throwApiError(`Gagal menyimpan aturan (${res.status}).`, res.status);
   savePrefsToLocal(email, { defaults, settings: fresh.settings });
   return filters;
+}
+
+// ─── Tandai-dibaca: aplikasi pemiliknya, bukan SOGo ───────────────────────────
+// SOGo menandai \Seen DI SERVER saat GET /<folder>/<uid>/view bila default user
+// `SOGoMailAutoMarkAsReadDelay` = 0 (nilai bawaan user). Akibatnya: (1) detail
+// pesan kembali isRead:1 → effect tandai-dibaca MessageReader tidak pernah
+// jalan dan baris daftar tetap "belum dibaca"; (2) prefetch saat hover diam-
+// diam menandai email dibaca; (3) mode "Setelah N detik"/"Manual saja" di
+// Pengaturan tidak pernah dihormati. Dengan nilai -1, /view TIDAK menandai
+// \Seen (terverifikasi live) → aplikasi yang memutuskan kapan menandai.
+let serverMarkReadOff = false;
+const SRV_MARKREAD_KEY = (email) => `pcp_srv_markread_v1_${email}`;
+
+/** true bila knob server sudah terkonfirmasi -1 di sesi/browser ini. */
+export function isServerMarkReadDisabled() {
+  return serverMarkReadOff;
+}
+
+/** Khusus test: reset flag modul. */
+export function __resetServerMarkReadFlag() {
+  serverMarkReadOff = false;
+}
+
+/**
+ * Pastikan `SOGoMailAutoMarkAsReadDelay` = -1 di server (maks sekali per akun
+ * per browser — sukses di-cache di localStorage). Read-modify-write defaults
+ * SEGAR dari DB (SOGo MENGGANTI seluruh objek defaults); batal tanpa menulis
+ * bila baca segar gagal atau hasilnya mencurigakan (< 10 key).
+ * @returns {Promise<boolean>} true bila server terkonfirmasi -1
+ */
+export async function ensureServerMarkReadDisabled(sogoToken, email) {
+  if (!sogoToken || !email) return false;
+  try {
+    if (localStorage.getItem(SRV_MARKREAD_KEY(email)) === '1') {
+      serverMarkReadOff = true;
+      return true;
+    }
+  } catch { /* storage tidak tersedia → cek ke server */ }
+
+  let fresh;
+  try {
+    fresh = await fetchPreferencesStrict(email);
+  } catch {
+    return false; // jangan pernah menulis tanpa defaults segar
+  }
+  const defaults = fresh?.defaults;
+  if (!defaults || Object.keys(defaults).length < 10) return false;
+
+  const markDone = () => {
+    serverMarkReadOff = true;
+    try { localStorage.setItem(SRV_MARKREAD_KEY(email), '1'); } catch { /* abaikan */ }
+    return true;
+  };
+  if (Number(defaults.SOGoMailAutoMarkAsReadDelay) === -1) return markDone();
+
+  const nextDefaults = { ...defaults, SOGoMailAutoMarkAsReadDelay: -1 };
+  const res = await fetchWithTimeout(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Preferences/save`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ defaults: nextDefaults }),
+  }, 20000);
+  throwIfAuthError(res);
+  // Non-2xx (termasuk 502/503 yang ambigu: bisa proxy down) → anggap belum
+  // terkonfirmasi; dicoba lagi pada login berikutnya.
+  if (!res.ok) return false;
+  savePrefsToLocal(email, { defaults: nextDefaults, settings: fresh.settings });
+  return markDone();
 }
