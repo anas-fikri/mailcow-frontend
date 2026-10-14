@@ -21,7 +21,7 @@ import QuickRuleModal from '../components/mailer/QuickRuleModal';
 import { MessageListSkeleton, FoldersListSkeleton } from '../components/Skeleton';
 import { toast, useToastStore } from '../lib/toast';
 import { DEFAULT_FOLDERS, STALE_TIMES, isSentOrDraftFolder } from '../lib/constants';
-import { isProtectedFolder } from '../lib/mailboxTree';
+import { isProtectedFolder, isInTrash } from '../lib/mailboxTree';
 import { watchDomainVersion } from '../lib/crossTab';
 import KeyboardShortcutsModal from '../components/KeyboardShortcuts';
 import SwipeableRow from '../components/SwipeableRow';
@@ -1783,14 +1783,15 @@ export default function MailPage() {
 
   // Hapus subfolder — native SOGo delete (permanen, tanpaTrash).
   const deleteFolderMutation = useMutation({
-    mutationFn: ({ folderId }) => deleteFolder(user.sogoToken, folderId),
+    mutationFn: ({ folderId, permanent }) => deleteFolder(user.sogoToken, folderId, { permanent }),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['folders', user.sogoToken] });
       // Jika folder yang dihapus sedang aktif (atau induknya), reset ke INBOX.
       if (selectedFolder === vars.folderId || selectedFolder.startsWith(`${vars.folderId}%2F`)) {
         setSelectedFolder('folderINBOX');
       }
-      toast.success('Folder berhasil dihapus');
+      if (!vars.permanent) queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, 'folderTrash'] });
+      toast.success(vars.permanent ? 'Folder dihapus permanen.' : 'Folder dipindahkan ke Sampah — bisa dipulihkan dari sana.');
     },
     onError: (err) => toast.error(err?.message || 'Gagal menghapus folder.'),
   });
@@ -4025,11 +4026,18 @@ export default function MailPage() {
               </>
             ) : (
               <>
-                <h3 className="text-base font-semibold mb-1">Hapus Folder</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Hapus <span className="font-medium text-foreground">{folderDialog.folder.label}</span> beserta isinya?
-                  Tindakan ini permanen (tidak masuk Sampah).
-                </p>
+                <h3 className="text-base font-semibold mb-1">{isInTrash(folderDialog.folder) ? 'Hapus Folder Permanen' : 'Hapus Folder'}</h3>
+                {isInTrash(folderDialog.folder) ? (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Hapus <span className="font-medium text-foreground">{folderDialog.folder.label}</span> beserta seluruh isinya
+                    secara <span className="font-medium text-destructive">permanen</span>? Email di dalamnya tidak bisa dipulihkan.
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Folder <span className="font-medium text-foreground">{folderDialog.folder.label}</span> beserta isinya akan
+                    dipindahkan ke <span className="font-medium text-foreground">Sampah</span>. Anda masih bisa memulihkannya dari sana.
+                  </p>
+                )}
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
@@ -4043,13 +4051,13 @@ export default function MailPage() {
                     disabled={deleteFolderMutation.isPending}
                     onClick={() => {
                       deleteFolderMutation.mutate(
-                        { folderId: folderDialog.folder.id },
+                        { folderId: folderDialog.folder.id, permanent: isInTrash(folderDialog.folder) },
                         { onSuccess: () => setFolderDialog(null) }
                       );
                     }}
                     className="px-4 py-2 rounded-md text-sm bg-destructive text-destructive-foreground font-medium hover:bg-destructive/90 disabled:opacity-50 transition-colors"
                   >
-                    {deleteFolderMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : 'Hapus'}
+                    {deleteFolderMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : (isInTrash(folderDialog.folder) ? 'Hapus permanen' : 'Pindahkan ke Sampah')}
                   </button>
                 </div>
               </>

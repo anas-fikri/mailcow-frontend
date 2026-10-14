@@ -14,8 +14,18 @@ export const FOLDER_TYPE_LABELS = {
 // mailbox-nya belum pernah dibuat di IMAP — hapus → 500 "Mailbox doesn't exist"
 // (insiden 2026-10-14, log sogod). Diperiksa berdasarkan TIPE dari SOGo, bukan
 // hanya id tetap, agar nama folder khusus yang dikustomisasi tetap terlindungi.
-export const PROTECTED_FOLDER_TYPES = new Set(['inbox', 'sent', 'draft', 'drafts', 'trash', 'junk', 'templates']);
-const PROTECTED_FOLDER_IDS = new Set(['folderINBOX', 'folderSent', 'folderDrafts', 'folderTrash', 'folderJunk', 'folderTemplates']);
+export const PROTECTED_FOLDER_TYPES = new Set(['inbox', 'sent', 'draft', 'drafts', 'trash', 'junk', 'templates', 'archive']);
+// Archive: mailbox khusus mailcow (dovecot `mailbox Archive { auto = subscribe;
+// special_use = \\Archive }`) — dihapus pun langsung dibuat ulang kosong oleh
+// Dovecot (insiden 2026-10-14: "berhasil dihapus" tapi folder tetap ada, isinya
+// hilang). Juga folder tujuan tombol "Arsip" di webmail.
+const PROTECTED_FOLDER_IDS = new Set(['folderINBOX', 'folderSent', 'folderDrafts', 'folderTrash', 'folderJunk', 'folderTemplates', 'folderArchive']);
+
+/** True bila folder berada di dalam Sampah (hapus = permanen). */
+export function isInTrash(folder) {
+  const path = String(folder?.path || '');
+  return /^Trash\//i.test(path) || /^folderTrash%2F/i.test(String(folder?.id || ''));
+}
 
 /** True bila folder adalah folder sistem (tidak boleh dihapus). */
 export function isProtectedFolder(folder) {

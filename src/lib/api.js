@@ -854,12 +854,19 @@ export async function createFolder(sogoToken, parentFolderId, name) {
 }
 
 /** Hapus folder SOGo secara permanen (tanpa pindah ke Sampah). */
-export async function deleteFolder(sogoToken, folderId) {
+/**
+ * Hapus folder. Default (pola Outlook): folder BESERTA ISINYA dipindahkan ke
+ * Sampah (SOGo withoutTrash:false → mailbox menjadi Trash/<nama>, bisa
+ * dipulihkan — terverifikasi live 2026-10-14). `permanent: true` hanya utk
+ * folder yang sudah berada di Sampah. (Dulu selalu permanen → 2 email di
+ * Archive hilang tanpa bisa dipulihkan.)
+ */
+export async function deleteFolder(sogoToken, folderId, { permanent = false } = {}) {
   const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Mail/0/${pathSegment(folderId, 'folder', { allowEncodedSlash: true })}/delete`, {
     method: 'POST',
     credentials: 'include',
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ withoutTrash: true }),
+    body: JSON.stringify({ withoutTrash: !!permanent }),
   });
   if (!res.ok) {
     // SOGo membalas 500 utk folder khusus virtual (mis. Templates yang belum
