@@ -5,6 +5,7 @@ import {
   emptyCondition, validateRule, describeRule,
 } from '../../lib/sieveFilters';
 import Modal from './Modal';
+import AddressValueInput from './AddressValueInput';
 import { inputCls, iconBtn, btnPrimary, btnGhost } from './styles';
 
 // ─── Folder picker ───────────────────────────────────────────────────────────
@@ -110,9 +111,13 @@ export default function RuleEditor({ initial, folders, folderLabel, onCancel, on
                         <option value="KB">KB</option><option value="MB">MB</option>
                       </select>
                     </span>
+                  ) : fieldKind(c.field) === 'address' ? (
+                    // Dari / Kepada / Cc / Kepada atau Cc → dropdown saran alamat terkait.
+                    <AddressValueInput field={c.field} value={c.value} ariaLabel={`Nilai kondisi ${i + 1}`}
+                      onChange={(v) => setCond(i, { value: v })} />
                   ) : (
                     <input aria-label={`Nilai kondisi ${i + 1}`} value={c.value} onChange={(e) => setCond(i, { value: e.target.value })}
-                      placeholder={fieldKind(c.field) === 'address' ? 'nama@domain.com atau bagian alamat' : 'teks…'}
+                      placeholder="teks…"
                       className={`${inputCls} flex-1 min-w-[140px]`} />
                   )}
                   <button type="button" aria-label={`Hapus kondisi ${i + 1}`} disabled={rule.conditions.length <= 1}
