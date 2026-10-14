@@ -126,7 +126,8 @@
     "test:send-queue-dedupe": "node scripts/test-send-queue-dedupe.mjs",
     "test:mark-read-sync": "node scripts/test-mark-read-sync.mjs",
     "test:protected-folders": "node scripts/test-protected-folders.mjs",
-    "test:rule-address-suggest": "node scripts/test-rule-address-suggest.mjs"
+    "test:rule-address-suggest": "node scripts/test-rule-address-suggest.mjs",
+    "test": "node scripts/run-tests.mjs ."
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

@@ -1,0 +1,18 @@
+# aitk project configuration (migrated from .ai-toolkit/project.env)
+
+[project]
+name = "sogo-frontend"
+default_branch = "main"
+
+[check]
+cmd = "npm test && npm run build"
+
+[deploy]
+post_check = "manual: verify webmail HTTP 200 and authenticated /api/health; do not store API keys in project.env"
+
+[plugins]
+[plugins.settings]
+[plugins.settings.codebase-memory]
+project = "sogo-frontend"
+[plugins.settings.uteke]
+namespace = "sogo-frontend"

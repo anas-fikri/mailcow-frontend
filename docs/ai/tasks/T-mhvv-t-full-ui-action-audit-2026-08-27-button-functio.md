@@ -1,0 +1,54 @@
+---
+id: T-mhvv
+title: 'T-FULL-UI-ACTION-AUDIT-2026-08-27: button functionality and responsive overlap'
+status: done
+profile: standard
+created: "2026-08-27T15:40:14Z"
+updated: "2026-08-27T16:08:47Z"
+legacy:
+  source: docs/ai/tasks/20260827-161438-257180.previous.md
+  status: COMPLETED
+  v1_id: 20260827-154014-106687
+---
+
+## Latest Task — Conversation preview tidak menyembunyikan email (2026-08-27)
+
+Conversation audit menemukan thread multi-pesan hanya menampilkan header saat collapsed sehingga pengguna mengira email hilang. Kini pesan terbaru selalu dirender sebagai preview; pesan lama hanya ditambahkan saat expand. Regression gate conversation diperluas. Validasi 69/69 test, build, syntax, audit dependency, dan diff check PASS. Belum deploy production.
+
+## Latest Task — Conversation expand/collapse robustness (2026-08-27)
+
+Conversation audit menemukan toggle expand-all menghitung singleton thread sebagai expandable. Diperbaiki dengan derived `expandableConversationGroups` yang hanya berisi grup >1 pesan dan dibatasi 50; state terbuka kini diperiksa berdasarkan seluruh key thread yang benar-benar dapat dibuka. Validasi 69/69 test, build, syntax, audit dependency, dan diff check PASS. Belum deploy production.
+
+
+## Objective
+T-FULL-UI-ACTION-AUDIT-2026-08-27: button functionality and responsive overlap
+
+## Goal Link
+Goal ID: TBD
+Sub-goal ID: TBD
+
+## Files Involved
+- To be determined
+
+## Next Steps
+- Inspect the current code and context
+- Execute the task
+- Update handoff notes before switching tools
+
+## Risk Analysis
+- Status: REQUIRED BEFORE IMPLEMENTATION
+- Risk level: UNASSESSED
+- Impact surface: Not assessed
+- Security concerns: Not assessed
+- Compatibility concerns: Not assessed
+- Failure modes/edge cases: Not assessed
+- Mitigations: Not assessed
+- Validation plan: Not assessed
+- Open risks/assumptions: Not assessed
+
+## Risks
+- Complete  before changing implementation files.
+
+## Validation
+- Risk analysis: REQUIRED
+- Tests/checks: Not run

@@ -1,29 +1,12 @@
-<!-- ai-toolkit:protocol:start -->
-## Shared AI project context (ai-toolkit)
+<!-- aitk:begin v=2 -->
+<!-- aitk:block-revision 2 -->
+## Working in this repository (aitk)
 
-Before making meaningful changes, read these repository-local files:
+1. Run `aitk brief` and read its output. Do not read other files under docs/ai/ unless the brief points to them.
+2. Run `aitk task next --start` (or `aitk task start <id>`) to take a task, or `aitk task new "<title>"` to create one.
+3. Do the work. Run `aitk check` until it passes, and `aitk impact` to see what your change can break.
+4. Run `aitk close --summary "<what changed>" --knowledge "<lasting finding, or none>"`.
+5. If unsure, blocked, the change is risky, or the check fails twice: stop and ask the user.
 
-- `docs/ai/project-context.md` — project purpose, stack, constraints
-- `docs/ai/operating-model.md` — lifecycle, goals, and source-of-truth rules
-- `docs/ai/goals.md` — goal/sub-goal hierarchy, success criteria, and status
-- `docs/ai/application-map.md` — verified application surfaces and gaps
-- `docs/ai/current-task.md` — active objective and next steps
-- `docs/ai/handoff.md` — latest work handed off by another agent
-- `docs/ai/knowledge.md` — durable findings discovered while completing tasks
-- `docs/ai/next-tasks.md` — evidence-based suggestions for the next task
-- `docs/ai/decisions.md` — durable architecture/product decisions
-- `ai-state.json` — machine-readable project state, when present
-
-**ENGINE STANDARD (WAJIB — dari ~/.ai-toolkit/conventions/):**
-- `STANDARD_DEVELOPMENT.md` — task lifecycle (5 stage + bug hunt loop), rotasi fokus, bukti per task, grounding rules anti-halusinasi, onboarding checklist. Berlaku SEMUA project.
-
-Keep the files current while working. Update `docs/ai/current-task.md` at
-start/close, append important handoffs to `docs/ai/handoff.md`, and record
-durable decisions and newly discovered project knowledge in
-`docs/ai/decisions.md` and `docs/ai/knowledge.md`. Every completed task must
-call `ai-close --knowledge "…"` with findings about code, infra, CI/CD,
-operations, constraints, bugs, or validation—even when the finding is that no
-new durable knowledge was discovered. Treat these files as the
-project's shared source of truth across Codex, OpenCode, Claude, and other AI
-tools. Use `.ai-toolkit/project.env` for automation/deploy settings.
-<!-- ai-toolkit:protocol:end -->
+If `aitk` is not installed, read docs/ai/project-context.md and the newest file in docs/ai/handoff/.
+<!-- aitk:end -->

@@ -1,0 +1,98 @@
+{
+  "version": 2,
+  "last_session": "2026-10-14T00:00:00Z",
+  "context": "PCP Express Webmail — 2026-10-14: insiden email duplikat (proses server.js yatim + flush tanpa guard) diperbaiki & live (149a406); Aturan kini server-side Sieve via SOGo ala Outlook (Dari/Kepada/Cc, prioritas) live (cc04c3d).",
+  "modules": {
+    "deploy": {
+      "status": "updated",
+      "feature": "deploy.sh server-side build dari GitLab — source of truth GitLab, workspace bebas WIP",
+      "note": "SSH mailserver → git pull → npm ci → build → rsync → nginx reload"
+    },
+    "attachment-preview": {
+      "status": "live",
+      "feature": "Pratinjau lampiran in-app: PDF, Word (.docx), Excel/CSV, PowerPoint (.pptx), ZIP, teks/code"
+    },
+    "cross-folder-search": {
+      "status": "live",
+      "feature": "Pencarian lintas folder otomatis — empty state pintar, max 12 folder paralel"
+    },
+    "round57-features": {
+      "status": "live",
+      "feature": "3 fitur: spam native SOGo, fix lampiran (parts ARRAY + size string), subfolder UI"
+    },
+    "change-password": {
+      "status": "live",
+      "feature": "Ganti password mailbox: POST /api/preferences (intent=password) — SMTP verify + doveadm pw BLF-CRYPT + flush cache auth",
+      "note": "SOGo endpoint 404 — path nginx /SOGo/so/*/changePassword dead-end"
+    },
+    "outlook-ux": {
+      "status": "live",
+      "branch": "main",
+      "note": "deploy via deploy.sh penuh (server.js berubah: threadingHeaders.js)"
+    },
+    "rules": {
+      "status": "live",
+      "feature": "Aturan server-side Sieve (SOGoSieveFilters): Dari/Kepada/Cc/Kepada-atau-Cc/Subjek/Header/Ukuran, prioritas, multi-aksi, Jalankan sekarang, migrasi aturan lokal",
+      "note": "terverifikasi live di akun anas.fikri (skrip sogo benar, 47 kunci prefs utuh)"
+    }
+  },
+  "bugs_found": [
+    {
+      "date": "2026-10-11",
+      "bug": "DOMPurify bypass via quote split (HIGH)",
+      "status": "fixed"
+    },
+    {
+      "date": "2026-10-11",
+      "bug": "tab reload loop (dev stamp per-request)",
+      "status": "fixed"
+    },
+    {
+      "date": "2026-10-11",
+      "bug": "MessageReader hook-order crash",
+      "status": "fixed"
+    },
+    {
+      "date": "2026-10-14",
+      "bug": "email undo-send terkirim 2-4x (12 proses yatim + flush tanpa guard)",
+      "status": "fixed"
+    },
+    {
+      "date": "2026-10-14",
+      "bug": "header threading terbuang di jalur antrean",
+      "status": "fixed"
+    }
+  ],
+  "progress": [
+    {
+      "what": "deploy.sh: build di server dari GitLab — aman, source of truth GitLab",
+      "status": "done"
+    },
+    {
+      "what": "Sync workspace dengan 10 fitur baru production",
+      "status": "done"
+    },
+    {
+      "what": "Fix TDZ MailPage (Cannot access 'q' before initialization) + deploy.sh hardening: GITLAB_USER auto-detect, npm ci full, PUPPETEER_SKIP_DOWNLOAD, nvm Node 22. Deploy dari GitLab sukses — webmail live, error page gone.",
+      "status": "done",
+      "updated_at": "2026-09-24T01:49:22Z"
+    },
+    {
+      "what": "Deep validation TDX fix: 25 komponen scan 0 TDZ, minified bundle confirmed [l,u]=useState('folderINBOX') BEFORE d=(t,n=l)=> (flagColorOf). Production all pages 200. Deploy.sh edges verified.",
+      "status": "done",
+      "updated_at": "2026-09-24T02:14:00Z"
+    },
+    "2026-10-11: Outlook-UX round selesai di branch worktree-outlook-ux (9 commit, 76/76 test, smoke 12/12)",
+    "2026-10-11: merge worktree-outlook-ux → main + deploy production",
+    "2026-10-14: fix duplikat (149a406) + aturan Sieve ala Outlook (cc04c3d) deployed"
+  ],
+  "active_task": {
+    "id": "none",
+    "status": "COMPLETED",
+    "objective": "No objective recorded.",
+    "next_step": "",
+    "goal_id": "",
+    "sub_goal_id": "",
+    "updated_at": "2026-10-07T06:35:52Z"
+  }
+}

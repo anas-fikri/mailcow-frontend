@@ -1,0 +1,109 @@
+---
+id: T-z9t6
+title: Fix email duplikat, aturan Sieve ala Outlook, UX percakapan & folder (2026-10-14)
+status: done
+profile: standard
+profile_pinned: true
+created: "2026-10-14T09:37:52Z"
+updated: "2026-10-14T09:38:41Z"
+closed: "2026-10-14T09:38:41Z"
+created_by: claude-code
+workers:
+  - claude-code
+branch: worktree-fix-dup-rules
+base: c1a96e9649c602df5ee7283d1491eee29b0fef1a
+paths:
+  - deploy.sh
+  - package.json
+  - scripts/run-tests.mjs
+  - scripts/test-a11y.mjs
+  - scripts/test-conversation-expand.mjs
+  - scripts/test-conversation-toolbar-regression.mjs
+  - scripts/test-mark-read-sync.mjs
+  - scripts/test-protected-folders.mjs
+  - scripts/test-quick-rule.mjs
+  - scripts/test-rule-address-suggest.mjs
+  - scripts/test-send-queue-dedupe.mjs
+  - scripts/test-sieve-filters.mjs
+  - scripts/test-sieve-save.mjs
+  - server.js
+  - src/components/mailer/MessageReader.jsx
+  - src/components/mailer/QuickRuleModal.jsx
+  - src/components/rules/AddressValueInput.jsx
+  - src/components/rules/Modal.jsx
+  - src/components/rules/RuleEditor.jsx
+  - src/components/rules/RunNowDialog.jsx
+  - src/components/rules/styles.js
+  - src/lib/api.js
+  - src/lib/autoArchive.js
+  - src/lib/instanceLock.js
+  - src/lib/mailToolbar.js
+  - src/lib/mailboxTree.js
+  - src/lib/ruleAddressSuggest.js
+  - src/lib/sendQueue.js
+  - src/lib/sieveFilters.js
+  - src/pages/MailPage.jsx
+  - src/pages/RulesPage.jsx
+evidence:
+  check:
+    cmd: npm test && npm run build
+    exit_code: 0
+    duration_ms: 31523
+    summary: |-
+      …omputing gzip size...
+      dist/index.html                             1.57 kB │ gzip:   0.65 kB
+      dist/assets/index-yJXS3ZBm.css             87.49 kB │ gzip:  15.24 kB
+      dist/assets/chevron-right-DAnqgxZD.js       0.12 kB │ gzip:   0.13 kB
+      dist/assets/loader-circle-CbovSZDp.js       0.13 kB │ gzip:   0.14 kB
+      dist/assets/copy-BdyjLFtH.js                0.22 kB │ gzip:   0.20 kB
+      dist/assets/clock-U9RvKMRK.js               0.25 kB │ gzip:   0.21 kB
+      dist/assets/pencil-B3QWFDB8.js              0.26 kB │ gzip:   0.22 kB
+      dist/assets/file-text-D5Px5Aqg.js           0.32 kB │ gzip:   0.21 kB
+      dist/assets/send-CQN12_zW.js                0.39 kB │ gzip:   0.28 kB
+      dist/assets/trash-2-DPr4XjIf.js             0.45 kB │ gzip:   0.28 kB
+      dist/assets/rolldown-runtime-C0FnF6B9.js    1.29 kB │ gzip:   0.71 kB
+      dist/assets/useMutation-Cr0LxNQW.js         2.29 kB │ gzip:   0.96 kB
+      dist/assets/Skeleton-0AiOo2jH.js            3.52 kB │ gzip:   0.81 kB
+      dist/assets/notifyPrefs-Bj8V9jeM.js         5.90 kB │ gzip:   2.53 kB
+      dist/assets/LoginPage-BFjFE2Fo.js           6.95 kB │ gzip:   2.51 kB
+      dist/assets/ContactsPage-DH1rhJ6K.js       11.78 kB │ gzip:   3.46 kB
+      dist/assets/RulesPage-hsCFKc1n.js          15.11 kB │ gzip:   5.12 kB
+      dist/assets/StatsPage-S6gSY9es.js          15.12 kB │ gzip:   4.48 kB
+      dist/assets/authStore-DnheKfwc.js          16.48 kB │ gzip:   6.05 kB
+      dist/assets/CalendarPage-D8JofRP6.js       42.55 kB │ gzip:  10.24 kB
+      dist/assets/RunNowDialog-ChBT62Iy.js       49.65 kB │ gzip:  16.08 kB
+      dist/assets/PreferencesPage-CIj8Rzkn.js    49.82 kB │ gzip:  13.01 kB
+      dist/assets/api-CxkZvYKN.js                79.60 kB │ gzip:  26.64 kB
+      dist/assets/jszip.min-gms7YGF-.js          95.96 kB │ gzip:  28.50 kB
+      dist/assets/MailPage-CVxMgZ6n.js          254.93 kB │ gzip:  73.39 kB
+      dist/assets/lib-B2hRtwez.js               294.68 kB │ gzip:  89.71 kB
+      dist/assets/index-CaJkl91h.js             415.43 kB │ gzip: 133.25 kB
+      dist/assets/xlsx-BivLitlN.js              424.08 kB │ gzip: 141.36 kB
+
+      ✓ built in 494ms
+    at: "2026-10-14T09:38:27Z"
+    tree: aec7495cf67ec1f21f7ccfccb3858635ec5f27e0c9f9aaf24c2fa3548dd75057
+  acceptance:
+    total: 5
+    done: 5
+---
+
+## Objective
+Perbaiki email terkirim ganda (proses sogo-proxy yatim + flush tanpa guard), jadikan Aturan server-side Sieve ala Outlook (Dari/Kepada/Cc, prioritas, buat dari pesan, saran alamat), ringkas header mode percakapan, perbaiki status terbaca, cegah hapus folder sistem (Templates/Archive) dan jadikan hapus folder ke Sampah.
+
+## Acceptance criteria
+- [x] Given email undo-send, when antrean di-flush, then terkirim tepat sekali (lock satu-pengirim + guard flush + Message-ID stabil)
+- [x] Given aturan dibuat di webmail, when disimpan, then skrip Sieve server terbentuk benar dan preferensi lain (Vacation/Forward) utuh
+- [x] Given mode percakapan aktif, when email dibuka, then baris berubah terbaca dan header daftar maksimal ±250px
+- [x] Given folder sistem (Templates/Archive), when user mencoba hapus, then opsi hapus tidak tersedia; folder biasa dipindah ke Sampah
+- [x] Given semua perubahan, when npm test && npm run build, then lulus dan sudah live di production
+
+## Risk
+(Required for strict profile. Impact:, Security (STRIDE):, Rollback:, Validation:)
+
+## Notes
+
+## Evidence
+<!-- Generated by aitk close. -->
+- Check: `npm test && npm run build` → exit 0 at 2026-10-14T09:38:27Z (31523 ms)
+- Acceptance criteria: 5/5 satisfied
