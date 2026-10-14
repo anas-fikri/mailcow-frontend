@@ -22,6 +22,7 @@ import { MessageListSkeleton, FoldersListSkeleton } from '../components/Skeleton
 import { toast, useToastStore } from '../lib/toast';
 import { DEFAULT_FOLDERS, STALE_TIMES, isSentOrDraftFolder } from '../lib/constants';
 import { isProtectedFolder, isInTrash } from '../lib/mailboxTree';
+import { isNewMailArrival, pickNewestArrival } from '../lib/newMail';
 import { watchDomainVersion } from '../lib/crossTab';
 import KeyboardShortcutsModal from '../components/KeyboardShortcuts';
 import SwipeableRow from '../components/SwipeableRow';
@@ -407,6 +408,9 @@ export default function MailPage() {
   const favoriteSet = useMemo(() => new Set(favoriteFolders), [favoriteFolders]);
   const prevUnseenRef = useRef(null); // notifikasi email baru — bandingkan unseen count
   const newMailToastAtRef = useRef(0); // throttle toast email baru (maks 1 per burst)
+  const prevMaxUidRef = useRef(null); // UID tertinggi Kotak Masuk terakhir (deteksi email baru)
+  const pendingArrivalRef = useRef(null); // { prevMaxUid, unseen, timer } menunggu daftar ter-refresh
+  const announceNewMailRef = useRef(null); // fungsi pengumuman (diisi saat render)
   const notifGrantedRef = useRef(false); // cegah minta izin berulang
   // Soft-ask notifikasi: banner in-app (bukan prompt browser otomatis — prompt
   // otomatis sering dibuang user & denied permanen). null = belum diputuskan.
@@ -751,6 +755,17 @@ export default function MailPage() {
   // tidak memicu re-render; effect notifikasi membaca saat email baru masuk.
   useEffect(() => {
     newestMessageRef.current = messagesInWindow?.[0] || null;
+    // Email baru terdeteksi (UID naik) → umumkan begitu pesannya ADA di daftar
+    // yang sudah ter-refresh, dgn pengirim/subjek pesan BARU itu sendiri.
+    const pending = pendingArrivalRef.current;
+    if (pending) {
+      const arrival = pickNewestArrival(messagesInWindow, pending.prevMaxUid);
+      if (arrival) {
+        clearTimeout(pending.timer);
+        pendingArrivalRef.current = null;
+        announceNewMailRef.current?.(arrival, pending.unseen);
+      }
+    }
   }, [messagesInWindow]);
 
   // Saat query refetch (delete/move/archive/polling), header tambahan hasil
@@ -783,34 +798,23 @@ export default function MailPage() {
   useEffect(() => {
     if (user?.email) notifyPrefsRef.current = loadNotifyPrefs(user.email);
   }, [user?.email]);
-  useEffect(() => {
-    const prev = prevUnseenRef.current;
-    const isNewEmail = prev !== null && unseenCount > prev && selectedFolder === 'folderINBOX';
-    prevUnseenRef.current = unseenCount;
-
-    // Tab title: badge "(n)" bila ada belum dibaca
-    document.title = unseenCount > 0
-      ? `(${unseenCount}) PCP Express Mail`
-      : 'PCP Express Mail';
-
-    if (!isNewEmail) return;
+  // Umumkan email baru (suara, Notification, toast). `newest` = pesan yang
+  // BENAR-BENAR baru (UID > UID tertinggi sebelumnya) atau null → teks umum.
+  // Disimpan di ref agar effect daftar pesan (dideklarasikan lebih awal) bisa
+  // memanggilnya tanpa referensi langsung (aturan TDZ module chunk).
+  announceNewMailRef.current = (newest, unseenNow) => {
     // Suara singkat bila preferensi notifikasi `sound` aktif (WebAudio, tanpa
     // aset; autoplay ditolak → diam). Independen dari izin Notification.
     if (notifyPrefsRef.current?.sound === true) playNotifyBeep();
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      // Mode rich (default): pengirim+subjek email terbaru — data diambil
-      // via ref yang diisi effect SETELAH messagesInWindow dideklarasikan
-      // (jangan referensi langsung di sini: TDZ di module chunk → outage
-      // kelas 2026-09-05).
-      const newest = newestMessageRef.current;
       const rich = notifyPrefsRef.current?.rich !== false;
       const sender = rich && newest ? formatAddresses(newest.from) : '';
       const subj = rich && newest ? (newest.subject || '(Tanpa Subjek)') : '';
       try {
         const n = new Notification(rich && sender ? sender : 'Email baru', {
           body: rich && subj
-            ? `${subj}\n${unseenCount} pesan belum dibaca di Kotak Masuk`
-            : `${unseenCount} pesan belum dibaca di Kotak Masuk`,
+            ? `${subj}\n${unseenNow} pesan belum dibaca di Kotak Masuk`
+            : `${unseenNow} pesan belum dibaca di Kotak Masuk`,
           tag: 'sogo-new-mail',
         });
         n.onclick = () => { window.focus(); n.close(); };
@@ -823,7 +827,7 @@ export default function MailPage() {
       const now = Date.now();
       if (now - newMailToastAtRef.current > 30_000) {
         newMailToastAtRef.current = now;
-        const latest = newestMessageRef.current;
+        const latest = newest;
         const sender = latest ? formatAddresses(latest.from) : '';
         const subj = latest ? (latest.subject || '(Tanpa Subjek)') : '';
         useToastStore.getState().addToast({
@@ -836,7 +840,43 @@ export default function MailPage() {
         });
       }
     }
-  }, [unseenCount, selectedFolder]);
+  };
+
+  useEffect(() => () => {
+    if (pendingArrivalRef.current) clearTimeout(pendingArrivalRef.current.timer);
+  }, []);
+
+  const unseenMaxUid = unseenData?.maxUid ?? null;
+  useEffect(() => {
+    const prev = prevUnseenRef.current;
+    const prevMaxUid = prevMaxUidRef.current;
+    // Email baru HANYA bila UID tertinggi Kotak Masuk naik (+ unseen naik) —
+    // bukan sekadar unseen naik (tandai-belum-dibaca / poll gagal → palsu).
+    const isNewEmail = selectedFolder === 'folderINBOX' && isNewMailArrival({
+      prevUnseen: prev, unseen: unseenCount, prevMaxUid, maxUid: unseenMaxUid,
+    });
+    prevUnseenRef.current = unseenCount;
+    if (unseenMaxUid !== null && (prevMaxUid === null || unseenMaxUid > prevMaxUid)) {
+      prevMaxUidRef.current = unseenMaxUid;
+    }
+
+    // Tab title: badge "(n)" bila ada belum dibaca
+    document.title = unseenCount > 0
+      ? `(${unseenCount}) PCP Express Mail`
+      : 'PCP Express Mail';
+
+    if (!isNewEmail) return;
+    // Tunggu daftar ter-refresh agar notifikasi memuat pesan BARU (bukan
+    // pengirim teratas lama). Fallback 15 dtk → teks umum.
+    const prevPending = pendingArrivalRef.current;
+    if (prevPending) clearTimeout(prevPending.timer);
+    const timer = setTimeout(() => {
+      if (pendingArrivalRef.current?.timer !== timer) return;
+      pendingArrivalRef.current = null;
+      announceNewMailRef.current?.(null, unseenCount);
+    }, 15_000);
+    pendingArrivalRef.current = { prevMaxUid, unseen: unseenCount, timer };
+  }, [unseenCount, unseenMaxUid, selectedFolder]);
 
   // ── Auto-refresh daftar pesan saat email baru terdeteksi ──────────────────
   // Root cause "webmail tidak menampilkan email terbaru": badge unseen di-poll

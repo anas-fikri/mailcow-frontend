@@ -9,6 +9,7 @@ import { parseCalendarEvents } from './calendarEvents.js';
 import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.js';
 import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFormat, maskEmail } from './loginDiagnostics.js';
 import { flattenMailboxes } from './mailboxTree.js';
+import { maxUidOf } from './newMail.js';
 import { bumpDomainVersion } from './crossTab.js';
 import { pickExternalContacts, filterKnownContacts } from './contactCapture.js';
 import { parseRawHeaders } from './messageHtml.js';
@@ -429,12 +430,14 @@ export async function getUnseenCount(sogoToken, folder = 'folderINBOX') {
       headers: sogoHeaders(),
   });
     throwIfAuthError(res);
-    if (!res.ok) return { unseenCount: 0 };
+    // maxUid: null saat gagal → deteksi email baru (lib/newMail.js) tidak
+    // terpicu oleh lonjakan 0 → N setelah satu poll gagal.
+    if (!res.ok) return { unseenCount: 0, maxUid: null };
     const data = await safeJson(res);
-    return { unseenCount: data?.unseenCount || 0 };
+    return { unseenCount: data?.unseenCount || 0, maxUid: maxUidOf(data?.uids) };
   } catch (err) {
     if (err?.status === 401 || err?.status === 403) throw err;
-    return { unseenCount: 0 };
+    return { unseenCount: 0, maxUid: null };
   }
 }
 
