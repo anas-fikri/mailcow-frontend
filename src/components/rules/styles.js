@@ -1,0 +1,6 @@
+// Kelas Tailwind bersama utk komponen aturan (halaman Aturan + Buat aturan dari pesan).
+export const inputCls = 'h-11 sm:h-9 bg-background border border-border rounded-md px-2.5 text-sm sm:text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary min-w-0';
+export const iconBtn = 'inline-flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+export const btnPrimary = 'inline-flex items-center justify-center gap-2 h-11 sm:h-9 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors disabled:opacity-50';
+export const btnGhost = 'inline-flex items-center justify-center gap-2 h-11 sm:h-9 px-4 text-sm text-foreground bg-muted hover:bg-muted/80 rounded-md transition-colors disabled:opacity-50';
+export const btnDanger = 'inline-flex items-center justify-center gap-2 h-11 sm:h-9 px-4 text-sm font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 rounded-md transition-colors disabled:opacity-50';

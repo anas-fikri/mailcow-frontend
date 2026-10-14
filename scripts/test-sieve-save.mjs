@@ -97,22 +97,24 @@ try {
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const page = read('src/pages/RulesPage.jsx');
 const quick = read('src/components/mailer/QuickRuleModal.jsx');
+// Komponen aturan bersama (diekstrak dari RulesPage; dipakai juga QuickRuleModal).
+const ruleUi = ['Modal', 'RuleEditor', 'RunNowDialog'].map((f) => read(`src/components/rules/${f}.jsx`)).join('\n');
 const mail = read('src/pages/MailPage.jsx');
 const aa = read('src/lib/autoArchive.js');
 
 ok(page.includes('role="switch"') && page.includes('aria-checked={checked}') && page.includes('aria-label={label}') && page.includes('label={`Aktifkan aturan ${name}`}'), 'RulesPage: saklar role=switch ber-label');
 ok(page.includes('aria-label={`Naikkan prioritas ${name}`}') && page.includes('aria-label={`Turunkan prioritas ${name}`}'), 'RulesPage: tombol urutan ber-aria-label');
 ok(page.includes('draggable:') && page.includes('onDrop'), 'RulesPage: drag untuk urutan');
-ok(page.includes('role="dialog"') && page.includes('aria-modal="true"'), 'RulesPage: modal ber-role dialog');
+ok(ruleUi.includes('role="dialog"') && ruleUi.includes('aria-modal="true"') && page.includes("import Modal from '../components/rules/Modal'"), 'RulesPage: modal ber-role dialog (Modal bersama)');
 ok(page.includes('saveSieveFilters(token, email, sogo)') && !/\baddRule\(/.test(page), 'RulesPage: simpan ke server, bukan localStorage');
 ok(page.includes('Aturan berjalan di server — berlaku di webmail, Outlook, dan HP, walau browser ditutup.'), 'RulesPage: penjelasan server');
 ok(page.includes("queryKey: ['preferences', token]"), 'RulesPage: invalidate preferences setelah save (cegah Vacation menimpa aturan)');
 ok(page.includes('removeLegacyRules(email, migratedIds)'), 'RulesPage: migrasi menghapus aturan lama (tanpa double-apply)');
 ok(page.includes('setRules(prev)'), 'RulesPage: rollback optimistic saat gagal');
-ok(!/rounded-(2xl|3xl)/.test(page) && !/shadow-(xl|2xl)/.test(page), 'RulesPage: kontrak radius/shadow');
-ok(!/text-\[(9|10)px\]/.test(page), 'RulesPage: teks ≥ 11px');
+ok(![page, ruleUi, quick].some((t) => /rounded-(2xl|3xl)/.test(t) || /shadow-(xl|2xl)/.test(t)), 'RulesPage/komponen aturan: kontrak radius/shadow');
+ok(![page, ruleUi, quick].some((t) => /text-\[(9|10)px\]/.test(t)), 'RulesPage/komponen aturan: teks ≥ 11px');
 ok(quick.includes('saveSieveFilters(sogoToken, userEmail, next)') && !quick.includes('addRule'), 'QuickRuleModal: aturan server');
-ok(quick.includes("emptyCondition('to_or_cc')"), 'QuickRuleModal: opsi Kepada atau Cc');
+ok(quick.includes('toggleQuickCondition(') && quick.includes('buildRuleFromMessage('), 'QuickRuleModal: kondisi cepat (Dari/Subjek/Kepada/Cc) lewat model aturan');
 ok(mail.includes('sogoToken={user?.sogoToken}'), 'MailPage: token diteruskan ke QuickRuleModal');
 ok(aa.includes('export function removeRules') && aa.includes("window.addEventListener('storage'"), 'autoArchive: removeRules + invalidasi cache lintas tab');
 

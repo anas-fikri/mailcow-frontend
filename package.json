@@ -53,6 +53,7 @@
     "test:autoarchive": "node scripts/test-autoarchive.mjs",
     "test:sieve-filters": "node scripts/test-sieve-filters.mjs",
     "test:sieve-save": "node scripts/test-sieve-save.mjs",
+    "test:quick-rule": "node scripts/test-quick-rule.mjs",
     "test:error-boundary-debug": "node scripts/test-error-boundary-debug.mjs",
     "test:flag-colors": "node scripts/test-flag-colors.mjs",
     "test:storage-migrate": "node scripts/test-storage-migrate.mjs",

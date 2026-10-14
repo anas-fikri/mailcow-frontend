@@ -27,6 +27,9 @@
  * (mailbox.path dari $flattenMailboxes).
  */
 
+import { parseAddressList } from './format.js';
+import { stripSubjectPrefixes } from './conversations.js';
+
 // ─── Kosakata UI ─────────────────────────────────────────────────────────────
 
 export const FIELD_OPTIONS = [
@@ -489,6 +492,107 @@ export function describeRule(rule, folderLabel) {
   const acts = (rule.actions || []).map((a) => describeAction(a, folderLabel));
   if (rule.stop) acts.push('berhenti');
   return `${conds} → ${acts.join(', ') || '…'}`;
+}
+
+// ─── Aturan dari pesan (ala Outlook "Buat aturan") ───────────────────────────
+
+/**
+ * Konteks prefill dari baris pesan: alamat pengirim (BUKAN nama tampilan —
+ * Sieve mencocokkan alamat), nama pengirim, subjek tanpa Re:/Fwd:, email akun.
+ * @param {{from?:any, subject?:string}} msg
+ * @param {string} userEmail
+ */
+export function quickRuleContext(msg, userEmail) {
+  const sender = parseAddressList(msg?.from).find((a) => a.email) || parseAddressList(msg?.from)[0] || { name: '', email: '' };
+  const senderEmail = String(sender.email || '').trim().toLowerCase();
+  return {
+    senderEmail,
+    senderName: String(sender.name || '').trim(),
+    subject: stripSubjectPrefixes(String(msg?.subject ?? '')),
+    me: String(userEmail ?? '').trim().toLowerCase(),
+  };
+}
+
+/** Kondisi cepat yang tersedia untuk konteks ini (urutan tampil). */
+export function quickRuleOptions(ctx) {
+  const out = [];
+  if (ctx.senderEmail) out.push({ id: 'from', label: `Dari ${ctx.senderName ? `${ctx.senderName} <${ctx.senderEmail}>` : ctx.senderEmail}` });
+  if (ctx.subject) out.push({ id: 'subject', label: `Subjek mengandung "${ctx.subject}"` });
+  if (ctx.me) {
+    out.push({ id: 'toMe', label: 'Dikirim ke saya (Kepada)' });
+    out.push({ id: 'ccMe', label: 'Cc ke saya' });
+  }
+  return out;
+}
+
+const sameCond = (c, field, value) => c.field === field && (c.operator || 'contains') === 'contains'
+  && String(c.value ?? '').trim().toLowerCase() === String(value ?? '').trim().toLowerCase();
+const isBlankCond = (c) => c.field !== 'size' && c.field !== 'header' && !String(c.value ?? '').trim();
+const cond = (field, value) => ({ ...emptyCondition(field), value });
+
+/** Status centang kondisi cepat, diturunkan dari model aturan (sumber kebenaran). */
+export function quickConditionState(rule, ctx) {
+  const cs = Array.isArray(rule?.conditions) ? rule.conditions : [];
+  const has = (f, v) => !!v && cs.some((c) => sameCond(c, f, v));
+  return {
+    from: has('from', ctx.senderEmail),
+    subject: has('subject', ctx.subject),
+    toMe: has('to', ctx.me) || has('to_or_cc', ctx.me),
+    ccMe: has('cc', ctx.me) || has('to_or_cc', ctx.me),
+  };
+}
+
+/**
+ * Tambah/hapus satu kondisi cepat di model aturan (murni → aturan baru).
+ * "Kepada saya" + "Cc ke saya" sekaligus digabung jadi satu kondisi
+ * "Kepada atau Cc" — kalau dua kondisi terpisah dgn "Semua kondisi", email
+ * harus ke saya di Kepada DAN Cc sekaligus (salah).
+ */
+export function toggleQuickCondition(rule, id, on, ctx) {
+  let cs = (Array.isArray(rule?.conditions) ? rule.conditions : []).slice();
+  const me = ctx.me;
+  const without = (f, v) => cs.filter((c) => !sameCond(c, f, v));
+  const add = (c) => { cs = [...cs.filter((x) => !isBlankCond(x)), c]; };
+  const replace = (fromField, toField) => { cs = cs.map((c) => (sameCond(c, fromField, me) ? cond(toField, me) : c)); };
+  const has = (f, v) => cs.some((c) => sameCond(c, f, v));
+  if (id === 'from' || id === 'subject') {
+    const field = id;
+    const value = id === 'from' ? ctx.senderEmail : ctx.subject;
+    if (!value) return rule;
+    if (on) { if (!has(field, value)) add(cond(field, value)); } else cs = without(field, value);
+  } else if (id === 'toMe' || id === 'ccMe') {
+    if (!me) return rule;
+    const mine = id === 'toMe' ? 'to' : 'cc';
+    const other = id === 'toMe' ? 'cc' : 'to';
+    if (on) {
+      if (has('to_or_cc', me) || has(mine, me)) return rule;
+      if (has(other, me)) replace(other, 'to_or_cc');
+      else add(cond(mine, me));
+    } else if (has('to_or_cc', me)) replace('to_or_cc', other);
+    else cs = without(mine, me);
+  } else {
+    return rule;
+  }
+  if (cs.length === 0) cs = [emptyCondition('from')];
+  return { ...rule, conditions: cs };
+}
+
+/**
+ * Model aturan awal dari pesan yang diklik (QuickRuleModal).
+ * Default: Dari <alamat pengirim> → Pindahkan ke folder (kosong — validasi
+ * meminta folder), nama "Dari <nama pengirim>".
+ * @param {object} msg  baris pesan { from, to, cc?, subject }
+ * @param {{ userEmail?: string, options?: {from?:boolean, subject?:boolean, toMe?:boolean, ccMe?:boolean} }} opts
+ */
+export function buildRuleFromMessage(msg, { userEmail = '', options = {} } = {}) {
+  const ctx = quickRuleContext(msg, userEmail);
+  const opt = { from: true, subject: false, toMe: false, ccMe: false, ...options };
+  const who = ctx.senderEmail ? (ctx.senderName || ctx.senderEmail) : '';
+  let rule = emptyRule({ name: who ? `Dari ${who}` : 'Aturan baru' });
+  for (const id of ['from', 'subject', 'toMe', 'ccMe']) {
+    if (opt[id]) rule = toggleQuickCondition(rule, id, true, ctx);
+  }
+  return rule;
 }
 
 // ─── Utilitas daftar ─────────────────────────────────────────────────────────

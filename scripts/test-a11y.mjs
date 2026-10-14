@@ -109,7 +109,8 @@ const app = read('src/App.jsx');
 const login = read('src/pages/LoginPage.jsx');
 const modal = read('src/components/EventModal.jsx');
 const drop = read('src/lib/calendarDrop.js');
-const rules = read('src/pages/RulesPage.jsx');
+// RunNowDialog diekstrak dari RulesPage → kontrak run-manual dicek di gabungan keduanya.
+const rules = read('src/pages/RulesPage.jsx') + '\n' + read('src/components/rules/RunNowDialog.jsx');
 const autoArchive = read('src/lib/autoArchive.js');
 
 console.log('\n— Target sentuh 44px (min-w-11/min-h-11) —');
@@ -167,7 +168,7 @@ assert.ok(mail.includes('aria-label={rowAriaLabel}') && mail.includes('role="but
 passCount += 3;
 
 // Row hover actions + flag picker
-for (const label of ['Buat aturan otomatis untuk pengirim ini', 'Tunda pesan', 'Arsipkan pesan', 'Hapus pesan']) {
+for (const label of ['Buat aturan dari pesan ini', 'Tunda pesan', 'Arsipkan pesan', 'Hapus pesan']) {
   assert.ok(mail.includes(`aria-label="${label}"`), `MailPage row: aria-label "${label}" hilang`);
   passCount++;
 }

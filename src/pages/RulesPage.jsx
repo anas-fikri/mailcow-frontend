@@ -1,41 +1,23 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback, useId } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocation, useNavigate } from 'react-router';
 import {
   Plus, Trash2, Filter, AlertCircle, RefreshCw, Zap, Loader2, CheckCircle2,
-  AlertTriangle, ArrowUp, ArrowDown, GripVertical, Copy, Pencil, Server, CloudUpload, X,
+  AlertTriangle, ArrowUp, ArrowDown, GripVertical, Copy, Pencil, Server, CloudUpload,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import {
-  fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessageHeadersRaw, moveMessages,
-  markReadBulk, markFlaggedBulk, fetchSieveFilters, saveSieveFilters,
-} from '../lib/api';
+import { fetchFolders, fetchSieveFilters, saveSieveFilters } from '../lib/api';
 import { toast } from '../lib/toast';
+import { getRules as getLegacyRules, removeRules as removeLegacyRules } from '../lib/autoArchive';
 import {
-  getRules as getLegacyRules, removeRules as removeLegacyRules,
-  claimAutoArchiveUids, releaseAutoArchiveClaims,
-} from '../lib/autoArchive';
-import {
-  FIELD_OPTIONS, MATCH_OPTIONS, ACTION_OPTIONS, operatorsFor, fieldKind,
-  emptyRule, emptyCondition, fromSogoFilters, toSogoFilters, validateRule,
-  describeRule, moveItem, duplicateRule, matchesMessage, ruleNeedsHeaders, ruleUsesSize,
-  isRunnable, planRun, folderIdToPath, mergeLegacyRules,
+  emptyRule, fromSogoFilters, toSogoFilters, describeRule, moveItem, duplicateRule,
+  isRunnable, folderIdToPath, mergeLegacyRules,
 } from '../lib/sieveFilters';
-import { loadSnoozes } from '../lib/snooze';
+import Modal from '../components/rules/Modal';
+import RuleEditor from '../components/rules/RuleEditor';
+import RunNowDialog from '../components/rules/RunNowDialog';
+import { iconBtn, btnPrimary, btnGhost, btnDanger } from '../components/rules/styles';
 import { DEFAULT_FOLDERS, STALE_TIMES } from '../lib/constants';
-
-const RUN_LIMIT = 500;       // pesan terbaru yang diperiksa "Jalankan sekarang"
-const HEADER_LIMIT = 200;    // maks pesan yang header lengkapnya diunduh (Cc/header lain)
-
-const inputCls = 'h-11 sm:h-9 bg-background border border-border rounded-md px-2.5 text-sm sm:text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary min-w-0';
-const iconBtn = 'inline-flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary';
-
-/** Pool paralel kecil (utk unduh header lengkap). */
-async function pool(items, n, fn) {
-  let i = 0;
-  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
-    while (i < items.length) { const it = items[i++]; try { await fn(it); } catch { /* biarkan tak-diketahui */ } }
-  }));
-}
 
 // ─── Saklar (WAI-ARIA switch) ────────────────────────────────────────────────
 function Switch({ checked, onChange, label, disabled }) {
@@ -56,210 +38,6 @@ function Switch({ checked, onChange, label, disabled }) {
   );
 }
 
-// ─── Modal dasar ─────────────────────────────────────────────────────────────
-function Modal({ title, onClose, children, size = 'max-w-lg', footer }) {
-  const titleId = useId();
-  const ref = useRef(null);
-  const bodyRef = useRef(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  // Sekali saat mount: fokus ke field pertama, Escape menutup, fokus kembali
-  // ke pemicu saat ditutup. (onClose via ref → effect tidak re-run tiap render.)
-  useEffect(() => {
-    const prev = document.activeElement;
-    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeRef.current(); } };
-    document.addEventListener('keydown', onKey);
-    const first = bodyRef.current?.querySelector('input, select, textarea') || ref.current?.querySelector('button');
-    first?.focus();
-    return () => { document.removeEventListener('keydown', onKey); prev?.focus?.(); };
-  }, []);
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[6vh] px-4 pb-4">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
-      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId}
-        className={`relative bg-card border border-border rounded-xl shadow-lg w-full ${size} max-h-[88vh] flex flex-col z-10`}>
-        <div className="h-12 px-4 border-b border-border flex items-center justify-between gap-2 shrink-0">
-          <h2 id={titleId} className="text-sm font-semibold text-foreground truncate">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Tutup" className={iconBtn}><X size={16} /></button>
-        </div>
-        <div ref={bodyRef} className="p-4 sm:p-5 overflow-y-auto">{children}</div>
-        {footer && <div className="px-4 sm:px-5 py-3 border-t border-border flex flex-wrap items-center justify-end gap-2 shrink-0">{footer}</div>}
-      </div>
-    </div>
-  );
-}
-
-const btnPrimary = 'inline-flex items-center justify-center gap-2 h-11 sm:h-9 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-sm font-medium transition-colors disabled:opacity-50';
-const btnGhost = 'inline-flex items-center justify-center gap-2 h-11 sm:h-9 px-4 text-sm text-foreground bg-muted hover:bg-muted/80 rounded-md transition-colors disabled:opacity-50';
-const btnDanger = 'inline-flex items-center justify-center gap-2 h-11 sm:h-9 px-4 text-sm font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 rounded-md transition-colors disabled:opacity-50';
-
-// ─── Folder picker ───────────────────────────────────────────────────────────
-function FolderSelect({ value, onChange, folders, id, label }) {
-  const known = folders.some((f) => f.path === value);
-  return (
-    <select id={id} aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} className={`${inputCls} flex-1`}>
-      <option value="">— Pilih folder —</option>
-      {!known && value && <option value={value}>{value} (tidak ditemukan)</option>}
-      {folders.map((f) => (
-        <option key={f.path} value={f.path}>{' '.repeat((f.depth || 0) * 2)}{f.label}</option>
-      ))}
-    </select>
-  );
-}
-
-// ─── Editor aturan ───────────────────────────────────────────────────────────
-function RuleEditor({ initial, folders, folderLabel, onCancel, onSave, saving }) {
-  const [rule, setRule] = useState(() => JSON.parse(JSON.stringify(initial)));
-  const [showErrors, setShowErrors] = useState(false);
-  const errors = useMemo(() => validateRule(rule), [rule]);
-  const nameId = useId();
-  const set = (patch) => setRule((r) => ({ ...r, ...patch }));
-  const setCond = (i, patch) => set({ conditions: rule.conditions.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
-  const setAct = (i, patch) => set({ actions: rule.actions.map((a, j) => (j === i ? { ...a, ...patch } : a)) });
-  const hasDiscard = rule.actions.some((a) => a.type === 'discard');
-
-  const submit = (e) => {
-    e.preventDefault();
-    if (errors.length) { setShowErrors(true); return; }
-    onSave(rule);
-  };
-
-  return (
-    <Modal
-      title={initial.name ? `Edit aturan: ${initial.name}` : 'Aturan baru'}
-      onClose={onCancel}
-      size="max-w-2xl"
-      footer={(
-        <>
-          <button type="button" onClick={onCancel} className={btnGhost}>Batal</button>
-          <button type="submit" form="rule-editor-form" disabled={saving} className={btnPrimary}>
-            {saving && <Loader2 size={14} className="animate-spin" />} Simpan ke server
-          </button>
-        </>
-      )}
-    >
-      <form id="rule-editor-form" onSubmit={submit} className="space-y-5" noValidate>
-        <div>
-          <label htmlFor={nameId} className="block text-xs font-medium text-muted-foreground mb-1.5">Nama aturan</label>
-          <input id={nameId} type="text" value={rule.name} onChange={(e) => set({ name: e.target.value })}
-            placeholder="Misal: Proyek dari Bayu" className={`${inputCls} w-full`} maxLength={120} />
-        </div>
-
-        {/* Jika */}
-        <fieldset className="space-y-2">
-          <legend className="text-xs font-semibold text-foreground mb-1.5">Jika</legend>
-          <div role="radiogroup" aria-label="Cara pencocokan" className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-            {MATCH_OPTIONS.map((m) => (
-              <button key={m.id} type="button" role="radio" aria-checked={rule.match === m.id}
-                onClick={() => set({ match: m.id })}
-                className={`h-11 sm:h-9 px-3 rounded-md text-xs font-medium transition-colors ${rule.match === m.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
-                {m.label}
-              </button>
-            ))}
-          </div>
-          {rule.match !== 'allmessages' && (
-            <div className="space-y-2">
-              {rule.conditions.map((c, i) => (
-                <div key={i} className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg border border-border bg-background/50">
-                  <select aria-label={`Kolom kondisi ${i + 1}`} value={c.field}
-                    onChange={(e) => {
-                      const field = e.target.value;
-                      const kindChanged = fieldKind(field) !== fieldKind(c.field) && (fieldKind(field) === 'size' || fieldKind(c.field) === 'size');
-                      setCond(i, kindChanged ? { ...emptyCondition(field) } : { field });
-                    }}
-                    className={inputCls}>
-                    {FIELD_OPTIONS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-                  </select>
-                  {c.field === 'header' && (
-                    <input aria-label={`Nama header kondisi ${i + 1}`} value={c.header} onChange={(e) => setCond(i, { header: e.target.value })}
-                      placeholder="List-Id" className={`${inputCls} w-28`} />
-                  )}
-                  <select aria-label={`Operator kondisi ${i + 1}`} value={c.operator} onChange={(e) => setCond(i, { operator: e.target.value })} className={inputCls}>
-                    {operatorsFor(c.field).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                  </select>
-                  {c.field === 'size' ? (
-                    <span className="flex items-center gap-1.5 flex-1 min-w-[140px]">
-                      <input aria-label={`Ukuran kondisi ${i + 1}`} type="number" min="1" inputMode="numeric" value={c.value}
-                        onChange={(e) => setCond(i, { value: e.target.value })} className={`${inputCls} flex-1 w-20`} />
-                      <select aria-label={`Satuan ukuran kondisi ${i + 1}`} value={c.unit} onChange={(e) => setCond(i, { unit: e.target.value })} className={inputCls}>
-                        <option value="KB">KB</option><option value="MB">MB</option>
-                      </select>
-                    </span>
-                  ) : (
-                    <input aria-label={`Nilai kondisi ${i + 1}`} value={c.value} onChange={(e) => setCond(i, { value: e.target.value })}
-                      placeholder={fieldKind(c.field) === 'address' ? 'nama@domain.com atau bagian alamat' : 'teks…'}
-                      className={`${inputCls} flex-1 min-w-[140px]`} />
-                  )}
-                  <button type="button" aria-label={`Hapus kondisi ${i + 1}`} disabled={rule.conditions.length <= 1}
-                    onClick={() => set({ conditions: rule.conditions.filter((_, j) => j !== i) })}
-                    className={`${iconBtn} hover:text-destructive`}><Trash2 size={14} /></button>
-                </div>
-              ))}
-              <button type="button" onClick={() => set({ conditions: [...rule.conditions, emptyCondition('from')] })}
-                className="inline-flex items-center gap-1.5 h-11 sm:h-8 text-xs font-medium text-primary hover:underline">
-                <Plus size={14} /> Tambah kondisi
-              </button>
-              <p className="text-[11px] text-muted-foreground">
-                Kolom alamat (Dari/Kepada/Cc) dicocokkan dengan alamat email, bukan nama tampilan. Pola: <code>*</code> = teks apa pun, <code>?</code> = satu karakter.
-              </p>
-            </div>
-          )}
-        </fieldset>
-
-        {/* Lakukan */}
-        <fieldset className="space-y-2">
-          <legend className="text-xs font-semibold text-foreground mb-1.5">Lakukan</legend>
-          {rule.actions.map((a, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg border border-border bg-background/50">
-              {a.type === 'other' ? (
-                <span className="flex-1 text-xs text-muted-foreground">Tindakan dari klien lain: <code>{a.raw?.method}</code> {a.argument} (dipertahankan)</span>
-              ) : (
-                <select aria-label={`Jenis tindakan ${i + 1}`} value={a.type} onChange={(e) => setAct(i, { type: e.target.value, argument: '' })} className={inputCls}>
-                  {ACTION_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                </select>
-              )}
-              {a.type === 'fileinto' && (
-                <FolderSelect label={`Folder tujuan tindakan ${i + 1}`} value={a.argument} onChange={(v) => setAct(i, { argument: v })} folders={folders} />
-              )}
-              {a.type === 'redirect' && (
-                <input aria-label={`Alamat penerusan tindakan ${i + 1}`} type="email" value={a.argument} onChange={(e) => setAct(i, { argument: e.target.value })}
-                  placeholder="nama@domain.com" className={`${inputCls} flex-1 min-w-[160px]`} />
-              )}
-              <button type="button" aria-label={`Hapus tindakan ${i + 1}`} onClick={() => set({ actions: rule.actions.filter((_, j) => j !== i) })}
-                className={`${iconBtn} hover:text-destructive`}><Trash2 size={14} /></button>
-            </div>
-          ))}
-          {hasDiscard && (
-            <p role="alert" className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-md">
-              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-              Email yang cocok akan DIBUANG permanen di server — tidak masuk Sampah dan tidak bisa dipulihkan.
-            </p>
-          )}
-          <button type="button" onClick={() => set({ actions: [...rule.actions, { type: 'mark_seen', argument: '' }] })}
-            className="inline-flex items-center gap-1.5 h-11 sm:h-8 text-xs font-medium text-primary hover:underline">
-            <Plus size={14} /> Tambah tindakan
-          </button>
-          <label className="flex items-center gap-2 min-h-11 sm:min-h-8 text-sm text-foreground cursor-pointer">
-            <input type="checkbox" checked={rule.stop} onChange={(e) => set({ stop: e.target.checked })} className="w-4 h-4 accent-primary" />
-            Berhenti memproses aturan lain
-          </label>
-        </fieldset>
-
-        <div className="rounded-lg bg-muted px-3 py-2.5" aria-live="polite">
-          <div className="text-[11px] font-medium text-muted-foreground mb-0.5">Pratinjau</div>
-          <p className="text-sm text-foreground break-words">{describeRule(rule, folderLabel)}</p>
-        </div>
-
-        {showErrors && errors.length > 0 && (
-          <ul role="alert" className="text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-md space-y-0.5 list-disc pl-6">
-            {errors.map((er) => <li key={er}>{er}</li>)}
-          </ul>
-        )}
-      </form>
-    </Modal>
-  );
-}
-
 // ─── Konfirmasi ──────────────────────────────────────────────────────────────
 function ConfirmDialog({ title, children, confirmLabel, onConfirm, onClose, danger, busy }) {
   return (
@@ -273,155 +51,6 @@ function ConfirmDialog({ title, children, confirmLabel, onConfirm, onClose, dang
         </>
       )}>
       <div className="text-sm text-muted-foreground space-y-2">{children}</div>
-    </Modal>
-  );
-}
-
-// ─── Dialog "Jalankan sekarang" ──────────────────────────────────────────────
-function RunNowDialog({ scope, rules, folders, folderLabel, user, onClose, onDone }) {
-  // Satu aturan boleh dijalankan manual walau nonaktif (seperti Outlook "Run Rules Now").
-  const targetRules = scope === 'all'
-    ? rules.filter((r) => r.active)
-    : rules.filter((r) => r.key === scope).map((r) => ({ ...r, active: true }));
-  const runnable = targetRules.filter(isRunnable);
-  const [folderPath, setFolderPath] = useState('INBOX');
-  const [phase, setPhase] = useState('idle'); // idle | counting | ready | applying
-  const [plan, setPlan] = useState(null);
-  const [note, setNote] = useState('');
-  const folderSelId = useId();
-  const folderId = useMemo(() => folders.find((f) => f.path === folderPath)?.id || `folder${folderPath.replace(/\//g, '%2F')}`, [folders, folderPath]);
-
-  const count = async () => {
-    setPhase('counting'); setPlan(null); setNote('');
-    try {
-      const { messages, uids } = await fetchMessages(user.sogoToken, folderId, {});
-      let list = [...messages];
-      if (Array.isArray(uids) && uids.length > list.length && list.length < RUN_LIMIT) {
-        const have = new Set(list.map((m) => String(m.uid)));
-        const rest = uids.filter((u) => !have.has(String(u))).slice(0, RUN_LIMIT - list.length);
-        for (let i = 0; i < rest.length; i += 100) list.push(...await fetchMessageHeaders(user.sogoToken, folderId, rest.slice(i, i + 100)));
-      }
-      const truncated = (uids?.length || list.length) > RUN_LIMIT;
-      list = list.slice(0, RUN_LIMIT);
-      // Cc / header lain tidak ada di baris daftar → unduh header lengkap HANYA
-      // utk pesan yang hasilnya belum pasti (hemat request).
-      if (runnable.some(ruleNeedsHeaders)) {
-        const pending = list.filter((m) => runnable.some((r) => matchesMessage(r, m) === null)).slice(0, HEADER_LIMIT);
-        await pool(pending, 5, async (m) => {
-          const h = await fetchMessageHeadersRaw(user.sogoToken, folderId, m.uid);
-          m.cc = h.get('cc');
-          m.headers = h;
-        });
-      }
-      // Pesan yang sedang di-snooze tidak disentuh (konsisten dgn engine lama).
-      const snoozed = new Set(Object.keys(loadSnoozes(user.email)[folderId] || {}));
-      const p = planRun(runnable, list, { sourcePath: folderPath, isExcluded: (m) => snoozed.has(String(m.uid)) });
-      const notes = [];
-      if (truncated) notes.push(`Hanya ${RUN_LIMIT} email terbaru yang diperiksa.`);
-      if (p.unknown) notes.push(`${p.unknown} email tidak bisa dipastikan (kondisi Ukuran/Cc hanya dievaluasi penuh di server).`);
-      if (runnable.some(ruleUsesSize)) notes.push('Kondisi Ukuran tidak dievaluasi di sini.');
-      if (p.skippedActions) notes.push('Teruskan/Hapus/Simpan tidak dijalankan pada email lama.');
-      setNote(notes.join(' '));
-      setPlan(p);
-      setPhase('ready');
-    } catch (err) {
-      toast.error(err?.message || 'Gagal memeriksa email.');
-      setPhase('idle');
-    }
-  };
-
-  const apply = async () => {
-    if (!plan) return;
-    setPhase('applying');
-    let claimed = [];
-    const results = { moved: 0, seen: 0, flagged: 0, failed: 0 };
-    try {
-      // Tandai dulu, baru pindahkan (uid berubah setelah pindah folder).
-      if (plan.markSeen.length) {
-        const r = await markReadBulk(user.sogoToken, folderId, plan.markSeen, true);
-        results.seen = r.ok.length; results.failed += r.failed.length;
-      }
-      if (plan.markFlagged.length) {
-        const r = await markFlaggedBulk(user.sogoToken, folderId, plan.markFlagged, true);
-        results.flagged = r.ok.length; results.failed += r.failed.length;
-      }
-      const matchedUids = Object.values(plan.moves).flat().map(String);
-      // Klaim multi-tab (sama dgn engine lama) — uid yg sedang diproses tab lain di-skip.
-      claimed = claimAutoArchiveUids(user.email, matchedUids);
-      const claimedSet = new Set(claimed);
-      for (const [target, uids] of Object.entries(plan.moves)) {
-        const mine = uids.filter((u) => claimedSet.has(String(u)));
-        if (!mine.length) continue;
-        try {
-          await moveMessages(user.sogoToken, folderId, mine, { path: target });
-          results.moved += mine.length;
-        } catch (err) {
-          results.failed += mine.length;
-          console.warn('[rules] run-now move gagal:', target, err?.message || err);
-        }
-      }
-      const parts = [];
-      if (results.moved) parts.push(`${results.moved} dipindahkan`);
-      if (results.seen) parts.push(`${results.seen} ditandai dibaca`);
-      if (results.flagged) parts.push(`${results.flagged} ditandai bendera`);
-      if (parts.length) toast.success(`Aturan dijalankan: ${parts.join(', ')}.`);
-      else toast.info('Tidak ada perubahan.');
-      if (results.failed) toast.warning(`${results.failed} tindakan gagal — coba lagi.`);
-      onDone();
-    } finally {
-      if (claimed.length > 0) releaseAutoArchiveClaims(user.email, claimed);
-      // Rencana lama sudah basi (uid pindah) — periksa ulang bila perlu.
-      setPlan(null);
-      setPhase('idle');
-    }
-  };
-
-  const total = plan ? plan.matched.length : 0;
-  const moveCount = plan ? Object.values(plan.moves).reduce((s, u) => s + u.length, 0) : 0;
-  const title = scope === 'all' ? 'Jalankan semua aturan sekarang' : `Jalankan sekarang: ${targetRules[0]?.name || ''}`;
-
-  return (
-    <Modal title={title} onClose={onClose}
-      footer={(
-        <>
-          <button type="button" onClick={onClose} className={btnGhost}>Tutup</button>
-          {phase === 'ready' && total > 0 ? (
-            <button type="button" onClick={apply} className={btnPrimary}>Terapkan ke {total} email</button>
-          ) : (
-            <button type="button" onClick={count} disabled={!runnable.length || phase === 'counting' || phase === 'applying'} className={btnPrimary}>
-              {(phase === 'counting' || phase === 'applying') && <Loader2 size={14} className="animate-spin" />} Periksa email
-            </button>
-          )}
-        </>
-      )}>
-      <div className="space-y-4 text-sm">
-        <p className="text-muted-foreground text-xs">
-          Terapkan aturan ke email yang SUDAH ada (email baru otomatis diproses server). Hanya tindakan
-          Pindahkan, Tandai dibaca, dan Tandai bendera yang dijalankan.
-        </p>
-        {!runnable.length && (
-          <p className="text-xs text-muted-foreground bg-muted px-3 py-2 rounded-md">Tidak ada aturan aktif dengan tindakan yang bisa dijalankan.</p>
-        )}
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor={folderSelId} className="text-xs font-medium text-muted-foreground">Folder yang diperiksa</label>
-          <select id={folderSelId} value={folderPath} onChange={(e) => { setFolderPath(e.target.value); setPlan(null); setPhase('idle'); }} className={`${inputCls} w-full`}>
-            {folders.map((f) => <option key={f.path} value={f.path}>{' '.repeat((f.depth || 0) * 2)}{f.label}</option>)}
-          </select>
-        </div>
-        {plan && (
-          <div className="rounded-lg border border-border p-3 space-y-1" aria-live="polite">
-            <p className="font-medium text-foreground">{total} email cocok di {folderLabel(folderPath)}</p>
-            {total > 0 && (
-              <ul className="text-xs text-muted-foreground space-y-0.5">
-                {moveCount > 0 && Object.entries(plan.moves).map(([p, u]) => <li key={p}>Pindahkan {u.length} ke {folderLabel(p)}</li>)}
-                {plan.markSeen.length > 0 && <li>Tandai dibaca: {plan.markSeen.length}</li>}
-                {plan.markFlagged.length > 0 && <li>Tandai bendera: {plan.markFlagged.length}</li>}
-              </ul>
-            )}
-            {note && <p className="text-[11px] text-muted-foreground pt-1">{note}</p>}
-          </div>
-        )}
-      </div>
     </Modal>
   );
 }
@@ -506,6 +135,15 @@ export default function RulesPage() {
   }, [filtersQuery.data]);
 
   const [editing, setEditing] = useState(null);   // model aturan / null
+  // Draf dari "Buat aturan dari pesan ini" → "Opsi lanjutan…" (router state).
+  const location = useLocation();
+  const navigate = useNavigate();
+  const draftRule = location.state?.draftRule;
+  useEffect(() => {
+    if (!draftRule || rules === null) return;
+    setEditing(draftRule);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [draftRule, rules, navigate, location.pathname]);
   const [confirmDel, setConfirmDel] = useState(null);
   const [runScope, setRunScope] = useState(null);  // 'all' | rule.key
   const [legacyTick, setLegacyTick] = useState(0);
@@ -703,6 +341,7 @@ export default function RulesPage() {
 
       {editing && (
         <RuleEditor initial={editing} folders={folders} folderLabel={folderLabel} saving={busy}
+          title={editing.name && !list.some((r) => r.key === editing.key) ? 'Aturan baru' : undefined}
           onCancel={() => setEditing(null)} onSave={handleSaveEditor} />
       )}
 

@@ -397,7 +397,7 @@ export default function MailPage() {
   const lastGlobalQueryRef = useRef(null);
 
   const [snoozePicker, setSnoozePicker] = useState(null); // { uid, x, y } — pilih durasi snooze
-  const [quickRuleSender, setQuickRuleSender] = useState(null); // sender label utk QuickRuleModal
+  const [quickRuleMsg, setQuickRuleMsg] = useState(null); // pesan sumber utk QuickRuleModal ("Buat aturan dari pesan ini")
   const [snoozeTick, setSnoozeTick] = useState(0); // bump utk re-render setelah prune
   const [claimsTick, setClaimsTick] = useState(0); // bump utk re-run engine saat klaim berubah di tab lain
   const [expandedConversations, setExpandedConversations] = useState(new Set());
@@ -2319,7 +2319,7 @@ export default function MailPage() {
     // (bug audit 2026-09-07: dulu hanya compose+help — modal Buat/Hapus
     // Subfolder & QuickRule masih bolong, tekan 'd' = bulk delete di
     // belakang modal). Menu konteks & picker punya handler keyboard sendiri.
-    const modalOpen = composeOpen || keyboardHelpOpen || !!folderDialog || !!quickRuleSender
+    const modalOpen = composeOpen || keyboardHelpOpen || !!folderDialog || !!quickRuleMsg
       || archiveConfirmOpen || !!movePicker || !!ctxMenu || pendingOpen;
     const focusedMsg = focusIdx >= 0 ? focusOrder[focusIdx] : null;
     // Target aksi: seleksi multi → kalau tidak, baris fokus → pesan terbuka
@@ -2495,6 +2495,9 @@ export default function MailPage() {
       // menampilkan penerima, bukan pengirim → item disembunyikan.
       ...(!isSentOrDraft && single && msg.from
         ? [{ id: 'searchSender', label: 'Cari email dari pengirim ini', icon: Search, onSelect: () => searchBySender(msg.from) }]
+        : []),
+      ...(single
+        ? [{ id: 'createRule', label: 'Buat aturan…', icon: Filter, onSelect: () => setQuickRuleMsg({ ...msg, folderId: folder }) }]
         : []),
       { separator: true },
       anyUnread
@@ -2818,19 +2821,19 @@ export default function MailPage() {
                       {replyBusy?.uid === msg.uid ? <Loader2 size={14} className="animate-spin" /> : <Reply size={14} />}
                     </button>
                   )}
-                  {/* Buat aturan utk pengirim ini — hover desktop */}
+                  {/* Buat aturan dari pesan ini (ala Outlook) — hover desktop */}
                   {!isTouch && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!isDeliberateClick(e)) return;
-                        setQuickRuleSender(senderLabel);
+                        setQuickRuleMsg({ ...msg, folderId: rowFolder });
                       }}
                       tabIndex={actionTab}
                       onDoubleClick={stopDbl}
                       className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors"
-                      title="Buat aturan otomatis untuk pengirim ini"
-                      aria-label="Buat aturan otomatis untuk pengirim ini"
+                      title="Buat aturan dari pesan ini"
+                      aria-label="Buat aturan dari pesan ini"
                     >
                       <Filter size={14} />
                     </button>
@@ -3962,9 +3965,9 @@ export default function MailPage() {
 
       {/* ── Quick Rule — buat aturan dari baris email ─────────────────────── */}
       <QuickRuleModal
-        isOpen={!!quickRuleSender}
-        onClose={() => setQuickRuleSender(null)}
-        sender={quickRuleSender}
+        isOpen={!!quickRuleMsg}
+        onClose={() => setQuickRuleMsg(null)}
+        message={quickRuleMsg}
         folders={folders}
         userEmail={user?.email}
         sogoToken={user?.sogoToken}
