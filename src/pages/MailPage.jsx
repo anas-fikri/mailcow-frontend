@@ -1198,7 +1198,11 @@ export default function MailPage() {
   const hasMore = visibleCount < messagesInWindow.length ||
     (remainingUids.length > 0 && !stopFetchingRef.current);
 
-  // Jalankan rules untuk pesan yang baru dimuat
+  // Jalankan rules LAMA (client-side, localStorage) untuk pesan yang baru
+  // dimuat. Aturan baru hidup di SERVER (Sieve — RulesPage/sieveFilters.js)
+  // dan dijalankan Dovecot saat email masuk; aturan lama yang sudah
+  // dimigrasi dihapus dari localStorage (removeRules) sehingga engine ini
+  // hanya memproses aturan yang BELUM dimigrasi → tidak ada double-apply.
   useEffect(() => {
     // Jangan jalankan rules saat mode SEARCH — rules memindahkan pesan dari
     // daftar folder biasa; memindahkan hasil pencarian mengejutkan user
@@ -3886,6 +3890,7 @@ export default function MailPage() {
         sender={quickRuleSender}
         folders={folders}
         userEmail={user?.email}
+        sogoToken={user?.sogoToken}
       />
 
       {/* ── Folder Dialog: buat subfolder / hapus folder ──────────────────── */}

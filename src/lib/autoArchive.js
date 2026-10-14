@@ -1,5 +1,9 @@
 /**
- * Auto-Archive Rules Engine
+ * Auto-Archive Rules Engine (LEGACY — client-side)
+ * Aturan baru sekarang disimpan di SERVER (Sieve, lihat sieveFilters.js +
+ * RulesPage). Modul ini tinggal utk aturan lama yang belum dimigrasi: engine
+ * MailPage hanya menjalankan aturan yang masih ada di sini, dan migrasi
+ * menghapusnya (removeRules) supaya tidak dobel dengan server.
  * — Menyimpan aturan archive di localStorage
  * — Match kondisi message terhadap rule
  * — Eksekusi move otomatis ke folder target
@@ -61,6 +65,16 @@ const rulesCache = new Map(); // email → normalized rules array
 /** (Internal/test) Kosongkan cache — dipakai saat storage diubah langsung. */
 export function __resetRulesCache() {
   rulesCache.clear();
+}
+
+// Tab lain memigrasi/menghapus aturan lama → cache tab ini basi dan engine
+// client-side di MailPage akan terus menjalankan aturan yang SUDAH pindah ke
+// server (double-apply). Event 'storage' hanya fire di tab lain → bersihkan
+// cache saat key aturan berubah.
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('storage', (e) => {
+    if (e?.key == null || String(e.key).startsWith(BASE_KEY)) rulesCache.clear();
+  });
 }
 
 // ─── Read / Write ─────────────────────────────────────────────────────────────
@@ -158,6 +172,21 @@ export function deleteRule(email, ruleId) {
   const rules = getRules(email);
   const filtered = rules.filter((r) => r.id !== ruleId);
   saveRules(email, filtered);
+}
+
+/**
+ * Hapus beberapa aturan lama sekaligus — dipakai setelah aturan berhasil
+ * dimigrasi ke server (Sieve), supaya engine client-side di MailPage berhenti
+ * menjalankannya (tidak double-apply dengan server).
+ * @returns {number} jumlah aturan yang tersisa
+ */
+export function removeRules(email, ruleIds) {
+  if (!email) return 0;
+  const drop = new Set((Array.isArray(ruleIds) ? ruleIds : []).map(String));
+  const remaining = getRules(email).filter((r) => !drop.has(String(r.id)));
+  if (remaining.length === 0) clearAllRules(email);
+  else saveRules(email, remaining);
+  return remaining.length;
 }
 
 export function toggleRule(email, ruleId) {

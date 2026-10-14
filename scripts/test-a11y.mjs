@@ -463,8 +463,9 @@ passCount++;
 // RulesPage handleRunNow: (a) exclude pesan yang di-snooze (konsisten dengan
 // engine otomatis), (b) koordinasi klaim multi-tab, (c) lepas klaim miliknya.
 assert.ok(
-  rules.includes("loadSnoozes(user.email).folderINBOX") &&
-  rules.includes('!snoozedInbox.has(String(m.uid))'),
+  // "Jalankan sekarang" kini bisa memilih folder → snooze folder TERPILIH.
+  rules.includes('loadSnoozes(user.email)[folderId]') &&
+  rules.includes('isExcluded: (m) => snoozed.has(String(m.uid))'),
   'RulesPage: run-manual tidak memindahkan pesan yang sedang di-snooze'
 );
 passCount++;

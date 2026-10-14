@@ -1810,3 +1810,71 @@ export async function savePreferences(sogoToken, prefs, email) {
 
   return true;
 }
+
+// ─── Aturan server (Sieve) — defaults.SOGoSieveFilters ─────────────────────────
+// PENTING: POST /Preferences/save SOGo (UIxPreferences saveAction) memanggil
+// `[[userDefaults source] setValues: defaults]` → seluruh objek `defaults`
+// DIGANTI, bukan di-merge. Jadi kirim defaults LENGKAP yang segar dari DB
+// (Vacation/Forward/signature/dll ikut), hanya SOGoSieveFilters yang diganti.
+// Sengaja TIDAK memakai fallback localStorage (bisa basi → menimpa Vacation/
+// Forward di server) dan TIDAK mengirim `settings` (tidak disentuh SOGo bila
+// key-nya absen).
+
+/** Preferensi segar dari DB (/api/preferences) — throw bila tidak tersedia. */
+async function fetchPreferencesStrict(email) {
+  if (!email) throw new Error('Email pengguna tidak tersedia — silakan login ulang.');
+  const res = await fetchWithTimeout(`/api/preferences?email=${encodeURIComponent(email)}&t=${Date.now()}`, {
+    credentials: 'include',
+    headers: withApiKey(),
+  }, 15000);
+  // 401/403 dari /api/* = sesi SMTP proxy, BUKAN sesi SOGo → jangan picu logout.
+  if (res.status === 401 || res.status === 403) {
+    throw new Error('Sesi server aturan berakhir — muat ulang halaman atau login ulang.');
+  }
+  if (!res.ok) throw new Error(`Gagal membaca aturan dari server (${res.status}).`);
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) throw new Error('Respons server aturan tidak valid.');
+  const data = await res.json();
+  if (!data || typeof data !== 'object' || !data.defaults || typeof data.defaults !== 'object' || Array.isArray(data.defaults)) {
+    throw new Error('Respons server aturan tidak lengkap.');
+  }
+  return { defaults: data.defaults, settings: data.settings && typeof data.settings === 'object' ? data.settings : {} };
+}
+
+/**
+ * Ambil filter Sieve milik user (format SOGo, urutan = prioritas).
+ * @returns {Promise<Array>}
+ */
+export async function fetchSieveFilters(_sogoToken, email) {
+  const prefs = await fetchPreferencesStrict(email);
+  const list = prefs.defaults.SOGoSieveFilters;
+  return Array.isArray(list) ? list : [];
+}
+
+/**
+ * Simpan filter Sieve (format SOGo) — read-modify-write defaults segar.
+ * SOGo membalas 502/503 bila skrip Sieve gagal diunggah ke Dovecot (defaults
+ * tetap tersimpan di DB) → error ber-`sieveFailed` agar UI bisa memberi tahu.
+ * @returns {Promise<Array>} filter yang tersimpan
+ */
+export async function saveSieveFilters(sogoToken, email, filters) {
+  if (!Array.isArray(filters)) throw new Error('Daftar aturan tidak valid.');
+  const fresh = await fetchPreferencesStrict(email);
+  const defaults = { ...fresh.defaults, SOGoSieveFilters: filters };
+  const res = await fetchWithTimeout(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Preferences/save`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ defaults }),
+  }, 20000);
+  throwIfAuthError(res);
+  if (res.status === 502 || res.status === 503) {
+    const err = new Error('Aturan tersimpan, tetapi server filter (Sieve) gagal diperbarui — coba simpan lagi nanti.');
+    err.status = res.status;
+    err.sieveFailed = true;
+    throw err;
+  }
+  if (!res.ok) throwApiError(`Gagal menyimpan aturan (${res.status}).`, res.status);
+  savePrefsToLocal(email, { defaults, settings: fresh.settings });
+  return filters;
+}
