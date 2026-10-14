@@ -21,6 +21,7 @@ import QuickRuleModal from '../components/mailer/QuickRuleModal';
 import { MessageListSkeleton, FoldersListSkeleton } from '../components/Skeleton';
 import { toast, useToastStore } from '../lib/toast';
 import { DEFAULT_FOLDERS, STALE_TIMES, isSentOrDraftFolder } from '../lib/constants';
+import { isProtectedFolder } from '../lib/mailboxTree';
 import { watchDomainVersion } from '../lib/crossTab';
 import KeyboardShortcutsModal from '../components/KeyboardShortcuts';
 import SwipeableRow from '../components/SwipeableRow';
@@ -2533,7 +2534,7 @@ export default function MailPage() {
 
   // Item menu konteks baris folder.
   const buildFolderMenuItems = (folder) => {
-    const isDefault = DEFAULT_FOLDERS.some((d) => d.id === folder.id);
+    const isDefault = isProtectedFolder(folder); // folder sistem SOGo (termasuk Templates) tidak bisa dihapus
     const isFav = favoriteSet.has(folder.id);
     return [
       { id: 'open', label: 'Buka folder', icon: Folder, onSelect: () => selectFolder(folder.id) },
@@ -2975,7 +2976,7 @@ export default function MailPage() {
     const badge = folder.type === 'inbox'
       ? (unseenData?.unseenCount || 0)
       : (perFolderUnseen.data?.[folder.id] || 0);
-    const isDefault = DEFAULT_FOLDERS.some((d) => d.id === folder.id);
+    const isDefault = isProtectedFolder(folder); // folder sistem SOGo (termasuk Templates) tidak bisa dihapus
     const isFav = favoriteSet.has(folder.id);
     const isDropTarget = dropTargetId === folder.id;
     const rowActionsVisible = isTouch ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100';

@@ -9,6 +9,21 @@ export const FOLDER_TYPE_LABELS = {
   inbox:    'Kotak Masuk',
 };
 
+// Tipe folder khusus SOGo yang TIDAK boleh dihapus dari UI. `templates` ikut:
+// SOGo selalu menampilkan folder Templates (SOGoTemplatesFolderName) walau
+// mailbox-nya belum pernah dibuat di IMAP — hapus → 500 "Mailbox doesn't exist"
+// (insiden 2026-10-14, log sogod). Diperiksa berdasarkan TIPE dari SOGo, bukan
+// hanya id tetap, agar nama folder khusus yang dikustomisasi tetap terlindungi.
+export const PROTECTED_FOLDER_TYPES = new Set(['inbox', 'sent', 'draft', 'drafts', 'trash', 'junk', 'templates']);
+const PROTECTED_FOLDER_IDS = new Set(['folderINBOX', 'folderSent', 'folderDrafts', 'folderTrash', 'folderJunk', 'folderTemplates']);
+
+/** True bila folder adalah folder sistem (tidak boleh dihapus). */
+export function isProtectedFolder(folder) {
+  if (!folder || typeof folder !== 'object') return false;
+  if (PROTECTED_FOLDER_IDS.has(folder.id)) return true;
+  return PROTECTED_FOLDER_TYPES.has(String(folder.type || '').toLowerCase());
+}
+
 /**
  * Flatten response SOGo Mail/0/view menjadi daftar folder satu tingkat.
  *

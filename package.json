@@ -124,7 +124,8 @@
     "test:ui-actions-layout": "node scripts/test-ui-actions-layout.mjs",
     "test:pin-lookup": "node scripts/test-pin-lookup.mjs",
     "test:send-queue-dedupe": "node scripts/test-send-queue-dedupe.mjs",
-    "test:mark-read-sync": "node scripts/test-mark-read-sync.mjs"
+    "test:mark-read-sync": "node scripts/test-mark-read-sync.mjs",
+    "test:protected-folders": "node scripts/test-protected-folders.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

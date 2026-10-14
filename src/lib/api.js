@@ -861,7 +861,14 @@ export async function deleteFolder(sogoToken, folderId) {
     headers: sogoHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ withoutTrash: true }),
   });
-  if (!res.ok) throwApiError(`Gagal menghapus folder (${res.status}).`, res.status);
+  if (!res.ok) {
+    // SOGo membalas 500 utk folder khusus virtual (mis. Templates yang belum
+    // pernah dibuat di IMAP) atau folder yang sudah tidak ada di server.
+    const msg = res.status === 500
+      ? 'Folder tidak bisa dihapus: folder ini tidak ada di server atau merupakan folder sistem.'
+      : `Gagal menghapus folder (${res.status}).`;
+    throwApiError(msg, res.status);
+  }
   bumpMailVersion(sogoToken);
 }
 
