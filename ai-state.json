@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "last_session": "2026-10-11T00:00:00Z",
-  "context": "PCP Express Webmail — UX ala Outlook + visual modern clean + command palette + security fix (quote split re-sanitize) di-merge ke main & deploy 2026-10-11. 108/108 test, smoke 12/12.",
+  "last_session": "2026-10-14T00:00:00Z",
+  "context": "PCP Express Webmail — 2026-10-14: insiden email duplikat (proses server.js yatim + flush tanpa guard) diperbaiki & live (149a406); Aturan kini server-side Sieve via SOGo ala Outlook (Dari/Kepada/Cc, prioritas) live (cc04c3d).",
   "modules": {
     "deploy": {
       "status": "updated",
@@ -29,6 +29,11 @@
       "status": "live",
       "branch": "main",
       "note": "deploy via deploy.sh penuh (server.js berubah: threadingHeaders.js)"
+    },
+    "rules": {
+      "status": "live",
+      "feature": "Aturan server-side Sieve (SOGoSieveFilters): Dari/Kepada/Cc/Kepada-atau-Cc/Subjek/Header/Ukuran, prioritas, multi-aksi, Jalankan sekarang, migrasi aturan lokal",
+      "note": "terverifikasi live di akun anas.fikri (skrip sogo benar, 47 kunci prefs utuh)"
     }
   },
   "bugs_found": [
@@ -45,6 +50,16 @@
     {
       "date": "2026-10-11",
       "bug": "MessageReader hook-order crash",
+      "status": "fixed"
+    },
+    {
+      "date": "2026-10-14",
+      "bug": "email undo-send terkirim 2-4x (12 proses yatim + flush tanpa guard)",
+      "status": "fixed"
+    },
+    {
+      "date": "2026-10-14",
+      "bug": "header threading terbuang di jalur antrean",
       "status": "fixed"
     }
   ],
@@ -68,7 +83,8 @@
       "updated_at": "2026-09-24T02:14:00Z"
     },
     "2026-10-11: Outlook-UX round selesai di branch worktree-outlook-ux (9 commit, 76/76 test, smoke 12/12)",
-    "2026-10-11: merge worktree-outlook-ux → main + deploy production"
+    "2026-10-11: merge worktree-outlook-ux → main + deploy production",
+    "2026-10-14: fix duplikat (149a406) + aturan Sieve ala Outlook (cc04c3d) deployed"
   ],
   "active_task": {
     "id": "none",

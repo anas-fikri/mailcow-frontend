@@ -1,5 +1,24 @@
 # Durable project knowledge
 
+## Insiden email duplikat + aturan Sieve (2026-10-14)
+- Email undo-send terkirim 2–4× (laporan nadya.adriany ← bayu.gunawan) BUKAN dari
+  Outlook: 12 proses `node server.js` yatim (nohup manual Agu/Sep, log
+  /tmp/sogo-proxy.log) ikut mem-flush data/pending-sends.json. Ciri forensik:
+  salinan ber-Date dalam hitungan detik, tanpa X-Mailer, Message-ID format
+  nodemailer lama (bukan UUID v4). Cek cepat: proses node server.js dgn cwd
+  sogo-proxy HARUS 1, dan `data/pending-sends.json.flush.lock` = MainPID service.
+- Jangan jalankan server.js manual (nohup) di server — selalu via
+  `systemctl --user restart sogo-smtp-proxy`. Lock satu-pengirim kini mencegah
+  flush ganda, tapi proses manual tetap membuang sesi & port.
+- Log container Postfix memakai WIB; journal host memakai UTC (selisih 7 jam).
+- Aturan = Sieve server-side via SOGo `defaults.SOGoSieveFilters` (urutan =
+  prioritas). Terverifikasi live: SOGo membangkitkan skrip "sogo" di Dovecot
+  (`address :contains "cc"`, `["to","cc"]`, `size :over NK`, `fileinto "<path>"`);
+  menyimpan dgn defaults segar dari /api/preferences TIDAK mengubah 47 kunci
+  lain (SOGo hanya menyusun ulang urutan kunci JSON). Daftar filter kosong →
+  skrip "sogo" dihapus. Operator SOGo: `contains_not`/`is_not`/`matches_not`/
+  `regex_not`; ukuran `under`/`over` dalam KB.
+
 ## Gotcha yang terbukti mahal (2026-10-11)
 - Custom `lookup` untuk http/https.request (DNS pinning anti-rebinding di
   remoteImage.js) WAJIB mendukung `opts.all === true` → callback(null, [{address,
