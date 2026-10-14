@@ -26,6 +26,7 @@ import { isSafeRecipient, recipientAddress, validateRecipientList, hasControlCha
 import { parseCookies, buildSmtpSessionCookie, clearSmtpSessionCookie, SMTP_SESSION_COOKIE } from './src/lib/smtpCookie.js';
 import { fetchRemoteImage } from './src/lib/remoteImage.js';
 import { buildThreadingHeaders } from './src/lib/threadingHeaders.js';
+import { createInstanceLock } from './src/lib/instanceLock.js';
 import { validateAttachments, MAX_ATTACHMENTS, MAX_FILE_MB_DEFAULT, MAX_TOTAL_MB_DEFAULT, MAX_ATTACHMENTS_DEFAULT } from './src/lib/attachmentValidation.js';
 import {
   createSendQueue, buildQueueEntry, dueEntries, pendingForUser, canCancel,
@@ -186,9 +187,10 @@ async function persistSentCopy(user, pass, mailOptions) {
   }
 }
 
-function sendWithSentCopy(transporter, user, pass, payload) {
+function sendWithSentCopy(transporter, user, pass, payload, { messageId } = {}) {
   const mailOptions = buildMailOptions(user, payload);
-  mailOptions.messageId = makeMessageId(user);
+  // messageId dari entri antrean (stabil lintas retry) bila ada.
+  mailOptions.messageId = messageId || makeMessageId(user);
   mailOptions.date = new Date();
   const sendPromise = transporter.sendMail(mailOptions);
   if (!SENT_COPY_DISABLED) {
@@ -200,13 +202,52 @@ function sendWithSentCopy(transporter, user, pass, payload) {
 }
 
 // Flush queue: kirim entry yang sudah due. Retry maks 3x lalu tandai failed.
+//
+// ANTI KIRIM-GANDA (insiden 2026-10-14):
+// 1) flushRunning — setInterval 5 dtk TIDAK menunggu flush sebelumnya; saat
+//    SMTP lambat (delay postfix 20–60 dtk) tick berikutnya mengirim ulang entri
+//    yang masih menunggu respons (terbukti: entri 9b7ea4b3 ter-flush 2×).
+// 2) flushLock — hanya SATU proses per file antrean yang boleh flush (proses
+//    yatim nohup lama ikut flush file yang sama → 2–4 salinan per email).
+// 3) entry.messageId — Message-ID stabil lintas retry.
+let flushRunning = false;
+const flushLock = createInstanceLock({
+  lockPath: (SEND_QUEUE_FILE || `${__dirname}data/pending-sends.json`) + '.flush.lock',
+});
+let flushLockWarnedFor = null;
+process.on('exit', () => flushLock.release());
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, () => { flushLock.release(); process.exit(0); });
+}
+
 async function flushDueSends() {
+  if (flushRunning) return;
+  const lock = flushLock.tryAcquire();
+  if (!lock.ok) {
+    if (flushLockWarnedFor !== lock.holder) {
+      flushLockWarnedFor = lock.holder;
+      console.error(`[send] flush DILEWATI: antrean dipegang proses lain (pid ${lock.holder}). Proses ini TIDAK akan mengirim email antrean.`);
+    }
+    return;
+  }
+  flushLockWarnedFor = null;
+  flushRunning = true;
+  try {
+    await flushDueSendsOnce();
+  } finally {
+    flushRunning = false;
+  }
+}
+
+async function flushDueSendsOnce() {
   const entries = dueEntries(sendQueue.list());
   for (const entry of entries) {
+    // Entri bisa dibatalkan (undo) saat flush sebelumnya berjalan — cek ulang.
+    if (!sendQueue.find(entry.id)) continue;
     try {
       const cred = decryptCredentials(QUEUE_SECRET, entry.cred);
       const transporter = createSmtpTransporter(cred.user, cred.pass);
-      const info = await sendWithSentCopy(transporter, cred.user, cred.pass, entry.payload);
+      const info = await sendWithSentCopy(transporter, cred.user, cred.pass, entry.payload, { messageId: entry.messageId });
       console.log(`[send] flushed ${entry.id}: ${info.messageId}`);
       sendQueue.remove(entry.id);
     } catch (err) {
@@ -822,8 +863,11 @@ app.post('/api/send', resolveSmtpSession, requireSmtpSession, rateLimit({ max: 1
         to, cc, bcc, subject, body, isHTML,
         from,
         attachments: att.sanitized,
+        inReplyTo: parsed.data.inReplyTo,
+        references: parsed.data.references,
       },
       cred,
+      messageId: makeMessageId(session.user),
     });
     sendQueue.add(entry);
     console.log(`[send] queued ${entry.id} utk ${session.user} → ${new Date(effectiveSendAt).toISOString()}`);
@@ -834,6 +878,8 @@ app.post('/api/send', resolveSmtpSession, requireSmtpSession, rateLimit({ max: 1
     const transporter = createSmtpTransporter(session.user, session.pass);
     const info = await sendWithSentCopy(transporter, session.user, session.pass, {
       to, cc, bcc, subject, body, isHTML, from,
+      inReplyTo: parsed.data.inReplyTo,
+      references: parsed.data.references,
       attachments: att.sanitized,
     });
     console.log(`[send] OK: ${info.messageId}`);

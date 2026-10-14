@@ -163,7 +163,7 @@ export function canCancel(entry, now = Date.now()) {
   return !!entry && entry.status === SEND_QUEUE_STATUS.PENDING && entry.sendAt > now;
 }
 
-export function buildQueueEntry({ user, sendAt, payload, cred, id }) {
+export function buildQueueEntry({ user, sendAt, payload, cred, id, messageId = '' }) {
   return {
     id: id || crypto.randomUUID(),
     user,
@@ -172,7 +172,15 @@ export function buildQueueEntry({ user, sendAt, payload, cred, id }) {
     status: SEND_QUEUE_STATUS.PENDING,
     attempts: 0,
     cred,
+    // Message-ID ditetapkan SAAT ANTRE dan dipakai ulang di setiap percobaan
+    // flush — retry setelah kegagalan ambigu (server sudah menerima, respons
+    // hilang) tidak lagi menghasilkan email "baru" dengan ID berbeda.
+    messageId,
     payload: {
+      // Header threading balasan ikut disimpan (dulu terbuang: kiriman via
+      // antrean undo-send — yaitu hampir semua — kehilangan In-Reply-To).
+      inReplyTo: payload.inReplyTo || '',
+      references: payload.references || '',
       to: payload.to || '',
       cc: payload.cc || '',
       bcc: payload.bcc || '',
