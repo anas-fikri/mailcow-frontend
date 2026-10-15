@@ -5,21 +5,60 @@ status: in_progress
 profile: standard
 profile_pinned: true
 created: "2026-10-15T09:17:09Z"
-updated: "2026-10-15T09:17:09Z"
+updated: "2026-10-15T09:51:24Z"
 created_by: claude-code
 workers:
   - claude-code
 branch: worktree-fix-dup-rules
 base: 38deeae3b1ec1ed344eebf3115f9ebe7e14e0346
+evidence:
+  check:
+    cmd: npm test && npm run build
+    exit_code: 0
+    duration_ms: 32191
+    summary: |-
+      …omputing gzip size...
+      dist/index.html                             1.57 kB │ gzip:   0.65 kB
+      dist/assets/index-yJXS3ZBm.css             87.49 kB │ gzip:  15.24 kB
+      dist/assets/chevron-right-C9sagPwj.js       0.12 kB │ gzip:   0.13 kB
+      dist/assets/loader-circle-R0lmODQ9.js       0.13 kB │ gzip:   0.14 kB
+      dist/assets/copy-BCjE_Woe.js                0.22 kB │ gzip:   0.20 kB
+      dist/assets/clock-fNCqazJ4.js               0.25 kB │ gzip:   0.21 kB
+      dist/assets/pencil-0TUKmJUh.js              0.26 kB │ gzip:   0.22 kB
+      dist/assets/file-text-iJC6z7Hk.js           0.32 kB │ gzip:   0.21 kB
+      dist/assets/send-CL7iEEXQ.js                0.39 kB │ gzip:   0.28 kB
+      dist/assets/trash-2-BMqHB-x3.js             0.45 kB │ gzip:   0.28 kB
+      dist/assets/rolldown-runtime-C0FnF6B9.js    1.29 kB │ gzip:   0.71 kB
+      dist/assets/useMutation-QbE7puY1.js         2.29 kB │ gzip:   0.95 kB
+      dist/assets/Skeleton-BAm3h8SC.js            3.52 kB │ gzip:   0.82 kB
+      dist/assets/notifyPrefs-D3FZ6Qau.js         3.69 kB │ gzip:   1.70 kB
+      dist/assets/LoginPage-DJHCyOgs.js           6.95 kB │ gzip:   2.51 kB
+      dist/assets/ContactsPage-V5rPN7j8.js       11.79 kB │ gzip:   3.46 kB
+      dist/assets/RulesPage-CpwHlljm.js          15.11 kB │ gzip:   5.12 kB
+      dist/assets/StatsPage-DYVxnHtZ.js          15.12 kB │ gzip:   4.48 kB
+      dist/assets/authStore-DNoa-Qlb.js          16.48 kB │ gzip:   6.06 kB
+      dist/assets/CalendarPage-V_qWpLlq.js       42.56 kB │ gzip:  10.23 kB
+      dist/assets/RunNowDialog-BWyGI8ES.js       49.65 kB │ gzip:  16.09 kB
+      dist/assets/PreferencesPage-i-0vU4a3.js    50.66 kB │ gzip:  13.34 kB
+      dist/assets/api-C-bQ5K5B.js                84.85 kB │ gzip:  28.26 kB
+      dist/assets/jszip.min-gms7YGF-.js          95.96 kB │ gzip:  28.50 kB
+      dist/assets/MailPage-BEwh3VVt.js          255.83 kB │ gzip:  73.64 kB
+      dist/assets/lib-B2hRtwez.js               294.68 kB │ gzip:  89.71 kB
+      dist/assets/index-U5Mf-4yS.js             421.81 kB │ gzip: 135.45 kB
+      dist/assets/xlsx-BivLitlN.js              424.08 kB │ gzip: 141.36 kB
+
+      ✓ built in 475ms
+    at: "2026-10-15T09:51:24Z"
+    tree: 7d50af03fcf10b02233f40a938c86cf457ae38a100340e6dd156b9e570205399
 ---
 
 ## Objective
 Pindahkan multi-signature (daftar + default email baru/balasan) dari localStorage ke preferensi akun SOGo (c_defaults) agar sama di semua perangkat/browser; migrasi otomatis signature lokal lama; SOGoMailSignature tetap disinkronkan utk kompatibilitas.
 
 ## Acceptance criteria
-- [ ] Given signature dibuat di satu perangkat, when login di perangkat/browser lain, then daftar signature & default-nya sama
-- [ ] Given signature lama di localStorage, when pertama kali login setelah update, then dimigrasi ke server tanpa duplikat & tanpa kehilangan
-- [ ] Given menyimpan signature, when disimpan, then preferensi lain (Vacation/Forward/Aturan) utuh
+- [x] Given signature dibuat di satu perangkat, when login di perangkat/browser lain, then daftar signature & default-nya sama
+- [x] Given signature lama di localStorage, when pertama kali login setelah update, then dimigrasi ke server tanpa duplikat & tanpa kehilangan
+- [x] Given menyimpan signature, when disimpan, then preferensi lain (Vacation/Forward/Aturan) utuh
 
 ## Risk
 (Required for strict profile. Impact:, Security (STRIDE):, Rollback:, Validation:)

@@ -7,21 +7,24 @@
  *   { v: 1, list: [{ id, name, html }], defaults: { new: id|null, reply: id|null }, updatedAt: <ms> }
  *
  * Batas ukuran: kolom c_defaults SOGo menyimpan SELURUH preferensi user
- * (Vacation, aturan Sieve, dll) dalam satu nilai — signature dibatasi 64 KB
- * total agar tidak memenuhi/mematahkan preferensi lain. Gambar base64
- * (data:) adalah penyebab utama signature besar → diperiksa per gambar.
+ * (Vacation, aturan Sieve, dll) dalam satu nilai (LONGTEXT, terverifikasi di
+ * skema mailcow) dan SOGo meng-cache preferensi di memcached (batas item 1 MB).
+ * Signature dibatasi 384 KB total (+ salinan default di SOGoMailSignature) —
+ * cukup utk signature nyata hasil tempel Outlook/Word (kasus live 2026-10-15:
+ * 77 KB, 2 gambar 7+22 KB; batas awal 64 KB terlalu ketat). Gambar base64
+ * (data:) diperiksa per gambar.
  */
 
 export const SIG_PREF_KEY = 'PCPWebmailSignatures';
 export const SIG_STORE_VERSION = 1;
-export const MAX_SIG_STORE_BYTES = 64 * 1024;
-export const MAX_SIG_IMAGE_BYTES = 48 * 1024;
+export const MAX_SIG_STORE_BYTES = 384 * 1024;
+export const MAX_SIG_IMAGE_BYTES = 200 * 1024;
 export const MAX_SIG_COUNT = 50;
 
 export const SIG_IMAGE_TOO_LARGE_MSG =
-  'Gambar di signature terlalu besar; gunakan gambar ≤ 48 KB (atau tautan gambar https://).';
+  'Gambar di signature terlalu besar; gunakan gambar ≤ 200 KB (atau tautan gambar https://).';
 export const SIG_STORE_TOO_LARGE_MSG =
-  'Signature terlalu besar untuk disimpan di server (maks 64 KB total). Kecilkan atau hapus gambar.';
+  'Signature terlalu besar untuk disimpan di server (maks 384 KB total). Kecilkan atau hapus gambar.';
 
 const str = (v) => (typeof v === 'string' ? v : '');
 

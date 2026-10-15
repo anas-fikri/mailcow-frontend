@@ -37,11 +37,13 @@ const norm = S.normalizeSignatureStore(JSON.stringify({
 }));
 eq(norm, { v: 1, list: [{ id: 'a', name: 'A', html: '<b>A</b>' }], defaults: { new: 'a', reply: null }, updatedAt: 123 }, 'normalisasi: entri invalid/dup dibuang, default hilang → null');
 
-const bigImg = `<img src="data:image/png;base64,${'A'.repeat(80_000)}">`;
+const bigImg = `<img src="data:image/png;base64,${'A'.repeat(300_000)}">`;
 assert.throws(() => S.validateSignatureStore({ list: [{ id: 'x', name: 'X', html: bigImg }] }), (e) => e.code === 'image-too-large' && /Gambar di signature terlalu besar/.test(e.message)); n++;
-const manySmall = Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, name: `S${i}`, html: 'x'.repeat(4000) }));
-assert.throws(() => S.validateSignatureStore({ list: manySmall }), (e) => e.code === 'too-large' && /64 KB/.test(e.message)); n++;
+const manySmall = Array.from({ length: 20 }, (_, i) => ({ id: `s${i}`, name: `S${i}`, html: 'x'.repeat(21_000) }));
+assert.throws(() => S.validateSignatureStore({ list: manySmall }), (e) => e.code === 'too-large' && /384 KB/.test(e.message)); n++;
 ok(S.validateSignatureStore({ list: [{ id: 'x', name: 'X', html: `<img src="data:image/png;base64,${'A'.repeat(20_000)}">` }] }), 'gambar kecil + total kecil → lolos');
+// Kasus nyata 2026-10-15: signature 77 KB (2 gambar 7+22 KB) harus lolos.
+ok(S.validateSignatureStore({ list: [{ id: 'r', name: 'Signature', html: `<img src="data:image/png;base64,${'A'.repeat(7_000)}"><img src="data:image/png;base64,${'B'.repeat(22_000)}">${'<span style="mso">x</span>'.repeat(1800)}` }] }), 'signature nyata 77 KB lolos');
 
 const fromLocal = S.storeFromLocal([
   { id: 'p', name: 'Lama', html: '<p>Ketik…</p>', placeholder: true },

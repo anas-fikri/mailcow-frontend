@@ -600,7 +600,7 @@ function SignatureSection() {
   }
 
   function handleSave() {
-    // Batas ukuran server (64 KB total, gambar base64 kecil) dicek SEBELUM
+    // Batas ukuran server (384 KB total, gambar base64 kecil) dicek SEBELUM
     // menyimpan — editor tetap terbuka, isi tidak hilang.
     const sizeError = checkSignatureDraft(email, { id: editingId, name: sigName, html: sigHtml });
     if (sizeError) {
