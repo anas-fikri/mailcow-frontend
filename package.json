@@ -128,7 +128,8 @@
     "test:protected-folders": "node scripts/test-protected-folders.mjs",
     "test:rule-address-suggest": "node scripts/test-rule-address-suggest.mjs",
     "test": "node scripts/run-tests.mjs .",
-    "test:new-mail-detect": "node scripts/test-new-mail-detect.mjs"
+    "test:new-mail-detect": "node scripts/test-new-mail-detect.mjs",
+    "test:signature-sync": "node scripts/test-signature-sync.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

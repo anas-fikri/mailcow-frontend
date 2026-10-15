@@ -5,10 +5,15 @@ import {
   Loader2, CheckCircle2, AlertCircle, ChevronRight, BellRing,
   Sparkles, Copy, Globe, Palette, MessageSquare, Reply, Trash2, Plus,
   LayoutPanelLeft, MailOpen, ArrowUpDown, MessagesSquare, Rows3, Volume2,
+  Cloud, CloudOff, RefreshCw,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { registerSmtpSession, changePassword, fetchPreferences, savePreferences } from '../lib/api';
-import { loadSignatures, addSignature, updateSignature, removeSignature, setDefaultSignature, getSignatureById, shouldImportSogoSignature } from '../lib/signatures';
+import {
+  loadSignatures, addSignature, updateSignature, removeSignature, setDefaultSignature,
+  refreshSignaturesFromServer, subscribeSignatureSync, getSignatureSyncState,
+  setSignatureSyncContext, checkSignatureDraft,
+} from '../lib/signatures';
 import { loadNotifyPrefs, saveNotifyPrefs } from '../lib/notifyPrefs';
 import HtmlEditor from '../components/HtmlEditor';
 import Skeleton from '../components/Skeleton';
@@ -537,9 +542,9 @@ function ChangePasswordSection() {
 
 // ─── Signature (pola Outlook — banyak signature per akun) ────────────────────
 function SignatureSection() {
-  const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const email = user?.email || '';
+  const token = user?.sogoToken || '';
 
   const [sigList, setSigList]       = useState([]);      // [{id,name,html}]
   const [defaults, setDefaults]     = useState({ new: null, reply: null });
@@ -550,22 +555,14 @@ function SignatureSection() {
   const [sigName, setSigName]       = useState('');
   const [sigHtml, setSigHtml]       = useState('');
   const [status, setStatus]         = useState(null);
-  const [savingSogo, setSavingSogo] = useState(false);
+  // Status sinkron server (signatures.js): idle | loading | saving | saved | error | local
+  const [sync, setSync]             = useState(() => getSignatureSyncState(email));
 
-  // Load signature SOGo yang sudah ada SEKALI — jadikan signature pertama di
-  // daftar lokal bila belum pernah dibuat (migrasi mulus).
-  const { data: prefs, isLoading: loadingPrefs } = useQuery({
-    queryKey: ['preferences', user?.sogoToken],
-    queryFn: () => fetchPreferences(user?.sogoToken, user?.email),
-    enabled: !!(user?.sogoToken && user?.email),
-    staleTime: 0,
-  });
-
-  // Daftar signature LOKAL dimuat langsung dari localStorage — TIDAK boleh
-  // menunggu network (prefs SOGo). Kalau fetchPreferences lambat/gagal,
-  // daftar lokal tetap tampil (regresi: sebelumnya list kosong sampai query
-  // prefs sukses → signature lokal hilang saat SOGo down).
-  const migratedRef = useRef(false);
+  // Daftar dimuat LANGSUNG dari cache lokal — TIDAK menunggu network. Server
+  // adalah sumber kebenaran (PCPWebmailSignatures di preferensi SOGo):
+  // refresh saat tab dibuka; setiap perubahan cache (hasil refresh, simpan,
+  // rollback) memperbarui daftar lewat subscribeSignatureSync. Impor/
+  // reconcile SOGoMailSignature lama kini di lapisan sinkron (signatures.js).
   useEffect(() => {
     if (!email) return;
     const fresh = loadSignatures(email);
@@ -573,37 +570,20 @@ function SignatureSection() {
     setDefaults(fresh.defaults);
   }, [email]);
 
-  // Import SOGo signature SEKALI: hanya setelah fetchPreferences selesai.
-  // Guard migratedRef di-set SETELAH prefs tiba — kalau prefs gagal/lambat,
-  // ref tidak pernah terkunci dan import tetap berjalan saat prefs akhirnya
-  // datang (deps [email, prefs] men-trigger ulang).
   useEffect(() => {
-    if (!email || migratedRef.current) return;
-    if (!prefs) return;
-    migratedRef.current = true;
-    // Guard typeof: nilai dari DB/localStorage tidak dipercaya — bukan-string
-    // (hasil parse rusak) tidak boleh sampai ke .trim()/.substring.
-    const savedSogo = typeof prefs?.defaults?.SOGoMailSignature === 'string'
-      ? prefs.defaults.SOGoMailSignature
-      : '';
-    if (savedSogo.trim()) {
-      const local = loadSignatures(email);
-      if (local.list.length === 0) {
-        // Migrasi mulus: belum ada signature lokal → jadikan SOGo signature
-        // sebagai signature pertama.
-        addSignature(email, 'Signature', savedSogo);
-      } else if (shouldImportSogoSignature(local.list, savedSogo)) {
-        // Reconcile multi-device: SOGoMailSignature adalah sumber bersama
-        // yang ditulis syncToSogo dari perangkat mana pun. Tarik ke daftar
-        // lokal bila html-nya belum ada (idempotent — tidak menumpuk,
-        // tidak menimpa editan lokal).
-        addSignature(email, 'Signature SOGo', savedSogo);
-      }
-      const fresh = loadSignatures(email);
-      setSigList(fresh.list);
-      setDefaults(fresh.defaults);
-    }
-  }, [email, prefs]);
+    if (!email) return undefined;
+    setSignatureSyncContext(email, token);
+    const unsubscribe = subscribeSignatureSync((who, state) => {
+      if (who !== email.trim().toLowerCase()) return;
+      setSync(state);
+      const data = loadSignatures(email);
+      setSigList(data.list);
+      setDefaults(data.defaults);
+    });
+    setSync(getSignatureSyncState(email));
+    if (token) refreshSignaturesFromServer(email, token);
+    return unsubscribe;
+  }, [email, token]);
 
   function refresh() {
     const data = loadSignatures(email);
@@ -620,6 +600,13 @@ function SignatureSection() {
   }
 
   function handleSave() {
+    // Batas ukuran server (64 KB total, gambar base64 kecil) dicek SEBELUM
+    // menyimpan — editor tetap terbuka, isi tidak hilang.
+    const sizeError = checkSignatureDraft(email, { id: editingId, name: sigName, html: sigHtml });
+    if (sizeError) {
+      setStatus({ type: 'error', message: sizeError });
+      return;
+    }
     if (!editingId) {
       addSignature(email, sigName, sigHtml);
     } else {
@@ -637,36 +624,11 @@ function SignatureSection() {
     refresh();
   }
 
-  // Simpan signature default ke SOGo prefs — agar klien SOGo lain (native,
-  // mobile) juga memakai signature utama. Bukan syarat webmail ini (compose
-  // memakai daftar lokal), tapi kompatibilitas ekstra.
-  async function syncToSogo() {
-    const data = loadSignatures(email);
-    const main = getSignatureById(email, data.defaults.new);
-    // Entri legacy ber-placeholder tidak ikut disinkronkan ke SOGo — hanya
-    // dipakai setelah user mengisinya (flag placeholder dihapus saat edit).
-    const html = (main?.html && !main?.placeholder) ? main.html : '';
-    setSavingSogo(true);
-    setStatus(null);
-    try {
-      await savePreferences(user.sogoToken, {
-        defaults: {
-          ...(prefs?.defaults || {}),
-          SOGoMailSignature: html,
-          SOGoMailSignatureEnabled: html && html.trim() ? '1' : '0',
-        },
-        settings: prefs?.settings || {},
-      }, user.email);
-      queryClient.invalidateQueries({ queryKey: ['preferences', user?.sogoToken] });
-      setStatus({ type: 'success', message: 'Signature utama disinkronkan ke SOGo.' });
-    } catch (err) {
-      setStatus({ type: 'error', message: err.message });
-    } finally {
-      setSavingSogo(false);
-    }
+  // Simpan gagal → cache sudah di-rollback ke kondisi server; "Coba lagi"
+  // memuat ulang salinan server (perubahan yang gagal perlu diulang user).
+  function retrySync() {
+    if (token) refreshSignaturesFromServer(email, token);
   }
-
-  const editingSig = sigList.find((s) => s.id === editingId) || null;
 
   return (
     <Section icon={FileSignature} title="Signature Email">
@@ -675,6 +637,10 @@ function SignatureSection() {
           Buat beberapa signature (pola Outlook), lalu pilih mana yang dipakai utk
           email baru dan utk balasan. Bisa pakai <strong>tebal</strong>,{' '}
           <em>miring</em>, tautan, dan gambar.
+        </p>
+        <SignatureSyncStatus sync={sync} onRetry={retrySync} />
+        <p className="text-xs text-muted-foreground">
+          Berlaku di webmail di semua perangkat. Aplikasi email terpisah (Outlook/Mail di HP) memakai signature-nya sendiri.
         </p>
         <StatusMsg status={status} />
 
@@ -797,19 +763,47 @@ function SignatureSection() {
               Tambah Signature
             </button>
           )}
-          <button
-            type="button"
-            onClick={syncToSogo}
-            disabled={savingSogo || !sigList.length}
-            className="flex items-center gap-2 h-9 border border-border hover:bg-muted text-foreground px-4 rounded-md text-sm font-medium disabled:opacity-50"
-            title="Simpan signature utama ke preferensi SOGo agar dipakai klien SOGo lain (native/mobile)"
-          >
-            {savingSogo ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
-            Sinkronkan ke SOGo
-          </button>
+          {/* Tombol sinkron manual ke SOGo dihapus: setiap perubahan
+              kini otomatis tersimpan di server, termasuk mirror signature
+              utama ke SOGoMailSignature (lihat saveServerSignatures). */}
         </div>
       </div>
     </Section>
+  );
+}
+
+/** Status penyimpanan server signature (aria-live agar perubahan diumumkan). */
+function SignatureSyncStatus({ sync, onRetry }) {
+  const s = sync?.status || 'idle';
+  let icon = <Cloud size={14} />;
+  let text = 'Tersimpan di server — sama di semua perangkat';
+  let tone = 'text-muted-foreground';
+  if (s === 'loading') { icon = <Loader2 size={14} className="animate-spin" />; text = 'Memuat signature dari server…'; }
+  else if (s === 'saving') { icon = <Loader2 size={14} className="animate-spin" />; text = 'Menyimpan ke server…'; }
+  else if (s === 'saved') { icon = <CheckCircle2 size={14} />; text = 'Tersimpan di server — sama di semua perangkat'; tone = 'text-green-600 dark:text-green-400'; }
+  else if (s === 'local') { icon = <CloudOff size={14} />; text = 'Belum tersimpan di server — akan dikirim saat tersambung'; }
+  else if (s === 'error') {
+    icon = <CloudOff size={14} />;
+    text = sync?.kind === 'save'
+      ? `Gagal menyimpan ke server: ${sync?.error || 'coba lagi'}. Perubahan dibatalkan.`
+      : `Gagal memuat dari server: ${sync?.error || 'coba lagi'}. Menampilkan salinan di perangkat ini.`;
+    tone = 'text-destructive';
+  }
+  return (
+    <div className={`flex items-center gap-2 text-xs ${tone}`} role="status" aria-live="polite" data-sig-sync={s}>
+      <span className="shrink-0">{icon}</span>
+      <span className="min-w-0">{text}</span>
+      {s === 'error' && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="shrink-0 inline-flex items-center gap-1 min-h-11 px-3 rounded-md border border-border text-foreground hover:bg-muted"
+        >
+          <RefreshCw size={12} />
+          Coba lagi
+        </button>
+      )}
+    </div>
   );
 }
 

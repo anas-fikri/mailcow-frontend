@@ -7,6 +7,8 @@ import SmtpHeartbeat from '../SmtpHeartbeat';
 import CommandPalette from '../CommandPalette';
 import { buildCommands } from '../../lib/commandRegistry';
 import { useAuthStore } from '../../store/authStore';
+import { refreshSignaturesFromServer, subscribeSignatureSync } from '../../lib/signatures';
+import { toast } from '../../lib/toast';
 
 /** Hue override for each themeColor preset (light-mode hue) */
 const THEME_HUES = {
@@ -57,6 +59,22 @@ export default function AppLayout() {
     window.addEventListener('keydown', onPaletteKey, true);
     return () => window.removeEventListener('keydown', onPaletteKey, true);
   }, []);
+
+  // Signature tersimpan di server (lintas perangkat): muat salinan server ke
+  // cache lokal saat login/app start — NON-BLOCKING (compose membaca cache;
+  // ComposeModal menunggu sebentar bila cache masih kosong). Gagal simpan
+  // (sudah di-rollback oleh signatures.js) diberi tahu lewat toast.
+  useEffect(() => {
+    const email = user?.email;
+    const token = user?.sogoToken;
+    if (!email || !token) return undefined;
+    refreshSignaturesFromServer(email, token);
+    return subscribeSignatureSync((_who, state) => {
+      if (state.status === 'error' && state.kind === 'save') {
+        toast.error(`Signature gagal disimpan ke server: ${state.error}`);
+      }
+    });
+  }, [user?.email, user?.sogoToken]);
 
   // Fallback event (keymap OPEN_PALETTE / tombol lain yang ingin membuka palet).
   useEffect(() => {

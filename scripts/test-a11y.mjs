@@ -265,12 +265,14 @@ passCount++;
 assert.ok(stats.includes('ml-auto shrink-0 text-destructive/70'), 'StatsPage: error badge harus shrink-0 (tidak terjepit)');
 passCount++;
 
-// Preferences: import signature SOGo harus TUNGGU prefs dimuat (race fix)
-// migratedRef tidak boleh di-set sebelum prefs ada — kalau prefs lambat,
-// signature SOGo tidak pernah diimport ke daftar lokal.
-assert.ok(prefs.includes('if (!prefs) return;'), 'Preferences: import signature tidak menunggu prefs dimuat (race)');
+// Signature kini tersimpan di server: impor SOGoMailSignature lama pindah ke
+// lapisan sinkron (signatures.js → planSignatureRefresh) yang berjalan SETELAH
+// baca server sukses; flag migrasi diset hanya setelah keputusan dibuat
+// (gagal baca → tidak terkunci, dicoba lagi). Intent race-fix lama dipertahankan.
+const sigLib = fs.readFileSync(path.join(ROOT, 'src/lib/signatures.js'), 'utf8');
+assert.ok(sigLib.includes('const res = await fetchServerSignatures(e, { withDefaults: true });') && sigLib.indexOf('fetchServerSignatures(e, { withDefaults: true })') < sigLib.indexOf('const decision = planSignatureRefresh('), 'signatures: impor signature SOGo menunggu baca server');
 passCount++;
-assert.ok(prefs.includes('migratedRef.current = true;') && prefs.includes('if (!prefs) return;\n    migratedRef.current = true;'), 'Preferences: migratedRef di-set sebelum prefs siap');
+assert.ok(!prefs.includes('migratedRef') && prefs.includes('refreshSignaturesFromServer(email, token)'), 'Preferences: tab Signature memuat dari server (tanpa migrasi lokal sendiri)');
 passCount++;
 // Regresi: daftar signature LOKAL harus dimuat INDEPENDEN dari prefs (effect
 // dengan deps [email]) — kalau fetchPreferences gagal, list lokal tetap tampil.

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Send, Paperclip, ChevronDown, ChevronUp,
@@ -14,7 +14,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
 import { handleEditorPaste, insertImageFiles, insertHtmlAtCursor, PURIFY_CONFIG } from '../../lib/pasteUtils';
-import { loadSignatures, getSignatureFor, resolveSignatureHtml } from '../../lib/signatures';
+import { loadSignatures, getSignatureFor, resolveSignatureHtml, subscribeSignatureSync, getSignatureSyncState } from '../../lib/signatures';
 import { formatFileSize, totalAttachmentSize } from '../../lib/attachments';
 import { firstInvalidRecipient } from '../../lib/emailValidation';
 import { recordSentRecipients, getEmailSuggestions } from '../../lib/emailHistory';
@@ -335,10 +335,26 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
     return () => window.removeEventListener('beforeunload', guard);
   }, [isOpen, dirty, success]);
 
-  // Signature lokal (pola Outlook) — pilih sesuai mode: new vs reply.
-  // Fallback ke SOGoMailSignature lama bila belum ada signature lokal.
+  // Signature tersimpan di server; cache lokal dimuat AppLayout saat login
+  // (non-blocking). Compose pertama di perangkat baru (cache masih kosong)
+  // menunggu refresh selesai — maks 3 dtk, lalu lanjut dgn fallback SOGo.
+  const sigSync = useSyncExternalStore(
+    subscribeSignatureSync,
+    () => getSignatureSyncState(user?.email),
+  );
+  const [sigWaitOver, setSigWaitOver] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    setSigWaitOver(false);
+    const t = setTimeout(() => setSigWaitOver(true), 3000);
+    return () => clearTimeout(t);
+  }, [isOpen]);
+
+  // Signature (pola Outlook) — pilih sesuai mode: new vs reply.
+  // Fallback ke SOGoMailSignature lama bila belum ada signature.
   useEffect(() => {
     if (!isOpen || sigInjected.current || !user?.email) return;
+    if (sigSync.status === 'loading' && !sigWaitOver && loadSignatures(user.email).list.length === 0) return;
     // Draft yang dibuka untuk dilanjutkan TIDAK disuntik signature baru —
     // body-nya adalah yang terakhir disimpan user (mungkin sudah berisi
     // signature lama). Injeksi ulang akan menduplikasi signature.
@@ -375,7 +391,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
       });
     }
     sigInjected.current = true;
-  }, [isOpen, prefs, user?.email, composeMode, editorMode]);
+  }, [isOpen, prefs, user?.email, composeMode, editorMode, sigSync.status, sigWaitOver]);
 
   // ── Autocomplete ────────────────────────────────────────────────────────────
 

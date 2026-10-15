@@ -89,9 +89,12 @@ pass++;
 
 // ── 3. Static source checks ──────────────────────────────────────────────────
 const prefs = fs.readFileSync(path.join(ROOT, 'src/pages/PreferencesPage.jsx'), 'utf8');
-ok(prefs.includes('shouldImportSogoSignature'), 'PreferencesPage mengimpor shouldImportSogoSignature');
-ok(prefs.includes("addSignature(email, 'Signature SOGo', savedSogo)"), 'PreferencesPage menarik signature SOGo antar perangkat');
-ok(prefs.includes("if (local.list.length === 0)"), 'migrasi signature pertama dipertahankan');
+// Reconcile SOGoMailSignature kini di lapisan sinkron server (signatures.js
+// planSignatureRefresh) — PreferencesPage hanya memuat dari server.
+const sigLib = fs.readFileSync(path.join(ROOT, 'src/lib/signatures.js'), 'utf8');
+ok(sigLib.includes('shouldImportSogoSignature(store.list, sogoSignature)'), 'lapisan sinkron memakai shouldImportSogoSignature');
+ok(sigLib.includes("name: store.list.length ? 'Signature SOGo' : 'Signature'"), 'signature SOGo lama ditarik saat migrasi (nama "Signature" bila daftar kosong)');
+ok(prefs.includes('refreshSignaturesFromServer(email, token)') && !prefs.includes('syncToSogo'), 'PreferencesPage memuat dari server; tombol sinkron manual dihapus');
 
 const contacts = fs.readFileSync(path.join(ROOT, 'src/pages/ContactsPage.jsx'), 'utf8');
 ok(contacts.includes('findDuplicateKind'), 'ContactsPage memakai findDuplicateKind');

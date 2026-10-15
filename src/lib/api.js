@@ -13,6 +13,7 @@ import { maxUidOf } from './newMail.js';
 import { bumpDomainVersion } from './crossTab.js';
 import { pickExternalContacts, filterKnownContacts } from './contactCapture.js';
 import { parseRawHeaders } from './messageHtml.js';
+import { SIG_PREF_KEY, normalizeSignatureStore, validateSignatureStore, defaultNewHtml } from './signatureStore.js';
 
 const SOGO_ENV = import.meta.env || {};
 // Same-origin secara default (relatif) — SPA & SOGo dilayani nginx yang sama
@@ -1819,6 +1820,13 @@ export async function savePreferences(sogoToken, prefs, email) {
   if (serverMarkReadOff && prefs && prefs.defaults && typeof prefs.defaults === 'object' && !Array.isArray(prefs.defaults)) {
     prefs = { ...prefs, defaults: { ...prefs.defaults, SOGoMailAutoMarkAsReadDelay: -1 } };
   }
+  // SOGo MENGGANTI seluruh `defaults` → snapshot prefs pemanggil (query React
+  // Query / cache localStorage) bisa basi utk key yang ditulis jalur LAIN
+  // (signature server, aturan Sieve). Ambil nilai segar dari DB utk key-key
+  // itu agar Simpan Tampilan/Cuti tidak menimpa signature/aturan terbaru.
+  if (email && prefs && prefs.defaults && typeof prefs.defaults === 'object' && !Array.isArray(prefs.defaults)) {
+    prefs = { ...prefs, defaults: await withFreshServerOwnedKeys(email, prefs.defaults) };
+  }
   const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Preferences/save`, {
     method: 'POST',
     credentials: 'include',
@@ -1900,6 +1908,121 @@ export async function saveSieveFilters(sogoToken, email, filters) {
   if (!res.ok) throwApiError(`Gagal menyimpan aturan (${res.status}).`, res.status);
   savePrefsToLocal(email, { defaults, settings: fresh.settings });
   return filters;
+}
+
+// ─── Key milik jalur simpan khusus — dipertahankan oleh savePreferences ─────
+// Ditulis HANYA lewat saveServerSignatures / saveSieveFilters (read-modify-
+// write segar). savePreferences (Tampilan/Cuti) menyalin nilai SEGAR key ini
+// dari DB; bila baca segar gagal, pakai salinan signature server terakhir
+// yang diketahui tab ini (lebih baru dari snapshot pemanggil).
+const SERVER_OWNED_KEYS = [SIG_PREF_KEY, 'SOGoMailSignature', 'SOGoMailSignatureEnabled', 'SOGoSieveFilters'];
+const _lastServerSigDefaults = new Map(); // email → { PCPWebmailSignatures, SOGoMailSignature, SOGoMailSignatureEnabled }
+
+function rememberServerSigDefaults(email, defaults) {
+  if (!email || !defaults) return;
+  if (!(SIG_PREF_KEY in defaults)) return;
+  _lastServerSigDefaults.set(String(email).trim().toLowerCase(), {
+    [SIG_PREF_KEY]: defaults[SIG_PREF_KEY],
+    SOGoMailSignature: defaults.SOGoMailSignature,
+    SOGoMailSignatureEnabled: defaults.SOGoMailSignatureEnabled,
+  });
+}
+
+async function withFreshServerOwnedKeys(email, callerDefaults) {
+  let fresh = null;
+  try {
+    const f = await fetchPreferencesStrict(email);
+    if (f?.defaults && Object.keys(f.defaults).length >= 10) fresh = f.defaults;
+  } catch { /* baca segar gagal → fallback di bawah */ }
+  const out = { ...callerDefaults };
+  if (fresh) {
+    for (const k of SERVER_OWNED_KEYS) {
+      if (k in fresh) out[k] = fresh[k];
+      else if (k === SIG_PREF_KEY) delete out[k];
+    }
+    rememberServerSigDefaults(email, fresh);
+    return out;
+  }
+  const known = _lastServerSigDefaults.get(String(email).trim().toLowerCase());
+  if (known) {
+    const callerAt = normalizeSignatureStore(out[SIG_PREF_KEY])?.updatedAt || 0;
+    const knownAt = normalizeSignatureStore(known[SIG_PREF_KEY])?.updatedAt || 0;
+    if (knownAt >= callerAt) Object.assign(out, known);
+  }
+  return out;
+}
+
+/** Khusus test: lupakan salinan signature server per email. */
+export function __resetServerSignatureMemo() {
+  _lastServerSigDefaults.clear();
+}
+
+// ─── Signature per akun di server — defaults.PCPWebmailSignatures ─────────────
+// Disimpan di preferensi SOGo user (c_defaults) → sama di semua perangkat yang
+// membuka webmail ini. Klien IMAP terpisah (Outlook/Mail HP) TIDAK membaca
+// preferensi SOGo. Signature default "pesan baru" juga di-mirror ke
+// SOGoMailSignature(+Enabled) agar fitur SOGo bawaan tetap konsisten.
+
+/**
+ * Baca store signature dari DB (strict — tanpa fallback localStorage).
+ * @returns {Promise<object|null>} store ternormalisasi, atau null bila key absen.
+ *   Dengan `{ withDefaults: true }` → `{ store, sogoSignature }`.
+ */
+export async function fetchServerSignatures(email, { withDefaults = false } = {}) {
+  const fresh = await fetchPreferencesStrict(email);
+  const store = normalizeSignatureStore(fresh.defaults[SIG_PREF_KEY]);
+  rememberServerSigDefaults(email, fresh.defaults);
+  if (!withDefaults) return store;
+  const sogo = fresh.defaults.SOGoMailSignature;
+  return { store, sogoSignature: typeof sogo === 'string' ? sogo : '' };
+}
+
+/**
+ * Simpan store signature — read-modify-write defaults SEGAR (hanya key
+ * signature yang diganti). HTML disanitasi DOMPurify (PURIFY_CONFIG) dan
+ * ukuran divalidasi SEBELUM jaringan. Batal tanpa menulis bila baca segar
+ * gagal atau mencurigakan (< 10 key).
+ * @returns {Promise<object>} store yang tersimpan (dengan updatedAt baru)
+ */
+export async function saveServerSignatures(sogoToken, email, store, { now = Date.now() } = {}) {
+  const input = normalizeSignatureStore(store);
+  if (!input) throw new Error('Data signature tidak valid.');
+  const sanitize = (html) => (DOMPurify?.isSupported ? DOMPurify.sanitize(html, PURIFY_CONFIG) : html);
+  const next = {
+    ...input,
+    list: input.list.map((s) => ({ ...s, html: sanitize(s.html) })),
+    updatedAt: Math.max(now, (input.updatedAt || 0) + 1),
+  };
+  validateSignatureStore(next);
+
+  const fresh = await fetchPreferencesStrict(email);
+  if (!fresh?.defaults || Object.keys(fresh.defaults).length < 10) {
+    throw new Error('Preferensi server tidak lengkap — signature tidak disimpan. Muat ulang halaman lalu coba lagi.');
+  }
+  // updatedAt SELALU > versi server sekarang — jam perangkat yang berbeda
+  // (satu perangkat lebih cepat) tidak boleh membuat simpanan terbaru tampak
+  // "lebih lama" dan kalah konflik di perangkat lain.
+  const serverAt = normalizeSignatureStore(fresh.defaults[SIG_PREF_KEY])?.updatedAt || 0;
+  if (next.updatedAt <= serverAt) next.updatedAt = serverAt + 1;
+  const mainHtml = defaultNewHtml(next);
+  const defaults = {
+    ...fresh.defaults,
+    [SIG_PREF_KEY]: next,
+    SOGoMailSignature: mainHtml,
+    SOGoMailSignatureEnabled: mainHtml.trim() ? '1' : '0',
+  };
+  if (serverMarkReadOff) defaults.SOGoMailAutoMarkAsReadDelay = -1;
+  const res = await fetchWithTimeout(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Preferences/save`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ defaults }),
+  }, 20000);
+  throwIfAuthError(res);
+  if (!res.ok) throwApiError(`Gagal menyimpan signature ke server (${res.status}).`, res.status);
+  savePrefsToLocal(email, { defaults, settings: fresh.settings });
+  rememberServerSigDefaults(email, defaults);
+  return next;
 }
 
 // ─── Tandai-dibaca: aplikasi pemiliknya, bukan SOGo ───────────────────────────
