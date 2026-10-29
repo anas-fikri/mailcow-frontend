@@ -19,7 +19,7 @@ const ok = (cond, msg) => { assert.ok(cond, msg); pass++; };
 
 // ── A. Seleksi ala Outlook (logika murni di lib, dipakai di baris) ─────────
 ok(mail.includes("from '../lib/mailSelection'"), 'MailPage memakai lib/mailSelection');
-ok(mail.includes('resolveRowClick(') && mail.includes('onClick={(e) => handleRowClick(e, msg.uid, idx)}'), 'klik baris lewat resolveRowClick (ctrl/shift dari event)');
+ok(mail.includes('resolveRowClick(') && mail.includes('onClick={(e) => (sentCopy ? handleSentCopyClick(e, msg) : handleRowClick(e, msg.uid, idx))}'), 'klik baris lewat resolveRowClick (ctrl/shift dari event)');
 ok(mail.includes('toggleSelectAllUids('), 'pilih-semua lewat toggleSelectAllUids');
 
 // ── B. Keyboard: resolusi di lib/keymap, handler via ref (deps tidak basi) ──
@@ -46,7 +46,7 @@ ok(ctx.includes("document.addEventListener('mousedown', onDown, true)"), 'Contex
 // ── D. MoveToPicker (ganti <select> native) ─────────────────────────────────
 ok(!mail.includes('bulk-move-select') && !mail.includes('<select'), 'select native bulk-move dihapus');
 ok(mail.includes('<MoveToPicker') && mail.includes('openMovePicker(selectedUids, { x: e.clientX, y: e.clientY })'), 'toolbar bulk membuka MoveToPicker');
-ok(mail.includes('case A.MOVE_PICKER: openMovePicker(targetUids); break;'), "pintasan m / Ctrl+Shift+V membuka picker (bukan select.click())");
+ok(mail.includes('case A.MOVE_PICKER: openMovePicker(targetUids, undefined, openFolder); break;'), "pintasan m / Ctrl+Shift+V membuka picker (bukan select.click())");
 ok(picker.includes('filterFoldersForPicker(') && picker.includes("case 'Enter'") && picker.includes('role="listbox"'), 'MoveToPicker: ketik utk filter + Enter + listbox');
 
 // ── E. Drag-and-drop pesan → folder ─────────────────────────────────────────

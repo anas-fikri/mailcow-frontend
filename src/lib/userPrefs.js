@@ -16,6 +16,9 @@ export const DEFAULT_PREFS = {
   themeColor: 'blue',
   sortAsc: false,
   conversationView: false,
+  // Mode percakapan: balasan Anda dari folder Terkirim ikut tampil di thread
+  // folder lain (ala Outlook "Tampilkan pesan dari folder lain"). Default ON.
+  convIncludeSent: true,
   // ── Tata letak ala Outlook desktop ──
   readingPane: 'right',        // 'right' | 'bottom' | 'off'
   density: 'normal',           // 'normal' | 'compact'
@@ -63,6 +66,7 @@ export function loadPrefs(email) {
     themeColor: typeof parsed.themeColor === 'string' && parsed.themeColor ? parsed.themeColor : DEFAULT_PREFS.themeColor,
     sortAsc: !!parsed.sortAsc,
     conversationView: !!parsed.conversationView,
+    convIncludeSent: typeof parsed.convIncludeSent === 'boolean' ? parsed.convIncludeSent : DEFAULT_PREFS.convIncludeSent,
     readingPane: oneOf(READING_PANE, parsed.readingPane, DEFAULT_PREFS.readingPane),
     density: oneOf(DENSITY, parsed.density, DEFAULT_PREFS.density),
     markReadMode: oneOf(MARK_READ, parsed.markReadMode, DEFAULT_PREFS.markReadMode),

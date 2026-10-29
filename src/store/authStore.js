@@ -23,6 +23,7 @@ export const useAuthStore = create(
         themeColor: 'blue', // preferensi per-akun — primary accent hue
         sortAsc: false,    // preferensi per-akun — urutan sortir kotak masuk
         conversationView: false, // preferensi per-akun — tampilan percakapan
+        convIncludeSent: DEFAULT_PREFS.convIncludeSent, // percakapan: ikutkan email Terkirim
         // Tata letak ala Outlook (lihat DEFAULT_PREFS di userPrefs.js)
         readingPane: DEFAULT_PREFS.readingPane,
         density: DEFAULT_PREFS.density,
@@ -79,6 +80,7 @@ export const useAuthStore = create(
         themeColor: state.themeColor,
         sortAsc: state.sortAsc,
         conversationView: state.conversationView,
+        convIncludeSent: state.convIncludeSent,
         readingPane: state.readingPane,
         density: state.density,
         markReadMode: state.markReadMode,

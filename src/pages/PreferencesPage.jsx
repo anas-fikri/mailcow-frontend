@@ -6,7 +6,7 @@ import {
   Loader2, CheckCircle2, AlertCircle, ChevronRight, BellRing,
   Sparkles, Copy, Globe, Palette, MessageSquare, Reply, Trash2, Plus,
   LayoutPanelLeft, MailOpen, ArrowUpDown, MessagesSquare, Rows3, Volume2,
-  Cloud, CloudOff, RefreshCw,
+  Cloud, CloudOff, RefreshCw, Send,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { registerSmtpSession, changePassword, fetchPreferences, savePreferences } from '../lib/api';
@@ -162,7 +162,7 @@ function DensityPicto({ mode }) {
 function LayoutSection() {
   const {
     readingPane, density, markReadMode, markReadDelaySec,
-    conversationView, sortAsc, setPref, setConversationView, setSortAsc,
+    conversationView, convIncludeSent, sortAsc, setPref, setConversationView, setSortAsc,
   } = useAuthStore();
   const [savedTick, setSavedTick] = useState(0);
   const flash = () => setSavedTick((t) => t + 1);
@@ -278,6 +278,14 @@ function LayoutSection() {
           onChange={(v) => { setConversationView(v); flash(); }}
           label={<span className="inline-flex items-center gap-2"><MessagesSquare size={15} className="text-muted-foreground" />Tampilan percakapan</span>}
           description="Kelompokkan balasan dengan subjek sama menjadi satu utas."
+        />
+
+        <Switch
+          checked={convIncludeSent !== false}
+          onChange={(v) => set('convIncludeSent', !!v)}
+          disabled={!conversationView}
+          label={<span className="inline-flex items-center gap-2"><Send size={15} className="text-muted-foreground" />Tampilkan email terkirim dalam percakapan</span>}
+          description="Balasan Anda dari folder Terkirim ikut tampil di thread (seperti Outlook)."
         />
 
         <ChoiceGroup

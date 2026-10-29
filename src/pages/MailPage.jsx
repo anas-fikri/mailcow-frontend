@@ -45,13 +45,19 @@ import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMe
 import { updateFaviconBadge, __resetFaviconBadge } from '../lib/faviconBadge';
 import { loadNotifyPrefs, saveNotifyPrefs } from '../lib/notifyPrefs';
 import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate, applyMessageWindow } from '../lib/dateGroups';
-import { groupConversations, normalizeSubject as normalizeConversationSubject } from '../lib/conversations';
+import { mergeSentIntoGroups, groupConversations, normalizeSubject as normalizeConversationSubject } from '../lib/conversations';
 import { searchAllFolders, mergeSearchResults, folderChipLabel, analyzeEmptyList, FILTER_LABELS_ID } from '../lib/mailSearch';
 import { buildRowAriaLabel } from '../lib/messageRows';
 import { planToolbar } from '../lib/mailToolbar';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 const MESSAGE_WINDOW_MONTHS = 5;
+
+// Salinan Terkirim di thread percakapan (Outlook "pesan dari folder lain"):
+// aksen hijau tenang — garis kiri inset + chip "Terkirim". Kontras AA:
+// emerald-700 di atas emerald-500/10 (terang) & emerald-300 (gelap).
+const SENT_COPY_ROW_CLS = 'relative before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-emerald-500 dark:before:bg-emerald-400';
+const SENT_COPY_CHIP_CLS = 'shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium leading-none bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
 
 // Chip hint palet perintah di input pencarian — di macOS tampil ⌘K.
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '');
@@ -354,7 +360,7 @@ export default function MailPage() {
     user, sortAsc, setSortAsc, conversationView, setConversationView,
     // Preferensi tata letak ala Outlook (per-akun, dipersist oleh setPref)
     readingPane = 'right', paneWidths, collapsedFolders: collapsedFolderIds = [],
-    favoriteFolders = [], setPref,
+    favoriteFolders = [], setPref, convIncludeSent = true,
   } = useAuthStore();
   const queryClient = useQueryClient();
 
@@ -367,7 +373,22 @@ export default function MailPage() {
   // (ReferenceError: Cannot access 'q' before initialization, outage 2026-09-24).
   const flagColorOf = (uid, folder = selectedFolder) => getFlagColor(user?.email, uid, folder);
   const setFlagColorOf = (uid, color, folder = selectedFolder) => setFlagColor(user?.email, uid, color, folder);
-  const [selectedMsgId, setSelectedMsgId] = useState(null);
+  // Pesan terbuka di reader = { uid, folder }. `folder` HANYA non-null utk
+  // salinan Terkirim yang tampil di thread folder lain (UID per-folder IMAP:
+  // uid 123 Terkirim ≠ uid 123 Kotak Masuk). setSelectedMsgId(uid) — dipakai
+  // semua jalur lama (navigasi, auto-advance, Esc) — selalu kembali ke folder
+  // aktif; salinan Terkirim dibuka lewat openSentCopy(msg).
+  const [selectedMsg, setSelectedMsg] = useState({ uid: null, folder: null });
+  const selectedMsgId = selectedMsg.uid;
+  const selectedMsgFolder = selectedMsg.folder;
+  const setSelectedMsgId = useCallback((uid) => {
+    const next = uid ?? null;
+    setSelectedMsg((prev) => (prev.uid === next && prev.folder == null ? prev : { uid: next, folder: null }));
+  }, []);
+  const openSentCopy = useCallback((msg) => {
+    if (!msg || msg.uid == null) return;
+    setSelectedMsg({ uid: msg.uid, folder: msg.folderId || 'folderSent' });
+  }, []);
   const [folderPanelOpen, setFolderPanelOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [pendingSends, setPendingSends] = useState([]);       // kiriman terjadwal/undo dari queue server
@@ -714,6 +735,30 @@ export default function MailPage() {
     if (searchQuery || selectedFolder !== 'folderINBOX') return messages;
     return applyMessageWindow(messages, { months: MESSAGE_WINDOW_MONTHS });
   }, [messages, selectedFolder, searchQuery]);
+
+  // ── Percakapan + email Terkirim (ala Outlook) ─────────────────────────────
+  // Mode percakapan di folder biasa (Kotak Masuk/kustom/Arsip) ikut memuat
+  // halaman pertama folder Terkirim; balasan Anda disisipkan ke thread yang
+  // subjeknya cocok (lib/conversations.js mergeSentIntoGroups). Key query =
+  // bentuk key daftar folder Terkirim sendiri → patchMessagesCache/
+  // removeFromCache/invalidate ['messages', token, sentId] ikut berlaku dan
+  // cache dipakai ulang saat user membuka folder Terkirim.
+  const sentFolderId = useMemo(() => {
+    const list = Array.isArray(folders) ? folders : [];
+    return (list.find((f) => f.type === 'sent') || list.find((f) => f.id === 'folderSent'))?.id || 'folderSent';
+  }, [folders]);
+  const selectedFolderType = (Array.isArray(folders) ? folders : []).find((f) => f.id === selectedFolder)?.type;
+  const convSentFolderEligible = selectedFolder !== sentFolderId
+    && !['folderSent', 'folderDrafts', 'folderTrash', 'folderJunk'].includes(selectedFolder)
+    && !['sent', 'draft', 'drafts', 'trash', 'junk'].includes(selectedFolderType);
+  const convSentEnabled = !!conversationView && convIncludeSent !== false && !searchQuery
+    && convSentFolderEligible;
+  const { data: convSentData } = useQuery({
+    queryKey: ['messages', user?.sogoToken, sentFolderId, '', 'all'],
+    queryFn: () => fetchMessages(user?.sogoToken, sentFolderId),
+    enabled: convSentEnabled && !!user?.sogoToken && folders !== DEFAULT_FOLDERS && !isFetchingFolders,
+    staleTime: 60_000,
+  });
 
   // Pencarian global otomatis: folder aktif dulu → kosong → semua folder.
   // Live search (getHighlightedDates pattern): query GET sudah jalan per
@@ -1079,12 +1124,33 @@ export default function MailPage() {
   // Conversation mode memakai satu preview terbaru per grup: baris preview =
   // group.messages[0] (urutan pesan dijamin oleh sort di conversations.js),
   // sehingga email baru selalu tampil tanpa tergantung urutan response SOGo.
+  // Salinan Terkirim utk thread: window 5-bulan INBOX ikut berlaku, baris
+  // yang sedang dalam jendela undo (hapus/pindah dari Terkirim) disembunyikan.
+  // Filter daftar aktif (belum dibaca/bintang/kategori/lampiran) → salinan
+  // tidak digabung: hasil filter harus persis pesan folder yang lolos filter.
+  const listFilterActive = unreadOnly || hasAttachmentOnly || !!categoryFilter || !!flagFilter;
+  const convSentCopies = useMemo(() => {
+    if (!convSentEnabled || listFilterActive) return [];
+    const raw = Array.isArray(convSentData?.messages) ? convSentData.messages : [];
+    const inWindow = selectedFolder === 'folderINBOX'
+      ? applyMessageWindow(raw, { months: MESSAGE_WINDOW_MONTHS })
+      : raw;
+    const hidden = hiddenByFolder[sentFolderId];
+    return inWindow
+      .filter((m) => !hidden?.has(String(m.uid)))
+      .map((m) => ({ ...m, folderId: sentFolderId, isSentCopy: true, isRead: true }));
+  }, [convSentEnabled, listFilterActive, convSentData, selectedFolder, hiddenByFolder, sentFolderId]);
+
   const conversationGroups = useMemo(() => {
     if (!conversationView) return [];
-    return groupConversations(filteredMessages, sortAsc, user?.email || '', {
+    const groups = groupConversations(filteredMessages, sortAsc, user?.email || '', {
       labelField: isSentOrDraft ? 'to' : 'from',
     });
-  }, [filteredMessages, conversationView, sortAsc, user?.email, isSentOrDraft]);
+    if (convSentCopies.length === 0) return groups;
+    return mergeSentIntoGroups(groups, convSentCopies, {
+      asc: sortAsc, labelField: isSentOrDraft ? 'to' : 'from', selfLabel: 'Anda', folderId: sentFolderId,
+    });
+  }, [filteredMessages, conversationView, sortAsc, user?.email, isSentOrDraft, convSentCopies, sentFolderId]);
 
   // Grup yang dirender = grup PENUH dari conversationGroups (preview = pesan
   // terbaru; anggota lama tampil saat expand — pola Gmail/Outlook). Versi lama
@@ -1528,8 +1594,19 @@ export default function MailPage() {
   // Auto-advance ala Outlook: bila pesan yang terbuka ikut dihapus/dipindah,
   // buka pesan berikutnya di daftar (atau tutup reader bila tidak ada /
   // reading pane mati).
-  function advanceAfterRemoval(uids) {
+  function advanceAfterRemoval(uids, folder) {
     if (selectedMsgId == null) return;
+    // Salinan Terkirim terbuka: hanya penghapusan dari folder itu yang
+    // menutup reader (tanpa auto-advance — tidak ada urutan Terkirim).
+    if (selectedMsgFolder) {
+      if (folder === selectedMsgFolder && (uids || []).some((u) => String(u) === String(selectedMsgId))) {
+        setSelectedMsgId(null);
+      }
+      return;
+    }
+    // Hapus/pindah salinan Terkirim dari thread tidak menyentuh pesan folder
+    // aktif yang kebetulan ber-UID sama.
+    if (!searchQuery && folder && folder !== selectedFolder && folder === sentFolderId) return;
     const next = nextAfterRemoval(visibleOrderUids, uids, selectedMsgId);
     if (next === selectedMsgId) return;
     setSelectedMsgId(readingPane === 'off' ? null : next);
@@ -1545,7 +1622,7 @@ export default function MailPage() {
     const key = `${Date.now()}-${++undoSeqRef.current}`;
     hideRows(sourceFolder, uids);
     setSelectedUids((prev) => removeUids(prev, uids));
-    advanceAfterRemoval(uids);
+    advanceAfterRemoval(uids, sourceFolder);
     let undoId = null;
     const finish = () => {
       const entry = deferredRef.current.get(key);
@@ -1589,7 +1666,7 @@ export default function MailPage() {
       // "Langsung hapus tanpa konfirmasi" — tanpa toast undo, tetap optimis.
       hideRows(sourceFolder, uids);
       setSelectedUids((prev) => removeUids(prev, uids));
-      advanceAfterRemoval(uids);
+      advanceAfterRemoval(uids, sourceFolder);
       moveMutation.mutate({ uids, sourceFolder, targetFolder: trashFolder });
       return;
     }
@@ -1751,7 +1828,7 @@ export default function MailPage() {
     onMutate: (vars) => {
       hideRows(vars?.folder || selectedFolder, vars?.uids || []);
       setSelectedUids((prev) => removeUids(prev, vars?.uids || []));
-      advanceAfterRemoval(vars?.uids || []);
+      advanceAfterRemoval(vars?.uids || [], vars?.folder || selectedFolder);
     },
     onSuccess: (_data, vars) => {
       const src = vars?.folder || selectedFolder;
@@ -1775,7 +1852,7 @@ export default function MailPage() {
     onMutate: (vars) => {
       hideRows(vars?.sourceFolder || selectedFolder, vars?.uids || selectedUids);
       setSelectedUids((prev) => removeUids(prev, vars?.uids || selectedUids));
-      advanceAfterRemoval(vars?.uids || selectedUids);
+      advanceAfterRemoval(vars?.uids || selectedUids, vars?.sourceFolder || selectedFolder);
     },
     onSuccess: (_data, vars) => {
       const src = vars?.sourceFolder || selectedFolder;
@@ -1797,7 +1874,7 @@ export default function MailPage() {
     onMutate: (vars) => {
       hideRows(vars?.folder || selectedFolder, vars?.uids || []);
       setSelectedUids((prev) => removeUids(prev, vars?.uids || []));
-      advanceAfterRemoval(vars?.uids || []);
+      advanceAfterRemoval(vars?.uids || [], vars?.folder || selectedFolder);
     },
     onSuccess: (_data, vars) => {
       const src = vars?.folder || selectedFolder;
@@ -1931,7 +2008,10 @@ export default function MailPage() {
   // range select / auto-advance mati di kondisi tsb).
   const visibleOrderUids = useMemo(() => {
     if (conversationView && conversationGroups.length > 0) {
-      return conversationGroups.flatMap((g) => g.messages.map((m) => m.uid));
+      // Salinan Terkirim (isSentCopy) TIDAK masuk urutan: UID-nya milik folder
+      // lain (bisa sama dgn UID folder aktif) — range select, auto-advance,
+      // dan prev/next reader hanya melintasi pesan folder aktif.
+      return conversationGroups.flatMap((g) => g.messages.filter((m) => !m.isSentCopy).map((m) => m.uid));
     }
     return focusOrder.map((m) => m.uid);
   }, [conversationView, conversationGroups, focusOrder]);
@@ -1939,12 +2019,15 @@ export default function MailPage() {
   // Urutan navigasi reader = semua baris TERMUAT (conversation: grup sudah
   // dibangun dari seluruh header termuat; datar: loadedFlatOrder).
   const readerOrderUids = useMemo(() => {
+    // Salinan Terkirim terbuka: tanpa prev/next (urutan berisi UID folder
+    // aktif — indexOf(uid Terkirim) bisa salah cocok dgn UID Kotak Masuk).
+    if (selectedMsgFolder) return [];
     if (conversationView && conversationGroups.length > 0) return visibleOrderUids;
     return loadedFlatOrder.map((m) => m.uid);
-  }, [conversationView, conversationGroups, visibleOrderUids, loadedFlatOrder]);
+  }, [conversationView, conversationGroups, visibleOrderUids, loadedFlatOrder, selectedMsgFolder]);
   // Total folder (server) — hanya bermakna tanpa pencarian/filter (selain itu
   // M = jumlah termuat yang lolos filter, total folder menyesatkan).
-  const readerTotalCount = !searchQuery && filteredLoadedMessages.length === messagesInWindow.length
+  const readerTotalCount = !selectedMsgFolder && !searchQuery && filteredLoadedMessages.length === messagesInWindow.length
     && totalMessageCount > readerOrderUids.length ? totalMessageCount : undefined;
 
   // Shift+klik = range select (pola Gmail): pilih semua antara anchor terakhir
@@ -2093,10 +2176,27 @@ export default function MailPage() {
     setSelectedMsgId(uid);
   }
 
-  function openMovePicker(uids, pos) {
+  function openMovePicker(uids, pos, sourceFolder = null) {
     if (!uids || uids.length === 0) return;
     setCtxMenu(null);
-    setMovePicker({ uids, sourceFolder: folderOfUid(uids[0]), x: pos?.x, y: pos?.y });
+    setMovePicker({ uids, sourceFolder: sourceFolder || folderOfUid(uids[0]), x: pos?.x, y: pos?.y });
+  }
+
+  // Klik baris salinan Terkirim di thread: SELALU buka (folder Terkirim).
+  // Salinan tidak bisa dipilih (Ctrl/Shift/mode seleksi = no-op) — seleksi
+  // berbasis UID folder aktif; UID Terkirim bisa bentrok dgn UID Kotak Masuk.
+  function handleSentCopyClick(e, msg) {
+    if (suppressClick.current.delete(msg.uid)) return;
+    if (selectionMode || e?.ctrlKey || e?.metaKey || e?.shiftKey) return;
+    if (selectedUids.length > 0) setSelectedUids([]);
+    openSentCopy(msg);
+  }
+  // Buka baris apa pun (header thread / menu konteks): salinan Terkirim lewat
+  // openSentCopy, pesan folder aktif lewat openMessage.
+  function openRow(msg) {
+    if (!msg) return;
+    if (msg.isSentCopy) openSentCopy(msg);
+    else openMessage(msg.uid);
   }
 
   // Klik pada BARIS (pola Outlook — logika di lib/mailSelection.js):
@@ -2134,7 +2234,11 @@ export default function MailPage() {
     e.stopPropagation();
     const uid = msg.uid;
     let uids;
-    if (selectedUids.includes(uid)) {
+    if (msg.isSentCopy) {
+      // Salinan Terkirim: menu SELALU berlaku utk baris ini saja (folder
+      // Terkirim) — tidak digabung dgn seleksi UID folder aktif.
+      uids = [uid];
+    } else if (selectedUids.includes(uid)) {
       uids = selectedUids;
     } else {
       uids = [uid];
@@ -2155,7 +2259,7 @@ export default function MailPage() {
   const DND_TYPE = 'application/x-pcp-mail';
   const dragImageRef = useRef(null);
   function handleRowDragStart(e, msg) {
-    const uids = selectedUids.includes(msg.uid) ? selectedUids : [msg.uid];
+    const uids = !msg.isSentCopy && selectedUids.includes(msg.uid) ? selectedUids : [msg.uid];
     const payload = { uids, sourceFolder: msg.folderId || selectedFolder };
     try {
       e.dataTransfer.setData(DND_TYPE, JSON.stringify(payload));
@@ -2261,8 +2365,11 @@ export default function MailPage() {
   // hanya eksekusi. Handler disimpan di ref SETIAP render → listener global
   // selalu memanggil closure terbaru (bug lama: dependency array basi —
   // archiveFolder/selectedFolder/searchQuery tidak ada di deps).
-  function runShortcut({ action, step }, { targetUids, focusedMsg }) {
+  function runShortcut({ action, step }, { targetUids, focusedMsg, openFolder = null }) {
     const A = MAIL_ACTIONS;
+    // openFolder = target berasal dari salinan Terkirim yang terbuka → aksi
+    // ke folder itu (bukan resolusi UID via folder aktif — UID bisa bentrok).
+    const runGroups = openFolder ? (list, fn) => fn(openFolder, list) : forEachFolderGroup;
     switch (action) {
       case A.HELP: setKeyboardHelpOpen(true); break;
       case A.CLOSE_MODAL:
@@ -2289,7 +2396,7 @@ export default function MailPage() {
         setSelectedUids((prev) => toggleSelectAllUids(prev, sortedMessages.map((m) => m.uid)));
         break;
       case A.MOVE_FOCUS: {
-        const openIdx = selectedMsgId != null ? focusOrder.findIndex((m) => m.uid === selectedMsgId) : -1;
+        const openIdx = selectedMsgId != null && !selectedMsgFolder ? focusOrder.findIndex((m) => m.uid === selectedMsgId) : -1;
         const next = nextFocusIndex(focusIdx, step, focusOrder.length, openIdx);
         if (next < 0) break;
         setFocusIdx(next);
@@ -2301,31 +2408,36 @@ export default function MailPage() {
         break;
       }
       case A.OPEN: {
+        if (openFolder) break; // salinan Terkirim sudah terbuka
         const uid = focusedMsg?.uid ?? selectedMsgId ?? targetUids[0];
         if (uid != null) openMessage(uid);
         break;
       }
-      case A.DELETE: forEachFolderGroup(targetUids, (folder, uids) => scheduleDeleteFrom(uids, folder)); break;
-      case A.MARK_READ: forEachFolderGroup(targetUids, (folder, uids) => bulkMarkReadMutation.mutate({ uids, folder, read: true })); break;
-      case A.MARK_UNREAD: forEachFolderGroup(targetUids, (folder, uids) => bulkMarkReadMutation.mutate({ uids, folder, read: false })); break;
+      case A.DELETE: runGroups(targetUids, (folder, uids) => scheduleDeleteFrom(uids, folder)); break;
+      // Baca/belum dibaca: salinan Terkirim dilewati (selalu tampil terbaca).
+      case A.MARK_READ: if (!openFolder) forEachFolderGroup(targetUids, (folder, uids) => bulkMarkReadMutation.mutate({ uids, folder, read: true })); break;
+      case A.MARK_UNREAD: if (!openFolder) forEachFolderGroup(targetUids, (folder, uids) => bulkMarkReadMutation.mutate({ uids, folder, read: false })); break;
       case A.TOGGLE_FLAG: {
-        const first = findMsg(targetUids[0]);
+        const first = openFolder
+          ? convSentCopies.find((m) => String(m.uid) === String(targetUids[0]))
+          : findMsg(targetUids[0]);
         const flagged = !first?.isFlagged;
-        forEachFolderGroup(targetUids, (folder, uids) => bulkFlagMutation.mutate({ uids, folder, flagged }));
+        runGroups(targetUids, (folder, uids) => bulkFlagMutation.mutate({ uids, folder, flagged }));
         break;
       }
-      case A.ARCHIVE: forEachFolderGroup(targetUids, (folder, uids) => archiveUids(uids, folder)); break;
+      case A.ARCHIVE: runGroups(targetUids, (folder, uids) => archiveUids(uids, folder)); break;
       case A.SPAM_TOGGLE:
+        if (openFolder) break; // email sendiri tidak dilaporkan spam
         forEachFolderGroup(targetUids, (folder, uids) =>
           (folder === 'folderJunk' ? notJunkMutation : junkMutation).mutate({ uids, folder })
         );
         break;
-      case A.MOVE_PICKER: openMovePicker(targetUids); break;
+      case A.MOVE_PICKER: openMovePicker(targetUids, undefined, openFolder); break;
       case A.REPLY:
       case A.REPLY_ALL:
       case A.FORWARD: {
         const uid = focusedMsg?.uid ?? selectedMsgId ?? targetUids[0];
-        if (uid != null) openReplyFor(uid, action, folderOfUid(uid));
+        if (uid != null) openReplyFor(uid, action, openFolder || folderOfUid(uid));
         break;
       }
       case A.UNDO: undoLast(); break;
@@ -2379,7 +2491,9 @@ export default function MailPage() {
     // biarkan perilaku asli.
     if (!resolved) return;
     e.preventDefault();
-    runShortcut(resolved, { targetUids, focusedMsg });
+    // Target = salinan Terkirim yang terbuka (tanpa seleksi/fokus) → folder eksplisit.
+    const openFolder = selectedMsgFolder && selectedUids.length === 0 && !focusedMsg ? selectedMsgFolder : null;
+    runShortcut(resolved, { targetUids, focusedMsg, openFolder });
   };
   useEffect(() => {
     const handler = (ev) => keyHandlerRef.current?.(ev);
@@ -2498,23 +2612,27 @@ export default function MailPage() {
 
   // Bendera dari menu konteks: set warna (localStorage, folder-scoped) +
   // pastikan flag aktif. keepColor=true → hanya pastikan flag (tanpa warna).
-  function setFlagForUids(uids, colorKey, keepColor = false) {
+  // `only` = { folder, msg }: target tunggal di folder eksplisit (salinan
+  // Terkirim) — tanpa resolusi UID → folder aktif.
+  function setFlagForUids(uids, colorKey, keepColor = false, only = null) {
     const unflagged = [];
     for (const uid of uids) {
-      const f = folderOfUid(uid);
+      const f = only ? only.folder : folderOfUid(uid);
       if (!keepColor) setFlagColorOf(uid, colorKey, f);
-      if (!findMsg(uid)?.isFlagged) unflagged.push(uid);
+      if (!(only ? only.msg : findMsg(uid))?.isFlagged) unflagged.push(uid);
     }
-    forEachFolderGroup(unflagged, (folder, list) => bulkFlagMutation.mutate({ uids: list, folder, flagged: true }));
+    if (only) { if (unflagged.length) bulkFlagMutation.mutate({ uids: unflagged, folder: only.folder, flagged: true }); }
+    else forEachFolderGroup(unflagged, (folder, list) => bulkFlagMutation.mutate({ uids: list, folder, flagged: true }));
     setFlagTick((t) => t + 1);
   }
-  function clearFlagForUids(uids) {
+  function clearFlagForUids(uids, only = null) {
     const flagged = [];
     for (const uid of uids) {
-      setFlagColorOf(uid, null, folderOfUid(uid));
-      if (findMsg(uid)?.isFlagged) flagged.push(uid);
+      setFlagColorOf(uid, null, only ? only.folder : folderOfUid(uid));
+      if ((only ? only.msg : findMsg(uid))?.isFlagged) flagged.push(uid);
     }
-    forEachFolderGroup(flagged, (folder, list) => bulkFlagMutation.mutate({ uids: list, folder, flagged: false }));
+    if (only) { if (flagged.length) bulkFlagMutation.mutate({ uids: flagged, folder: only.folder, flagged: false }); }
+    else forEachFolderGroup(flagged, (folder, list) => bulkFlagMutation.mutate({ uids: list, folder, flagged: false }));
     setFlagTick((t) => t + 1);
   }
 
@@ -2524,52 +2642,61 @@ export default function MailPage() {
     const n = uids.length;
     const single = n === 1;
     const folder = msg.folderId || selectedFolder;
+    // Salinan Terkirim di thread: semua aksi ke folder Terkirim secara
+    // eksplisit (forEachFolderGroup me-resolve UID lewat daftar folder aktif
+    // → bisa salah folder bila UID bentrok).
+    const sentCopy = !!msg.isSentCopy;
+    const runGroups = sentCopy ? (list, fn) => fn(folder, list) : forEachFolderGroup;
+    const only = sentCopy ? { folder, msg } : null;
     const anyUnread = uids.some((u) => !findMsg(u)?.isRead);
     const isJunk = folder === 'folderJunk';
     const pos = { x: menu.x, y: menu.y };
     return [
-      { id: 'open', label: single ? 'Buka' : `Buka (${n} pesan terpilih)`, icon: MailOpen, disabled: !single, shortcut: '↵', onSelect: () => openMessage(msg.uid) },
+      { id: 'open', label: single ? 'Buka' : `Buka (${n} pesan terpilih)`, icon: MailOpen, disabled: !single, shortcut: '↵', onSelect: () => openRow(msg) },
       { id: 'reply', label: 'Balas', icon: Reply, disabled: !single, shortcut: 'Ctrl+R', onSelect: () => openReplyFor(msg.uid, 'reply', folder) },
       { id: 'replyAll', label: 'Balas Semua', icon: ReplyAll, disabled: !single, shortcut: 'Ctrl+Shift+R', onSelect: () => openReplyFor(msg.uid, 'replyAll', folder) },
       { id: 'forward', label: 'Teruskan', icon: Forward, disabled: !single, shortcut: 'Ctrl+F', onSelect: () => openReplyFor(msg.uid, 'forward', folder) },
       // Cari per pengirim — dulu lewat klik nama di baris (membajak klik
       // "buka pesan"); kini hanya di menu konteks. Folder Terkirim/Draf
       // menampilkan penerima, bukan pengirim → item disembunyikan.
-      ...(!isSentOrDraft && single && msg.from
+      ...(!isSentOrDraft && !sentCopy && single && msg.from
         ? [{ id: 'searchSender', label: 'Cari email dari pengirim ini', icon: Search, onSelect: () => searchBySender(msg.from) }]
         : []),
-      ...(single
+      ...(single && !sentCopy
         ? [{ id: 'createRule', label: 'Buat aturan…', icon: Filter, onSelect: () => setQuickRuleMsg({ ...msg, folderId: folder }) }]
         : []),
       { separator: true },
-      anyUnread
+      // Baca/belum dibaca tidak ditawarkan utk salinan Terkirim: salinan
+      // selalu tampil terbaca di thread (tidak pernah memengaruhi badge).
+      ...(sentCopy ? [] : [anyUnread
         ? { id: 'read', label: single ? 'Tandai dibaca' : `Tandai ${n} dibaca`, icon: MailOpen, shortcut: 'Ctrl+Q', onSelect: () => forEachFolderGroup(uids, (f, l) => bulkMarkReadMutation.mutate({ uids: l, folder: f, read: true })) }
-        : { id: 'unread', label: single ? 'Tandai belum dibaca' : `Tandai ${n} belum dibaca`, icon: Mail, shortcut: 'Ctrl+U', onSelect: () => forEachFolderGroup(uids, (f, l) => bulkMarkReadMutation.mutate({ uids: l, folder: f, read: false })) },
+        : { id: 'unread', label: single ? 'Tandai belum dibaca' : `Tandai ${n} belum dibaca`, icon: Mail, shortcut: 'Ctrl+U', onSelect: () => forEachFolderGroup(uids, (f, l) => bulkMarkReadMutation.mutate({ uids: l, folder: f, read: false })) }]),
       {
         id: 'flag', label: 'Bendera', icon: Flag, shortcut: 'Ctrl+Shift+G',
         children: [
           ...FLAG_COLOR_KEYS.map((key) => ({
             id: `flag-${key}`, label: FLAG_COLORS[key].label, dot: FLAG_COLORS[key].bg,
             checked: single && flagColorOf(msg.uid, folder) === key,
-            onSelect: () => setFlagForUids(uids, key),
+            onSelect: () => setFlagForUids(uids, key, false, only),
           })),
           { separator: true },
-          { id: 'flag-plain', label: 'Bendera tanpa warna', icon: Star, onSelect: () => setFlagForUids(uids, null, true) },
-          { id: 'flag-clear', label: 'Hapus bendera', icon: StarOff, onSelect: () => clearFlagForUids(uids) },
+          { id: 'flag-plain', label: 'Bendera tanpa warna', icon: Star, onSelect: () => setFlagForUids(uids, null, true, only) },
+          { id: 'flag-clear', label: 'Hapus bendera', icon: StarOff, onSelect: () => clearFlagForUids(uids, only) },
         ],
       },
       ...(folder === 'folderINBOX' && single
         ? [{ id: 'snooze', label: 'Tunda', icon: Clock, children: SNOOZE_PRESETS.map((p) => ({ id: `snooze-${p.id}`, label: p.label, onSelect: () => handleSnooze(msg.uid, p.hours) })) }]
         : []),
       { separator: true },
-      { id: 'move', label: 'Pindahkan ke…', icon: FolderInput, shortcut: 'Ctrl+Shift+V', onSelect: () => openMovePicker(uids, pos) },
+      { id: 'move', label: 'Pindahkan ke…', icon: FolderInput, shortcut: 'Ctrl+Shift+V', onSelect: () => openMovePicker(uids, pos, sentCopy ? folder : null) },
       ...(archiveFolder && folder !== archiveFolder.id
-        ? [{ id: 'archive', label: 'Arsip', icon: Archive, shortcut: 'e', onSelect: () => forEachFolderGroup(uids, (f, l) => archiveUids(l, f)) }]
+        ? [{ id: 'archive', label: 'Arsip', icon: Archive, shortcut: 'e', onSelect: () => runGroups(uids, (f, l) => archiveUids(l, f)) }]
         : []),
-      isJunk
+      // Email Anda sendiri tidak ditawarkan "Spam".
+      ...(sentCopy ? [] : [isJunk
         ? { id: 'notjunk', label: 'Bukan spam', icon: ShieldCheck, onSelect: () => forEachFolderGroup(uids, (f, l) => notJunkMutation.mutate({ uids: l, folder: f })) }
-        : { id: 'junk', label: 'Spam', icon: AlertTriangle, onSelect: () => forEachFolderGroup(uids, (f, l) => junkMutation.mutate({ uids: l, folder: f })) },
-      { id: 'delete', label: single ? 'Hapus' : `Hapus ${n} pesan`, icon: Trash2, danger: true, shortcut: 'Del', onSelect: () => forEachFolderGroup(uids, (f, l) => scheduleDeleteFrom(l, f)) },
+        : { id: 'junk', label: 'Spam', icon: AlertTriangle, onSelect: () => forEachFolderGroup(uids, (f, l) => junkMutation.mutate({ uids: l, folder: f })) }]),
+      { id: 'delete', label: single ? 'Hapus' : `Hapus ${n} pesan`, icon: Trash2, danger: true, shortcut: 'Del', onSelect: () => runGroups(uids, (f, l) => scheduleDeleteFrom(l, f)) },
     ];
   };
 
@@ -2592,8 +2719,13 @@ export default function MailPage() {
     // Folder asal baris: hasil pencarian lintas folder membawa folderId
     // sendiri — SEMUA aksi baris & key React memakai rowFolder, bukan folder aktif.
     const rowFolder = msg.folderId || selectedFolder;
-    const isActive = selectedMsgId === msg.uid;
-    const isSelected = selectedUids.includes(msg.uid);
+    // Salinan folder Terkirim di thread folder lain (Outlook "pesan dari
+    // folder lain"): tidak bisa dipilih, tidak pernah unread, aktif hanya
+    // bila reader membuka uid INI di folder Terkirim (UID per-folder).
+    const sentCopy = !!msg.isSentCopy;
+    const isActive = selectedMsgId === msg.uid
+      && (sentCopy ? selectedMsgFolder === rowFolder : !selectedMsgFolder);
+    const isSelected = !sentCopy && selectedUids.includes(msg.uid);
     const isFocused = !conversationView && focusIdx === idx;
     // Di dalam percakapan, garis kiri berasal dari thread line wrapper
     // (border-l-2). Baris tidak memakai border-l-4 sendiri → tidak ada
@@ -2603,7 +2735,7 @@ export default function MailPage() {
       ? (isActive ? 'bg-muted/80' : isFocused ? 'bg-muted/30' : '')
       : (isActive ? 'bg-muted border-primary' : isFocused ? 'border-primary/40 bg-muted/30' : 'border-transparent');
     // Nama yang ditampilkan — dipakai juga untuk inisial avatar
-    const senderLabel = isSentOrDraft ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender');
+    const senderLabel = (isSentOrDraft || sentCopy) ? (msg.to || '(Tanpa Penerima)') : (msg.from || 'Unknown Sender');
     // Baris anak percakapan (nested): tampilkan NAMA saja ala Outlook —
     // kutip pembungkus dibuang, alamat email disembunyikan (header thread
     // sudah membawa subjek + konteks; baris anak cukup nama + waktu).
@@ -2615,14 +2747,22 @@ export default function MailPage() {
       displayLabel = isSentOrDraft
         ? (formatRecipientSummary(parsed, { max: 2 }) || '(Tanpa Penerima)')
         : (parsed[0]?.name || parsed[0]?.email || senderLabel);
+      // Salinan Terkirim: "Anda → <penerima pertama>" (+N bila lebih).
+      if (sentCopy) {
+        const first = parsed[0]?.name || parsed[0]?.email || '(Tanpa Penerima)';
+        displayLabel = `Anda → ${first}${parsed.length > 1 ? ` +${parsed.length - 1}` : ''}`;
+      }
     }
+    const sentRecipients = sentCopy
+      ? (formatRecipientSummary(parseAddressList(senderLabel), { max: 3 }) || '(Tanpa Penerima)')
+      : '';
     const colorKey = flagColorOf(msg.uid, rowFolder);
     const hasFlag = !!msg.isFlagged || !!colorKey;
     // Lightweight phishing check: From/Reply-To domain mismatch (hanya header, tanpa body)
     // NOTE: sengaja TANPA useMemo — renderMessageRow bukan React component,
     // useMemo di sini melanggar Rules of Hooks (causes React #310).
     let phishingCheck = null;
-    if (!isSentOrDraft && msg['reply-to']) {
+    if (!isSentOrDraft && !sentCopy && msg['reply-to']) {
       const fromStr = formatAddresses(msg.from || '');
       const replyToStr = formatAddresses(msg['reply-to']);
       const fromDomain = (fromStr.match(/@([a-zA-Z0-9.-]+)/) || [])[1] || '';
@@ -2633,14 +2773,14 @@ export default function MailPage() {
     }
     // Kontrol floating (checkbox + star) menimpa avatar — tidak makan ruang baris.
     // Desktop: muncul saat hover. Layar sentuh: star selalu tampil, checkbox saat mode seleksi.
-    const checkboxVisible = isSelected || (isTouch && selectionMode);
+    const checkboxVisible = !sentCopy && (isSelected || (isTouch && selectionMode));
     const starVisible = hasFlag || isTouch;
     // Nama aksesibel baris: "<pengirim>, <subjek>, <waktu>, belum dibaca".
     const rowAriaLabel = buildRowAriaLabel({
-      sender: displayLabel,
+      sender: sentCopy ? `Terkirim kepada ${sentRecipients}` : displayLabel,
       subject: typeof msg.subject === 'string' ? msg.subject : '',
       date: msg.date,
-      unread: !msg.isRead,
+      unread: !sentCopy && !msg.isRead,
       flagged: hasFlag,
       hasAttachment: !!msg.hasAtt,
     });
@@ -2655,7 +2795,7 @@ export default function MailPage() {
       <button
         onClick={(e) => {
           e.stopPropagation();
-          setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid ? null : { msgUid: msg.uid, x: e.clientX, y: e.clientY });
+          setFlagPickerOpen(flagPickerOpen?.msgUid === msg.uid && (flagPickerOpen.folder || selectedFolder) === rowFolder ? null : { msgUid: msg.uid, folder: rowFolder, x: e.clientX, y: e.clientY });
         }}
         onDoubleClick={stopDbl}
         tabIndex={tabIndex}
@@ -2693,7 +2833,7 @@ export default function MailPage() {
         iconLeft={rowFolder === 'folderINBOX' ? Reply : Trash}
       >
         <div
-          onClick={(e) => handleRowClick(e, msg.uid, idx)}
+          onClick={(e) => (sentCopy ? handleSentCopyClick(e, msg) : handleRowClick(e, msg.uid, idx))}
           onContextMenu={(e) => handleRowContextMenu(e, msg, idx)}
           onMouseEnter={() => schedulePrefetchMessage(msg.uid, rowFolder)}
           onMouseLeave={cancelPrefetchMessage}
@@ -2706,14 +2846,17 @@ export default function MailPage() {
           role="button"
           aria-label={rowAriaLabel}
           data-mail-row={msg.uid}
+          data-row-folder={rowFolder}
+          data-sent-copy={sentCopy || undefined}
           data-selected={isSelected || isActive || undefined}
           onFocus={() => { if (idx >= 0 && focusIdx !== idx) setFocusIdx(idx); }}
           ref={(el) => { if (idx >= 0) msgRefs.current[msg.uid] = el; }}
-          onTouchStart={(e) => handleRowTouchStart(e, msg.uid)}
-          onTouchMove={(e) => handleRowTouchMove(e, msg.uid)}
-          onTouchEnd={() => handleRowTouchEnd(msg.uid)}
-          onTouchCancel={() => handleRowTouchEnd(msg.uid)}
-          className={`mail-row group w-full flex items-start text-left ${nested ? 'px-3 py-2 min-h-11' : ROW_PAD_CLS} hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 ${leftBorderCls}select-none [-webkit-touch-callout:none] ${activeCls} ${isSelected ? 'bg-primary/10' : ''} ${replyBusy?.uid === msg.uid ? 'opacity-70' : ''}`}
+          // Long-press = mode seleksi; salinan Terkirim tidak bisa dipilih.
+          onTouchStart={sentCopy ? undefined : (e) => handleRowTouchStart(e, msg.uid)}
+          onTouchMove={sentCopy ? undefined : (e) => handleRowTouchMove(e, msg.uid)}
+          onTouchEnd={sentCopy ? undefined : () => handleRowTouchEnd(msg.uid)}
+          onTouchCancel={sentCopy ? undefined : () => handleRowTouchEnd(msg.uid)}
+          className={`mail-row group w-full flex items-start text-left ${nested ? 'px-3 py-2 min-h-11' : ROW_PAD_CLS} hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 ${leftBorderCls}${sentCopy ? SENT_COPY_ROW_CLS : ''} select-none [-webkit-touch-callout:none] ${activeCls} ${isSelected ? 'bg-primary/10' : ''} ${replyBusy?.uid === msg.uid ? 'opacity-70' : ''}`}
         >
           {/* Avatar — saat hover/seleksi diganti checkbox (pola Gmail, tidak menumpuk).
               Baris anak percakapan: avatar 24px (lebih ringkas, konteks di header). */}
@@ -2721,8 +2864,9 @@ export default function MailPage() {
             <div className={`absolute inset-0 rounded-full overflow-hidden transition-opacity duration-150 ${
               checkboxVisible ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
             }`}>
-              <Avatar name={senderLabel} size="sm" className={nested ? 'w-6! h-6! text-[10px]!' : ''} />
+              <Avatar name={sentCopy ? (user?.cn || user?.email || 'Anda') : senderLabel} size="sm" className={nested ? 'w-6! h-6! text-[10px]!' : ''} />
             </div>
+            {!sentCopy && (
             <button
               onClick={(e) => toggleSelectMsg(e, msg.uid)}
               tabIndex={checkboxVisible ? 0 : -1}
@@ -2739,8 +2883,9 @@ export default function MailPage() {
                 <Square size={nested ? 13 : 15} className="text-muted-foreground" />
               )}
             </button>
+            )}
 
-            {flagPickerOpen?.msgUid === msg.uid && (
+            {flagPickerOpen?.msgUid === msg.uid && (flagPickerOpen.folder || selectedFolder) === rowFolder && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setFlagPickerOpen(null)} />
                 <div
@@ -2820,12 +2965,18 @@ export default function MailPage() {
               <div className="flex items-center gap-1.5 min-w-0 flex-1">
                 {/* Nama = teks biasa (klik baris = buka pesan). Cari per
                     pengirim pindah ke menu konteks (klik kanan). */}
+                {sentCopy && (
+                  <Send size={13} className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                )}
                 <span
-                  title={senderLabel}
-                  className={`text-sm truncate ${msg.isRead ? 'text-foreground font-normal' : 'text-foreground font-semibold'}`}
+                  title={sentCopy ? `Terkirim kepada ${sentRecipients}` : senderLabel}
+                  className={`text-sm truncate ${msg.isRead || sentCopy ? 'text-foreground font-normal' : 'text-foreground font-semibold'}`}
                 >
                   {displayLabel}
                 </span>
+                {sentCopy && (
+                  <span className={SENT_COPY_CHIP_CLS} title="Dari folder Terkirim">Terkirim</span>
+                )}
                 {phishingCheck && (
                   <span className="shrink-0 text-amber-500 dark:text-amber-400" title={`⚠️ ${phishingCheck.finding}`}>
                     <AlertTriangle size={13} />
@@ -2863,8 +3014,9 @@ export default function MailPage() {
                       {replyBusy?.uid === msg.uid ? <Loader2 size={14} className="animate-spin" /> : <Reply size={14} />}
                     </button>
                   )}
-                  {/* Buat aturan dari pesan ini (ala Outlook) — hover desktop */}
-                  {!isTouch && (
+                  {/* Buat aturan dari pesan ini (ala Outlook) — hover desktop.
+                      Tidak utk salinan Terkirim (pengirimnya Anda sendiri). */}
+                  {!isTouch && !sentCopy && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -2994,7 +3146,7 @@ export default function MailPage() {
             )}
           </div>
 
-          {!msg.isRead && (
+          {!msg.isRead && !sentCopy && (
             <div className="shrink-0 ml-2 pt-2">
               <span className="block w-2 h-2 rounded-full bg-primary" />
             </div>
@@ -3769,7 +3921,7 @@ export default function MailPage() {
                     let headerFlagCls = '';
                     if (group.hasFlagged) {
                       const firstFlagged = group.messages.find((msg) => msg.isFlagged);
-                      const k = firstFlagged ? flagColorOf(firstFlagged.uid) : null;
+                      const k = firstFlagged ? flagColorOf(firstFlagged.uid, firstFlagged.folderId || selectedFolder) : null;
                       headerFlagCls = k && FLAG_COLORS[k]
                         ? `${FLAG_COLORS[k].text} ${FLAG_COLORS[k].fill}`
                         : 'text-amber-600 fill-amber-600 dark:text-amber-400 dark:fill-amber-400';
@@ -3794,7 +3946,9 @@ export default function MailPage() {
                               expandConversation(group.key);
                               if (selectionMode) return;
                               if (selectedUids.length > 0) setSelectedUids([]);
-                              if (group.latest) openMessage(group.latest.uid);
+                              // Terbaru bisa salinan Terkirim (balasan Anda) →
+                              // dibuka dari folder Terkirim (Outlook).
+                              if (group.latest) openRow(group.latest);
                             }}
                             aria-label={`Buka pesan terbaru percakapan ${group.subject}`}
                             className="flex-1 min-w-0 flex items-center gap-2.5 pl-3 pr-2 density-row text-left"
@@ -3827,6 +3981,7 @@ export default function MailPage() {
                                 <span className="flex-1 min-w-0 text-[11px] text-muted-foreground truncate">
                                   {formatRecipientSummary(senders.map((s) => ({ name: s })), { max: 3 })}
                                   {group.messages.length > 1 && ` · ${group.messages.length} pesan`}
+                                  {group.sentCount > 0 && ` · ${group.sentCount} terkirim`}
                                 </span>
                                 {/* Belum dibaca: badge ANGKA saja (aksen) — detail di title. */}
                                 {group.unreadCount > 0 && (
@@ -3873,7 +4028,7 @@ export default function MailPage() {
                             {renderMessageRow(group.messages[0], -1, true)}
                           </div>
                           {isExpanded && group.messages.slice(1).map((msg) => (
-                            <div key={msg.uid} className="border-t border-border/40">
+                            <div key={`${msg.folderId || selectedFolder}:${msg.uid}`} className="border-t border-border/40">
                               {renderMessageRow(msg, -1, true)}
                             </div>
                           ))}
@@ -3954,7 +4109,7 @@ export default function MailPage() {
         )}
         {selectedMsgId ? (
           <MessageReader
-            folder={searchQuery && activeMessage?.folderId ? activeMessage.folderId : selectedFolder}
+            folder={selectedMsgFolder || (searchQuery && activeMessage?.folderId ? activeMessage.folderId : selectedFolder)}
             msgId={selectedMsgId}
             siblingUids={readerOrderUids}
             siblingTotal={readerTotalCount}
@@ -3975,12 +4130,15 @@ export default function MailPage() {
             onMoveComplete={({ next } = {}) => {
               setSelectedMsgId(next ?? null);
               queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedFolder] });
+              if (selectedMsgFolder) queryClient.invalidateQueries({ queryKey: ['messages', user?.sogoToken, selectedMsgFolder] });
               queryClient.invalidateQueries({ queryKey: ['unseen', user?.sogoToken] });
               queryClient.invalidateQueries({ queryKey: ['unseen-per-folder', user?.sogoToken] });
             }}
             // Status baca dari reader → patch cache OPTIMIS (bukan refetch daftar).
             onReadStateChange={(uid, isRead) => {
-              const f = searchQuery && activeMessage?.folderId ? activeMessage.folderId : selectedFolder;
+              // Salinan Terkirim → patch cache folder Terkirim (badge Kotak
+              // Masuk tidak tersentuh; adjustUnseen per-folder).
+              const f = selectedMsgFolder || (searchQuery && activeMessage?.folderId ? activeMessage.folderId : selectedFolder);
               applyReadLocal(f, [uid], isRead);
             }}
           />
