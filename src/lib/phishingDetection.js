@@ -106,11 +106,27 @@ function extractUrls(html) {
 function analyzeUrls(urls) {
   let score = 0;
   const findings = [];
+  // BUG 2026-10-29: tiap LINK dinilai ulang → newsletter dgn 13 link pelacak ke
+  // host yang sama (mis. c.in.webengage.com) mendapat skor +130 & 13 temuan
+  // kembar → "risiko tinggi" palsu. Kini setiap aturan dinilai SEKALI per host.
+  const seenHosts = new Set();
+  const deepSubdomains = [];
 
   for (const raw of urls) {
     try {
       const u = new URL(raw);
       const host = u.hostname.toLowerCase();
+      // '@' di URL & port dinilai per URL unik (bukan per host) di bawah;
+      // aturan berbasis host dilewati bila host sudah dinilai.
+      const hostSeen = seenHosts.has(host);
+      seenHosts.add(host);
+      if (hostSeen) {
+        if (raw.includes('@') && !findings.some((f) => f.startsWith('URL mengandung @'))) {
+          score += 40;
+          findings.push(`URL mengandung @ (technique phishing): ${String(raw || '').substring(0, 60)}`);
+        }
+        continue;
+      }
 
       // IP address langsung (bukan domain)
       if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
@@ -145,8 +161,8 @@ function analyzeUrls(urls) {
         }
       }
 
-      // @ in URL (common phishing trick)
-      if (raw.includes('@')) {
+      // @ in URL (common phishing trick) — sekali per pesan
+      if (raw.includes('@') && !findings.some((f) => f.startsWith('URL mengandung @'))) {
         score += 40;
         findings.push(`URL mengandung @ (technique phishing): ${String(raw || '').substring(0, 60)}`);
       }
@@ -157,12 +173,11 @@ function analyzeUrls(urls) {
         findings.push(`Domain pakai IDN/punycode: ${host} (potensi homograph attack)`);
       }
 
-      // Subdomain berlebihan (bukan hanya www)
+      // Subdomain berlebihan (bukan hanya www) — sinyal LEMAH: domain pelacak
+      // newsletter sah sering bertingkat (click.mail.x.com). Dikumpulkan lalu
+      // dinilai sekali di akhir (maks +10) sebagai satu temuan.
       const parts = host.split('.');
-      if (parts.length > 3) {
-        score += 10;
-        findings.push(`Subdomain berlebihan: ${host}`);
-      }
+      if (parts.length > 3) deepSubdomains.push(host);
 
       // Port non-standar
       if (u.port && !['80', '443', ''].includes(u.port)) {
@@ -170,6 +185,13 @@ function analyzeUrls(urls) {
         findings.push(`URL pakai port non-standar: ${u.port}`);
       }
     } catch { /* invalid URL — skip */ }
+  }
+
+  if (deepSubdomains.length) {
+    score += Math.min(10, 5 * deepSubdomains.length);
+    const shown = deepSubdomains.slice(0, 2).join(', ');
+    const more = deepSubdomains.length > 2 ? ` (+${deepSubdomains.length - 2} lainnya)` : '';
+    findings.push(`Subdomain berlebihan: ${shown}${more}`);
   }
 
   return { score, findings };

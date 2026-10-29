@@ -508,6 +508,12 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // membuat seluruh app crash (bug QA 2026-10-11: "Rendered more hooks").
   const quotedCacheRef = React.useRef({ key: null, value: null });
 
+  // Banner peringatan keamanan: ringkas default, detail & sembunyikan per pesan
+  // (direset saat pindah pesan). Dideklarasikan sebelum early return.
+  const [phishingOpen, setPhishingOpen] = React.useState(false);
+  const [phishingHidden, setPhishingHidden] = React.useState(false);
+  React.useEffect(() => { setPhishingOpen(false); setPhishingHidden(false); }, [msgId, folder]);
+
   // Hook ini WAJIB dideklarasikan sebelum early return apa pun di bawah.
   // Query berpindah dari loading → loaded menyebabkan render ulang; jika hook
   // berada setelah `if (!msgId)`/`if (isLoading)`, jumlah hook berubah dan
@@ -1135,30 +1141,40 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       </div>
 
       {/* Phishing warning banner */}
-      {phishingResult && phishingResult.level !== 'safe' && (() => {
+      {/* Peringatan keamanan — RINGKAS satu baris (dulu daftar 5 temuan +
+          "+N lainnya" memakan ±1/3 panel baca). Detail dibuka sesuai kebutuhan;
+          bisa disembunyikan utk pesan ini. Warna mengikuti tingkat risiko. */}
+      {phishingResult && phishingResult.level !== 'safe' && !phishingHidden && (() => {
         const risk = RISK_LEVELS[phishingResult.level];
+        const findings = [...new Set(phishingResult.findings)];
+        const title = phishingResult.level === 'high' ? 'Peringatan keamanan'
+          : phishingResult.level === 'medium' ? 'Indikasi phishing' : 'Perlu waspada';
         return (
-          <div className={`mx-4 mt-3 px-4 py-3 rounded-lg border ${risk.border} ${risk.bg} flex items-start gap-3`}>
-            <AlertTriangle size={16} className={`${risk.color} shrink-0 mt-0.5`} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold ${risk.color}`}>
-                {phishingResult.level === 'high' ? '⚠️ Peringatan Keamanan' : '⚡ Indikasi Phishing'}  
-              </p>  
-              <ul className="mt-1 text-xs text-muted-foreground space-y-0.5">  
-                {phishingResult.findings.slice(0, 5).map((f, i) => (  
-                  <li key={i} className="flex gap-1.5">  
-                    <span className="text-foreground/40">•</span>  
-                    <span>{f}</span>  
-                  </li>  
-                ))}  
-              </ul>  
-              {phishingResult.findings.length > 5 && (  
-                <p className="text-[11px] text-muted-foreground mt-1">  
-                  +{phishingResult.findings.length - 5} indikasi lainnya  
-                </p>  
-              )}  
-            </div>  
-          </div>  
+          <div role="status" className={`mx-4 mt-3 rounded-lg border ${risk.border} ${risk.bg}`}>
+            <div className="flex items-center gap-2 px-3 min-h-9 py-1.5">
+              <AlertTriangle size={15} className={`${risk.color} shrink-0`} aria-hidden="true" />
+              <p className="flex-1 min-w-0 text-[13px] truncate">
+                <span className={`font-semibold ${risk.color}`}>{title}</span>
+                <span className="text-muted-foreground"> · {findings.length} temuan{findings[0] ? ` · ${findings[0]}` : ''}</span>
+              </p>
+              <button type="button" onClick={() => setPhishingOpen((v) => !v)} aria-expanded={phishingOpen}
+                className="shrink-0 h-8 px-2 rounded-md text-[12px] font-medium text-foreground/80 hover:bg-background/60">
+                {phishingOpen ? 'Tutup' : 'Detail'}
+              </button>
+              <button type="button" onClick={() => setPhishingHidden(true)} aria-label="Sembunyikan peringatan untuk pesan ini"
+                title="Sembunyikan untuk pesan ini"
+                className="shrink-0 w-8 h-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-background/60">
+                <X size={14} />
+              </button>
+            </div>
+            {phishingOpen && (
+              <ul className="px-3 pb-2.5 pt-0.5 text-xs text-muted-foreground space-y-0.5 max-h-40 overflow-y-auto">
+                {findings.map((f) => (
+                  <li key={f} className="flex gap-1.5"><span className="text-foreground/40">•</span><span className="break-all">{f}</span></li>
+                ))}
+              </ul>
+            )}
+          </div>
         );
       })()}
 

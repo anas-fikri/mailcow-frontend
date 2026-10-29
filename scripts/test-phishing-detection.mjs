@@ -177,5 +177,35 @@ function assertEq(a, b, label) {
   assertEq(r.level, 'high', 'Mixed signals → high risk');
 }
 
+// ─── Regresi 2026-10-29: newsletter dgn banyak link pelacak ke host bersub-
+// domain dalam (c.in.webengage.com) tidak boleh jadi "risiko tinggi" &
+// temuan tidak boleh berulang per link.
+{
+  const links = Array.from({ length: 13 }, (_, i) => `<a href="https://c.in.webengage.com/e/${i}?u=x">L${i}</a>`).join(' ');
+  const r = analyzePhishing({
+    from: 'Kaspersky APAC <news@kaspersky.com>', replyTo: '',
+    subject: 'Register Now for November Webinars!',
+    bodyHtml: `<p>Monthly webinars for your business.</p>${links}`,
+  });
+  const sub = r.findings.filter((f) => f.startsWith('Subdomain berlebihan'));
+  assertEq(sub.length, 1, 'subdomain berlebihan dilaporkan SEKALI');
+  assert(r.score <= 20, `skor newsletter tetap rendah (dapat ${r.score})`);
+  assert(r.level === 'safe' || r.level === 'low', `bukan medium/high (dapat ${r.level})`);
+  assertEq(new Set(r.findings).size, r.findings.length, 'tidak ada temuan kembar');
+}
+// Host berbeda bersubdomain dalam → tetap satu temuan, bobot dibatasi.
+{
+  const r = analyzePhishing({ from: 'x <a@b.com>', replyTo: '', subject: 's',
+    bodyHtml: ['a.b.c.one.com', 'a.b.c.two.com', 'a.b.c.three.com'].map((h) => `<a href="https://${h}/">x</a>`).join(' ') });
+  assertEq(r.findings.filter((f) => f.startsWith('Subdomain berlebihan')).length, 1, 'beberapa host → satu temuan');
+  assert(/\+1 lainnya/.test(r.findings.find((f) => f.startsWith('Subdomain'))), 'host lain diringkas "+N lainnya"');
+}
+// Sinyal kuat tetap terdeteksi walau host berulang.
+{
+  const r = analyzePhishing({ from: 'x <a@b.com>', replyTo: '', subject: 's',
+    bodyHtml: '<a href="http://192.168.1.10/a">1</a><a href="http://192.168.1.10/b">2</a>' });
+  assertEq(r.findings.filter((f) => f.includes('IP langsung')).length, 1, 'IP langsung dilaporkan sekali per host');
+}
+
 console.log(`\nphishing detection assertions: ${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);
