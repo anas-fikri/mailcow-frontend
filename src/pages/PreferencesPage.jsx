@@ -18,6 +18,7 @@ import {
 import { loadNotifyPrefs, saveNotifyPrefs } from '../lib/notifyPrefs';
 import HtmlEditor from '../components/HtmlEditor';
 import Skeleton from '../components/Skeleton';
+import DateRangePicker from '../components/DateRangePicker';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -896,18 +897,19 @@ function VacationSection() {
 
         {enabled && (
           <div className="space-y-4 pt-2">
-            {/* Tanggal */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Mulai</label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                  className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Selesai</label>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                  className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
-              </div>
+            {/* Periode cuti — DateRangePicker kustom (bukan input tanggal native) */}
+            <div className="space-y-1.5">
+              <div id="vacation-period-label" className="text-sm font-medium text-foreground">Periode cuti</div>
+              <DateRangePicker
+                start={startDate}
+                end={endDate}
+                onChange={({ start, end }) => { setStartDate(start); setEndDate(end); }}
+                labelId="vacation-period-label"
+                describedBy="vacation-period-help"
+              />
+              <p id="vacation-period-help" className="text-xs text-muted-foreground">
+                Kosongkan tanggal selesai untuk auto-reply tanpa batas waktu.
+              </p>
             </div>
 
             {/* Subject */}
