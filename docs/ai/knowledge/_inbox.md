@@ -8,3 +8,4 @@
 - SOGo membangkitkan Sieve vacation dari Vacation.autoReplyText, customSubject+customSubjectEnabled, daysBetweenResponse, start/endDate(+Enabled) — bukan text/subject; sumber kebenaran nama field = template UIxPreferences.wox di container SOGo. <!-- aitk:k date=2026-10-29 task=T-a6jq -->
 - UID IMAP per folder — baris lintas-folder (mis. salinan Terkirim di thread Kotak Masuk) wajib membawa folderId dan dikunci dgn folder:uid; seleksi/navigasi berbasis uid saja harus mengecualikannya. <!-- aitk:k date=2026-10-29 task=T-cpg5 -->
 - SOGo /view hanya mem-prefetch ~100 header; sisanya via POST /headers per batch uid — berlaku utk folder apa pun termasuk Terkirim yang digabung ke thread. <!-- aitk:k date=2026-10-29 task=T-dzq1 -->
+- Skor phishing dulu dihitung per link: newsletter dgn banyak link pelacak ke satu host (c.in.webengage.com) menumpuk jadi 'high'. Aturan URL kini dihitung sekali per host. <!-- aitk:k date=2026-10-29 task=T-9rsd -->
