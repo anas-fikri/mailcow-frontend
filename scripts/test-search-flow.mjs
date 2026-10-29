@@ -12,13 +12,14 @@ const ok = (cond, msg) => { assert.ok(cond, msg); passCount++; };
 // ── Bug 1: search harus menembus window 5 bulan Kotak Masuk ──────────────────
 // Sebelumnya messagesInWindow memotong hasil pencarian di INBOX juga → email
 // lama tetap tidak bisa dicari padahal UI menjanjikan sebaliknya.
-ok(mail.includes("if (searchQuery || selectedFolder !== 'folderINBOX') return messages;"),
-  'window 5 bulan harus di-skip saat searchQuery aktif');
-ok(mail.includes('applyMessageWindow(messages, { months: MESSAGE_WINDOW_MONTHS })'),
-  'window memakai helper murni applyMessageWindow');
-ok(lib.includes('export function applyMessageWindow'), 'applyMessageWindow harus diekspor dari dateGroups');
-ok(mail.includes('applyMessageWindow') && mail.includes('from \'../lib/dateGroups\''),
-  'MailPage harus import applyMessageWindow');
+// 2026-10-29: batas 5 bulan DIHAPUS seluruhnya (infinite scroll sampai habis)
+// — daftar maupun pencarian tidak lagi dipotong tanggal.
+ok(mail.includes('const messagesInWindow = messages;'),
+  'daftar Kotak Masuk tidak lagi dipotong window 5 bulan');
+ok(!mail.includes('applyMessageWindow(messages'), 'window tidak diterapkan ke daftar');
+ok(!/stopFetchingRef\.current = true;\s*\n\s*}\s*\n\s*\/\/ UID habis/.test(mail) && !mail.includes('cutoff.setMonth(cutoff.getMonth() - MESSAGE_WINDOW_MONTHS)'),
+  'loadMore tidak berhenti di batas 5 bulan');
+ok(lib.includes('export function applyMessageWindow'), 'applyMessageWindow tetap diekspor dari dateGroups (dipakai test golden)');
 
 // ── Bug 2: auto-archive rules TIDAK boleh jalan saat mode search ─────────────
 // Rules memindahkan pesan; memindahkan hasil pencarian mengejutkan user.

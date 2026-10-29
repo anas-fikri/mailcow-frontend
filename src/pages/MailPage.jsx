@@ -44,14 +44,13 @@ import { EMAIL_CATEGORIES, CATEGORY_LABELS, CATEGORY_BADGE_CLASS, classifyEmail,
 import { SNOOZE_PRESETS, loadSnoozes, snoozeMessage, unsnoozeMessage, unsnoozeMessages, pruneExpired } from '../lib/snooze';
 import { updateFaviconBadge, __resetFaviconBadge } from '../lib/faviconBadge';
 import { loadNotifyPrefs, saveNotifyPrefs } from '../lib/notifyPrefs';
-import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate, applyMessageWindow } from '../lib/dateGroups';
+import { groupMessagesByDate, reorderDateGroups, sortMessagesByDate, parseMessageDate } from '../lib/dateGroups';
 import { mergeSentIntoGroups, groupConversations, normalizeSubject as normalizeConversationSubject } from '../lib/conversations';
 import { searchAllFolders, mergeSearchResults, folderChipLabel, analyzeEmptyList, FILTER_LABELS_ID } from '../lib/mailSearch';
 import { buildRowAriaLabel } from '../lib/messageRows';
 import { planToolbar } from '../lib/mailToolbar';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
-const MESSAGE_WINDOW_MONTHS = 5;
 
 // Salinan Terkirim di thread percakapan (Outlook "pesan dari folder lain"):
 // aksen hijau tenang — garis kiri inset + chip "Terkirim". Kontras AA:
@@ -731,10 +730,10 @@ export default function MailPage() {
   // menemukan email lama (teks UI: "Email lebih lama bisa dicari"). Sebelumnya
   // hasil pencarian di INBOX ikut dipotong 5 bulan → email lama tetap tak
   // ditemukan (bug).
-  const messagesInWindow = useMemo(() => {
-    if (searchQuery || selectedFolder !== 'folderINBOX') return messages;
-    return applyMessageWindow(messages, { months: MESSAGE_WINDOW_MONTHS });
-  }, [messages, selectedFolder, searchQuery]);
+  // Batas 5 bulan Kotak Masuk DIHAPUS (permintaan user 2026-10-29): email
+  // lama dimuat otomatis lewat infinite scroll sampai habis, sama seperti
+  // folder lain. Nama variabel dipertahankan agar konsumen tidak berubah.
+  const messagesInWindow = messages;
 
   // ── Percakapan + email Terkirim (ala Outlook) ─────────────────────────────
   // Mode percakapan di folder biasa (Kotak Masuk/kustom/Arsip) ikut memuat
@@ -759,6 +758,36 @@ export default function MailPage() {
     enabled: convSentEnabled && !!user?.sogoToken && folders !== DEFAULT_FOLDERS && !isFetchingFolders,
     staleTime: 60_000,
   });
+
+  // Salinan Terkirim tambahan (di luar ~100 header halaman pertama /view):
+  // dimuat bertahap 50/batch SELAMA email Terkirim terlama yang sudah dimuat
+  // masih lebih baru dari email terlama folder aktif yang sudah dimuat —
+  // balasan lama tetap masuk ke thread-nya saat infinite scroll berjalan,
+  // tanpa memuat seluruh folder Terkirim sekaligus.
+  const [sentExtra, setSentExtra] = useState([]);
+  const sentLoadingRef = useRef(false);
+  useEffect(() => { setSentExtra([]); }, [sentFolderId, user?.sogoToken]);
+  useEffect(() => {
+    if (!convSentEnabled || sentLoadingRef.current || !user?.sogoToken) return;
+    const sentUids = Array.isArray(convSentData?.uids) ? convSentData.uids : null;
+    if (!sentUids || messages.length === 0) return;
+    const loadedSent = [...(convSentData?.messages || []), ...sentExtra];
+    const loadedSet = new Set(loadedSent.map((m) => String(m.uid)));
+    const remaining = sentUids.filter((u) => !loadedSet.has(String(u)));
+    if (remaining.length === 0) return;
+    const minTime = (list) => list.reduce((min, m) => {
+      const t = parseMessageDate(m?.date)?.getTime();
+      return Number.isFinite(t) && t < min ? t : min;
+    }, Infinity);
+    const oldestFolder = minTime(messages);
+    const oldestSent = minTime(loadedSent);
+    if (!(oldestSent > oldestFolder)) return; // Terkirim sudah menjangkau rentang folder
+    sentLoadingRef.current = true;
+    fetchMessageHeaders(user.sogoToken, sentFolderId, remaining.slice(0, 50))
+      .then((rows) => { if (rows.length) setSentExtra((prev) => [...prev, ...rows]); })
+      .catch((err) => console.warn('[conv-sent] gagal memuat Terkirim tambahan:', err?.message || err))
+      .finally(() => { sentLoadingRef.current = false; });
+  }, [convSentEnabled, convSentData, sentExtra, messages, user?.sogoToken, sentFolderId]);
 
   // Pencarian global otomatis: folder aktif dulu → kosong → semua folder.
   // Live search (getHighlightedDates pattern): query GET sudah jalan per
@@ -1132,14 +1161,13 @@ export default function MailPage() {
   const convSentCopies = useMemo(() => {
     if (!convSentEnabled || listFilterActive) return [];
     const raw = Array.isArray(convSentData?.messages) ? convSentData.messages : [];
-    const inWindow = selectedFolder === 'folderINBOX'
-      ? applyMessageWindow(raw, { months: MESSAGE_WINDOW_MONTHS })
-      : raw;
+    const seenSent = new Set(raw.map((m) => String(m.uid)));
+    const all = [...raw, ...sentExtra.filter((m) => !seenSent.has(String(m.uid)))];
     const hidden = hiddenByFolder[sentFolderId];
-    return inWindow
+    return all
       .filter((m) => !hidden?.has(String(m.uid)))
       .map((m) => ({ ...m, folderId: sentFolderId, isSentCopy: true, isRead: true }));
-  }, [convSentEnabled, listFilterActive, convSentData, selectedFolder, hiddenByFolder, sentFolderId]);
+  }, [convSentEnabled, listFilterActive, convSentData, sentExtra, hiddenByFolder, sentFolderId]);
 
   const conversationGroups = useMemo(() => {
     if (!conversationView) return [];
@@ -1421,7 +1449,7 @@ export default function MailPage() {
       return;
     }
 
-    // Kotak Masuk: berhenti setelah melewati batas 5 bulan.
+    // Berhenti hanya bila UID habis / terjadi error (lihat di bawah).
     if (stopFetchingRef.current) return;
 
     if (remainingUids.length === 0 || !user?.sogoToken) return;
@@ -1433,17 +1461,6 @@ export default function MailPage() {
       if (rows.length) {
         setExtraMessages((prev) => [...prev, ...rows]);
         setVisibleCount((prev) => prev + rows.length);
-      }
-
-      // Kotak Masuk: hentikan fetch lanjutan bila batch sudah menyentuh pesan
-      // lebih lama dari cutoff (UID urut terbaru → lama). Cari pesan terlama
-      // via uid minimum — /headers tidak menjamin urutan balasan sama dgn request.
-      if (selectedFolder === 'folderINBOX') {
-        const cutoff = new Date();
-        cutoff.setMonth(cutoff.getMonth() - MESSAGE_WINDOW_MONTHS);
-        const oldest = rows.reduce((min, r) => ((r?.uid ?? Infinity) < (min?.uid ?? Infinity) ? r : min), rows[0]);
-        const d = oldest ? parseMessageDate(oldest.date) : null;
-        if (d && d.getTime() < cutoff.getTime()) stopFetchingRef.current = true;
       }
 
       // UID habis tapi header tidak (mis. pesan terhapus di server) → hentikan.
@@ -4072,9 +4089,9 @@ export default function MailPage() {
                 (selectedFolder === 'folderINBOX' || totalMessageCount > messages.length) && (
                   <div className="px-4 py-3 flex justify-center border-t border-border">
                     <span className="text-[11px] text-muted-foreground">
-                      {selectedFolder === 'folderINBOX'
-                        ? `Menampilkan ${messagesInWindow.length} email (5 bulan terakhir). Email lebih lama bisa dicari.`
-                        : `Menampilkan ${messages.length} dari ${totalMessageCount} email terbaru. Cari email lama via pencarian.`}
+                      {totalMessageCount > messages.length
+                        ? `Menampilkan ${messages.length.toLocaleString('id')} dari ${Number(totalMessageCount).toLocaleString('id')} email. Cari email lain via pencarian.`
+                        : `Semua ${messages.length.toLocaleString('id')} email sudah dimuat.`}
                     </span>
                   </div>
                 )

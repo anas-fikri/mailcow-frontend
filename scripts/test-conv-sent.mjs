@@ -116,4 +116,13 @@ assert.ok(mail.includes('quickReply(msg.uid, rowFolder)') && mail.includes('arch
 const newMail = fs.readFileSync('src/lib/newMail.js', 'utf8');
 assert.ok(!/isSentCopy|folderSent/.test(newMail), 'deteksi email baru tidak menyentuh Terkirim');
 
+// 2026-10-29: salinan Terkirim dimuat bertahap (tidak terbatas halaman pertama)
+// mengikuti tanggal email terlama folder aktif yang sudah dimuat; tanpa window 5 bulan.
+{
+  const mailSrc = mail;
+  assert.ok(mailSrc.includes('fetchMessageHeaders(user.sogoToken, sentFolderId, remaining.slice(0, 50))'), 'Terkirim tambahan dimuat 50/batch');
+  assert.ok(mailSrc.includes('if (!(oldestSent > oldestFolder)) return;'), 'berhenti saat Terkirim sudah menjangkau rentang folder');
+  assert.ok(!mailSrc.includes('applyMessageWindow(raw'), 'salinan Terkirim tidak dipotong window 5 bulan');
+}
+
 console.log('conv-sent: PASS');
