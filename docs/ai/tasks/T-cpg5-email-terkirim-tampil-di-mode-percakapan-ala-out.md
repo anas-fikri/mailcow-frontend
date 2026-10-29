@@ -1,27 +1,129 @@
 ---
 id: T-cpg5
 title: Email terkirim tampil di mode percakapan (ala Outlook)
-status: in_progress
+status: done
 profile: standard
 profile_pinned: true
 created: "2026-10-29T04:52:52Z"
-updated: "2026-10-29T04:52:52Z"
+updated: "2026-10-29T05:28:07Z"
+closed: "2026-10-29T05:28:07Z"
 created_by: claude-code
 workers:
   - claude-code
 branch: worktree-fix-dup-rules
 base: fffb2ba00faf0fa0160ffb3c271c442c8fb797bb
+paths:
+  - deploy.sh
+  - package.json
+  - scripts/run-tests.mjs
+  - scripts/test-a11y.mjs
+  - scripts/test-contact-signature-edge.mjs
+  - scripts/test-conv-sent.mjs
+  - scripts/test-conversation-expand.mjs
+  - scripts/test-conversation-toolbar-regression.mjs
+  - scripts/test-date-range-picker.mjs
+  - scripts/test-mark-read-sync.mjs
+  - scripts/test-new-mail-detect.mjs
+  - scripts/test-outlook-ux.mjs
+  - scripts/test-protected-folders.mjs
+  - scripts/test-quick-rule.mjs
+  - scripts/test-rule-address-suggest.mjs
+  - scripts/test-send-queue-dedupe.mjs
+  - scripts/test-sieve-filters.mjs
+  - scripts/test-sieve-save.mjs
+  - scripts/test-signature-sync.mjs
+  - scripts/test-vacation.mjs
+  - server.js
+  - src/components/DateRangePicker.jsx
+  - src/components/layout/AppLayout.jsx
+  - src/components/mailer/ComposeModal.jsx
+  - src/components/mailer/MessageReader.jsx
+  - src/components/mailer/QuickRuleModal.jsx
+  - src/components/rules/AddressValueInput.jsx
+  - src/components/rules/Modal.jsx
+  - src/components/rules/RuleEditor.jsx
+  - src/components/rules/RunNowDialog.jsx
+  - src/components/rules/styles.js
+  - src/lib/api.js
+  - src/lib/autoArchive.js
+  - src/lib/calendarGrid.js
+  - src/lib/conversations.js
+  - src/lib/instanceLock.js
+  - src/lib/mailToolbar.js
+  - src/lib/mailboxTree.js
+  - src/lib/newMail.js
+  - src/lib/ruleAddressSuggest.js
+  - src/lib/sendQueue.js
+  - src/lib/sieveFilters.js
+  - src/lib/signatureStore.js
+  - src/lib/signatures.js
+  - src/lib/userPrefs.js
+  - src/lib/vacation.js
+  - src/pages/MailPage.jsx
+  - src/pages/PreferencesPage.jsx
+  - src/pages/RulesPage.jsx
+  - src/store/authStore.js
+evidence:
+  check:
+    cmd: npm test && npm run build
+    exit_code: 0
+    duration_ms: 32038
+    summary: |-
+      … kB │ gzip:   0.65 kB
+      dist/assets/index-CXbuf124.css             89.37 kB │ gzip:  15.54 kB
+      dist/assets/loader-circle-DSS7Hivk.js       0.13 kB │ gzip:   0.14 kB
+      dist/assets/send-DeR1SXnZ.js                0.16 kB │ gzip:   0.15 kB
+      dist/assets/clock-CojKr6Da.js               0.17 kB │ gzip:   0.16 kB
+      dist/assets/chevron-right-Dz_2vShp.js       0.19 kB │ gzip:   0.17 kB
+      dist/assets/copy-CqPw4kzX.js                0.22 kB │ gzip:   0.20 kB
+      dist/assets/pencil-Cmo6yGSN.js              0.26 kB │ gzip:   0.22 kB
+      dist/assets/inbox-D2sb9y6g.js               0.27 kB │ gzip:   0.22 kB
+      dist/assets/file-text-CxhUSFJ9.js           0.32 kB │ gzip:   0.21 kB
+      dist/assets/trash-2-BtAoZvCC.js             0.45 kB │ gzip:   0.28 kB
+      dist/assets/rolldown-runtime-C0FnF6B9.js    1.29 kB │ gzip:   0.71 kB
+      dist/assets/useMutation-bzdo-udh.js         2.29 kB │ gzip:   0.95 kB
+      dist/assets/Skeleton-JWz3KZWq.js            3.52 kB │ gzip:   0.82 kB
+      dist/assets/notifyPrefs-D4K_SJSd.js         3.69 kB │ gzip:   1.70 kB
+      dist/assets/LoginPage-C4KNHlwC.js           6.95 kB │ gzip:   2.51 kB
+      dist/assets/ContactsPage-B7wRWT06.js       11.79 kB │ gzip:   3.47 kB
+      dist/assets/RulesPage-BtxJQV06.js          15.11 kB │ gzip:   5.11 kB
+      dist/assets/StatsPage-D7fCGWFs.js          15.16 kB │ gzip:   4.49 kB
+      dist/assets/authStore-BiBbdLLY.js          16.66 kB │ gzip:   6.09 kB
+      dist/assets/CalendarPage-kqMEjGJJ.js       42.56 kB │ gzip:  10.24 kB
+      dist/assets/RunNowDialog-CxSed5Af.js       50.87 kB │ gzip:  16.50 kB
+      dist/assets/PreferencesPage-BDkEYVBB.js    62.12 kB │ gzip:  17.00 kB
+      dist/assets/api-6RXiv-kh.js                87.79 kB │ gzip:  29.06 kB
+      dist/assets/jszip.min-gms7YGF-.js          95.96 kB │ gzip:  28.50 kB
+      dist/assets/MailPage-arIScaef.js          258.99 kB │ gzip:  74.71 kB
+      dist/assets/lib-B2hRtwez.js               294.68 kB │ gzip:  89.71 kB
+      dist/assets/index-DaZNPsFE.js             421.90 kB │ gzip: 135.50 kB
+      dist/assets/xlsx-BivLitlN.js              424.08 kB │ gzip: 141.36 kB
+
+      ✓ built in 517ms
+    at: "2026-10-29T05:27:57Z"
+    tree: e36bb3d05bc44f9c363abd5d3d2351c3cda27525e55857483edaf1e7d6a22e55
+  commits:
+    - 4fd0ffb
+  acceptance:
+    total: 3
+    done: 3
 ---
 
 ## Objective
 Di tampilan percakapan, gabungkan pesan dari folder Terkirim ke thread yang cocok di folder aktif (mis. Kotak Masuk), ditandai ikon/warna berbeda; aksi pada pesan terkirim memakai folder Terkirim; bisa dimatikan di Tata Letak & Baca.
 
 ## Acceptance criteria
-- [ ] Given mode percakapan aktif di Kotak Masuk, when ada balasan saya di Terkirim dgn subjek thread yang sama, then pesan itu muncul di thread dgn ikon/warna 'Terkirim'
-- [ ] Given pesan terkirim di thread, when dibuka/dihapus/dipindah, then aksi berlaku pada folder Terkirim (bukan Kotak Masuk)
-- [ ] Given pesan terkirim, when menghitung belum dibaca/badge, then tidak ikut dihitung; dan pengaturan 'Tampilkan email terkirim dalam percakapan' bisa mematikannya
+- [x] Given mode percakapan aktif di Kotak Masuk, when ada balasan saya di Terkirim dgn subjek thread yang sama, then pesan itu muncul di thread dgn ikon/warna 'Terkirim'
+- [x] Given pesan terkirim di thread, when dibuka/dihapus/dipindah, then aksi berlaku pada folder Terkirim (bukan Kotak Masuk)
+- [x] Given pesan terkirim, when menghitung belum dibaca/badge, then tidak ikut dihitung; dan pengaturan 'Tampilkan email terkirim dalam percakapan' bisa mematikannya
 
 ## Risk
 (Required for strict profile. Impact:, Security (STRIDE):, Rollback:, Validation:)
 
 ## Notes
+
+## Evidence
+<!-- Generated by aitk close. -->
+- Check: `npm test && npm run build` → exit 0 at 2026-10-29T05:27:57Z (32038 ms)
+- Acceptance criteria: 3/3 satisfied
+- Commits: 4fd0ffb
