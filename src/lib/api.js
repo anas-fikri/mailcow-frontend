@@ -10,6 +10,7 @@ import { buildMessageSearchBody, buildMessageViewBody } from './messageRequests.
 import { extractLoginErrorMessage, isLoginSuccessResponse, isUnsupportedLoginFormat, maskEmail } from './loginDiagnostics.js';
 import { flattenMailboxes } from './mailboxTree.js';
 import { maxUidOf } from './newMail.js';
+import { needsVacationRepair, readVacationForm, buildVacationPayload } from './vacation.js';
 import { bumpDomainVersion } from './crossTab.js';
 import { pickExternalContacts, filterKnownContacts } from './contactCapture.js';
 import { parseRawHeaders } from './messageHtml.js';
@@ -2053,6 +2054,36 @@ export function __resetServerMarkReadFlag() {
  * bila baca segar gagal atau hasilnya mencurigakan (< 10 key).
  * @returns {Promise<boolean>} true bila server terkonfirmasi -1
  */
+/**
+ * Perbaiki data Auto-Reply lama (form lama menyimpan isi ke `Vacation.text`
+ * yang tidak dibaca SOGo → auto-reply terkirim KOSONG). Bila auto-reply aktif,
+ * autoReplyText kosong, dan `text` berisi → simpan ulang dalam format SOGo
+ * (autoReplyText/customSubject/...) agar SOGo membangkitkan ulang skrip Sieve.
+ * Read-fresh-modify-write; tidak menulis bila baca segar gagal. Tidak melempar.
+ * @returns {Promise<boolean>} true bila perbaikan ditulis.
+ */
+export async function repairVacationIfNeeded(sogoToken, email) {
+  if (!sogoToken || !email) return false;
+  let fresh;
+  try { fresh = await fetchPreferencesStrict(email); } catch { return false; }
+  const defaults = fresh?.defaults;
+  if (!defaults || Object.keys(defaults).length < 10) return false;
+  if (!needsVacationRepair(defaults.Vacation)) return false;
+  const form = readVacationForm(defaults.Vacation);
+  const nextDefaults = { ...defaults, Vacation: buildVacationPayload(defaults.Vacation, form, email) };
+  try {
+    const res = await fetchWithTimeout(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Preferences/save`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ defaults: nextDefaults }),
+    }, 20000);
+    if (!res.ok) return false;
+    savePrefsToLocal(email, { defaults: nextDefaults, settings: fresh.settings });
+    return true;
+  } catch { return false; }
+}
+
 export async function ensureServerMarkReadDisabled(sogoToken, email) {
   if (!sogoToken || !email) return false;
   try {

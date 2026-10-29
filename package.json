@@ -129,7 +129,8 @@
     "test:rule-address-suggest": "node scripts/test-rule-address-suggest.mjs",
     "test": "node scripts/run-tests.mjs .",
     "test:new-mail-detect": "node scripts/test-new-mail-detect.mjs",
-    "test:signature-sync": "node scripts/test-signature-sync.mjs"
+    "test:signature-sync": "node scripts/test-signature-sync.mjs",
+    "test:vacation": "node scripts/test-vacation.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.20",

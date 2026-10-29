@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { readVacationForm, validateVacationForm, buildVacationPayload } from '../lib/vacation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Settings, Lock, FileSignature, Plane, Eye, EyeOff,
@@ -812,7 +813,7 @@ function VacationSection() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [enabled, setEnabled] = useState(false);
-  const [subject, setSubject] = useState('Saya sedang tidak di tempat');
+  const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('Terima kasih atas email Anda.\n\nSaya sedang dalam masa cuti dan akan membalas email Anda sesegera mungkin.\n\nSalam.');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate]     = useState('');
@@ -829,18 +830,13 @@ function VacationSection() {
 
   useEffect(() => {
     if (prefs?.defaults && !initRef.current) {
-      const v = prefs.defaults.Vacation || {};
-      setEnabled(String(v.enabled) === '1' || v.enabled === true);
-      if (v.subject) setSubject(v.subject);
-      if (v.text) setMessage(v.text);
-      if (v.startDate) {
-        const d = new Date(parseInt(v.startDate, 10) * 1000);
-        if (!isNaN(d.getTime())) setStartDate(d.toISOString().split('T')[0]);
-      }
-      if (v.endDate) {
-        const d = new Date(parseInt(v.endDate, 10) * 1000);
-        if (!isNaN(d.getTime())) setEndDate(d.toISOString().split('T')[0]);
-      }
+      // Baca format SOGo (autoReplyText/customSubject) + data lama (text/subject).
+      const f = readVacationForm(prefs.defaults.Vacation);
+      setEnabled(f.enabled);
+      if (f.subject) setSubject(f.subject);
+      if (f.message) setMessage(f.message);
+      setStartDate(f.startDate);
+      setEndDate(f.endDate);
       setLoaded(true);
       initRef.current = true;
     } else if (!isLoading && !prefs) {
@@ -850,36 +846,19 @@ function VacationSection() {
 
   const mutation = useMutation({
     mutationFn: () => {
-      const startEpoch = startDate ? String(Math.floor(new Date(startDate).getTime() / 1000)) : undefined;
-      const endEpoch = endDate ? String(Math.floor(new Date(endDate).getTime() / 1000) + 86399) : undefined;
-      
+      const form = { enabled, subject, message, startDate, endDate };
+      const errors = validateVacationForm(form);
+      if (errors.length) throw new Error(errors[0]);
+      // Field yang DIBACA SOGo saat membangkitkan skrip Sieve vacation
+      // (autoReplyText, customSubject(+Enabled), start/endDateEnabled) — lihat
+      // src/lib/vacation.js. Dulu text/subject → auto-reply terkirim kosong.
       const updatedPrefs = {
         defaults: {
           ...(prefs?.defaults || {}),
-          Vacation: {
-            ...(prefs?.defaults?.Vacation || {}),
-            autoReplyEmailAddresses: prefs?.defaults?.Vacation?.autoReplyEmailAddresses || [user.email],
-            ignoreLists: prefs?.defaults?.Vacation?.ignoreLists || "0",
-            enabled:  enabled ? '1' : '0',
-            subject,
-            text:     message,
-            startDate: startEpoch || '',
-            endDate:   endEpoch || '',
-          },
+          Vacation: buildVacationPayload(prefs?.defaults?.Vacation, form, user.email),
         },
         settings: prefs?.settings || {},
       };
-      
-      if (!updatedPrefs.defaults.Vacation.startDate) delete updatedPrefs.defaults.Vacation.startDate;
-      if (!updatedPrefs.defaults.Vacation.endDate) delete updatedPrefs.defaults.Vacation.endDate;
-      
-      // SOGo might expect startDateEnabled
-      if (startEpoch) {
-        updatedPrefs.defaults.Vacation.startDateEnabled = 1;
-      } else {
-        delete updatedPrefs.defaults.Vacation.startDateEnabled;
-      }
-
       return savePreferences(user.sogoToken, updatedPrefs, user.email);
     },
     onSuccess: () => {
@@ -933,15 +912,15 @@ function VacationSection() {
 
             {/* Subject */}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Subjek</label>
-              <input type="text" value={subject} onChange={e => setSubject(e.target.value)}
+              <label htmlFor="vacation-subject" className="text-sm font-medium text-foreground">Subjek <span className="font-normal text-muted-foreground">(opsional — kosong = "Auto: subjek asli")</span></label>
+              <input id="vacation-subject" type="text" value={subject} onChange={e => setSubject(e.target.value)} placeholder="Misal: Sedang cuti sampai 5 November" 
                 className="w-full h-9 bg-background border border-border rounded-md px-3 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
             </div>
 
             {/* Message */}
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">Pesan</label>
-              <textarea rows={5} value={message} onChange={e => setMessage(e.target.value)}
+              <label htmlFor="vacation-message" className="text-sm font-medium text-foreground">Pesan <span className="text-destructive">*</span></label>
+              <textarea id="vacation-message" rows={5} value={message} onChange={e => setMessage(e.target.value)}
                 className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none resize-y" />
             </div>
           </div>

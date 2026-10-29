@@ -8,6 +8,7 @@ import CommandPalette from '../CommandPalette';
 import { buildCommands } from '../../lib/commandRegistry';
 import { useAuthStore } from '../../store/authStore';
 import { refreshSignaturesFromServer, subscribeSignatureSync } from '../../lib/signatures';
+import { repairVacationIfNeeded } from '../../lib/api';
 import { toast } from '../../lib/toast';
 
 /** Hue override for each themeColor preset (light-mode hue) */
@@ -69,6 +70,8 @@ export default function AppLayout() {
     const token = user?.sogoToken;
     if (!email || !token) return undefined;
     refreshSignaturesFromServer(email, token);
+    // Data Auto-Reply format lama (isi di `text`) → perbaiki agar tidak terkirim kosong.
+    repairVacationIfNeeded(token, email).catch(() => {});
     return subscribeSignatureSync((_who, state) => {
       if (state.status === 'error' && state.kind === 'save') {
         toast.error(`Signature gagal disimpan ke server: ${state.error}`);
