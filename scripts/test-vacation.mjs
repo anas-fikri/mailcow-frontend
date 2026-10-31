@@ -54,7 +54,7 @@ assert.equal(V.needsVacationRepair({ enabled: 1, text: '' }), false);
 
 // Kontrak sumber: form & perbaikan otomatis memakai helper ini.
 const pref = readFileSync(new URL('../src/pages/PreferencesPage.jsx', import.meta.url), 'utf8');
-assert.ok(pref.includes('buildVacationPayload(prefs?.defaults?.Vacation, form, user.email)'), 'form menyimpan via buildVacationPayload');
+assert.ok(pref.includes('buildVacationPayload(fresh.Vacation, form, user.email)'), 'form menyimpan via buildVacationPayload dari Vacation SERVER segar');
 assert.ok(!/text:\s+message,/.test(pref), 'form tidak lagi menulis Vacation.text');
 const api = readFileSync(new URL('../src/lib/api.js', import.meta.url), 'utf8');
 assert.ok(api.includes('export async function repairVacationIfNeeded'), 'perbaikan otomatis tersedia');

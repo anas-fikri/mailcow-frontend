@@ -1858,6 +1858,39 @@ export async function savePreferences(sogoToken, prefs, email) {
   return true;
 }
 
+/**
+ * Ubah sebagian preferensi SOGo dengan read-modify-write SEGAR.
+ *
+ * SOGo /Preferences/save MENGGANTI seluruh `defaults`. Membangun payload dari
+ * snapshot UI (yang bisa berasal dari fallback localStorage atau null saat
+ * /api/preferences gagal) dulu menghapus Vacation/Forward/Sieve/signature
+ * user di server. Di sini: baca segar dari DB, batal bila gagal atau < 10 key,
+ * ganti HANYA key yang diminta, dan TIDAK mengirim `settings`.
+ *
+ * @param {(fresh: object) => object} patchFn  menerima defaults segar,
+ *   mengembalikan objek key → nilai yang diubah form.
+ */
+export async function updatePreferences(sogoToken, email, patchFn) {
+  const fresh = await fetchPreferencesStrict(email);
+  if (!fresh?.defaults || Object.keys(fresh.defaults).length < 10) {
+    throw new Error('Preferensi server tidak lengkap — tidak disimpan agar pengaturan lain tidak terhapus. Muat ulang halaman lalu coba lagi.');
+  }
+  const patch = patchFn(fresh.defaults) || {};
+  const defaults = { ...fresh.defaults, ...patch };
+  if (serverMarkReadOff) defaults.SOGoMailAutoMarkAsReadDelay = -1;
+  const res = await fetch(`${SOGO_BASE}/SOGo/so/${pathSegment(sogoToken, 'sogoToken')}/Preferences/save`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: sogoHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ defaults }),
+  });
+  throwIfAuthError(res);
+  if (!res.ok) throw new Error(`Gagal menyimpan preferensi (${res.status}).`);
+  rememberServerSigDefaults(email, defaults);
+  savePrefsToLocal(email, { ...fresh, defaults });
+  return { ...fresh, defaults };
+}
+
 // ─── Aturan server (Sieve) — defaults.SOGoSieveFilters ─────────────────────────
 // PENTING: POST /Preferences/save SOGo (UIxPreferences saveAction) memanggil
 // `[[userDefaults source] setValues: defaults]` → seluruh objek `defaults`
@@ -1874,13 +1907,14 @@ async function fetchPreferencesStrict(email) {
     credentials: 'include',
     headers: withApiKey(),
   }, 15000);
-  // 401/403 dari /api/* = sesi SMTP proxy, BUKAN sesi SOGo → jangan picu logout.
-  if (res.status === 401 || res.status === 403) {
-    throw new Error('Sesi server aturan berakhir — muat ulang halaman atau login ulang.');
+  // 401 dari /api/* = sesi SMTP proxy, BUKAN sesi SOGo → banner re-auth, bukan logout.
+  if (res.status === 401) throwSmtpSessionLost(res);
+  if (res.status === 403) {
+    throw new Error('Akses preferensi server ditolak — muat ulang halaman atau login ulang.');
   }
-  if (!res.ok) throw new Error(`Gagal membaca aturan dari server (${res.status}).`);
+  if (!res.ok) throw new Error(`Gagal membaca preferensi dari server (${res.status}).`);
   const ct = res.headers.get('content-type') || '';
-  if (!ct.includes('application/json')) throw new Error('Respons server aturan tidak valid.');
+  if (!ct.includes('application/json')) throw new Error('Respons server preferensi tidak valid.');
   const data = await res.json();
   if (!data || typeof data !== 'object' || !data.defaults || typeof data.defaults !== 'object' || Array.isArray(data.defaults)) {
     throw new Error('Respons server aturan tidak lengkap.');

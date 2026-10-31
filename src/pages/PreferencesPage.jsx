@@ -9,7 +9,7 @@ import {
   Cloud, CloudOff, RefreshCw, Send,
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { registerSmtpSession, changePassword, fetchPreferences, savePreferences } from '../lib/api';
+import { registerSmtpSession, changePassword, fetchPreferences, updatePreferences } from '../lib/api';
 import {
   loadSignatures, addSignature, updateSignature, removeSignature, setDefaultSignature,
   refreshSignaturesFromServer, subscribeSignatureSync, getSignatureSyncState,
@@ -861,14 +861,10 @@ function VacationSection() {
       // Field yang DIBACA SOGo saat membangkitkan skrip Sieve vacation
       // (autoReplyText, customSubject(+Enabled), start/endDateEnabled) — lihat
       // src/lib/vacation.js. Dulu text/subject → auto-reply terkirim kosong.
-      const updatedPrefs = {
-        defaults: {
-          ...(prefs?.defaults || {}),
-          Vacation: buildVacationPayload(prefs?.defaults?.Vacation, form, user.email),
-        },
-        settings: prefs?.settings || {},
-      };
-      return savePreferences(user.sogoToken, updatedPrefs, user.email);
+      // Read-modify-write segar: Vacation dibangun dari nilai SERVER terkini.
+      return updatePreferences(user.sogoToken, user.email, (fresh) => ({
+        Vacation: buildVacationPayload(fresh.Vacation, form, user.email),
+      }));
     },
     onSuccess: () => {
       initRef.current = false; // allow re-init on next refetch
@@ -1072,20 +1068,15 @@ function DisplaySection() {
 
   const mutation = useMutation({
     mutationFn: () => {
-      const updatedPrefs = {
-        defaults: {
-          ...(prefs?.defaults || {}),
-          SOGoTimeZone: timezone,
-          SOGoLanguage: language,
-          SOGoDateFormat: dateFormat,
-          SOGoFirstDayOfWeek: parseInt(weekStart, 10),
-          SOGoMailComposeMessageType: composeMode,
-          SOGoMailReplyPlacement: replyPlacement,
-          SOGoConfirmDelete: parseInt(confirmDelete, 10),
-        },
-        settings: prefs?.settings || {},
-      };
-      return savePreferences(user.sogoToken, updatedPrefs, user.email);
+      return updatePreferences(user.sogoToken, user.email, () => ({
+        SOGoTimeZone: timezone,
+        SOGoLanguage: language,
+        SOGoDateFormat: dateFormat,
+        SOGoFirstDayOfWeek: parseInt(weekStart, 10),
+        SOGoMailComposeMessageType: composeMode,
+        SOGoMailReplyPlacement: replyPlacement,
+        SOGoConfirmDelete: parseInt(confirmDelete, 10),
+      }));
     },
     onSuccess: () => {
       initRef.current = false;
