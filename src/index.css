@@ -143,6 +143,12 @@ input:-webkit-autofill:active {
   overflow-wrap: break-word;
   word-wrap: break-word;
   word-break: break-word;
+  /* Isolasi (lihat src/lib/emailIsolation.js): wrapper menjadi containing block
+     utk position:fixed/absolute & stacking context sendiri → konten email tidak
+     bisa menutupi UI aplikasi (overlay form login palsu). */
+  position: relative;
+  contain: layout;
+  isolation: isolate;
 }
 
 .email-body p {

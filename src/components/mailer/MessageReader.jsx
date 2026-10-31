@@ -12,6 +12,7 @@ import { useAuthStore } from '../../store/authStore';
 import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
+import { sanitizeEmailHtml } from '../../lib/emailIsolation';
 import { toSafeUrl } from '../../lib/safeUrl';
 import { formatAddresses, parseAddressList, formatRecipientSummary } from '../../lib/format';
 import { extractHtml, extractAttachments, isInlineBodyImage } from '../../lib/messageHtml';
@@ -102,7 +103,7 @@ function prepareHtmlContent(rawHtml, inlineImages) {
     .trim();
 
   // Sanitize with extended email config
-  return DOMPurify.sanitize(html, EMAIL_PURIFY_CONFIG);
+  return sanitizeEmailHtml(DOMPurify, html, EMAIL_PURIFY_CONFIG);
 }
 
 function isImageType(ct) {
@@ -667,8 +668,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
       value = !q.quote
         ? { main: renderHtml, quote: '' }
         : {
-          main: DOMPurify.sanitize(q.main, EMAIL_PURIFY_CONFIG),
-          quote: DOMPurify.sanitize(q.quote, EMAIL_PURIFY_CONFIG),
+          main: sanitizeEmailHtml(DOMPurify, q.main, EMAIL_PURIFY_CONFIG),
+          quote: sanitizeEmailHtml(DOMPurify, q.quote, EMAIL_PURIFY_CONFIG),
         };
     }
     quotedCacheRef.current = { key, value };

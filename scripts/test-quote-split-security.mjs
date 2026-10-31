@@ -39,9 +39,9 @@ console.log(`hazard terdokumentasi: ${resurrected} elemen hidup dari split menta
 
 // 4) Kontrak sumber: MessageReader MEMANG mensanitasi ulang kedua potongan.
 const reader = readFileSync(new URL('../src/components/mailer/MessageReader.jsx', import.meta.url), 'utf8');
-assert.ok(/main:\s*DOMPurify\.sanitize\(q\.main,\s*EMAIL_PURIFY_CONFIG\)/.test(reader),
+assert.ok(/main:\s*(DOMPurify\.sanitize\(|sanitizeEmailHtml\(DOMPurify,\s*)q\.main,\s*EMAIL_PURIFY_CONFIG\)/.test(reader),
   'MessageReader harus mensanitasi ulang quoted.main');
-assert.ok(/quote:\s*DOMPurify\.sanitize\(q\.quote,\s*EMAIL_PURIFY_CONFIG\)/.test(reader),
+assert.ok(/quote:\s*(DOMPurify\.sanitize\(|sanitizeEmailHtml\(DOMPurify,\s*)q\.quote,\s*EMAIL_PURIFY_CONFIG\)/.test(reader),
   'MessageReader harus mensanitasi ulang quoted.quote');
 assert.ok(!/dangerouslySetInnerHTML=\{\{\s*__html:\s*splitQuotedHtml/.test(reader),
   'hasil splitQuotedHtml tidak boleh langsung ke dangerouslySetInnerHTML');
