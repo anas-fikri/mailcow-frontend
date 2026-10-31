@@ -1362,7 +1362,23 @@ export async function getPendingSends() {
   if (res.status === 401) throwSmtpSessionLost(res);
   if (!res.ok) throw new Error(`Gagal memuat kiriman terjadwal (${res.status}).`);
   const data = await safeJson(res);
+  notifyFailedSends(Array.isArray(data?.failed) ? data.failed : []);
   return data?.items || [];
+}
+
+// Kiriman antrean yang GAGAL permanen (server sudah mencoba ulang dgn backoff).
+// Dulu hilang diam-diam padahal user sudah melihat "terkirim". Beri tahu sekali
+// per id per tab (sessionStorage) agar user bisa mengirim ulang dari Draf/Terkirim.
+export const FAILED_SENDS_EVENT = 'pcp:failed-sends';
+function notifyFailedSends(failed) {
+  if (!failed.length) return;
+  let seen = [];
+  try { seen = JSON.parse(sessionStorage.getItem('pcp_failed_sends_seen') || '[]'); } catch { /* storage diblok */ }
+  const fresh = failed.filter((f) => f?.id && !seen.includes(f.id));
+  if (!fresh.length) return;
+  // Event (bukan toast langsung): api.js sengaja bebas zustand — lihat vite.config.js.
+  try { window.dispatchEvent(new CustomEvent(FAILED_SENDS_EVENT, { detail: fresh })); } catch { /* non-browser */ }
+  try { sessionStorage.setItem('pcp_failed_sends_seen', JSON.stringify([...seen, ...fresh.map((f) => f.id)].slice(-200))); } catch { /* noop */ }
 }
 
 // ─── Contacts ─────────────────────────────────────────────────────────────────

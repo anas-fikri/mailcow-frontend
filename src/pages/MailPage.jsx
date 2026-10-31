@@ -10,7 +10,7 @@ import {
 import DOMPurify from 'dompurify';
 import { PURIFY_CONFIG } from '../lib/pasteUtils';
 import { useAuthStore } from '../store/authStore';
-import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markReadBulk, markFlaggedBulk, markMessagesAsJunk, markMessagesAsNotJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, undoScheduledSend, ensureServerMarkReadDisabled, isServerMarkReadDisabled } from '../lib/api';
+import { fetchFolders, fetchMessages, fetchMessageHeaders, fetchMessage, fetchAttachmentData, searchMessages, getUnseenCount, deleteMessages, moveMessages, markRead, markReadBulk, markFlaggedBulk, markMessagesAsJunk, markMessagesAsNotJunk, createFolder, deleteFolder, fetchPreferences, getPendingSends, FAILED_SENDS_EVENT, undoScheduledSend, ensureServerMarkReadDisabled, isServerMarkReadDisabled } from '../lib/api';
 import { formatAddresses, parseAddressList, formatRecipientSummary } from '../lib/format';
 import { extractHtml, extractAttachments } from '../lib/messageHtml';
 import { analyzePhishing, RISK_LEVELS } from '../lib/phishingDetection';
@@ -696,7 +696,8 @@ export default function MailPage() {
       }, {});
     },
     enabled: !!user?.sogoToken && folders !== DEFAULT_FOLDERS && !isFetchingFolders,
-    refetchInterval: STALE_TIMES.UNSEEN,
+    // Junk/Sent/Drafts jarang berubah — 5 mnt cukup (dulu 3 SORT IMAP/menit/tab).
+    refetchInterval: 5 * 60 * 1000,
   });
 
   // ── Server-side pagination (auto-load) ─────────────────────────────────────
@@ -1013,10 +1014,28 @@ export default function MailPage() {
         .then((items) => { if (!cancelled) setPendingSends(items); })
         .catch(() => { /* polling gagal — jangan ganggu UI */ });
     };
+    // Hanya saat tab TERLIHAT: setiap panggilan me-refresh lastUsed sesi SMTP,
+    // jadi poll di tab tersembunyi membuat idle-timeout 30 mnt tak pernah
+    // tercapai (sesi hidup selamanya) + beban server sia-sia.
+    const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
     load();
-    const iv = setInterval(load, 60 * 1000);
-    return () => { cancelled = true; clearInterval(iv); };
+    const iv = setInterval(() => { if (visible()) load(); }, 60 * 1000);
+    const onVis = () => { if (visible()) load(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { cancelled = true; clearInterval(iv); document.removeEventListener('visibilitychange', onVis); };
   }, [user?.sogoToken]);
+
+  // Kiriman antrean yang gagal permanen → beri tahu user (dulu hilang diam-diam).
+  useEffect(() => {
+    const onFailed = (ev) => {
+      for (const f of ev.detail || []) {
+        const subject = f.subject ? `"${String(f.subject).slice(0, 60)}"` : '(tanpa subjek)';
+        toast.error(`Email ${subject} ke ${String(f.to || '').slice(0, 60)} gagal terkirim setelah beberapa percobaan. Silakan kirim ulang.`, 15000);
+      }
+    };
+    window.addEventListener(FAILED_SENDS_EVENT, onFailed);
+    return () => window.removeEventListener(FAILED_SENDS_EVENT, onFailed);
+  }, []);
 
   // Re-fetch pending sends saat panel dibuka (selain polling 60 detik)
   useEffect(() => {
