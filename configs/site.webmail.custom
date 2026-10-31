@@ -79,7 +79,7 @@ location /webmail {
 }
 
 # SMTP proxy backend (server.js di host; port khusus SOGo, bukan other apps).
-# Exact locations must win over other apps's broader /api regex routes.
+# Exact locations must win over broader /api regex routes of other apps.
 # ── Konflik header level-server mailcow (sites-default.conf.j2) ──
 # Level-server meng-inherit X-Frame-Options SAMEORIGIN + HSTS 15768000 (6 bln)
 # ke semua location TANPA add_header sendiri → konflik dgn server.js (DENY/1th).
@@ -244,6 +244,30 @@ location = /api/image-proxy {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 30s;
+    proxy_hide_header Strict-Transport-Security;
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header X-Content-Type-Options;
+    proxy_hide_header Referrer-Policy;
+    proxy_hide_header Permissions-Policy;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
+}
+
+# Metrik UX anonim dari browser (sendBeacon, tanpa header API key). Body kecil;
+# server.js memvalidasi daftar putih nama + rate limit per IP. Endpoint scrape
+# Prometheus (/metrics) TIDAK di-route dari sini — hanya loopback di host.
+location = /api/metrics {
+    limit_except POST { deny all; }
+    client_max_body_size 16k;
+    proxy_pass http://172.25.1.1:3005;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 10s;
     proxy_hide_header Strict-Transport-Security;
     proxy_hide_header X-Frame-Options;
     proxy_hide_header X-Content-Type-Options;

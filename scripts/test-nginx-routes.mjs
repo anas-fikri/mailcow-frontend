@@ -15,7 +15,7 @@ function locationBlock(source, endpoint) {
 
 // Single source of truth: configs/site.webmail.custom must contain every
 // exact /api location (other apps regex overlap guard), including image-proxy.
-const endpoints = ['/api/health', '/api/auth/smtp', '/api/preferences', '/api/send', '/api/image-proxy'];
+const endpoints = ['/api/health', '/api/auth/smtp', '/api/preferences', '/api/send', '/api/image-proxy', '/api/metrics'];
 for (const endpoint of endpoints) {
   assert.match(locationBlock(config, endpoint), /proxy_pass http:\/\/172\.25\.1\.1:3005;/);
 }
