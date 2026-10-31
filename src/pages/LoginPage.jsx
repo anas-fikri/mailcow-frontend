@@ -67,7 +67,9 @@ export default function LoginPage() {
       // valid, dan prod backend SMTP restart = semua user terkunci.
       let smtpFailed = false;
       try {
-        await registerSmtpSession(userName, password);
+        // Pakai email hasil login SOGo (sudah di-trim/normalisasi). userName
+        // mentah bisa berspasi (autofill) → server menolak → sesi kirim gagal.
+        await registerSmtpSession((data.email || userName).trim(), password);
       } catch {
         smtpFailed = true;
       }

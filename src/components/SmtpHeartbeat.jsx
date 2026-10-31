@@ -12,8 +12,8 @@ import { setupSmtpHeartbeat } from '../lib/smtpHeartbeat';
  * Saat tab inactive (hidden / minimize / tab lain aktif) → tidak ping,
  * idle timer server jadi satu-satunya penentu.
  *
- * 401 dari ping → throwIfAuthError picu onSessionExpired → App.jsx auto-logout
- * (sama dgn /api/send).
+ * 401 dari ping → event SMTP_SESSION_LOST_EVENT → SmtpReauthBanner meminta
+ * password untuk membuat sesi baru (sesi SOGo / membaca email tidak terganggu).
  */
 export default function SmtpHeartbeat() {
     const sogoToken = useAuthStore((s) => s.user?.sogoToken);
@@ -23,7 +23,7 @@ export default function SmtpHeartbeat() {
 
         const hb = setupSmtpHeartbeat({
             schedule: () => {
-                // 401 triggers logout; error lain diabaikan (offline/cancel).
+                // 401 → banner re-auth (lihat api.js); error lain diabaikan (offline/cancel).
                 fetchSmtpSessionStatus().catch(() => {});
             },
             isVisible: () => document.visibilityState === 'visible',

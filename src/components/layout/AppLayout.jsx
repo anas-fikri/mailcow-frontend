@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
 import SmtpHeartbeat from '../SmtpHeartbeat';
+import SmtpReauthBanner from '../SmtpReauthBanner';
 import CommandPalette from '../CommandPalette';
 import { buildCommands } from '../../lib/commandRegistry';
 import { useAuthStore } from '../../store/authStore';
@@ -173,6 +174,7 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen supports-[height:100dvh]:h-dvh w-full max-w-[100vw] overflow-hidden bg-background text-foreground transition-colors duration-200">
       <SmtpHeartbeat />
+      <SmtpReauthBanner />
 
       {/* Mobile Sidebar Overlay */}
       <div

@@ -1,19 +1,26 @@
 /**
- * Sesi SMTP proxy berakhir boleh tampil di error toast, tapi user TIDAK BOLEH
- * terus berada di halaman seolah masih login (HTTP 200 mailbox SOGo masih jalan,
- * padahal /api/send 401). Begitu sesi SMTP proxy berakhir, picu onSessionExpired
- * callback (App.jsx logout paksa + navigate /login).
+ * Sesi SMTP proxy berakhir (401 dari /api/*) TIDAK boleh me-logout user dari
+ * SOGo: dulu logout paksa membuang compose + lampiran yang sedang dikirim, dan
+ * restart server.js menendang semua user. Sekarang: error bertanda
+ * smtpSessionLost + event SMTP_SESSION_LOST_EVENT → SmtpReauthBanner meminta
+ * password di tempat.
  *
  * Bandingkan dengan /api/preferences yang sengaja TIDAK memicu logout
  * (lihat test-preferences-fallback.mjs) — agar baca email tidak terganggu.
  */
 import assert from 'node:assert/strict';
-import {
+
+// window minimal (EventTarget) SEBELUM api.js dimuat, agar event bisa diamati.
+globalThis.window = globalThis.window || new EventTarget();
+const {
   sendMessage,
   registerSmtpSession,
   onSessionExpired,
   resetSessionExpiredFlag,
-} from '../src/lib/api.js';
+  SMTP_SESSION_LOST_EVENT,
+} = await import('../src/lib/api.js');
+let lostEvents = 0;
+window.addEventListener(SMTP_SESSION_LOST_EVENT, () => { lostEvents += 1; });
 
 const calls = [];
 
@@ -40,7 +47,7 @@ globalThis.fetch = async (url, options = {}) => {
 
 // Hapus /api/preferences mock — sendMessage dgn lampiran tidak memanggilnya.
 
-// ── 1. sendMessage DENGAN lampiran → /api/send 401 memicu logout ──────────────
+// ── 1. sendMessage DENGAN lampiran → /api/send 401: TIDAK logout, event re-auth ─
 resetSessionExpiredFlag();
 let fired = 0;
 onSessionExpired(() => { fired += 1; });
@@ -53,8 +60,8 @@ await assert.rejects(
     isHTML: false,
     attachments: [{ filename: 'x.txt', contentType: 'text/plain', data: 'aGVsbG8=' }],
   }),
-  /SMTP|session|login/i,
-  'sendMessage harus throw error kalau /api/send gagal'
+  (err) => err.smtpSessionLost === true && err.status === 401,
+  'sendMessage harus throw error bertanda smtpSessionLost kalau /api/send 401'
 );
 
 const lastCall = calls.at(-1);
@@ -62,9 +69,10 @@ assert.ok(lastCall.url.endsWith('/api/send'), 'harus hit /api/send');
 
 // throwApiError menjadwalkan callback via setTimeout(.,0) — tunggu 1 tick.
 await new Promise((resolve) => setTimeout(resolve, 20));
-assert.equal(fired, 1, 'onSessionExpired callback harus terpanggil sekali utk auto-logout');
+assert.equal(fired, 0, 'sesi SOGo TIDAK boleh di-logout karena sesi SMTP habis');
+assert.equal(lostEvents, 1, 'event SMTP_SESSION_LOST_EVENT harus dikirim sekali');
 
-console.log('sendMessage /api/send 401 → onSessionExpired fired:', fired);
+console.log('sendMessage /api/send 401 → no logout, re-auth event:', lostEvents);
 
 // ── 2. registerSmtpSession 401 SELAMA login TIDAK boleh picu logout ─────────
 // saat login, SessionWatcher belum mount jadi _onSessionExpired null → aman

@@ -127,6 +127,22 @@ function throwApiError(message, status) {
   throw err;
 }
 
+/**
+ * 401 dari proxy /api/* = sesi PENGIRIMAN (SMTP) berakhir — BUKAN sesi SOGo.
+ * Dulu diperlakukan sama dgn sesi SOGo habis → user dipaksa logout (compose &
+ * lampiran hilang) tiap kali server.js restart atau sesi SMTP gagal dibuat.
+ * Sekarang: lempar error bertanda + event global; UI menampilkan banner
+ * "masukkan password untuk lanjut mengirim" tanpa meninggalkan halaman.
+ */
+export const SMTP_SESSION_LOST_EVENT = 'pcp:smtp-session-lost';
+function throwSmtpSessionLost(res) {
+  const err = new Error('Sesi pengiriman email berakhir. Masukkan password untuk melanjutkan — draf Anda tetap aman.');
+  err.status = res.status;
+  err.smtpSessionLost = true;
+  try { window.dispatchEvent(new CustomEvent(SMTP_SESSION_LOST_EVENT)); } catch { /* non-browser */ }
+  throw err;
+}
+
 function throwIfAuthError(res) {
   if (res.status === 401 || res.status === 403) {
     throwApiError('Sesi berakhir, silakan login ulang.', res.status);
@@ -1003,7 +1019,7 @@ export async function fetchSmtpSessionStatus() {
     headers: withApiKey(),
   });
   // 401 = sesi SMTP berakhir → trigger auto-logout. 403 (forbidden API key) tidak menendang sesi SOGo.
-  if (res.status === 401) throwIfAuthError(res);
+  if (res.status === 401) throwSmtpSessionLost(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || `Gagal membaca status sesi (${res.status}).`);
@@ -1229,11 +1245,10 @@ export async function sendMessage(sogoToken, payload) {
         })),
       }),
     });
-    // 401 = sesi SMTP proxy berakhir di server (cookie Max-Age 8h / idle 30m).
-    // Fallback ke error toast saja bikin user "logged in tapi tidak bisa ngirim"
-    // — lebih baik logout paksa lewat session-expired callback. 403 adalah
-    // From mismatch (lihat server.js /api/send) — bukan sesi, jangan logout.
-    if (smtpRes.status === 401) throwIfAuthError(smtpRes);
+    // 401 = sesi SMTP proxy berakhir di server (cookie Max-Age 8h / idle 30m,
+    // atau server.js restart) → banner re-auth, compose tetap terbuka.
+    // 403 adalah From mismatch (lihat server.js /api/send) — bukan sesi.
+    if (smtpRes.status === 401) throwSmtpSessionLost(smtpRes);
     if (!smtpRes.ok) {
       const err = await smtpRes.json().catch(() => ({}));
       throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
@@ -1296,7 +1311,7 @@ export async function sendMessage(sogoToken, payload) {
     headers: withApiKey({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ to, cc, bcc, subject, body: safeBody, isHTML, from, attachments, inReplyTo, references }),
   });
-  if (smtpRes.status === 401) throwIfAuthError(smtpRes);
+  if (smtpRes.status === 401) throwSmtpSessionLost(smtpRes);
   if (!smtpRes.ok) {
     const err = await smtpRes.json().catch(() => ({}));
     throw new Error(err.message || `Gagal mengirim via SMTP (${smtpRes.status}).`);
@@ -1315,7 +1330,7 @@ export async function fetchSendConfig(force = false) {
   const now = Date.now();
   if (!force && _sendConfigCache && now - _sendConfigAt < 60_000) return _sendConfigCache;
   const res = await fetch('/api/send/config', { credentials: 'include', headers: withApiKey() });
-  if (res.status === 401) throwIfAuthError(res);
+  if (res.status === 401) throwSmtpSessionLost(res);
   if (!res.ok) throw new Error(`Gagal memuat konfigurasi kirim (${res.status}).`);
   const data = await safeJson(res);
   _sendConfigCache = data;
@@ -1333,7 +1348,7 @@ export async function undoScheduledSend(id) {
     headers: withApiKey({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ id }),
   });
-  if (res.status === 401) throwIfAuthError(res);
+  if (res.status === 401) throwSmtpSessionLost(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || `Gagal membatalkan kiriman (${res.status}).`);
@@ -1344,7 +1359,7 @@ export async function undoScheduledSend(id) {
 // Daftar kiriman terjadwal milik user (badge toolbar + panel cancel).
 export async function getPendingSends() {
   const res = await fetch('/api/send/pending', { credentials: 'include', headers: withApiKey() });
-  if (res.status === 401) throwIfAuthError(res);
+  if (res.status === 401) throwSmtpSessionLost(res);
   if (!res.ok) throw new Error(`Gagal memuat kiriman terjadwal (${res.status}).`);
   const data = await safeJson(res);
   return data?.items || [];
@@ -1708,7 +1723,7 @@ export async function changePassword(sogoToken, oldPassword, newPassword) {
     headers: withApiKey({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ intent: 'password', oldPassword, newPassword }),
   }, 20000);
-  if (res.status === 401) throwIfAuthError(res);
+  if (res.status === 401) throwSmtpSessionLost(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || `Gagal mengganti password (${res.status}).`);
