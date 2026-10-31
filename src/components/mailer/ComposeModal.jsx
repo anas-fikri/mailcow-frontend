@@ -66,6 +66,9 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
   // menandai "bersih" bila tidak ada edit baru SELAMA ia berjalan — dulu ketikan
   // saat save berlangsung dianggap tersimpan lalu hilang saat compose ditutup.
   const editGenRef = useRef(0);
+  // Sesi compose: naik setiap form di-reset dgn data baru. Autosave dari sesi
+  // lama yang selesai belakangan TIDAK boleh menulis ref milik sesi baru.
+  const composeSessionRef = useRef(0);
   const runAutosaveRef = useRef(null);
   const autosaveBusy  = useRef(false);     // autosave sedang berjalan — cegah tumpukan/stale overwrite
   const sentRef       = useRef(false);     // email sudah terkirim — autosave in-flight harus bersihkan draft
@@ -156,8 +159,30 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
   };
 
   // Reset form saat dibuka / initialData berubah
+  const wasOpenRef = useRef(false);
+  const [editorSession, setEditorSession] = useState(0);
   useEffect(() => {
     if (isOpen) {
+      // Compose SUDAH terbuka (mis. di-minimize) dan diganti data baru (Balas
+      // email lain, Urungkan kirim, .eml). Dulu: To/Subjek berganti tapi editor
+      // menampilkan teks lama → isi email A terkirim ke B, atau hilang. Kini:
+      // simpan konten lama sebagai draft terpisah (tanpa menyentuh ref compose
+      // baru), beri tahu user, lalu reset + remount editor.
+      if (wasOpenRef.current && userEditedRef.current && !sentRef.current && token) {
+        const snapshot = buildDraftPayloadRef.current();
+        const existingDraftId = draftIdRef.current;
+        (async () => {
+          try {
+            const id = existingDraftId || await createDraft(token);
+            await saveDraft(token, id, snapshot);
+            toast.info('Email yang sedang ditulis disimpan ke folder Draf.');
+          } catch {
+            toast.error('Gagal menyimpan email sebelumnya ke Draf.');
+          }
+        })();
+      }
+      setEditorSession((n) => n + 1);
+      composeSessionRef.current += 1;
       sigInjected.current = false;
       injectedSigsRef.current = [];
       setTo(initialData?.to || '');
@@ -206,6 +231,8 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
       );
       clearTimeout(saveTimerRef.current);
     }
+    wasOpenRef.current = isOpen;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialData]);
 
   // ── Draft autosave ──────────────────────────────────────────────────────────
@@ -227,6 +254,26 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
     setError('');
   }, []);
 
+  // Payload draft dari state SAAT INI (dipakai autosave & penyelamatan snapshot).
+  const buildDraftPayload = () => ({
+    to: to.trim(), cc: cc.trim(), bcc: bcc.trim(),
+    subject: subject.trim(),
+    body: editorMode === 'plain' ? body : DOMPurify.sanitize(body, PURIFY_CONFIG),
+    isHTML: editorMode !== 'plain',
+    from: userFrom,
+    ...threading,
+    // Lampiran ikut disimpan (multipart field "attachments") — kalau tidak,
+    // draft SOGo hanya menyimpan teks dan lampiran HILANG saat draft
+    // dibuka ulang (bug ditemukan browser E2E draft-attachments).
+    attachments: attachments.filter((a) => a.data).map((a) => ({
+      name: a.name,
+      type: a.type,
+      data: a.data,
+    })),
+  });
+  const buildDraftPayloadRef = useRef(buildDraftPayload);
+  buildDraftPayloadRef.current = buildDraftPayload;
+
   const runAutosave = useCallback(async () => {
     if (!token || !user?.email || !meaningfulContent) {
       autosaveDirty.current = false;
@@ -239,27 +286,19 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
     autosaveBusy.current = true;
     const genAtStart = editGenRef.current;
     const newerEdits = () => editGenRef.current !== genAtStart;
+    const sessionAtStart = composeSessionRef.current;
     try {
       setDraftState('saving');
-      if (!draftIdRef.current) {
-        draftIdRef.current = await createDraft(token);
+      let draftId = draftIdRef.current;
+      if (!draftId) {
+        draftId = await createDraft(token);
+        if (composeSessionRef.current !== sessionAtStart) return;
+        draftIdRef.current = draftId;
       }
-      const uid = await saveDraft(token, draftIdRef.current, {
-        to: to.trim(), cc: cc.trim(), bcc: bcc.trim(),
-        subject: subject.trim(),
-        body: editorMode === 'plain' ? body : DOMPurify.sanitize(body, PURIFY_CONFIG),
-        isHTML: editorMode !== 'plain',
-        from: userFrom,
-        ...threading,
-        // Lampiran ikut disimpan (multipart field "attachments") — kalau tidak,
-        // draft SOGo hanya menyimpan teks dan lampiran HILANG saat draft
-        // dibuka ulang (bug ditemukan browser E2E draft-attachments).
-        attachments: attachments.filter((a) => a.data).map((a) => ({
-          name: a.name,
-          type: a.type,
-          data: a.data,
-        })),
-      });
+      const uid = await saveDraft(token, draftId, buildDraftPayload());
+      // Form sudah di-reset ke compose lain selama save → hasil ini milik sesi
+      // lama (sudah diselamatkan ke Draf); jangan sentuh state sesi baru.
+      if (composeSessionRef.current !== sessionAtStart) return;
       if (sentRef.current) {
         // Email sudah terkirim saat autosave ini berjalan — jangan simpan ref,
         // bersihkan draft (asli + autosave) supaya tidak yatim di folder Draf.
@@ -1080,6 +1119,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
                 {/* Body */}
                 {editorMode === 'rich' ? (
                   <RichEditor
+                    key={editorSession}
                     value={body}
                     onChange={(v) => { markUserEdited(); setBody(v); }}
                     onAttachFiles={addFiles}
