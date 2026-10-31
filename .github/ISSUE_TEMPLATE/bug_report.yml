@@ -1,0 +1,30 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security issue?** Do not file it here — use Security → Report a vulnerability.
+        Remove real email addresses, names, and hostnames from logs and screenshots.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Steps to reproduce, expected vs actual behaviour.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit / version
+      placeholder: e.g. 1.0.0 or a1b2c3d
+  - type: input
+    id: env
+    attributes:
+      label: mailcow / SOGo version, browser and OS
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots (redacted)
+      render: text

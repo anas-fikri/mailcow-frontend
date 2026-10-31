@@ -1,0 +1,166 @@
+import assert from 'node:assert/strict';
+import { createDraft, saveDraft, deleteDraft, sendMessage, fetchAttachmentData, _waitForContactCaptures } from '../src/lib/api.js';
+
+const calls = [];
+const draftJson = { draftId: 'draft-123' };
+const saveJson = { uid: 99 };
+let sendStatus = 200;
+
+globalThis.fetch = async (url, options = {}) => {
+  const u = String(url);
+  calls.push({ url: u, options });
+  if (u.endsWith('/Mail/0/compose')) {
+    return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => draftJson };
+  }
+  if (u.endsWith('/folderDrafts/draft-123/save')) {
+    return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => saveJson };
+  }
+  if (u.endsWith('/folderDrafts/draft-123/send')) {
+    return { status: sendStatus, ok: sendStatus < 400, headers: { get: () => 'application/json' }, json: async () => ({ ok: true }) };
+  }
+  if (u.endsWith('/folderDrafts/batchDelete')) {
+    return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => ({}) };
+  }
+  if (u.endsWith('/api/send')) {
+    return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => ({ ok: true }) };
+  }
+  return { status: 200, ok: true, headers: { get: () => 'application/json' }, json: async () => ({}) };
+};
+
+// createDraft returns the SOGo draftId
+const draftId = await createDraft('user@example.test');
+assert.equal(draftId, 'draft-123');
+
+// saveDraft POSTs recipients as an array
+const uid = await saveDraft('user@example.test', 'draft-123', {
+  to: 'a@example.test, b@example.test',
+  cc: '',
+  bcc: '',
+  subject: 'Hello',
+  body: '<p>Hi</p>',
+  isHTML: true,
+  from: '',
+});
+assert.equal(uid, 99);
+const saveCall = calls.find((c) => c.url.endsWith('/save'));
+assert.equal(saveCall.options.method, 'POST');
+const saveBody = JSON.parse(saveCall.options.body);
+assert.deepEqual(saveBody.to, ['a@example.test', 'b@example.test']);
+assert.equal(saveBody.isHTML, true);
+
+// sendMessage — SOGo success path
+const sendRes = await sendMessage('user@example.test', {
+  to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '',
+});
+assert.deepEqual(sendRes, { ok: true });
+const sendCall = calls.find((c) => c.url.endsWith('/send'));
+assert.equal(sendCall.options.method, 'POST');
+await _waitForContactCaptures(); // capture fire-and-forget setelah kirim selesai
+
+// sendMessage — SOGo 501 → fallback ke SMTP /api/send (tanpa throw).
+sendStatus = 501;
+calls.length = 0;
+const fallbackRes = await sendMessage('user@example.test', {
+  to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '',
+});
+assert.deepEqual(fallbackRes, { ok: true });
+await _waitForContactCaptures();
+const smtpCall = calls.find((c) => c.url.endsWith('/api/send'));
+assert.ok(smtpCall, '501 harus memicu fallback /api/send');
+assert.equal(smtpCall.options.method, 'POST');
+assert.equal(smtpCall.options.credentials, 'include', '/api/send harus kirim cookie httpOnly (credentials include)');
+const smtpBody = JSON.parse(smtpCall.options.body);
+assert.equal(smtpBody.smtpToken, undefined, '/api/send tidak boleh lagi mengirim smtpToken di body');
+
+// sendMessage — SOGo 500 → TIDAK fallback (cegah kirim ganda), harus throw.
+sendStatus = 500;
+calls.length = 0;
+let threw = null;
+try {
+  await sendMessage('user@example.test', {
+    to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '',
+  });
+} catch (e) {
+  threw = e;
+}
+assert.ok(threw, 'SOGo 500 harus throw, bukan fallback ke SMTP');
+assert.match(threw.message, /500/);
+await _waitForContactCaptures();
+assert.equal(calls.some((c) => c.url.endsWith('/api/send')), false, '500 tidak boleh memicu /api/send');
+
+// sendMessage — dengan lampiran → langsung ke /api/send (bypass SOGo compose)
+// agar lampiran tidak pernah hilang diam-diam dari payload JSON draft SOGo.
+const attachments = [
+  { filename: 'laporan.pdf', contentType: 'application/pdf', data: Buffer.from('pdf').toString('base64') },
+  { filename: 'foto.png', contentType: 'image/png', data: Buffer.from('png').toString('base64') },
+];
+calls.length = 0;
+const attachRes = await sendMessage('user@example.test', {
+  to: 'a@example.test', cc: '', bcc: '', subject: 'Hi', body: '<p>x</p>', isHTML: true, from: '', attachments,
+});
+assert.deepEqual(attachRes, { ok: true });
+await _waitForContactCaptures();
+assert.equal(calls.some((c) => c.url.endsWith('/Mail/0/compose')), false, 'ada lampiran → tidak boleh buat draft SOGo');
+const attachCall = calls.find((c) => c.url.endsWith('/api/send'));
+assert.ok(attachCall, 'ada lampiran → harus panggil /api/send');
+const attachBody = JSON.parse(attachCall.options.body);
+assert.equal(attachBody.attachments.length, 2);
+assert.equal(attachBody.attachments[0].filename, 'laporan.pdf');
+assert.equal(attachBody.attachments[0].contentType, 'application/pdf');
+assert.equal(attachBody.attachments[0].data, Buffer.from('pdf').toString('base64'));
+
+// reset untuk test deleteDraft
+sendStatus = 200;
+
+// deleteDraft with a uid → batchDelete
+calls.length = 0; // capture fase sebelumnya sudah ditunggu via _waitForContactCaptures
+await deleteDraft('user@example.test', 99);
+assert.equal(calls.length, 1);
+assert.ok(calls[0].url.endsWith('/folderDrafts/batchDelete'));
+assert.deepEqual(JSON.parse(calls[0].options.body), { uids: [99] });
+
+// deleteDraft without uid → no-op
+calls.length = 0;
+await deleteDraft('user@example.test', null);
+assert.equal(calls.length, 0);
+
+// ── fetchAttachmentData — unduh lampiran draft → base64 tanpa prefix ─────────
+const fileBytes = new TextEncoder().encode('PDF-CONTENT-123');
+const binMock = {
+  status: 200, ok: true, headers: { get: () => 'application/pdf' },
+  arrayBuffer: async () => fileBytes.buffer,
+};
+const origFetch = globalThis.fetch;
+globalThis.fetch = async (url, options = {}) => {
+  calls.push({ url: String(url), options });
+  if (String(url).includes('viewPart')) return binMock;
+  return origFetch(url, options);
+};
+
+// downloadURL relatif → di-prefix SOGO_BASE, credentials include.
+calls.length = 0;
+const b64 = await fetchAttachmentData('/SOGo/so/t/Mail/0/folderDrafts/9/viewPart?part=2');
+assert.equal(typeof b64, 'string');
+assert.equal(b64, Buffer.from('PDF-CONTENT-123').toString('base64'), 'hasil harus base64 standar');
+assert.equal(calls.length, 1);
+assert.ok(calls[0].url.startsWith('http') || calls[0].url.includes('SOGo'), 'URL harus absolut (SOGO_BASE + path)');
+assert.equal(calls[0].options.credentials, 'include', 'harus kirim cookie sesi');
+
+// downloadURL sudah absolut → dipakai langsung.
+calls.length = 0;
+await fetchAttachmentData('https://mail.example.test/SOGo/so/t/.../viewPart?part=3');
+assert.equal(calls.length, 1);
+assert.ok(calls[0].url.startsWith('https://mail.example.test'), 'URL absolut dipakai apa adanya');
+
+// downloadURL kosong / 404 → null / throw.
+assert.equal(await fetchAttachmentData(''), null);
+assert.equal(await fetchAttachmentData(null), null);
+let attThrew = null;
+globalThis.fetch = async (url) => ({ status: 404, ok: false, headers: { get: () => '' }, json: async () => ({}) });
+try { await fetchAttachmentData('/SOGo/so/t/x'); } catch (e) { attThrew = e; }
+assert.ok(attThrew, '404 harus throw');
+assert.match(attThrew.message, /404/);
+
+globalThis.fetch = origFetch;
+
+console.log('draft API assertions passed');

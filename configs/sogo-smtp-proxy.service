@@ -1,0 +1,24 @@
+[Unit]
+Description=SOGo SMTP Proxy (sogo-frontend server.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/sogo-proxy
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=%h/sogo-proxy/.env
+Environment=NODE_ENV=production
+Environment=PORT=3005
+Environment=SMTP_HOST=mail.example.com
+Environment=SMTP_PORT=465
+# Idle timeout sesi SMTP proxy: 60 menit (longgar agar user yang baca
+# email lama tanpa kirim tidak tiba-tiba logout). Bisa ditimpa via
+# SMTP_SESSION_IDLE_MIN di .env. TTL absolut tetap 8 jam via
+# SMTP_SESSION_TTL_MIN agar 'tetap aman' (batas keras).
+Environment=SMTP_SESSION_IDLE_MIN=60
+
+[Install]
+WantedBy=default.target

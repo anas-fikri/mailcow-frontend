@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panduan Setting Email</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #f6f7f9;
+    color: #1f2937;
+    line-height: 1.6;
+  }
+  a { color: #1d4ed8; }
+  @media (prefers-color-scheme: dark) {
+    :root { color-scheme: dark; }
+    body { background: #111827; color: #e5e7eb; }
+    a { color: #93c5fd; }
+    .card { background: #1f2937; border-color: #374151; }
+    table td, table th { border-color: #374151; }
+    code { background: #111827; color: #93c5fd; }
+    .port-alt { background: #0f172a; }
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 32px 20px 60px; }
+  header { margin-bottom: 28px; }
+  header h1 { font-size: 24px; margin: 0 0 6px; }
+  header p { margin: 0; opacity: .75; }
+  .card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    padding: 20px 22px; margin-bottom: 16px;
+  }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  h3 { font-size: 15px; margin: 18px 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0 4px; }
+  td, th { padding: 8px 10px; border: 1px solid #e5e7eb; text-align: left; }
+  th { background: rgba(0,0,0,.04); font-weight: 600; }
+  code {
+    background: #f3f4f6; padding: 1px 6px; border-radius: 5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px;
+  }
+  ul { margin: 8px 0 0; padding-left: 20px; }
+  ol { margin: 8px 0 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .host { font-weight: 700; }
+  .note { font-size: 13px; opacity: .8; margin-top: 8px; }
+  .badge {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; vertical-align: middle;
+  }
+  .b-green { background: #dcfce7; color: #166534; }
+  .b-blue { background: #dbeafe; color: #1e40af; }
+  .port-alt td { background: rgba(37,99,235,.06); }
+  @media (prefers-color-scheme: dark) {
+    .b-green { background: #14532d; color: #86efac; }
+    .b-blue { background: #1e3a8a; color: #bfdbfe; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📧 Panduan Setting Email</h1>
+    <p>Konfigurasi aplikasi email (Outlook, Apple Mail, Thunderbird) untuk akun email Anda — lengkap dengan port alternatif bila port standar diblokir ISP.</p>
+  </header>
+
+  <div class="card">
+    <h2>1. Pengaturan Server</h2>
+    <table>
+      <tr><th>Parameter</th><th>Nilai</th></tr>
+      <tr><td>Webmail</td><td><a class="host" href="/webmail/">webmail</a></td></tr>
+      <tr><td>Server email (IMAP/SMTP)</td><td><code class="host" id="mail-host">mail.example.net</code></td></tr>
+      <tr><td>Nama pengguna (username)</td><td>Alamat email lengkap, contoh: <code>nama@example.net</code></td></tr>
+      <tr><td>Autentikasi</td><td>Password biasa (password webmail), <b>tanpa</b> OAuth</td></tr>
+      <tr><td>Keamanan</td><td>Selalu <b>SSL/TLS</b> — jangan pernah nonaktifkan verifikasi sertifikat</td></tr>
+    </table>
+    <p class="note">Host menyesuaikan domain akun Anda (<code>mail.&lt;domain&gt;</code>).</p>
+  </div>
+
+  <div class="card">
+    <h2>2. Pilih Port yang Benar</h2>
+    <table>
+      <tr><th>Fungsi</th><th>Standar <span class="badge b-green">Kantor / jaringan internal</span></th><th>Alternatif <span class="badge b-blue">Dari luar / ISP memblokir</span></th></tr>
+      <tr><td>IMAP (terima email)</td><td><code>993</code> SSL/TLS</td><td><code>1993</code> SSL/TLS</td></tr>
+      <tr><td>POP3 (opsional)</td><td><code>995</code> SSL/TLS</td><td>—</td></tr>
+      <tr><td>SMTP (kirim email)</td><td><code>465</code> SSL/TLS</td><td><code>1465</code> SSL/TLS</td></tr>
+      <tr><td>SMTP (kirim, alternatif STARTTLS)</td><td><code>587</code> STARTTLS</td><td><code>1587</code> STARTTLS</td></tr>
+    </table>
+    <p class="note">Port alternatif <code>1993</code>/<code>1465</code>/<code>1587</code> hanya tersedia bila administrator server membukanya (berguna jika ISP memblokir 993/465/587). Jika satu set gagal, coba set lainnya — keduanya SSL/TLS yang sama amannya.</p>
+  </div>
+
+  <div class="card">
+    <h2>3. Outlook — Windows</h2>
+    <ol>
+      <li>Buka <b>Outlook</b> → <b>File</b> → <b>Tambah Akun</b> → masukkan alamat email → <b>Lanjut</b>.</li>
+      <li>Jika gagal otomatis: pilih <b>Pengaturan Lanjutan</b> → <b>Biarkan saya menyiapkan akun secara manual</b>.</li>
+      <li>Jenis akun: <b>IMAP</b>.</li>
+      <li>Isi:
+        <table>
+          <tr><th>Field</th><th>Nilai</th></tr>
+          <tr><td>Server masuk (IMAP)</td><td><code class="host">mail.example.net</code> — port <code>993</code> (atau <code>1993</code>)</td></tr>
+          <tr><td>Metode enkripsi masuk</td><td><code>SSL/TLS</code></td></tr>
+          <tr><td>Server keluar (SMTP)</td><td><code class="host">mail.example.net</code> — port <code>465</code> (atau <code>1465</code>)</td></tr>
+          <tr><td>Metode enkripsi keluar</td><td><code>SSL/TLS</code></td></tr>
+        </table>
+      </li>
+      <li>Klik <b>Tambah Akun</b> → masukkan password webmail → selesai.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>4. Outlook — macOS</h2>
+    <ol>
+      <li>Buka <b>Outlook</b> → menu <b>Outlook</b> → <b>Pengaturan</b> → <b>Akun</b> → <b>+</b> → <b>Tambah Akun</b>.</li>
+      <li>Masukkan email → jika gagal otomatis, pilih <b>Konfigurasi Manual</b>.</li>
+      <li>Jenis: <b>IMAP</b>; isi server masuk <code class="host">mail.example.net</code> port <code>993</code> (atau <code>1993</code>), server keluar port <code>465</code> (atau <code>1465</code>), keduanya <b>SSL/TLS</b>.</li>
+      <li>Username = email lengkap, password = password webmail → <b>Tambahkan Akun</b>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>5. Apple Mail — iPhone / iPad / Mac</h2>
+    <ol>
+      <li><b>iPhone/iPad:</b> Pengaturan → Mail → Akun → <b>Tambah Akun</b> → <b>Lainnya</b> → <b>Tambah Akun Mail</b>.</li>
+      <li><b>Mac:</b> Mail → Pengaturan → Akun → <b>+</b> → <b>Akun Mail Lainnya</b>.</li>
+      <li>Isi:
+        <table>
+          <tr><th>Field</th><th>Nilai</th></tr>
+          <tr><td>Nama</td><td>Nama Anda</td></tr>
+          <tr><td>Email / Alamat</td><td><code>nama@example.net</code></td></tr>
+          <tr><td>Server IMAP masuk</td><td><code class="host">mail.example.net</code> — port <code>993</code> (atau <code>1993</code>)</td></tr>
+          <tr><td>Server SMTP keluar</td><td><code class="host">mail.example.net</code> — port <code>465</code> (atau <code>1465</code>)</td></tr>
+        </table>
+      </li>
+      <li>Password = password webmail → <b>Berikutnya</b> → simpan.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>6. Thunderbird (Windows / macOS / Linux)</h2>
+    <ol>
+      <li>Buka <b>Thunderbird</b> → <b>Tambah Akun Email</b> → masukkan nama, email, password → <b>Lanjut</b>.</li>
+      <li>Jika deteksi otomatis gagal: klik <b>Konfigurasi Manual</b>.</li>
+      <li>Isi:
+        <table>
+          <tr><th>Setting</th><th>Nilai</th></tr>
+          <tr><td>Server masuk (IMAP)</td><td><code class="host">mail.example.net</code> — port <code>993</code>, SSL/TLS</td></tr>
+          <tr><td>Server keluar (SMTP)</td><td><code class="host">mail.example.net</code> — port <code>465</code>, SSL/TLS</td></tr>
+          <tr><td>Autentikasi</td><td>Password normal</td></tr>
+        </table>
+      </li>
+      <li>Jika port di atas gagal: ganti IMAP ke <code>1993</code> dan SMTP ke <code>1465</code> (atau SMTP <code>1587</code> STARTTLS).</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>7. Tips Keamanan</h2>
+    <ul>
+      <li>Selalu gunakan SSL/TLS; jangan pernah memilih "tanpa enkripsi" atau nonaktifkan verifikasi sertifikat.</li>
+      <li>Jangan berbagi password dengan siapa pun — admin tidak akan pernah memintanya.</li>
+      <li>Jika email terkirim gagal dengan <i>"Mail delivery failed"</i>, periksa ejaan alamat tujuan.</li>
+    </ul>
+  </div>
+
+  <p class="note">Jika pengaturan di atas tidak berhasil, hubungi administrator email Anda.</p>
+</div>
+
+<script src="email-settings.js"></script>
+</body>
+</html>

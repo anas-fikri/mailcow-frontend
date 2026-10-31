@@ -1,0 +1,34 @@
+# Dependencies & build output
+node_modules/
+dist/
+dist.tar.gz
+
+# Environment & credentials — never commit real values
+.env*
+!.env.example
+!.env.server.example
+*.pem
+*.key
+cookies*.txt
+
+# Logs & OS / editor noise
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local AI-assistant / tooling state
+.freebuff/
+.omo/
+.ai-state.json
+.claude/settings.local.json
+
+# Ad-hoc debug scripts & dumps (the real test suite lives in scripts/)
+/test-*
+/test_*.js
+/sogo_test.py
+/dump*.js
+/reset.sh
+*.out.txt

@@ -1,0 +1,498 @@
+/**
+ * Auto-Archive Rules Engine (LEGACY — client-side)
+ * Aturan baru sekarang disimpan di SERVER (Sieve, lihat sieveFilters.js +
+ * RulesPage). Modul ini tinggal utk aturan lama yang belum dimigrasi: engine
+ * MailPage hanya menjalankan aturan yang masih ada di sini, dan migrasi
+ * menghapusnya (removeRules) supaya tidak dobel dengan server.
+ * — Menyimpan aturan archive di localStorage
+ * — Match kondisi message terhadap rule
+ * — Eksekusi move otomatis ke folder target
+ */
+
+// ─── Rule Shape ───────────────────────────────────────────────────────────────
+// Rule: {
+//   id: string,
+//   name: string,
+//   enabled: boolean,
+//   conditions: Array<{ field, operator, value }>,
+//   matchType: 'all' | 'any',   // AND / OR
+//   actionFolder: string,        // folderId tujuan
+//   createdAt: number,
+//   runCount: number,            // berapa kali rule ini sukses
+//   lastRunAt: number | null,
+// }
+
+// ─── Available fields & operators ─────────────────────────────────────────────
+export const RULE_FIELDS = [
+  { id: 'from',    label: 'Pengirim (From)' },
+  { id: 'to',      label: 'Penerima (To)' },
+  { id: 'subject', label: 'Subjek' },
+  // Bug fix: body dihapus dari available fields — SOGo list view TIDAK mengembalikan
+  // field body (hanya from/to/subject/date/isRead/hasAtt). Rule berbasis body tidak
+  // akan pernah match dari list view. Kalau mau filter body, pakai server-side filter.
+];
+
+export const RULE_OPS = [
+  { id: 'contains',    label: 'Mengandung' },
+  { id: 'equals',      label: 'Sama dengan' },
+  { id: 'startsWith',  label: 'Dimulai dengan' },
+  { id: 'endsWith',    label: 'Diakhiri dengan' },
+  { id: 'notContains', label: 'Tidak mengandung' },
+];
+
+export const RULE_MATCH_TYPES = [
+  { id: 'all', label: 'Semua kondisi (AND)' },
+  { id: 'any', label: 'Salah satu kondisi (OR)' },
+];
+
+// ─── localStorage key ─────────────────────────────────────────────────────────
+// v1 legacy: `auto_archive_rules_<email>` — dimigrasi sekali-jalan ke v2.
+import { readStorage, persistNormalized } from './storageMigrate.js';
+
+const BASE_KEY = 'auto_archive_rules';
+
+function lsKey(email) {
+  return `auto_archive_rules_v2_${email}`;
+}
+
+// Cache in-memory per email — getRules dipanggil di render (getRuleSummary),
+// matchRules per pesan (executeRules), dan CRUD. Tanpa cache, setiap pemanggilan
+// membaca + JSON.parse + normalisasi SELURUH rules dari localStorage (termasuk
+// persistNormalized yang membandingkan JSON). Di-invalidate saat tulis via
+// saveRules/clearAllRules — selalu segar di tab ini.
+const rulesCache = new Map(); // email → normalized rules array
+
+/** (Internal/test) Kosongkan cache — dipakai saat storage diubah langsung. */
+export function __resetRulesCache() {
+  rulesCache.clear();
+}
+
+// Tab lain memigrasi/menghapus aturan lama → cache tab ini basi dan engine
+// client-side di MailPage akan terus menjalankan aturan yang SUDAH pindah ke
+// server (double-apply). Event 'storage' hanya fire di tab lain → bersihkan
+// cache saat key aturan berubah.
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('storage', (e) => {
+    if (e?.key == null || String(e.key).startsWith(BASE_KEY)) rulesCache.clear();
+  });
+}
+
+// ─── Read / Write ─────────────────────────────────────────────────────────────
+
+/**
+ * Ambil semua rules untuk user, TER-NORMALISASI.
+ *
+ * Data lama/rusak di localStorage (non-array, rule tanpa id, conditions bukan
+ * array, value bukan string, dll) dinormalkan di sini — pola yang sama dengan
+ * loadSignatures — sehingga RulesPage (render) dan matchRules/executeRules
+ * (engine) selalu menerima bentuk rule yang valid. Sebelumnya JSON.parse
+ * mentah: rules.map pada non-array atau `c.value.trim()` pada value non-string
+ * bisa melempar TypeError dan mematikan halaman/engine.
+ */
+export function getRules(email) {
+  if (!email) return [];
+  if (rulesCache.has(email)) return rulesCache.get(email);
+  const { value: parsed, key: targetKey, version, fromLegacy } = readStorage(BASE_KEY, email);
+  if (parsed == null) return [];
+  if (!Array.isArray(parsed)) {
+    // Bentuk rusak (object/string/null) → bersihkan sekali: tulis []
+    // di key terbaru (v2), hapus key lama bila sumbernya legacy.
+    persistNormalized(BASE_KEY, email, parsed, [], { fromLegacy, key: targetKey, version });
+    rulesCache.set(email, []);
+    return [];
+  }
+  const list = parsed
+    .filter((r) => r && typeof r === 'object' && typeof r.id === 'string')
+    .map((r) => ({
+      id: r.id,
+      name: typeof r.name === 'string' && r.name ? r.name : 'Aturan Baru',
+      // Default enabled=true (nilai lama tanpa field dianggap aktif).
+      enabled: r.enabled !== false,
+      conditions: (Array.isArray(r.conditions) ? r.conditions : [])
+        .filter((c) => c && typeof c === 'object' && typeof c.field === 'string')
+        .map((c) => ({
+          field: c.field,
+          operator: typeof c.operator === 'string' ? c.operator : 'contains',
+          value: typeof c.value === 'string' ? c.value : String(c.value ?? ''),
+        })),
+      matchType: r.matchType === 'any' ? 'any' : 'all',
+      actionFolder: typeof r.actionFolder === 'string' ? r.actionFolder : '',
+      createdAt: Number(r.createdAt) || 0,
+      runCount: Number(r.runCount) || 0,
+      lastRunAt: Number(r.lastRunAt) || null,
+    }));
+  // Migrasi SEKALI-JALAN: bila bentuk tersimpan berbeda dari bentuk
+  // ternormalisasi (entri dibuang / field di-coerce / key order beda),
+  // tulis balik agar baca berikutnya tidak mengulang normalisasi.
+  persistNormalized(BASE_KEY, email, parsed, list, { fromLegacy, key: targetKey, version });
+  rulesCache.set(email, list);
+  return list;
+}
+
+/** Simpan rules — invalidate cache agar baca berikutnya fresh. */
+function saveRules(email, rules) {
+  if (!email) return;
+  try {
+    localStorage.setItem(lsKey(email), JSON.stringify(rules));
+  } catch { /* quota exceeded — silent */ }
+  rulesCache.delete(email);
+}
+
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
+
+export function addRule(email, rule) {
+  if (!email) throw new Error('Email pengguna tidak tersedia — silakan login ulang.');
+  const rules = getRules(email);
+  const newRule = {
+    id: `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    name: rule.name || 'Aturan Baru',
+    enabled: true,
+    conditions: rule.conditions || [{ field: 'from', operator: 'contains', value: '' }],
+    matchType: rule.matchType || 'all',
+    actionFolder: rule.actionFolder || 'folderTrash',
+    createdAt: Date.now(),
+    runCount: 0,
+    lastRunAt: null,
+  };
+  rules.push(newRule);
+  saveRules(email, rules);
+  return newRule;
+}
+
+export function updateRule(email, ruleId, updates) {
+  const rules = getRules(email);
+  const idx = rules.findIndex((r) => r.id === ruleId);
+  if (idx === -1) return null;
+  rules[idx] = { ...rules[idx], ...updates };
+  saveRules(email, rules);
+  return rules[idx];
+}
+
+export function deleteRule(email, ruleId) {
+  const rules = getRules(email);
+  const filtered = rules.filter((r) => r.id !== ruleId);
+  saveRules(email, filtered);
+}
+
+/**
+ * Hapus beberapa aturan lama sekaligus — dipakai setelah aturan berhasil
+ * dimigrasi ke server (Sieve), supaya engine client-side di MailPage berhenti
+ * menjalankannya (tidak double-apply dengan server).
+ * @returns {number} jumlah aturan yang tersisa
+ */
+export function removeRules(email, ruleIds) {
+  if (!email) return 0;
+  const drop = new Set((Array.isArray(ruleIds) ? ruleIds : []).map(String));
+  const remaining = getRules(email).filter((r) => !drop.has(String(r.id)));
+  if (remaining.length === 0) clearAllRules(email);
+  else saveRules(email, remaining);
+  return remaining.length;
+}
+
+export function toggleRule(email, ruleId) {
+  const rules = getRules(email);
+  const rule = rules.find((r) => r.id === ruleId);
+  if (!rule) return null;
+  rule.enabled = !rule.enabled;
+  saveRules(email, rules);
+  return rule;
+}
+
+// ─── Matching Engine ──────────────────────────────────────────────────────────
+
+/** Cek apakah satu kondisi match */
+function checkCondition(condition, message) {
+  const { field, operator, value } = condition;
+  if (!value || !value.trim()) return true; // empty condition = lulus
+
+  // Ambil nilai dari message
+  let target = '';
+  switch (field) {
+    case 'from':    target = message.from || ''; break;
+    case 'to':      target = message.to || ''; break;
+    case 'subject': target = message.subject || ''; break;
+    case 'body':    target = message.body || ''; break;
+    default: return false;
+  }
+
+  const lowerTarget = target.toLowerCase();
+  const lowerValue = value.toLowerCase().trim();
+
+  switch (operator) {
+    case 'contains':    return lowerTarget.includes(lowerValue);
+    case 'equals':      return lowerTarget === lowerValue;
+    case 'startsWith':  return lowerTarget.startsWith(lowerValue);
+    case 'endsWith':    return lowerTarget.endsWith(lowerValue);
+    case 'notContains': return !lowerTarget.includes(lowerValue);
+    default: return false;
+  }
+}
+
+/**
+ * Cek apakah satu message match terhadap semua rules yang enabled.
+ * Returns array of matched rule IDs (bisa kosong).
+ */
+export function matchRules(email, message) {
+  const rules = getRules(email);
+  const matched = [];
+
+  for (const rule of rules) {
+    if (!rule.enabled || !rule.conditions.length) continue;
+
+    // Filter conditions yang punya value
+    const validConditions = rule.conditions.filter((c) => c.value && c.value.trim());
+
+    if (validConditions.length === 0) continue;
+
+    const results = validConditions.map((c) => checkCondition(c, message));
+
+    const isMatch = rule.matchType === 'all'
+      ? results.every(Boolean)  // AND: semua kondisi harus match
+      : results.some(Boolean);  // OR: minimal satu kondisi match
+
+    if (isMatch) matched.push(rule.id);
+  }
+
+  return matched;
+}
+
+/**
+ * Eksekusi rules: pindahkan message yang match ke folder tujuan.
+ * Hanya berfungsi jika message punya uid (sudah dimuat dari server).
+ *
+ * @param {string}  email
+ * @param {string}  sogoToken
+ * @param {string}  sourceFolder  folder asal message
+ * @param {Array}   messages      daftar message (dari server)
+ * @param {function} moveFn       fungsi untuk move messages: (uids, targetFolder) => Promise
+ * @param {function} [isExcluded] opsional: (msg) => boolean — pesan yang
+ *   mengembalikan true TIDAK dipindah rule (mis. pesan yang sedang di-snooze:
+ *   user meminta tunda, jadi aturan otomatis tidak boleh memindahkannya).
+ * @returns {Promise<Array>}      daftar { ruleId, ruleName, uids, targetFolder }
+ */
+export async function executeRules(email, sogoToken, sourceFolder, messages, moveFn, isExcluded) {
+  const rules = getRules(email);
+  const actions = [];
+
+  // Pesan yang di-exclude (mis. sedang di-snooze) tidak boleh ikut dipindah —
+  // memindahnya membuat snooze yatim (uid berubah di folder tujuan) dan
+  // mengabaikan keinginan user untuk menunda pesan tsb.
+  const excludeUids = new Set();
+  if (typeof isExcluded === 'function') {
+    for (const msg of messages) {
+      if (isExcluded(msg)) excludeUids.add(String(msg?.uid));
+    }
+  }
+
+  // Pre-compute per-message matched rule IDs to avoid redundant matchRules() calls
+  const msgMatches = new Map();
+  for (const msg of messages) {
+    if (excludeUids.has(String(msg?.uid))) continue;
+    msgMatches.set(msg.uid, matchRules(email, msg));
+  }
+
+  for (const rule of rules) {
+    if (!rule.enabled || !rule.conditions.length) continue;
+
+    const matchedUids = [];
+    for (const msg of messages) {
+      if (excludeUids.has(String(msg?.uid))) continue;
+      if (msgMatches.get(msg.uid)?.includes(rule.id)) {
+        matchedUids.push(msg.uid);
+      }
+    }
+
+    if (matchedUids.length > 0 && rule.actionFolder !== sourceFolder) {
+      try {
+        await moveFn(matchedUids, rule.actionFolder);
+        actions.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          uids: matchedUids,
+          targetFolder: rule.actionFolder,
+        });
+
+        // Update run count
+        updateRule(email, rule.id, {
+          runCount: rule.runCount + 1,
+          lastRunAt: Date.now(),
+        });
+      } catch (e) {
+        console.warn(`[AutoArchive] Rule "${rule.name}" gagal:`, e);
+      }
+    }
+  }
+
+  return actions;
+}
+
+// ─── Summary ──────────────────────────────────────────────────────────────────
+
+/** Dapatkan ringkasan rule untuk dashboard */
+export function getRuleSummary(email) {
+  const rules = getRules(email);
+  return {
+    total: rules.length,
+    enabled: rules.filter((r) => r.enabled).length,
+    totalRuns: rules.reduce((sum, r) => sum + (r.runCount || 0), 0),
+  };
+}
+
+// ─── Test Rule ───────────────────────────────────────────────────────────────
+
+/**
+ * Test satu rule terhadap sample message.
+ * Returns detailed result per condition + overall match.
+ * 
+ * @param {object} rule       — rule object
+ * @param {object} sampleMsg  — { from, to, subject, body }
+ * @returns {{ match: boolean, results: Array<{condition, passed, targetValue}> }}
+ */
+export function testRuleAgainstMessage(rule, sampleMsg) {
+  if (!rule?.conditions?.length) {
+    return { match: false, results: [] };
+  }
+
+  const validConditions = rule.conditions.filter((c) => c.value && c.value.trim());
+  if (validConditions.length === 0) {
+    return { match: false, results: [] };
+  }
+
+  // Mapping field ke properti di sample message
+  const fieldToProp = { from: 'from', to: 'to', subject: 'subject', body: 'body' };
+
+  const results = validConditions.map((condition) => {
+    const targetValue = sampleMsg[fieldToProp[condition.field]] || '';
+    const passed = checkCondition(condition, {
+      from: sampleMsg.from,
+      to: sampleMsg.to,
+      subject: sampleMsg.subject,
+      body: sampleMsg.body,
+    });
+    return { condition, passed, targetValue };
+  });
+
+  const match = rule.matchType === 'all'
+    ? results.every((r) => r.passed)
+    : results.some((r) => r.passed);
+
+  return { match, results };
+}
+
+// ─── Reset ────────────────────────────────────────────────────────────────────
+
+export function clearAllRules(email) {
+  if (!email) return;
+  // Hapus key v2 + key legacy v1 agar benar-benar bersih.
+  try { localStorage.removeItem(lsKey(email)); } catch {}
+  try { localStorage.removeItem(`auto_archive_rules_${email}`); } catch {}
+  rulesCache.delete(email);
+}
+
+// ─── Multi-tab claim (cegah double-move) ────────────────────────────────────
+// Dua tab webmail akun yang sama menjalankan rule engine secara independen
+// (query cache + rulesProcessed per-tab). Tanpa koordinasi, kedua tab bisa
+// memindahkan pesan yang SAMA bersamaan (double-move / double-toast).
+//
+// Solusi: klaim uid di localStorage (DI-SHARE antar tab) dengan ownership
+// per-instance + TTL 5 menit. Tab yang pertama claim berhak memindahkan;
+// tab lain melihat klaim (baca langsung + storage event) dan SKIP uid tsb.
+// Release HANYA menghapus klaim milik sendiri — klaim tab lain tidak boleh
+// dilepas (kalau tidak, tab lain kehilangan proteksinya saat move berjalan).
+//
+// (Dulu memakai sessionStorage — SALAH: sessionStorage adalah PER-TAB, jadi
+// klaim tab A tidak pernah terlihat tab B → double-move tetap terjadi. Test
+// lama hanya mensimulasikan satu storage bersama, sehingga lolos walau
+// perilaku aslinya salah. Diperbaiki ke localStorage + ownership + test
+// dua-instance yang memisahkan identitas tab.)
+
+const CLAIM_PREFIX = 'pcp_aa_claims';
+const CLAIM_TTL_MS = 5 * 60_000; // klaim valid 5 menit
+
+// Identitas unik per instance modul (= per tab / per konteks test). Dipakai
+// agar release hanya menghapus klaim milik sendiri.
+const claimOwnerId =
+  (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `tab_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
+
+function claimsKey(email) {
+  return `${CLAIM_PREFIX}_${typeof email === 'string' ? email.toLowerCase() : ''}`;
+}
+
+/** Nama key klaim utk satu akun (dipakai listener storage lintas-tab di UI). */
+export function autoArchiveClaimsKey(email) {
+  return claimsKey(email);
+}
+
+function readClaims(email) {
+  try {
+    const raw = localStorage.getItem(claimsKey(email));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeClaims(email, claims) {
+  try {
+    localStorage.setItem(claimsKey(email), JSON.stringify(claims));
+  } catch { /* localStorage penuh / tidak tersedia — abaikan */ }
+}
+
+/** Normalisasi satu record klaim: { owner, ts } (toleran bentuk lama angka). */
+function normClaim(rec) {
+  if (rec && typeof rec === 'object' && !Array.isArray(rec)) {
+    return {
+      owner: typeof rec.owner === 'string' ? rec.owner : '',
+      ts: Number(rec.ts),
+    };
+  }
+  return { owner: '', ts: Number(rec) }; // bentuk legacy angka polos
+}
+
+/**
+ * Klaim uid utk diproses instance ini (hapus klaim kedaluwarsa dulu).
+ * @returns {string[]} uid yang BERHASIL diklaim instance ini (bisa diproses)
+ */
+export function claimAutoArchiveUids(email, uids) {
+  if (!email || !Array.isArray(uids) || uids.length === 0) return [];
+  const now = Date.now();
+  const claims = readClaims(email);
+  const cleaned = {};
+  for (const [uid, rec] of Object.entries(claims)) {
+    const { ts } = normClaim(rec);
+    if (Number.isFinite(ts) && ts > now - CLAIM_TTL_MS) {
+      cleaned[uid] = { owner: normClaim(rec).owner, ts }; // masih valid
+    }
+  }
+  const fresh = [];
+  for (const uid of uids) {
+    const k = String(uid);
+    if (cleaned[k]) continue; // sudah diklaim (instance ini / lain) → skip
+    cleaned[k] = { owner: claimOwnerId, ts: now };
+    fresh.push(k);
+  }
+  writeClaims(email, cleaned);
+  return fresh;
+}
+
+/**
+ * Hapus klaim MILIK INSTANCE INI (dipanggil setelah move selesai / gagal).
+ * Klaim milik tab/instance lain dibiarkan utuh — mereka sedang memprosesnya.
+ */
+export function releaseAutoArchiveClaims(email, uids) {
+  if (!email || !Array.isArray(uids) || uids.length === 0) return;
+  const claims = readClaims(email);
+  let changed = false;
+  for (const uid of uids) {
+    const k = String(uid);
+    if (claims[k] && normClaim(claims[k]).owner === claimOwnerId) {
+      delete claims[k];
+      changed = true;
+    }
+  }
+  if (changed) writeClaims(email, claims);
+}

@@ -1,0 +1,8 @@
+title = "mailcow-webmail gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures with placeholder values"
+paths = ['''scripts/test-smtp-cookie\.mjs''']

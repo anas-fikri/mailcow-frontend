@@ -1,0 +1,19 @@
+{
+  "name": "Mailcow Webmail",
+  "short_name": "Webmail",
+  "description": "Mailcow Webmail — Akses email bisnis Anda dengan cepat dan mudah.",
+  "start_url": "/webmail/",
+  "scope": "/webmail/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#3b82f6",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/webmail/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
