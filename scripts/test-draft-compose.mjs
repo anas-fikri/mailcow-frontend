@@ -16,8 +16,11 @@ const ok = (cond, msg) => { assert.ok(cond, msg); passCount++; };
 ok(/autosaveBusy\s+= useRef\(false\)/.test(compose), 'guard autosaveBusy harus ada');
 ok(compose.includes('if (autosaveBusy.current) { autosaveDirty.current = true; return; }'),
   'autosave sibuk → tandai dirty + skip (bukan tumpuk)');
-ok(compose.includes('if (autosaveDirty.current) {\n        clearTimeout(saveTimerRef.current);\n        saveTimerRef.current = setTimeout(() => { runAutosave(); }, 3000);'),
-  'finally harus jadwalkan ulang bila ada perubahan baru selama autosave');
+ok(compose.includes('saveTimerRef.current = setTimeout(() => { runAutosaveRef.current?.(); }, 3000);'),
+  'finally harus jadwalkan ulang (via ref → closure terbaru) bila ada perubahan baru selama autosave');
+ok(compose.includes('autosaveDirty.current = newerEdits();'),
+  'autosave selesai hanya menandai bersih bila tidak ada edit baru selama berjalan');
+ok(compose.includes('editGenRef.current += 1;'), 'setiap perubahan konten menaikkan generasi edit');
 
 // ── Race 2: autosave in-flight saat Send → draft tidak boleh yatim ──────────
 ok(/sentRef\s+= useRef\(false\)/.test(compose), 'guard sentRef harus ada');

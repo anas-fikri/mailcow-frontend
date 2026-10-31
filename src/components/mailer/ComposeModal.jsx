@@ -62,6 +62,11 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
   const saveTimerRef = useRef(null);
   const autosaveDirty = useRef(false);
   const editingDraftUidRef = useRef(null); // uid draft asli (mode edit draft) — hapus saat kirim
+  // Generasi edit: naik setiap konten berubah. Autosave yang selesai hanya boleh
+  // menandai "bersih" bila tidak ada edit baru SELAMA ia berjalan — dulu ketikan
+  // saat save berlangsung dianggap tersimpan lalu hilang saat compose ditutup.
+  const editGenRef = useRef(0);
+  const runAutosaveRef = useRef(null);
   const autosaveBusy  = useRef(false);     // autosave sedang berjalan — cegah tumpukan/stale overwrite
   const sentRef       = useRef(false);     // email sudah terkirim — autosave in-flight harus bersihkan draft
   const closedRef     = useRef(false);     // modal ditutup — autosave in-flight di mode edit-draft harus bersihkan copy
@@ -232,6 +237,8 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
     // konten yang lebih baru (race dua autosave yang saling menimpa).
     if (autosaveBusy.current) { autosaveDirty.current = true; return; }
     autosaveBusy.current = true;
+    const genAtStart = editGenRef.current;
+    const newerEdits = () => editGenRef.current !== genAtStart;
     try {
       setDraftState('saving');
       if (!draftIdRef.current) {
@@ -275,6 +282,16 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
         draftIdRef.current = null;
         return;
       }
+      if (closedRef.current && editingDraftUidRef.current && uid && newerEdits()) {
+        // Ditutup selama save DAN ada ketikan baru sesudah snapshot ini: pertahankan
+        // copy ini sebagai target (save berikutnya menimpanya), buang draft asli.
+        [editingDraftUidRef.current, draftUidRef.current]
+          .filter((u) => u && u !== uid)
+          .forEach((dUid) => deleteDraft(token, dUid));
+        draftUidRef.current = uid;
+        editingDraftUidRef.current = null;
+        return; // autosaveDirty tetap true → finally menyimpan edit terbaru
+      }
       if (closedRef.current && editingDraftUidRef.current) {
         // Modal ditutup selama autosave berjalan (mode edit-draft). Hasil
         // autosave INI adalah konten terbaru milik pengguna — copy inilah
@@ -293,8 +310,8 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
         return;
       }
       if (uid) draftUidRef.current = uid;
-      autosaveDirty.current = false;
-      setDraftState('saved');
+      autosaveDirty.current = newerEdits();
+      setDraftState(autosaveDirty.current ? 'saving' : 'saved');
     } catch {
       setDraftState('error'); // gagal autosave — jangan ganggu compose, retry berikutnya
     } finally {
@@ -302,9 +319,16 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
       // Ada perubahan baru yang masuk selama autosave berjalan (dirty lagi)
       // atau autosave tadi di-skip karena sibuk → jadwalkan ulang supaya
       // konten terbaru tidak pernah terlewat.
+      // Selalu lewat ref → closure TERBARU (konten terbaru). Dulu closure lama
+      // dijadwalkan ulang dan timer baru (konten terbaru) dibatalkan.
       if (autosaveDirty.current) {
         clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = setTimeout(() => { runAutosave(); }, 3000);
+        if (closedRef.current) {
+          // Modal sudah ditutup: timer akan dibersihkan saat unmount → simpan sekarang.
+          runAutosaveRef.current?.();
+        } else {
+          saveTimerRef.current = setTimeout(() => { runAutosaveRef.current?.(); }, 3000);
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -317,11 +341,14 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
     // sudah terisi (initialData) tanpa edit tidak boleh langsung membuat
     // salinan draft baru di folder Draf.
     if (!userEditedRef.current) return;
+    editGenRef.current += 1;
     autosaveDirty.current = true;
     clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { runAutosave(); }, 3000);
+    saveTimerRef.current = setTimeout(() => { runAutosaveRef.current?.(); }, 3000);
     return () => clearTimeout(saveTimerRef.current);
   }, [isOpen, success, meaningfulContent, to, cc, bcc, subject, body, editorMode, runAutosave]);
+
+  runAutosaveRef.current = runAutosave;
 
   // Bersihkan timer saat unmount
   useEffect(() => () => clearTimeout(saveTimerRef.current), []);
