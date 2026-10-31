@@ -383,7 +383,9 @@ assert.ok(reader.includes('markMessagesAsJunk(user.sogoToken, folder, [msgId])')
 assert.ok(reader.includes('async function handleSaveContact(e)'), 'Tambah ke kontak harus ada');
 assert.ok(reader.includes('async function handleDownloadAll()'), 'Unduh semua lampiran harus ada');
 assert.ok(reader.includes('totalAttachmentSize(attachments)'), 'Total ukuran lampiran ditampilkan');
-assert.ok(reader.includes('e.key === \'Escape\') { e.preventDefault(); if (lightbox) setLightbox(null); else if (docPreview) setDocPreview(null); else if (packPreview) setPackPreview(null); else onClose(); }'), 'Esc tutup lightbox → docx → paket → reader');
+assert.ok(reader.includes('if (lightbox) setLightbox(null); else if (docPreview) setDocPreview(null); else if (packPreview) setPackPreview(null); else onClose();'), 'Esc tutup lightbox → docx → paket → reader');
+assert.ok(reader.includes('if (lightbox || docPreview || packPreview) e.stopImmediatePropagation();'), 'Esc pada overlay tidak ikut menutup pesan (MailPage)');
+assert.ok(reader.includes("window.addEventListener('keydown', handler, true);"), 'reader menangani keydown di fase capture');
 passCount += 8;
 
 // ── Keamanan: 429 tidak boleh di-retry + cache bersih saat logout ────────────

@@ -1281,6 +1281,16 @@ export default function MailPage() {
     [conversationView, sortedMessages, dateGroups]
   );
 
+  // Fokus keyboard mengikuti pesan yang dibuka (klik, Berikutnya/Sebelumnya di
+  // reader, auto-advance). Dulu fokus tertinggal di baris lama → e/d/# setelah
+  // "Berikutnya" mengarsip/menghapus pesan yang SALAH.
+  useEffect(() => {
+    if (selectedMsgId == null) return;
+    const i = focusOrder.findIndex((m) => String(m.uid) === String(selectedMsgId)
+      && (!m.folderId || !selectedMsgFolder || m.folderId === selectedMsgFolder));
+    if (i >= 0) setFocusIdx((prev) => (prev === i ? prev : i));
+  }, [selectedMsgId, selectedMsgFolder, focusOrder]);
+
   // Urutan SELURUH baris yang sudah dimuat & lolos filter (bukan irisan
   // render visibleCount) — dipakai navigasi reader "N dari M". Bug lama:
   // reader menerima visibleOrderUids (window render 50) → "N dari 50" walau
@@ -2484,6 +2494,18 @@ export default function MailPage() {
         e.target.blur();
         return;
       }
+      return;
+    }
+
+    // Konten email (link di badan pesan) → perilaku asli browser.
+    if (e.target?.closest?.('.email-body')) return;
+    // Tombol/link/menu yang fokus: Enter/Spasi = aktivasi native; Backspace/
+    // Delete tidak boleh menghapus pesan di belakangnya (dulu Enter pada
+    // "Balas"/"Keluar"/link sidebar dibatalkan dan diganti aksi buka pesan).
+    // Baris pesan (role=button + data-mail-row) tetap memakai shortcut.
+    const interactive = e.target?.closest?.('button, a[href], [role="button"], [role="menuitem"], [role="option"], [role="tab"], [role="switch"], summary, label');
+    if (interactive && !interactive.hasAttribute('data-mail-row')
+      && ['Enter', ' ', 'Backspace', 'Delete'].includes(e.key)) {
       return;
     }
 

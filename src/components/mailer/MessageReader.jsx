@@ -542,8 +542,9 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   React.useEffect(() => {
     if (!msg) return;
     const handler = (e) => keyHandlerRef.current?.(e);
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    // Fase capture: reader memutuskan lebih dulu (Esc pada overlay berhenti di sini).
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
   }, [msg, deleteMutation.isPending, shortcutsEnabled, lightbox]);
 
   // Unduh pesan sebagai file .eml (rekonstruksi dari data yang sudah dimuat:
@@ -790,14 +791,20 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
     else if (key === 'Escape' && (sheetPreview || headersModal || confirmDelete || contactOpen || moveOpen)) {
       // Lapisan di atas reader ditutup dulu (pratinjau spreadsheet dulu tidak
       // ikut dicek → Esc menutup reader di balik pratinjau).
+      // stopImmediatePropagation: handler Esc MailPage tidak ikut menutup pesan.
       e.preventDefault();
+      e.stopImmediatePropagation();
       if (sheetPreview) setSheetPreview(null);
       else if (headersModal) setHeadersModal(null);
       else if (confirmDelete) setConfirmDelete(false);
       else if (contactOpen) setContactOpen(false);
       else setMoveOpen(false);
     }
-    else if (e.key === 'Escape') { e.preventDefault(); if (lightbox) setLightbox(null); else if (docPreview) setDocPreview(null); else if (packPreview) setPackPreview(null); else onClose(); }
+    else if (e.key === 'Escape') {
+      e.preventDefault();
+      if (lightbox || docPreview || packPreview) e.stopImmediatePropagation(); // hanya tutup overlay
+      if (lightbox) setLightbox(null); else if (docPreview) setDocPreview(null); else if (packPreview) setPackPreview(null); else onClose();
+    }
   };
 
   // Orang yang relevan utk "Tambah ke Kontak" — pengirim (kotak masuk) atau
