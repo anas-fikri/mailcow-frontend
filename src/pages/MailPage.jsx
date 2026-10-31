@@ -569,6 +569,7 @@ export default function MailPage() {
     setExtraMessages([]);
     setLoadingMore(false);
     stopFetchingRef.current = false;
+    listGenRef.current += 1;
     lastSelectedUid.current = null; // range-select anchor ikut di-reset
     // Reset processed cache saat ganti folder
     rulesProcessed.current = {};
@@ -578,11 +579,16 @@ export default function MailPage() {
     longPressPos.current = {};
     longPressPending.current.clear();
     suppressClick.current.clear();
-  }, [selectedFolder, searchQuery]);
+  }, [selectedFolder, searchQuery, searchCriteria]);
 
-  // Cleanup pending timers on unmount
+  // Unmount (pindah ke Kalender/Kontak/dll): aksi dalam jendela undo DI-COMMIT,
+  // bukan dibatalkan diam-diam (dulu: hapus 5 email → klik Kalender → email
+  // kembali ada di Inbox). Lalu bersihkan timer.
   useEffect(() => {
     return () => {
+      for (const entry of [...deferredRef.current.values()]) {
+        try { entry.commit(); } catch { /* best-effort */ }
+      }
       Object.values(pendingTimers.current).forEach(clearTimeout);
       Object.values(longPressTimers.current).forEach(clearTimeout);
     };
@@ -702,6 +708,9 @@ export default function MailPage() {
   const [extraMessages, setExtraMessages] = useState([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const stopFetchingRef = useRef(false);
+  // Generasi daftar: naik setiap folder/pencarian di-reset. Fetch yang selesai
+  // SETELAH reset dibuang — dulu header Inbox yang telat masuk ke daftar Sent.
+  const listGenRef = useRef(0);
 
   const baseMessages = msgData?.messages || [];
   const allUids = Array.isArray(msgData?.uids) ? msgData.uids : null;
@@ -814,9 +823,13 @@ export default function MailPage() {
         const { messages: all, searchedAll: flag } = await searchAllFolders(
           user.sogoToken, selectedFolder, searchQuery, searchCriteria, folders
         );
+        // Query sudah berganti selama fan-out → hasil lama jangan ditampilkan
+        // di bawah pencarian baru.
+        if (lastGlobalQueryRef.current !== qKey) return;
         setGlobalResults(mergeSearchResults(all));
         setSearchedAll(flag);
       } catch {
+        if (lastGlobalQueryRef.current !== qKey) return;
         setGlobalResults([]);
         setSearchedAll(false);
       } finally {
@@ -1466,9 +1479,11 @@ export default function MailPage() {
     if (remainingUids.length === 0 || !user?.sogoToken) return;
 
     setLoadingMore(true);
+    const gen = listGenRef.current;
     try {
       const batch = remainingUids.slice(0, PAGE_SIZE);
       const rows = await fetchMessageHeaders(user.sogoToken, selectedFolder, batch);
+      if (gen !== listGenRef.current) return; // folder/pencarian sudah berganti
       if (rows.length) {
         setExtraMessages((prev) => [...prev, ...rows]);
         setVisibleCount((prev) => prev + rows.length);
@@ -1477,11 +1492,12 @@ export default function MailPage() {
       // UID habis tapi header tidak (mis. pesan terhapus di server) → hentikan.
       if (rows.length < batch.length) stopFetchingRef.current = true;
     } catch (err) {
+      if (gen !== listGenRef.current) return;
       console.warn('[mail] Gagal memuat header tambahan:', err?.message || err);
       // Jangan loop retry tanpa henti di sentinel — beri jeda via stop.
       stopFetchingRef.current = true;
     } finally {
-      setLoadingMore(false);
+      if (gen === listGenRef.current) setLoadingMore(false);
     }
   }, [loadingMore, visibleCount, messagesInWindow.length, remainingUids, user?.sogoToken, selectedFolder]);
 
@@ -1773,7 +1789,9 @@ export default function MailPage() {
       removeFlagColorsBulk(user?.email, vars?.uids || [], vars?.sourceFolder || selectedFolder);
       afterRemovedFromFolder(vars?.sourceFolder || selectedFolder, vars?.uids || []);
       queryClient.invalidateQueries({ queryKey: ['messages', user.sogoToken, vars?.sourceFolder || selectedFolder] });
-      setSelectedUids([]);
+      // Hanya buang uid yang dipindah — commit tertunda (6 dtk) dulu menghapus
+      // seleksi BARU yang dibuat user selama jendela undo.
+      setSelectedUids((prev) => removeUids(prev, vars?.uids || []));
     },
     onError: (err) => toast.error(err?.message || 'Gagal memindahkan pesan.'),
     // Baris disembunyikan optimis sejak dijadwalkan; sukses → sudah dibuang
