@@ -48,6 +48,7 @@
     "test:send-queue-retry": "node scripts/test-send-queue-retry.mjs",
     "test:update-preferences": "node scripts/test-update-preferences.mjs",
     "test:email-isolation": "node scripts/test-email-isolation.mjs",
+    "test:backend-lib-files": "node scripts/test-backend-lib-files.mjs",
     "test:image-proxy": "node scripts/test-image-proxy.mjs",
     "test:tracking-pixel": "node scripts/test-tracking-pixel.mjs",
     "test:email-validation": "node scripts/test-email-validation.mjs",

@@ -96,6 +96,34 @@ variables via `EnvironmentFile=`.
 your Git remote, health checks, nginx sync). Configure it with environment
 variables — see the header of the script.
 
+## Monitoring (UX metrics)
+
+The SPA sends anonymous timings (no addresses, subjects or UIDs) to
+`POST /api/metrics`; `server.js` aggregates them as Prometheus histograms on
+`GET /metrics`, reachable **only from localhost** on the mailcow host:
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: webmail-ux
+    static_configs:
+      - targets: ['127.0.0.1:3005']
+```
+
+| Metric (`webmail_ux_*_ms`) | Meaning |
+|---|---|
+| `boot_to_inbox`, `login_to_inbox` | App start / login submit → first inbox list |
+| `folder_switch`, `search` | Folder click / search → results shown |
+| `message_open` | Message click → content shown |
+| `send` | Send click → accepted by server |
+| `web_vital_lcp`, `web_vital_inp`, `web_vital_cls` | Core Web Vitals (CLS ×1000) |
+| `api_error` | API failures (`_count`) |
+
+Example Grafana query (p95 message open, 5 min window):
+`histogram_quantile(0.95, sum by (le, device) (rate(webmail_ux_message_open_ms_bucket[5m])))`
+
+Histograms are in memory and reset when `server.js` restarts.
+
 ## Testing
 
 ```bash

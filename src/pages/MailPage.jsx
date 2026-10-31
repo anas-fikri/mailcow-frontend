@@ -51,6 +51,7 @@ import { searchAllFolders, mergeSearchResults, folderChipLabel, analyzeEmptyList
 import { buildRowAriaLabel } from '../lib/messageRows';
 import { planToolbar } from '../lib/mailToolbar';
 import { APP_NAME } from '../lib/branding';
+import { start as startMetric, end as endMetric } from '../lib/metrics';
 
 // Batas tampilan Kotak Masuk (bulan) — email lebih lama hanya via pencarian.
 
@@ -650,6 +651,15 @@ export default function MailPage() {
     toast.success(isFav ? 'Dihapus dari Favorit' : 'Ditambahkan ke Favorit', 2500);
   }, [setPref]);
 
+  // ── Metrik UX (anonim, lihat lib/metrics.js) ───────────────────────────────
+  const firstFolderRef = useRef(true);
+  useEffect(() => {
+    if (firstFolderRef.current) { firstFolderRef.current = false; return; }
+    startMetric('folder_switch');
+  }, [selectedFolder]);
+  useEffect(() => { if (searchQuery) startMetric('search'); }, [searchQuery, searchCriteria]);
+  useEffect(() => { if (selectedMsgId != null) startMetric('message_open'); }, [selectedMsgId, selectedMsgFolder]);
+
   // ── Messages ───────────────────────────────────────────────────────────────
   const { 
     data: msgData, 
@@ -800,6 +810,15 @@ export default function MailPage() {
       .catch((err) => console.warn('[conv-sent] gagal memuat Terkirim tambahan:', err?.message || err))
       .finally(() => { sentLoadingRef.current = false; });
   }, [convSentEnabled, convSentData, sentExtra, messages, user?.sogoToken, sentFolderId]);
+
+  // Daftar pesan tampil (data ada & tidak sedang fetch) → akhiri timer terkait.
+  useEffect(() => {
+    if (!msgData || isFetchingMessages) return;
+    endMetric('boot_to_inbox');
+    endMetric('login_to_inbox');
+    endMetric('folder_switch');
+    if (searchQuery) endMetric('search');
+  }, [msgData, isFetchingMessages, searchQuery]);
 
   // Pencarian global otomatis: folder aktif dulu → kosong → semua folder.
   // Live search (getHighlightedDates pattern): query GET sudah jalan per

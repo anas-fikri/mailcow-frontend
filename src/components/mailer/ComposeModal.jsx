@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { sendMessage, createDraft, saveDraft, deleteDraft, fetchContacts, fetchPreferences, undoScheduledSend, fetchSendConfig } from '../../lib/api';
 import { toast, useToastStore, TOAST_TYPES } from '../../lib/toast';
+import { start as startMetric, end as endMetric, cancel as cancelMetric } from '../../lib/metrics';
 import { useAuthStore } from '../../store/authStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
@@ -667,6 +668,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
     setSending(true);
     setError('');
     setSuccess(false);
+    startMetric('send');
     try {
       const res = await sendMessage(token, {
         to: to.trim(),
@@ -683,6 +685,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
         ...(schedulePick ? { sendAt: schedulePick } : {}),
       });
 
+      endMetric('send');
       // Kiriman masuk queue server (undo send default / jadwal): tampilkan
       // toast dengan countdown + tombol batal, tutup modal tanpa state success
       // (email BELUM terkirim — tombol ✓ Terkirim hanya utk kirim langsung).
@@ -742,6 +745,7 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
       toast.success('Email terkirim.');
       onClose();
     } catch (err) {
+      cancelMetric('send');
       setError(err.message || 'Gagal mengirim pesan.');
     } finally {
       setSending(false);

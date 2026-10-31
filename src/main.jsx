@@ -3,6 +3,9 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
+import { installMetrics } from './lib/metrics.js'
+
+installMetrics()
 
 // PWA: daftarkan service worker HANYA di production. SW hanya menangani GET
 // dalam scope /webmail/ (navigasi + asset hashed) dan TIDAK pernah menyentuh

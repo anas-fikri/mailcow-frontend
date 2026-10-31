@@ -1,4 +1,5 @@
 import { pathSegment } from './pathSegment.js';
+import { record as recordMetric } from './metrics.js';
 import { readStorage, persistNormalized } from './storageMigrate.js';
 import DOMPurify from 'dompurify';
 import { PURIFY_CONFIG } from './pasteUtils.js';
@@ -117,6 +118,7 @@ function sogoHeaders(extra = {}) {
 function throwApiError(message, status) {
   const err = new Error(message);
   err.status = status;
+  recordMetric('api_error', Number(status) || 0); // jumlah error (nilai = status HTTP)
   const inGrace = Date.now() < _loginGraceUntil;
   // 403 segera setelah login sering race/session warm-up — jangan kick dulu
   if ((status === 401 || (status === 403 && !inGrace)) && _onSessionExpired && !_sessionExpiredFired) {

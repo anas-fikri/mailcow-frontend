@@ -13,6 +13,7 @@ import { toast } from '../../lib/toast';
 import { MessageReaderSkeleton } from '../Skeleton';
 import { PURIFY_CONFIG } from '../../lib/pasteUtils';
 import { sanitizeEmailHtml } from '../../lib/emailIsolation';
+import { end as endMetric } from '../../lib/metrics';
 import { toSafeUrl } from '../../lib/safeUrl';
 import { formatAddresses, parseAddressList, formatRecipientSummary } from '../../lib/format';
 import { extractHtml, extractAttachments, isInlineBodyImage } from '../../lib/messageHtml';
@@ -537,6 +538,8 @@ export default function MessageReader({ folder, msgId, onClose, onReply, folders
   // memanggil closure terbaru. Tanpa pola ini dependency array mudah basi
   // (bug lama: Esc tidak menutup pratinjau spreadsheet karena sheetPreview
   // tidak ada di deps). Saat pesan belum termuat ref di-null-kan.
+  React.useEffect(() => { if (msg) endMetric('message_open'); }, [msg]);
+
   const keyHandlerRef = React.useRef(null);
   keyHandlerRef.current = null;
   React.useEffect(() => {

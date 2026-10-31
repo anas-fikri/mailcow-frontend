@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '../lib/toast';
+import { start as startMetric } from '../lib/metrics';
 import { APP_NAME, ORG_NAME, LOGIN_TAGLINE, SUPPORT_EMAIL, DEV_LOGIN_HINT } from '../lib/branding';
 
 export default function LoginPage() {
@@ -59,6 +60,7 @@ export default function LoginPage() {
       queryClient.clear();
       clearUser();
       resetSessionExpiredFlag();
+      startMetric('login_to_inbox');
       const data = await login(userName, password);
       // Register SMTP session — non-blocking: jika backend SMTP sedang down,
       // user tetap bisa login & baca email (kirim email saja yang belum bisa).
