@@ -57,7 +57,7 @@ assert.equal(buildQueueEntry({ user: 'u', sendAt: 1, cred: {}, payload: {} }).me
 
 // ── Kontrak sumber server.js ────────────────────────────────────────────────
 const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-assert.ok(/if \(flushRunning\) return;/.test(server), 'flush wajib di-guard flushRunning (anti tick tumpang-tindih)');
+assert.ok(/if \(flushRunning( \|\| shuttingDown)?\) return;/.test(server), 'flush wajib di-guard flushRunning (anti tick tumpang-tindih)');
 assert.ok(/flushLock\.tryAcquire\(\)/.test(server), 'flush wajib memegang lock satu-pengirim');
 assert.ok(/messageId: entry\.messageId/.test(server), 'flush wajib memakai Message-ID entri (stabil lintas retry)');
 assert.ok(/inReplyTo: parsed\.data\.inReplyTo/.test(server), 'jalur antre & kirim langsung meneruskan In-Reply-To');

@@ -45,6 +45,7 @@
     "test:attach-fallback": "node scripts/test-attach-fallback.mjs",
     "test:ssrf-guard": "node scripts/test-ssrf-guard.mjs",
     "test:metrics-store": "node scripts/test-metrics-store.mjs",
+    "test:send-queue-retry": "node scripts/test-send-queue-retry.mjs",
     "test:image-proxy": "node scripts/test-image-proxy.mjs",
     "test:tracking-pixel": "node scripts/test-tracking-pixel.mjs",
     "test:email-validation": "node scripts/test-email-validation.mjs",

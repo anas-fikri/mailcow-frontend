@@ -29,9 +29,11 @@ import { buildThreadingHeaders } from './src/lib/threadingHeaders.js';
 import { createInstanceLock } from './src/lib/instanceLock.js';
 import { validateAttachments, MAX_ATTACHMENTS, MAX_FILE_MB_DEFAULT, MAX_TOTAL_MB_DEFAULT, MAX_ATTACHMENTS_DEFAULT } from './src/lib/attachmentValidation.js';
 import {
-  createSendQueue, buildQueueEntry, dueEntries, pendingForUser, canCancel,
+  createSendQueue, buildQueueEntry, dueEntries, pendingForUser, failedForUser, canCancel,
   encryptCredentials, decryptCredentials, maxScheduleMs, SEND_QUEUE_STATUS,
+  nextRetryAt, isQueueOwner,
 } from './src/lib/sendQueue.js';
+import { parseBatch as parseMetricsBatch, createMetricsStore } from './src/lib/metricsStore.js';
 import { buildSentRaw, appendSentCopy, makeMessageId } from './src/lib/sentCopy.js';
 
 const app  = express();
@@ -64,7 +66,13 @@ const MAX_TOTAL_MB     = parseInt(process.env.SMTP_MAX_TOTAL_MB || String(MAX_TO
 const MAX_ATT_LIMIT    = parseInt(process.env.SMTP_MAX_ATTACHMENTS || String(MAX_ATTACHMENTS_DEFAULT), 10) || MAX_ATTACHMENTS_DEFAULT;
 const MAX_FILE_B64     = Math.floor(MAX_ATTACHMENT_MB * 1024 * 1024 * 4 / 3) + 1024;
 const MAX_TOTAL_B64    = Math.floor(MAX_TOTAL_MB * 1024 * 1024 * 4 / 3) + 2048;
-app.use(express.json({ limit: `${Math.max(MAX_TOTAL_B64 * 2, 32)}mb` }));
+// Parser besar HANYA utk /api/send (lampiran base64); route lain cukup kecil.
+// Dulu: `${MAX_TOTAL_B64 * 2}mb` — MAX_TOTAL_B64 sudah dalam BYTE, jadi limit
+// efektif ~176 TB dan berlaku untuk semua /api/* SEBELUM cek API key (DoS OOM).
+const SEND_BODY_LIMIT = Math.ceil(MAX_TOTAL_B64 * 1.1) + 1024 * 1024;
+const jsonLarge = express.json({ limit: SEND_BODY_LIMIT });
+const jsonSmall = express.json({ limit: '256kb' });
+app.use((req, res, next) => (req.path === '/api/send' ? jsonLarge : jsonSmall)(req, res, next));
 
 // ── Config DB ──────────────────────────────────────────────────────────────────
 const MYSQL_CONTAINER = process.env.MYSQL_CONTAINER || 'mailcow-mysql-mailcow-1';
@@ -127,6 +135,10 @@ const IMAP_SECURE  = process.env.IMAP_SECURE !== 'false';
 const IMAP_SENT_MAILBOXES = (process.env.IMAP_SENT_MAILBOXES || 'Sent,INBOX/Sent,Sent Messages')
   .split(',').map((s) => s.trim()).filter(Boolean);
 const SENT_COPY_DISABLED = process.env.SENT_COPY_DISABLED === 'true';
+// TLS IMAP utk salinan Sent: default verifikasi sertifikat. Host dgn sertifikat
+// internal/self-signed: set IMAP_TLS_CA (path CA) atau — terakhir — IMAP_TLS_INSECURE=true.
+const IMAP_TLS = { rejectUnauthorized: process.env.IMAP_TLS_INSECURE !== 'true' };
+if (process.env.IMAP_TLS_CA || SMTP_TLS_CA) IMAP_TLS.ca = readFileSync(process.env.IMAP_TLS_CA || SMTP_TLS_CA);
 
 // Bersihkan entry failed lama (>= 24 jam) sekali per jam agar file tidak membengkak.
 setInterval(() => sendQueue.pruneStale(24 * 60 * 60 * 1000), 60 * 60 * 1000);
@@ -142,6 +154,11 @@ function createSmtpTransporter(user, pass) {
     secure: SMTP_SECURE,
     auth: { user, pass },
     tls: tlsOpts,
+    // Default nodemailer: connect 2 mnt, socket 10 mnt — satu koneksi macet
+    // menahan seluruh antrean flush (berurutan) selama itu.
+    connectionTimeout: 30_000,
+    greetingTimeout: 30_000,
+    socketTimeout: 60_000,
   });
 }
 
@@ -179,6 +196,7 @@ async function persistSentCopy(user, pass, mailOptions) {
       user, pass, raw,
       host: IMAP_HOST, port: IMAP_PORT, secure: IMAP_SECURE,
       mailboxes: IMAP_SENT_MAILBOXES,
+      tls: IMAP_TLS,
     });
     if (res.ok) console.log(`[sent-copy] OK ${user} → ${res.mailbox} (uid ${res.uid})`);
     else console.error(`[sent-copy] GAGAL ${user}: ${res.error}`);
@@ -216,12 +234,22 @@ const flushLock = createInstanceLock({
 });
 let flushLockWarnedFor = null;
 process.on('exit', () => flushLock.release());
+let shuttingDown = false;
 for (const sig of ['SIGTERM', 'SIGINT']) {
-  process.on(sig, () => { flushLock.release(); process.exit(0); });
+  process.on(sig, async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    // Jangan potong sendMail/IMAP append di tengah jalan (respons hilang →
+    // dikirim ulang oleh proses berikutnya). Tunggu flush aktif, maks 20 dtk.
+    const deadline = Date.now() + 20_000;
+    while (flushRunning && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
+    flushLock.release();
+    process.exit(0);
+  });
 }
 
 async function flushDueSends() {
-  if (flushRunning) return;
+  if (flushRunning || shuttingDown) return;
   const lock = flushLock.tryAcquire();
   if (!lock.ok) {
     if (flushLockWarnedFor !== lock.holder) {
@@ -252,11 +280,13 @@ async function flushDueSendsOnce() {
       sendQueue.remove(entry.id);
     } catch (err) {
       const next = (entry.attempts || 0) + 1;
-      console.error(`[send] flush ${entry.id} percobaan ${next} gagal: ${err.message}`);
-      if (next >= 3) {
+      const retryAt = nextRetryAt(next);
+      console.error(`[send] flush ${entry.id} percobaan ${next} gagal: ${err.message}`
+        + (retryAt ? ` — coba lagi ${new Date(retryAt).toISOString()}` : ' — menyerah'));
+      if (!retryAt) {
         sendQueue.markFailed(entry.id, err.message);
       } else {
-        sendQueue.touchAttempt(entry.id, next);
+        sendQueue.touchAttempt(entry.id, next, retryAt);
       }
     }
   }
@@ -328,6 +358,10 @@ function sendIdemKey(user, payload, att) {
   h.update(String(payload.isHTML ? '1' : '0'));
   h.update('|');
   h.update(String(payload.from || ''));
+  h.update('|');
+  h.update(String(payload.sendAt || ''));
+  h.update('|');
+  h.update(String(payload.inReplyTo || ''));
   if (att && att.sanitized && att.sanitized.length > 0) {
     for (const a of att.sanitized) {
       h.update('|');
@@ -453,10 +487,38 @@ app.get('/api/image-proxy', rateLimit({ max: 120, windowMs: 60000, keyFn: client
     res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     return res.send(buffer);
   } catch (err) {
-    const status = err && typeof err.status === 'number' ? err.status : 500;
-    const message = err && err.message ? err.message : 'Gagal memuat gambar.';
+    const status = err && typeof err.status === 'number' ? err.status : 502;
+    // Detail (ECONNREFUSED ip:port, error TLS) = oracle port-scan → hanya utk 4xx
+    // yang pesannya memang ditulis remoteImage.js.
+    const message = status < 500 && err?.message ? err.message : 'Gagal memuat gambar.';
+    if (status >= 500) console.warn('[image-proxy]', err?.message);
     return res.status(status).json({ message });
   }
+});
+
+// ── Metrik UX anonim (lihat src/lib/metricsStore.js) ───────────────────────
+// POST dari browser via sendBeacon (tidak bisa kirim X-Api-Key) → didefinisikan
+// SEBELUM requireApiKey. Hanya nama daftar putih + angka; body kecil (jsonSmall).
+// GET /metrics (format Prometheus) HANYA dari loopback — nginx tidak me-route
+// path ini; scrape dari host: curl http://127.0.0.1:${PORT}/metrics
+const uxMetrics = createMetricsStore();
+const isLoopback = (addr) => addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+
+app.post('/api/metrics', rateLimit({ max: 30, windowMs: 60000, keyFn: clientIp }), (req, res) => {
+  // sendBeacon mengirim text/plain bila Blob tanpa type; terima keduanya.
+  let body = req.body;
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch { body = null; }
+  }
+  for (const sample of parseMetricsBatch(body)) uxMetrics.record(sample);
+  return res.status(204).end();
+});
+
+app.get('/metrics', (req, res) => {
+  if (!isLoopback(req.socket.remoteAddress)) return res.status(404).end();
+  res.setHeader('Content-Type', 'text/plain; version=0.0.4');
+  res.setHeader('Cache-Control', 'no-store');
+  return res.send(uxMetrics.toPrometheus());
 });
 
 // ── Security middleware (applied to all /api/* routes) ──────────────────────────
@@ -559,6 +621,11 @@ const changePasswordSchema = z.object({
 
 // Verifikasi kredensial via SMTP auth (sumber kebenaran = Dovecot, bukan cache).
 // SMTP_SECURE/SMTP_HOST/SMTP_PORT sudah divalidasi saat startup (dipakai /api/send).
+/** Kegagalan autentikasi (bukan jaringan/TLS/timeout) dari nodemailer. */
+function isAuthError(err) {
+  return err?.code === 'EAUTH' || err?.responseCode === 535 || err?.responseCode === 534;
+}
+
 async function verifyMailCredentials(user, pass) {
   const transporter = createSmtpTransporter(user, pass);
   try {
@@ -596,12 +663,27 @@ async function flushDovecotAuthCache() {
   });
 }
 
-app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: clientIp }), (req, res) => {
+app.post('/api/auth/smtp', rateLimit({ max: 5, windowMs: 60000, keyFn: clientIp }), async (req, res) => {
   const parsed = smtpSessionSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Data sesi SMTP tidak valid.' });
   }
-  const { user, pass } = parsed.data;
+  const user = parsed.data.user.trim().toLowerCase();
+  const { pass } = parsed.data;
+
+  // WAJIB verifikasi ke server mail sebelum membuat sesi. X-Api-Key tertanam
+  // di bundle browser (publik) — tanpa cek ini siapa pun bisa membuat sesi
+  // atas nama mailbox mana pun (baca preferensi, lihat/batalkan antrean kirim).
+  try {
+    await verifyMailCredentials(user, pass);
+  } catch (err) {
+    if (isAuthError(err)) {
+      console.log(`[smtp-session] kredensial ditolak utk ${user}`);
+      return res.status(401).json({ message: 'Email atau password salah.' });
+    }
+    console.error(`[smtp-session] verifikasi gagal (server mail): ${err.message}`);
+    return res.status(503).json({ message: 'Server email tidak dapat dihubungi. Coba lagi.' });
+  }
 
   const token = crypto.randomUUID();
   smtpSessions.set(token, {
@@ -669,7 +751,7 @@ app.get('/api/auth/smtp/status', rateLimit({ max: 30, windowMs: 60000, keyFn: cl
 // me-proxy semua method ke sogo-proxy, jadi tidak perlu ubah nginx.
 // Alur: sesi valid → verifikasi password lama via SMTP auth → hash baru via
 // doveadm ({BLF-CRYPT}) → UPDATE mailbox → refresh sesi → flush cache Dovecot.
-app.post('/api/preferences', rateLimit({ max: 5, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) }), requireSmtpSession, async (req, res) => {
+app.post('/api/preferences', requireSmtpSession, rateLimit({ max: 5, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) }), async (req, res) => {
   const parsed = changePasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Data tidak valid.' });
@@ -686,6 +768,10 @@ app.post('/api/preferences', rateLimit({ max: 5, windowMs: 60000, keyFn: (req) =
     try {
       await verifyMailCredentials(session.user, oldPassword);
     } catch (err) {
+      if (!isAuthError(err)) {
+        console.error(`[change-password] verifikasi gagal (server mail): ${err.message}`);
+        return res.status(503).json({ message: 'Server email tidak dapat dihubungi. Coba lagi.' });
+      }
       console.log(`[change-password] old password salah utk ${session.user}`);
       return res.status(400).json({ message: 'Password lama tidak cocok.' });
     }
@@ -703,8 +789,16 @@ app.post('/api/preferences', rateLimit({ max: 5, windowMs: 60000, keyFn: (req) =
       return res.status(500).json({ message: 'Akun tidak ditemukan atau tidak aktif.' });
     }
 
-    // 4) Refresh sesi SMTP in-memory dgn kredensial baru (user tetap login).
-    session.pass = newPassword;
+    // 4) Refresh SEMUA sesi SMTP user (perangkat lain juga) + kredensial di
+    //    antrean kirim — dulu hanya sesi ini; perangkat lain & email terjadwal
+    //    gagal AUTH dengan password lama.
+    const owner = session.user.toLowerCase();
+    for (const s of smtpSessions.values()) {
+      if (String(s.user).toLowerCase() === owner) s.pass = newPassword;
+    }
+    if (QUEUE_SECRET) {
+      sendQueue.recredential(owner, encryptCredentials(QUEUE_SECRET, { user: session.user, pass: newPassword }));
+    }
 
     // 5) Flush cache auth Dovecot (best-effort) agar password baru langsung efektif.
     await flushDovecotAuthCache();
@@ -761,7 +855,7 @@ const sendEmailSchema = z.object({
     filename: z.string().max(255),
     contentType: z.string().max(255),
     data: z.string(),
-  })).max(MAX_ATTACHMENTS).optional().default([]),
+  })).max(MAX_ATT_LIMIT).optional().default([]),
 });
 
 // Konfigurasi kirim (batas lampiran, dll) utk frontend — agar validasi client
@@ -839,11 +933,19 @@ app.post('/api/send', resolveSmtpSession, requireSmtpSession, rateLimit({ max: 1
   const now = Date.now();
   let effectiveSendAt = 0;
   if (parsed.data.sendAt) {
-    const t = new Date(parsed.data.sendAt).getTime();
+    // Wajib ISO-8601 lengkap dgn zona (Z/±hh:mm) — "1" dulu terbaca tahun 2001
+    // dan email langsung terkirim tanpa jendela undo.
+    const iso = String(parsed.data.sendAt);
+    const t = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/.test(iso)
+      ? new Date(iso).getTime() : NaN;
     if (!Number.isFinite(t)) {
       return res.status(400).json({ message: 'Waktu terjadwal tidak valid.' });
     }
-    effectiveSendAt = t;
+    if (t < now - 60_000) {
+      return res.status(400).json({ message: 'Waktu terjadwal sudah lewat. Pilih waktu yang akan datang.' });
+    }
+    // Jadwal yang "sudah tiba" tetap mendapat jendela undo (tidak dikirim instan).
+    effectiveSendAt = Math.max(t, now + SEND_UNDO_SECONDS * 1000);
   } else if (SEND_UNDO_SECONDS > 0) {
     effectiveSendAt = now + SEND_UNDO_SECONDS * 1000;
   }
@@ -898,7 +1000,7 @@ app.post('/api/send/undo', requireSmtpSession, rateLimit({ max: 30, windowMs: 60
     return res.status(400).json({ message: 'ID tidak valid.' });
   }
   const entry = sendQueue.find(id);
-  if (!entry || entry.user !== req.smtpSession.user) {
+  if (!isQueueOwner(entry, req.smtpSession.user)) {
     return res.status(404).json({ message: 'Kiriman tidak ditemukan.' });
   }
   if (!canCancel(entry)) {
@@ -911,8 +1013,10 @@ app.post('/api/send/undo', requireSmtpSession, rateLimit({ max: 30, windowMs: 60
 
 // ── Daftar kiriman terjadwal milik user (untuk UI badge + cancel) ────────────
 app.get('/api/send/pending', requireSmtpSession, rateLimit({ max: 30, windowMs: 60000, keyFn: (req) => req.smtpSession?.user || clientIp(req) }), (req, res) => {
-  const items = pendingForUser(sendQueue.list(), req.smtpSession.user);
-  return res.json({ items });
+  const all = sendQueue.list();
+  const items = pendingForUser(all, req.smtpSession.user);
+  const failed = failedForUser(all, req.smtpSession.user);
+  return res.json({ items, failed });
 });
 
 // ── Error boundary ─────────────────────────────────────────────────────────────
@@ -950,7 +1054,13 @@ async function start() {
   // gagal tetap di-queue (retry 3x) supaya tidak hilang saat crash/restart.
   setInterval(() => { flushDueSends().catch((err) => console.error('[send] flush loop error:', err.message)); }, SEND_FLUSH_MS);
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', (err) => {
+    // Express 5: callback juga menerima error 'listen' (EADDRINUSE). Dulu proses
+    // kedua tetap hidup tanpa HTTP tapi ikut berebut flush antrean.
+    if (err) {
+      console.error(`❌ Gagal listen di port ${PORT}: ${err.message}`);
+      process.exit(1);
+    }
     console.log(`Backend proxy running at http://127.0.0.1:${PORT}`);
     console.log(`SMTP: ${SMTP_HOST}:${SMTP_PORT} (secure=${SMTP_SECURE})`);
     console.log(`CORS origins: ${CORS_ORIGINS.join(', ')}`);

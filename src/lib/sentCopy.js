@@ -71,7 +71,9 @@ export async function buildSentRaw(mailOptions, deps = {}) {
  * APPEND salinan ke folder Sent milik `user`.
  * Selalu resolve { ok: boolean, ... } — tidak pernah reject.
  *
- * opts: { user, pass, raw (Buffer), host, port, secure, mailboxes? }
+ * opts: { user, pass, raw (Buffer), host, port, secure, mailboxes?, tls? }
+ *   tls: opsi TLS imapflow; default verifikasi sertifikat (password user
+ *   lewat koneksi ini — tanpa verifikasi, MITM bisa memanennya).
  * deps: { ImapFlow? } — injeksi utk test.
  */
 export async function appendSentCopy(opts, deps = {}) {
@@ -79,6 +81,7 @@ export async function appendSentCopy(opts, deps = {}) {
     user, pass, raw,
     host, port = 993, secure = true,
     mailboxes = SENT_MAILBOX_CANDIDATES,
+    tls = { rejectUnauthorized: true },
   } = opts || {};
 
   if (!user || !pass || !host || !Buffer.isBuffer(raw)) {
@@ -100,7 +103,7 @@ export async function appendSentCopy(opts, deps = {}) {
       secure,
       auth: { user, pass },
       logger: false,
-      tls: { rejectUnauthorized: false }, // sertifikat mailcow internal
+      tls,
     });
     await client.connect();
 

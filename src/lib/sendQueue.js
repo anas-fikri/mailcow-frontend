@@ -32,7 +32,18 @@ export const SEND_QUEUE_STATUS = {
   FAILED: 'failed',
 };
 
-const MAX_ATTEMPTS = 3;
+// Jeda sebelum percobaan ke-2, ke-3, ke-4. Restart postfix/dovecot saat update
+// mailcow butuh beberapa menit — retry beruntun 5 dtk dulu langsung "gagal".
+export const RETRY_DELAYS_MS = Object.freeze([60 * 1000, 5 * 60 * 1000, 30 * 60 * 1000]);
+export const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
+
+/** sendAt berikutnya setelah percobaan ke-`attempt` gagal, atau null bila habis. */
+export function nextRetryAt(attempt, now = Date.now()) {
+  const delay = RETRY_DELAYS_MS[attempt - 1];
+  return delay === undefined ? null : now + delay;
+}
+
+const sameUser = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
 
 function deriveKey(secret) {
   return crypto.createHash('sha256').update(String(secret)).digest();
@@ -97,7 +108,17 @@ export function createSendQueue({ filePath, readFile = null, writeFile = null, o
   function scheduleSave() {
     // Snapshot di-serialize SEKARANG agar file selalu memuat state terbaru,
     // sementara penulisan dijebol berurutan (tanpa race tmp/rename).
-    const snapshot = JSON.stringify(entries, null, 2);
+    // Tanpa indentasi (lampiran base64 = sebagian besar isi). stringify bisa
+    // melempar RangeError bila antrean melebihi batas panjang string V8 —
+    // kegagalan persist TIDAK BOLEH lolos ke pemanggil (mutasi sudah terjadi;
+    // melempar = /api/send 500 padahal email tetap terkirim → user kirim ulang).
+    let snapshot;
+    try {
+      snapshot = JSON.stringify(entries);
+    } catch (err) {
+      warnSaveError(err);
+      return saveChain;
+    }
     saveChain = saveChain
       .then(() => writeImpl(filePath, snapshot)) // promise async pun di tunggu
       .catch((err) => warnSaveError(err));
@@ -124,19 +145,37 @@ export function createSendQueue({ filePath, readFile = null, writeFile = null, o
         ...e,
         status: SEND_QUEUE_STATUS.FAILED,
         lastError: String(error).slice(0, 300),
+        failedAt: Date.now(),
       } : e));
       return scheduleSave();
     },
 
-    touchAttempt(id, attempt) {
-      entries = entries.map((e) => (e.id === id ? { ...e, attempts: attempt } : e));
+    // Catat percobaan gagal; nextSendAt (opsional) menunda percobaan berikutnya.
+    touchAttempt(id, attempt, nextSendAt = null) {
+      entries = entries.map((e) => (e.id === id
+        ? { ...e, attempts: attempt, ...(nextSendAt ? { sendAt: nextSendAt } : {}) }
+        : e));
       return scheduleSave();
     },
 
-    // Hapus entry failed yang sudah lama (>= staleMs) agar file tidak membengkak.
+    // Ganti kredensial terenkripsi semua entri PENDING milik user (setelah
+    // ganti password — kalau tidak, email terjadwal gagal AUTH).
+    recredential(user, cred) {
+      let changed = 0;
+      entries = entries.map((e) => {
+        if (e.status !== SEND_QUEUE_STATUS.PENDING || !sameUser(e.user, user)) return e;
+        changed++;
+        return { ...e, cred };
+      });
+      if (changed) scheduleSave();
+      return changed;
+    },
+
+    // Hapus entry failed yang sudah lama (>= staleMs SEJAK GAGAL — bukan sejak
+    // dibuat: email terjadwal 3 hari lalu yang gagal hari ini tetap disimpan).
     pruneStale(staleMs) {
       const cutoff = Date.now() - staleMs;
-      entries = entries.filter((e) => !(e.status === SEND_QUEUE_STATUS.FAILED && e.createdAt < cutoff));
+      entries = entries.filter((e) => !(e.status === SEND_QUEUE_STATUS.FAILED && (e.failedAt || e.createdAt) < cutoff));
       return scheduleSave();
     },
   };
@@ -149,7 +188,7 @@ export function dueEntries(entries, now = Date.now()) {
 
 export function pendingForUser(entries, user, now = Date.now()) {
   return entries
-    .filter((e) => e.user === user && e.status === SEND_QUEUE_STATUS.PENDING)
+    .filter((e) => sameUser(e.user, user) && e.status === SEND_QUEUE_STATUS.PENDING)
     .map((e) => ({
       id: e.id,
       to: e.payload?.to || '',
@@ -157,6 +196,22 @@ export function pendingForUser(entries, user, now = Date.now()) {
       sendAt: e.sendAt,
       dueSoon: e.sendAt - now <= 60 * 1000, // due dalam <1 mnt → "segera"
     }));
+}
+
+/** Entri gagal milik user (agar UI bisa memberi tahu, bukan hilang diam-diam). */
+export function failedForUser(entries, user) {
+  return entries
+    .filter((e) => sameUser(e.user, user) && e.status === SEND_QUEUE_STATUS.FAILED)
+    .map((e) => ({
+      id: e.id,
+      to: e.payload?.to || '',
+      subject: e.payload?.subject || '',
+      failedAt: e.failedAt || e.createdAt,
+    }));
+}
+
+export function isQueueOwner(entry, user) {
+  return !!entry && sameUser(entry.user, user);
 }
 
 export function canCancel(entry, now = Date.now()) {
