@@ -104,10 +104,10 @@ assert.ok(mail.includes('displayLabel = `Anda → ${first}'), 'label "Anda → p
 assert.ok(mail.includes("{group.sentCount > 0 && ` · ${group.sentCount} terkirim`}"), 'header: N terkirim');
 // Aksi memakai folder baris / folder eksplisit
 assert.ok(mail.includes('const isSelected = !sentCopy && selectedUids.includes(msg.uid);'), 'salinan tidak bisa dipilih');
-assert.ok(mail.includes('onClick={(e) => (sentCopy ? handleSentCopyClick(e, msg) : handleRowClick(e, msg.uid, idx))}'), 'klik salinan → buka di folder Terkirim');
+assert.ok(/onClick=\{\(e\) => \(sentCopy\s*\? handleSentCopyClick\(e, msg\)/.test(mail) && mail.includes(': handleRowClick(e, msg.uid, idx))}'), 'klik salinan → buka di folder Terkirim');
 assert.ok(mail.includes("setSelectedMsg({ uid: msg.uid, folder: msg.folderId || 'folderSent' })"), 'openSentCopy menyimpan folder');
 assert.ok(mail.includes('folder={selectedMsgFolder || (searchQuery && activeMessage?.folderId'), 'reader memakai folder salinan');
-assert.ok(mail.includes('const runGroups = sentCopy ? (list, fn) => fn(folder, list) : forEachFolderGroup;'), 'menu konteks: folder eksplisit');
+assert.ok(mail.includes('const runGroups = explicitFolder ? (list, fn) => fn(folder, list) : forEachFolderGroup;') && mail.includes('const explicitFolder = sentCopy || (single && isForeignRow(msg));'), 'menu konteks: folder eksplisit (salinan Terkirim & baris folder lain)');
 assert.ok(mail.includes('const uids = !msg.isSentCopy && selectedUids.includes(msg.uid)'), 'drag salinan = baris itu saja');
 assert.ok(mail.includes('g.messages.filter((m) => !m.isSentCopy).map((m) => m.uid)'), 'urutan navigasi tanpa salinan');
 assert.ok(mail.includes('if (selectedMsgFolder) return [];'), 'reader prev/next mati utk salinan');

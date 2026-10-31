@@ -2231,6 +2231,17 @@ export default function MailPage() {
   // Klik baris salinan Terkirim di thread: SELALU buka (folder Terkirim).
   // Salinan tidak bisa dipilih (Ctrl/Shift/mode seleksi = no-op) — seleksi
   // berbasis UID folder aktif; UID Terkirim bisa bentrok dgn UID Kotak Masuk.
+  // Baris dari folder LAIN (hasil pencarian lintas folder). UID IMAP unik per
+  // folder — membuka/aksi lewat UID saja bisa mengenai pesan folder lain dgn
+  // UID sama (mis. Sent:42 vs Arsip:42). Buka dgn folder eksplisit.
+  const isForeignRow = (msg) => !!msg?.folderId && msg.folderId !== selectedFolder && !msg.isSentCopy;
+  function handleForeignRowClick(e, msg, idx) {
+    if (suppressClick.current.delete(msg.uid)) return;
+    if (selectedUids.length > 0) setSelectedUids([]);
+    if (idx >= 0) setFocusIdx(idx);
+    openSentCopy(msg); // set { uid, folder: msg.folderId }
+  }
+
   function handleSentCopyClick(e, msg) {
     if (suppressClick.current.delete(msg.uid)) return;
     if (selectionMode || e?.ctrlKey || e?.metaKey || e?.shiftKey) return;
@@ -2241,7 +2252,7 @@ export default function MailPage() {
   // openSentCopy, pesan folder aktif lewat openMessage.
   function openRow(msg) {
     if (!msg) return;
-    if (msg.isSentCopy) openSentCopy(msg);
+    if (msg.isSentCopy || isForeignRow(msg)) openSentCopy(msg);
     else openMessage(msg.uid);
   }
 
@@ -2704,7 +2715,10 @@ export default function MailPage() {
     // eksplisit (forEachFolderGroup me-resolve UID lewat daftar folder aktif
     // → bisa salah folder bila UID bentrok).
     const sentCopy = !!msg.isSentCopy;
-    const runGroups = sentCopy ? (list, fn) => fn(folder, list) : forEachFolderGroup;
+    // Target tunggal dari folder lain (pencarian global) juga ke folder EKSPLISIT
+    // baris itu — dulu "Hapus" pada Arsip:42 memindahkan Sent:42 ke Sampah.
+    const explicitFolder = sentCopy || (single && isForeignRow(msg));
+    const runGroups = explicitFolder ? (list, fn) => fn(folder, list) : forEachFolderGroup;
     const only = sentCopy ? { folder, msg } : null;
     const anyUnread = uids.some((u) => !findMsg(u)?.isRead);
     const isJunk = folder === 'folderJunk';
@@ -2891,7 +2905,11 @@ export default function MailPage() {
         iconLeft={rowFolder === 'folderINBOX' ? Reply : Trash}
       >
         <div
-          onClick={(e) => (sentCopy ? handleSentCopyClick(e, msg) : handleRowClick(e, msg.uid, idx))}
+          onClick={(e) => (sentCopy
+            ? handleSentCopyClick(e, msg)
+            : isForeignRow(msg) && !selectionMode && !e.ctrlKey && !e.metaKey && !e.shiftKey
+              ? handleForeignRowClick(e, msg, idx)
+              : handleRowClick(e, msg.uid, idx))}
           onContextMenu={(e) => handleRowContextMenu(e, msg, idx)}
           onMouseEnter={() => schedulePrefetchMessage(msg.uid, rowFolder)}
           onMouseLeave={cancelPrefetchMessage}

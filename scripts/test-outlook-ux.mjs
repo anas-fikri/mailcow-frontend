@@ -19,7 +19,7 @@ const ok = (cond, msg) => { assert.ok(cond, msg); pass++; };
 
 // ── A. Seleksi ala Outlook (logika murni di lib, dipakai di baris) ─────────
 ok(mail.includes("from '../lib/mailSelection'"), 'MailPage memakai lib/mailSelection');
-ok(mail.includes('resolveRowClick(') && mail.includes('onClick={(e) => (sentCopy ? handleSentCopyClick(e, msg) : handleRowClick(e, msg.uid, idx))}'), 'klik baris lewat resolveRowClick (ctrl/shift dari event)');
+ok(mail.includes('resolveRowClick(') && mail.includes(': handleRowClick(e, msg.uid, idx))}') && mail.includes('handleForeignRowClick(e, msg, idx)'), 'klik baris lewat resolveRowClick (ctrl/shift dari event); baris folder lain dibuka dgn folder eksplisit');
 ok(mail.includes('toggleSelectAllUids('), 'pilih-semua lewat toggleSelectAllUids');
 
 // ── B. Keyboard: resolusi di lib/keymap, handler via ref (deps tidak basi) ──
