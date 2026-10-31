@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Send, Paperclip, ChevronDown, ChevronUp,
   Loader2, AlertCircle, Bold, Italic, Underline, Strikethrough,
@@ -952,29 +951,22 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
   const ariaLabel = composeAriaLabel(realMode, subject);
 
   return (
-    <AnimatePresence>
+      <>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className={isMinimized
+        <div
+          className={`anim-fade-in ${isMinimized
             // Diciutkan: tanpa backdrop — user bisa membaca email lain sambil
             // compose tetap hidup (state + autosave jalan terus).
             ? 'fixed bottom-0 right-0 sm:right-6 z-50 pointer-events-none'
-            : 'fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4'}
+            : 'fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4'}`}
           ref={dialogRef}
           role="dialog"
           aria-modal={!isMinimized}
           aria-label={ariaLabel}
           onKeyDown={handleDialogKeyDown}
         >
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className={`bg-background flex flex-col relative ${
+          <div
+            className={`anim-sheet-up bg-background flex flex-col relative ${
               isMinimized
                 ? 'pointer-events-auto w-[320px] max-w-[calc(100vw-16px)] rounded-t-lg border border-border border-b-0 shadow-md'
                 : isFullscreen
@@ -1345,10 +1337,10 @@ export default function ComposeModal({ isOpen, onClose, onReopen, initialData = 
             {confirmDialog && !isMinimized && (
               <ConfirmDialog dialog={confirmDialog} onDismiss={() => setConfirmDialog(null)} />
             )}
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+      </>
   );
 }
 

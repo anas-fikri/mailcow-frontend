@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle2, AlertCircle, Info, AlertTriangle, Undo2, Ban, ExternalLink } from 'lucide-react';
 import { useToastStore, TOAST_TYPES } from '../lib/toast';
 
@@ -39,19 +38,13 @@ export default function ToastContainer() {
       aria-relevant="additions text"
       className="fixed bottom-20 right-3 left-3 sm:left-auto md:bottom-4 md:right-4 z-[9999] flex flex-col gap-2 max-w-sm w-auto pointer-events-none"
     >
-      <AnimatePresence mode="popLayout">
         {toasts.map((t) => {
           const Icon = ICON_MAP[t.type] || Info;
           const ActionIcon = t.action?.kind ? ACTION_ICON_MAP[t.action.kind] : null;
           return (
-            <motion.div
+            <div
               key={t.id}
-              layout
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-lg border border-border bg-popover text-popover-foreground shadow-md"
+              className="anim-pop-in pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-lg border border-border bg-popover text-popover-foreground shadow-md"
             >
               <Icon size={16} className={`shrink-0 mt-0.5 ${ICON_COLOR_MAP[t.type] || ICON_COLOR_MAP[TOAST_TYPES.INFO]}`} aria-hidden="true" />
               <p className="flex-1 text-[13px] font-medium leading-snug tabular-nums">{t.message}</p>
@@ -76,10 +69,9 @@ export default function ToastContainer() {
               >
                 <X size={14} aria-hidden="true" />
               </button>
-            </motion.div>
+            </div>
           );
         })}
-      </AnimatePresence>
     </div>
   );
 }

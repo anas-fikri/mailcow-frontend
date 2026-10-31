@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Keyboard } from 'lucide-react';
 import { SHORTCUT_GROUPS } from '../lib/keymap';
 
@@ -13,23 +12,17 @@ const prettyKey = (key) => {
 
 export default function KeyboardShortcutsModal({ isOpen, onClose }) {
   return (
-    <AnimatePresence>
+      <>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+        <div
+          className="anim-fade-in fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ scale: 0.95, y: 10 }}
-            animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.95, y: 10 }}
+          <div
             role="dialog"
             aria-modal="true"
             aria-labelledby="kbd-help-title"
-            className="bg-card border border-border rounded-xl shadow-lg w-full max-w-2xl overflow-hidden"
+            className="anim-pop-in bg-card border border-border rounded-xl shadow-lg w-full max-w-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -80,9 +73,9 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
                 Saat pesan terbuka, <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">r</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">f</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">s</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">u</kbd>/<kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[11px] font-mono">Del</kbd> berlaku pada pesan itu.
               </p>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+      </>
   );
 }

@@ -153,7 +153,6 @@
     "cors": "^2.8.6",
     "dompurify": "^3.4.12",
     "express": "^5.2.1",
-    "framer-motion": "^11.0.0",
     "imapflow": "^2.2.7",
     "jszip": "3.10.2",
     "lucide-react": "^0.400.0",

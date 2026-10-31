@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Inbox, Send, Trash2, FileText, Loader2, Edit3, Mail, Menu, X,
@@ -17,7 +17,8 @@ import { analyzePhishing, RISK_LEVELS } from '../lib/phishingDetection';
 import { parseSizeToBytes } from '../lib/attachments';
 import MessageReader from '../components/mailer/MessageReader';
 import ComposeModal from '../components/mailer/ComposeModal';
-import QuickRuleModal from '../components/mailer/QuickRuleModal';
+// Lazy: QuickRuleModal menarik RunNowDialog (~50 KB) — hanya saat "Buat aturan".
+const QuickRuleModal = lazy(() => import('../components/mailer/QuickRuleModal'));
 import { MessageListSkeleton, FoldersListSkeleton } from '../components/Skeleton';
 import { toast, useToastStore } from '../lib/toast';
 import { DEFAULT_FOLDERS, STALE_TIMES, isSentOrDraftFolder } from '../lib/constants';
@@ -4259,14 +4260,18 @@ export default function MailPage() {
       />
 
       {/* ── Quick Rule — buat aturan dari baris email ─────────────────────── */}
-      <QuickRuleModal
-        isOpen={!!quickRuleMsg}
-        onClose={() => setQuickRuleMsg(null)}
-        message={quickRuleMsg}
-        folders={folders}
-        userEmail={user?.email}
-        sogoToken={user?.sogoToken}
-      />
+      {quickRuleMsg && (
+        <Suspense fallback={null}>
+          <QuickRuleModal
+            isOpen
+            onClose={() => setQuickRuleMsg(null)}
+            message={quickRuleMsg}
+            folders={folders}
+            userEmail={user?.email}
+            sogoToken={user?.sogoToken}
+          />
+        </Suspense>
+      )}
 
       {/* ── Folder Dialog: buat subfolder / hapus folder ──────────────────── */}
       {folderDialog && (

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Eye, EyeOff, Loader2, AlertCircle, Sun, Moon } from 'lucide-react';
 import { login, logout, resetSessionExpiredFlag, registerSmtpSession, revokeSmtpSession } from '../lib/api';
 import { friendlyLoginError, loginErrorAction } from '../lib/loginDiagnostics';
@@ -110,11 +109,8 @@ export default function LoginPage() {
         </button>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="w-full max-w-sm mx-auto flex flex-col"
+      <div
+        className="anim-rise-in w-full max-w-sm mx-auto flex flex-col"
       >
         {/* Mobile First Header */}
         <div className="flex flex-col items-center mb-8 gap-3 text-center">
@@ -175,13 +171,9 @@ export default function LoginPage() {
             </div>
 
             {/* Error Message */}
-            <AnimatePresence>
               {error && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="p-3 bg-destructive/10 text-destructive rounded-md text-sm font-medium border border-destructive/20 overflow-hidden space-y-2"
+                <div
+                  className="anim-fade-in p-3 bg-destructive/10 text-destructive rounded-md text-sm font-medium border border-destructive/20 overflow-hidden space-y-2"
                 >
                   <div className="flex items-center gap-2">
                     <AlertCircle size={16} className="shrink-0" />
@@ -198,9 +190,8 @@ export default function LoginPage() {
                       </a>
                     </div>
                   )}
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
 
             {/* Submit Button */}
             <button
@@ -255,7 +246,7 @@ export default function LoginPage() {
         <p className="text-center text-xs text-muted-foreground mt-4">
           © {new Date().getFullYear()} {ORG_NAME || APP_NAME}. Powered by SOGo &amp; mailcow.
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Calendar, Clock, MapPin, Users, FileText } from 'lucide-react';
 import { validateEventTimes, normalizeRepeatCount } from '../lib/eventValidation';
 import { toLocalDateStr, toLocalTimeStr } from '../lib/dateFormat';
@@ -290,21 +289,14 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
   }
 
   return (
-    <AnimatePresence>
+      <>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+        <div
+          className="anim-fade-in fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="w-full sm:max-w-lg bg-background flex flex-col max-h-[90vh] rounded-t-xl sm:rounded-xl shadow-lg overflow-hidden"
+          <div
+            className="anim-sheet-up w-full sm:max-w-lg bg-background flex flex-col max-h-[90vh] rounded-t-xl sm:rounded-xl shadow-lg overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -683,9 +675,9 @@ export default function EventModal({ isOpen, onClose, onSave, onDelete, event, s
                 </div>
               </form>
             )}
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+      </>
   );
 }
